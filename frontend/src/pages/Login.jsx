@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Mail, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import AuthLayout from '../components/auth/AuthLayout';
@@ -81,7 +80,7 @@ function Login() {
           placeholder="Enter your email"
           value={formData.email}
           onChange={handleChange}
-          icon={Mail}
+          icon="✉"
         />
 
         <AuthInput
@@ -91,7 +90,7 @@ function Login() {
           placeholder="Enter your password"
           value={formData.password}
           onChange={handleChange}
-          icon={Lock}
+          icon="🔒"
         />
 
         <div className="auth-options">

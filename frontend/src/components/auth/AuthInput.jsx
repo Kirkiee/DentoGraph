@@ -5,7 +5,7 @@ function AuthInput({
   placeholder,
   value,
   onChange,
-  icon: Icon,
+  icon,
   required = true,
 }) {
   return (
@@ -13,10 +13,10 @@ function AuthInput({
       <label>{label}</label>
 
       <div className="auth-input-wrapper">
-        {Icon && <Icon className="auth-input-icon" />}
+        {icon && <span className="auth-input-icon">{icon}</span>}
 
         <input
-          className={Icon ? 'auth-input has-icon' : 'auth-input'}
+          className={icon ? 'auth-input has-icon' : 'auth-input'}
           type={type}
           name={name}
           placeholder={placeholder}

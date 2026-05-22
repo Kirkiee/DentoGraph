@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import AuthLayout from '../components/auth/AuthLayout';
@@ -88,7 +87,7 @@ function Register() {
             placeholder="Juan"
             value={formData.firstName}
             onChange={handleChange}
-            icon={User}
+            icon="👤"
           />
 
           <AuthInput
@@ -107,7 +106,7 @@ function Register() {
           placeholder="juan@example.com"
           value={formData.email}
           onChange={handleChange}
-          icon={Mail}
+          icon="✉"
         />
 
         <AuthInput
@@ -117,7 +116,7 @@ function Register() {
           placeholder="09123456789"
           value={formData.contact_number}
           onChange={handleChange}
-          icon={Phone}
+          icon="☎"
           required={false}
         />
 
@@ -129,7 +128,7 @@ function Register() {
             placeholder="Create password"
             value={formData.password}
             onChange={handleChange}
-            icon={Lock}
+            icon="🔒"
           />
 
           <AuthInput
