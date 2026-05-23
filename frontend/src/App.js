@@ -1,17 +1,24 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 
-import Login from './pages/Login';
-import Register from './pages/Register';
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 
-import AdminDashboard from './pages/AdminDashboard';
-import DentistDashboard from './pages/DentistDashboard';
-import PatientDashboard from './pages/PatientDashboard';
-import AssistantDashboard from './pages/AssistantDashboard';
-import PatientProfile from './pages/PatientProfile';
-import PatientAppointments from './pages/PatientAppointments';
+import AdminDashboard from "./pages/AdminDashboard";
+import DentistDashboard from "./pages/DentistDashboard";
+import PatientDashboard from "./pages/PatientDashboard";
+import AssistantDashboard from "./pages/AssistantDashboard";
 
-import ProtectedRoute from './components/ProtectedRoute';
+import PatientProfile from "./pages/PatientProfile";
+import PatientAppointments from "./pages/PatientAppointments";
+import DentistAppointments from "./pages/DentistAppointments";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   return (
@@ -26,7 +33,7 @@ function App() {
         <Route
           path="/admin/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Admin']}>
+            <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminDashboard />
             </ProtectedRoute>
           }
@@ -35,8 +42,17 @@ function App() {
         <Route
           path="/dentist/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Dentist']}>
+            <ProtectedRoute allowedRoles={["Dentist"]}>
               <DentistDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/appointments"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistAppointments />
             </ProtectedRoute>
           }
         />
@@ -44,34 +60,34 @@ function App() {
         <Route
           path="/patient/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Patient']}>
+            <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientDashboard />
             </ProtectedRoute>
           }
         />
 
         <Route
-  path="/patient/profile"
-  element={
-    <ProtectedRoute allowedRoles={['Patient']}>
-      <PatientProfile />
-    </ProtectedRoute>
-  }
-/>
+          path="/patient/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientProfile />
+            </ProtectedRoute>
+          }
+        />
 
-<Route
-  path="/patient/appointments"
-  element={
-    <ProtectedRoute allowedRoles={['Patient']}>
-      <PatientAppointments />
-    </ProtectedRoute>
-  }
-/>
+        <Route
+          path="/patient/appointments"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientAppointments />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/assistant/dashboard"
           element={
-            <ProtectedRoute allowedRoles={['Assistant']}>
+            <ProtectedRoute allowedRoles={["Assistant"]}>
               <AssistantDashboard />
             </ProtectedRoute>
           }
