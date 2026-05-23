@@ -16,7 +16,11 @@ import AssistantDashboard from "./pages/AssistantDashboard";
 
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
+import PatientDentalRecords from "./pages/PatientDentalRecords";
+import PatientDentalRecordDetails from "./pages/PatientDentalRecordDetails";
 import DentistAppointments from "./pages/DentistAppointments";
+import DentistDentalRecords from "./pages/DentistDentalRecords";
+import DentistDentalRecordDetails from "./pages/DentistDentalRecordDetails";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -58,6 +62,24 @@ function App() {
         />
 
         <Route
+          path="/dentist/dental-records"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistDentalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/dental-records/:record_id"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistDentalRecordDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/patient/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
@@ -80,6 +102,24 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientAppointments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/records"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientDentalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/records/:record_id"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientDentalRecordDetails />
             </ProtectedRoute>
           }
         />
