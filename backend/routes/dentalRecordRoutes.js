@@ -1,391 +1,463 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pool = require('../config/db');
-const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
+const pool = require("../config/db");
+const {
+  authenticateToken,
+  authorizeRoles,
+} = require("../middleware/authMiddleware");
 
 // DENTIST: CREATE DENTAL RECORD FOR A PATIENT
-router.post('/', authenticateToken, authorizeRoles('Dentist'), async (req, res) => {
-  const user_id = req.user.user_id;
-  const { patient_id } = req.body;
+router.post(
+  "/",
+  authenticateToken,
+  authorizeRoles("Dentist"),
+  async (req, res) => {
+    const user_id = req.user.user_id;
+    const { patient_id } = req.body;
 
-  try {
-    // Get dentist profile from logged-in user
-    const dentistResult = await pool.query(
-      'SELECT dentist_id FROM dentists WHERE user_id = $1',
-      [user_id]
-    );
-
-    if (dentistResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Dentist profile not found. Please create your dentist profile first.'
-      });
+    if (!patient_id) {
+      return res.status(400).json({ error: "Patient ID is required" });
     }
 
-    const dentist_id = dentistResult.rows[0].dentist_id;
+    try {
+      const dentistResult = await pool.query(
+        "SELECT dentist_id FROM public.dentists WHERE user_id = $1",
+        [user_id],
+      );
 
-    // Check if patient exists
-    const patientResult = await pool.query(
-      'SELECT patient_id FROM patients WHERE patient_id = $1',
-      [patient_id]
-    );
+      if (dentistResult.rows.length === 0) {
+        return res.status(404).json({
+          error:
+            "Dentist profile not found. Please create your dentist profile first.",
+        });
+      }
 
-    if (patientResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Patient not found'
+      const dentist_id = dentistResult.rows[0].dentist_id;
+
+      const patientResult = await pool.query(
+        "SELECT patient_id FROM public.patients WHERE patient_id = $1",
+        [patient_id],
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+
+      const newRecord = await pool.query(
+        `INSERT INTO public.dental_records
+         (patient_id, dentist_id, date_created, last_updated)
+         VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [patient_id, dentist_id],
+      );
+
+      res.status(201).json({
+        message: "Dental record created successfully",
+        dental_record: newRecord.rows[0],
       });
+    } catch (err) {
+      console.error("Create dental record error:", err.message);
+      res.status(500).json({ error: "Error creating dental record" });
     }
+  },
+);
 
-    const newRecord = await pool.query(
-      `INSERT INTO dental_records
-       (patient_id, dentist_id, date_created, last_updated)
-       VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       RETURNING *`,
-      [patient_id, dentist_id]
-    );
+// DENTIST / ASSISTANT / ADMIN: GET ALL DENTAL RECORDS
+router.get(
+  "/",
+  authenticateToken,
+  authorizeRoles("Dentist", "Assistant", "Admin"),
+  async (req, res) => {
+    try {
+      const records = await pool.query(
+        `SELECT 
+            dr.record_id,
+            dr.patient_id,
+            patient_user.name AS patient_name,
+            dr.dentist_id,
+            dentist_user.name AS dentist_name,
+            dr.date_created,
+            dr.last_updated
+         FROM public.dental_records dr
+         JOIN public.patients p ON dr.patient_id = p.patient_id
+         JOIN public.users patient_user ON p.user_id = patient_user.user_id
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         JOIN public.users dentist_user ON d.user_id = dentist_user.user_id
+         ORDER BY dr.record_id DESC`,
+      );
 
-    res.status(201).json({
-      message: 'Dental record created successfully',
-      dental_record: newRecord.rows[0]
-    });
+      res.status(200).json({
+        message: "Dental records retrieved successfully",
+        dental_records: records.rows,
+      });
+    } catch (err) {
+      console.error("Get dental records error:", err.message);
+      res.status(500).json({ error: "Error retrieving dental records" });
+    }
+  },
+);
 
-  } catch (err) {
-    console.error('Create dental record error:', err.message);
-    res.status(500).json({ error: 'Error creating dental record' });
-  }
-});
+// DENTIST / ASSISTANT / ADMIN: GET PATIENTS FOR DENTAL RECORD CREATION
+router.get(
+  "/patients/list",
+  authenticateToken,
+  authorizeRoles("Dentist", "Assistant", "Admin"),
+  async (req, res) => {
+    try {
+      const patients = await pool.query(
+        `SELECT 
+            p.patient_id,
+            p.user_id,
+            u.name AS patient_name,
+            u.email
+         FROM public.patients p
+         JOIN public.users u ON p.user_id = u.user_id
+         ORDER BY u.name ASC`,
+      );
 
-// DENTIST / ASSISTANT: GET ALL DENTAL RECORDS
-router.get('/', authenticateToken, authorizeRoles('Dentist', 'Assistant', 'Admin'), async (req, res) => {
-  try {
-    const records = await pool.query(
-      `SELECT 
-          dental_records.record_id,
-          dental_records.patient_id,
-          patient_user.name AS patient_name,
-          dental_records.dentist_id,
-          dentist_user.name AS dentist_name,
-          dental_records.date_created,
-          dental_records.last_updated
-       FROM dental_records
-       JOIN patients ON dental_records.patient_id = patients.patient_id
-       JOIN users AS patient_user ON patients.user_id = patient_user.user_id
-       JOIN dentists ON dental_records.dentist_id = dentists.dentist_id
-       JOIN users AS dentist_user ON dentists.user_id = dentist_user.user_id
-       ORDER BY dental_records.record_id DESC`
-    );
-
-    res.status(200).json({
-      message: 'Dental records retrieved successfully',
-      dental_records: records.rows
-    });
-
-  } catch (err) {
-    console.error('Get dental records error:', err.message);
-    res.status(500).json({ error: 'Error retrieving dental records' });
-  }
-});
+      res.status(200).json({
+        message: "Patients retrieved successfully",
+        patients: patients.rows,
+      });
+    } catch (err) {
+      console.error("Get patients list error:", err.message);
+      res.status(500).json({ error: "Error retrieving patients" });
+    }
+  },
+);
 
 // PATIENT: GET OWN DENTAL RECORDS
-router.get('/patient/my-records/list', authenticateToken, authorizeRoles('Patient'), async (req, res) => {
-  const user_id = req.user.user_id;
+router.get(
+  "/patient/my-records/list",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const user_id = req.user.user_id;
 
-  try {
-    const patientResult = await pool.query(
-      'SELECT patient_id FROM patients WHERE user_id = $1',
-      [user_id]
-    );
+    try {
+      const patientResult = await pool.query(
+        "SELECT patient_id FROM public.patients WHERE user_id = $1",
+        [user_id],
+      );
 
-    if (patientResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Patient profile not found'
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: "Patient profile not found" });
+      }
+
+      const patient_id = patientResult.rows[0].patient_id;
+
+      const records = await pool.query(
+        `SELECT 
+            dr.record_id,
+            dr.patient_id,
+            patient_user.name AS patient_name,
+            dr.dentist_id,
+            dentist_user.name AS dentist_name,
+            dr.date_created,
+            dr.last_updated
+         FROM public.dental_records dr
+         JOIN public.patients p ON dr.patient_id = p.patient_id
+         JOIN public.users patient_user ON p.user_id = patient_user.user_id
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         JOIN public.users dentist_user ON d.user_id = dentist_user.user_id
+         WHERE dr.patient_id = $1
+         ORDER BY dr.date_created DESC`,
+        [patient_id],
+      );
+
+      res.status(200).json({
+        message: "Patient dental records retrieved successfully",
+        dental_records: records.rows,
       });
+    } catch (err) {
+      console.error("Get patient dental records error:", err.message);
+      res
+        .status(500)
+        .json({ error: "Error retrieving patient dental records" });
     }
+  },
+);
 
-    const patient_id = patientResult.rows[0].patient_id;
+// DENTIST / ASSISTANT / PATIENT / ADMIN: GET SINGLE DENTAL RECORD WITH TEETH AND TREATMENTS
+router.get(
+  "/:record_id",
+  authenticateToken,
+  authorizeRoles("Dentist", "Assistant", "Patient", "Admin"),
+  async (req, res) => {
+    const { record_id } = req.params;
 
-    const records = await pool.query(
-      `SELECT 
-          dental_records.record_id,
-          dental_records.patient_id,
-          patient_user.name AS patient_name,
-          dental_records.dentist_id,
-          dentist_user.name AS dentist_name,
-          dental_records.date_created,
-          dental_records.last_updated
-       FROM dental_records
-       JOIN patients ON dental_records.patient_id = patients.patient_id
-       JOIN users AS patient_user ON patients.user_id = patient_user.user_id
-       JOIN dentists ON dental_records.dentist_id = dentists.dentist_id
-       JOIN users AS dentist_user ON dentists.user_id = dentist_user.user_id
-       WHERE dental_records.patient_id = $1
-       ORDER BY dental_records.date_created DESC`,
-      [patient_id]
-    );
+    try {
+      const recordResult = await pool.query(
+        `SELECT 
+            dr.record_id,
+            dr.patient_id,
+            patient_user.name AS patient_name,
+            dr.dentist_id,
+            dentist_user.name AS dentist_name,
+            dr.date_created,
+            dr.last_updated
+         FROM public.dental_records dr
+         JOIN public.patients p ON dr.patient_id = p.patient_id
+         JOIN public.users patient_user ON p.user_id = patient_user.user_id
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         JOIN public.users dentist_user ON d.user_id = dentist_user.user_id
+         WHERE dr.record_id = $1`,
+        [record_id],
+      );
 
-    res.status(200).json({
-      message: 'Patient dental records retrieved successfully',
-      dental_records: records.rows
-    });
+      if (recordResult.rows.length === 0) {
+        return res.status(404).json({ error: "Dental record not found" });
+      }
 
-  } catch (err) {
-    console.error('Get patient dental records error:', err.message);
-    res.status(500).json({ error: 'Error retrieving patient dental records' });
-  }
-});
+      const teethResult = await pool.query(
+        `SELECT *
+         FROM public.teeth
+         WHERE record_id = $1
+         ORDER BY tooth_number`,
+        [record_id],
+      );
 
-// DENTIST / ASSISTANT / PATIENT: GET SINGLE DENTAL RECORD WITH TEETH AND TREATMENTS
-router.get('/:record_id', authenticateToken, authorizeRoles('Dentist', 'Assistant', 'Patient', 'Admin'), async (req, res) => {
-  const { record_id } = req.params;
+      const treatmentsResult = await pool.query(
+        `SELECT 
+            t.treatment_id,
+            t.tooth_id,
+            teeth.tooth_number,
+            t.procedure_type,
+            t.description,
+            t.treatment_date
+         FROM public.treatments t
+         JOIN public.teeth teeth ON t.tooth_id = teeth.tooth_id
+         WHERE teeth.record_id = $1
+         ORDER BY t.treatment_date DESC`,
+        [record_id],
+      );
 
-  try {
-    const recordResult = await pool.query(
-      `SELECT 
-          dental_records.record_id,
-          dental_records.patient_id,
-          patient_user.name AS patient_name,
-          dental_records.dentist_id,
-          dentist_user.name AS dentist_name,
-          dental_records.date_created,
-          dental_records.last_updated
-       FROM dental_records
-       JOIN patients ON dental_records.patient_id = patients.patient_id
-       JOIN users AS patient_user ON patients.user_id = patient_user.user_id
-       JOIN dentists ON dental_records.dentist_id = dentists.dentist_id
-       JOIN users AS dentist_user ON dentists.user_id = dentist_user.user_id
-       WHERE dental_records.record_id = $1`,
-      [record_id]
-    );
-
-    if (recordResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Dental record not found'
+      res.status(200).json({
+        message: "Dental record details retrieved successfully",
+        dental_record: recordResult.rows[0],
+        teeth: teethResult.rows,
+        treatments: treatmentsResult.rows,
       });
+    } catch (err) {
+      console.error("Get dental record details error:", err.message);
+      res.status(500).json({ error: "Error retrieving dental record details" });
     }
-
-    const teethResult = await pool.query(
-      `SELECT * FROM teeth
-       WHERE record_id = $1
-       ORDER BY tooth_number`,
-      [record_id]
-    );
-
-    const treatmentsResult = await pool.query(
-      `SELECT 
-          treatments.treatment_id,
-          treatments.tooth_id,
-          teeth.tooth_number,
-          treatments.procedure_type,
-          treatments.description,
-          treatments.treatment_date
-       FROM treatments
-       JOIN teeth ON treatments.tooth_id = teeth.tooth_id
-       WHERE teeth.record_id = $1
-       ORDER BY treatments.treatment_date DESC`,
-      [record_id]
-    );
-
-    res.status(200).json({
-      message: 'Dental record details retrieved successfully',
-      dental_record: recordResult.rows[0],
-      teeth: teethResult.rows,
-      treatments: treatmentsResult.rows
-    });
-
-  } catch (err) {
-    console.error('Get dental record details error:', err.message);
-    res.status(500).json({ error: 'Error retrieving dental record details' });
-  }
-});
+  },
+);
 
 // DENTIST / ASSISTANT: ADD TOOTH TO DENTAL RECORD
-router.post('/:record_id/teeth', authenticateToken, authorizeRoles('Dentist', 'Assistant'), async (req, res) => {
-  const { record_id } = req.params;
-  const { tooth_number, tooth_status } = req.body;
+router.post(
+  "/:record_id/teeth",
+  authenticateToken,
+  authorizeRoles("Dentist", "Assistant"),
+  async (req, res) => {
+    const { record_id } = req.params;
+    const { tooth_number, tooth_status } = req.body;
 
-  try {
-    // Check if dental record exists
-    const recordCheck = await pool.query(
-      'SELECT record_id FROM dental_records WHERE record_id = $1',
-      [record_id]
-    );
-
-    if (recordCheck.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Dental record not found'
-      });
+    if (!tooth_number) {
+      return res.status(400).json({ error: "Tooth number is required" });
     }
 
-    // Prevent duplicate tooth number in the same dental record
-    const duplicateCheck = await pool.query(
-      `SELECT * FROM teeth
-       WHERE record_id = $1 AND tooth_number = $2`,
-      [record_id, tooth_number]
-    );
+    try {
+      const recordCheck = await pool.query(
+        "SELECT record_id FROM public.dental_records WHERE record_id = $1",
+        [record_id],
+      );
 
-    if (duplicateCheck.rows.length > 0) {
-      return res.status(400).json({
-        error: 'This tooth already exists in the dental record'
-      });
-    }
+      if (recordCheck.rows.length === 0) {
+        return res.status(404).json({ error: "Dental record not found" });
+      }
 
-    const newTooth = await pool.query(
-      `INSERT INTO teeth
-       (record_id, tooth_number, tooth_status)
-       VALUES ($1, $2, $3)
-       RETURNING *`,
-      [record_id, tooth_number, tooth_status || 'Normal']
-    );
+      const duplicateCheck = await pool.query(
+        `SELECT tooth_id
+         FROM public.teeth
+         WHERE record_id = $1 AND tooth_number = $2`,
+        [record_id, tooth_number],
+      );
 
-    await pool.query(
-      `UPDATE dental_records
-       SET last_updated = CURRENT_TIMESTAMP
-       WHERE record_id = $1`,
-      [record_id]
-    );
+      if (duplicateCheck.rows.length > 0) {
+        return res.status(400).json({
+          error: "This tooth already exists in the dental record",
+        });
+      }
 
-    res.status(201).json({
-      message: 'Tooth added successfully',
-      tooth: newTooth.rows[0]
-    });
+      const newTooth = await pool.query(
+        `INSERT INTO public.teeth
+         (record_id, tooth_number, tooth_status)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [record_id, tooth_number, tooth_status || "Normal"],
+      );
 
-  } catch (err) {
-    console.error('Add tooth error:', err.message);
-    res.status(500).json({ error: 'Error adding tooth' });
-  }
-});
-
-// DENTIST / ASSISTANT: UPDATE TOOTH STATUS
-router.put('/teeth/:tooth_id', authenticateToken, authorizeRoles('Dentist', 'Assistant'), async (req, res) => {
-  const { tooth_id } = req.params;
-  const { tooth_status } = req.body;
-
-  try {
-    const updatedTooth = await pool.query(
-      `UPDATE teeth
-       SET tooth_status = $1
-       WHERE tooth_id = $2
-       RETURNING *`,
-      [tooth_status, tooth_id]
-    );
-
-    if (updatedTooth.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Tooth not found'
-      });
-    }
-
-    await pool.query(
-      `UPDATE dental_records
-       SET last_updated = CURRENT_TIMESTAMP
-       WHERE record_id = $1`,
-      [updatedTooth.rows[0].record_id]
-    );
-
-    res.status(200).json({
-      message: 'Tooth status updated successfully',
-      tooth: updatedTooth.rows[0]
-    });
-
-  } catch (err) {
-    console.error('Update tooth error:', err.message);
-    res.status(500).json({ error: 'Error updating tooth status' });
-  }
-});
-
-// DENTIST: ADD TREATMENT TO TOOTH
-router.post('/teeth/:tooth_id/treatments', authenticateToken, authorizeRoles('Dentist'), async (req, res) => {
-  const { tooth_id } = req.params;
-  const { procedure_type, description, treatment_date } = req.body;
-
-  try {
-    // Check if tooth exists
-    const toothCheck = await pool.query(
-      'SELECT * FROM teeth WHERE tooth_id = $1',
-      [tooth_id]
-    );
-
-    if (toothCheck.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Tooth not found'
-      });
-    }
-
-    const newTreatment = await pool.query(
-      `INSERT INTO treatments
-       (tooth_id, procedure_type, description, treatment_date)
-       VALUES ($1, $2, $3, $4)
-       RETURNING *`,
-      [
-        tooth_id,
-        procedure_type,
-        description || null,
-        treatment_date || new Date()
-      ]
-    );
-
-    await pool.query(
-      `UPDATE dental_records
-       SET last_updated = CURRENT_TIMESTAMP
-       WHERE record_id = $1`,
-      [toothCheck.rows[0].record_id]
-    );
-
-    res.status(201).json({
-      message: 'Treatment added successfully',
-      treatment: newTreatment.rows[0]
-    });
-
-  } catch (err) {
-    console.error('Add treatment error:', err.message);
-    res.status(500).json({ error: 'Error adding treatment' });
-  }
-});
-
-// DENTIST: UPDATE TREATMENT
-router.put('/treatments/:treatment_id', authenticateToken, authorizeRoles('Dentist'), async (req, res) => {
-  const { treatment_id } = req.params;
-  const { procedure_type, description, treatment_date } = req.body;
-
-  try {
-    const updatedTreatment = await pool.query(
-      `UPDATE treatments
-       SET procedure_type = $1,
-           description = $2,
-           treatment_date = $3
-       WHERE treatment_id = $4
-       RETURNING *`,
-      [procedure_type, description, treatment_date, treatment_id]
-    );
-
-    if (updatedTreatment.rows.length === 0) {
-      return res.status(404).json({
-        error: 'Treatment not found'
-      });
-    }
-
-    const toothResult = await pool.query(
-      'SELECT record_id FROM teeth WHERE tooth_id = $1',
-      [updatedTreatment.rows[0].tooth_id]
-    );
-
-    if (toothResult.rows.length > 0) {
       await pool.query(
-        `UPDATE dental_records
+        `UPDATE public.dental_records
          SET last_updated = CURRENT_TIMESTAMP
          WHERE record_id = $1`,
-        [toothResult.rows[0].record_id]
+        [record_id],
       );
+
+      res.status(201).json({
+        message: "Tooth added successfully",
+        tooth: newTooth.rows[0],
+      });
+    } catch (err) {
+      console.error("Add tooth error:", err.message);
+      res.status(500).json({ error: "Error adding tooth" });
+    }
+  },
+);
+
+// DENTIST / ASSISTANT: UPDATE TOOTH STATUS
+router.put(
+  "/teeth/:tooth_id",
+  authenticateToken,
+  authorizeRoles("Dentist", "Assistant"),
+  async (req, res) => {
+    const { tooth_id } = req.params;
+    const { tooth_status } = req.body;
+
+    if (!tooth_status) {
+      return res.status(400).json({ error: "Tooth status is required" });
     }
 
-    res.status(200).json({
-      message: 'Treatment updated successfully',
-      treatment: updatedTreatment.rows[0]
-    });
+    try {
+      const updatedTooth = await pool.query(
+        `UPDATE public.teeth
+         SET tooth_status = $1
+         WHERE tooth_id = $2
+         RETURNING *`,
+        [tooth_status, tooth_id],
+      );
 
-  } catch (err) {
-    console.error('Update treatment error:', err.message);
-    res.status(500).json({ error: 'Error updating treatment' });
-  }
-});
+      if (updatedTooth.rows.length === 0) {
+        return res.status(404).json({ error: "Tooth not found" });
+      }
+
+      await pool.query(
+        `UPDATE public.dental_records
+         SET last_updated = CURRENT_TIMESTAMP
+         WHERE record_id = $1`,
+        [updatedTooth.rows[0].record_id],
+      );
+
+      res.status(200).json({
+        message: "Tooth status updated successfully",
+        tooth: updatedTooth.rows[0],
+      });
+    } catch (err) {
+      console.error("Update tooth error:", err.message);
+      res.status(500).json({ error: "Error updating tooth status" });
+    }
+  },
+);
+
+// DENTIST: ADD TREATMENT TO TOOTH
+router.post(
+  "/teeth/:tooth_id/treatments",
+  authenticateToken,
+  authorizeRoles("Dentist"),
+  async (req, res) => {
+    const { tooth_id } = req.params;
+    const { procedure_type, description, treatment_date } = req.body;
+
+    if (!procedure_type) {
+      return res.status(400).json({ error: "Procedure type is required" });
+    }
+
+    try {
+      const toothCheck = await pool.query(
+        "SELECT * FROM public.teeth WHERE tooth_id = $1",
+        [tooth_id],
+      );
+
+      if (toothCheck.rows.length === 0) {
+        return res.status(404).json({ error: "Tooth not found" });
+      }
+
+      const newTreatment = await pool.query(
+        `INSERT INTO public.treatments
+         (tooth_id, procedure_type, description, treatment_date)
+         VALUES ($1, $2, $3, $4)
+         RETURNING *`,
+        [
+          tooth_id,
+          procedure_type,
+          description || null,
+          treatment_date || new Date(),
+        ],
+      );
+
+      await pool.query(
+        `UPDATE public.dental_records
+         SET last_updated = CURRENT_TIMESTAMP
+         WHERE record_id = $1`,
+        [toothCheck.rows[0].record_id],
+      );
+
+      res.status(201).json({
+        message: "Treatment added successfully",
+        treatment: newTreatment.rows[0],
+      });
+    } catch (err) {
+      console.error("Add treatment error:", err.message);
+      res.status(500).json({ error: "Error adding treatment" });
+    }
+  },
+);
+
+// DENTIST: UPDATE TREATMENT
+router.put(
+  "/treatments/:treatment_id",
+  authenticateToken,
+  authorizeRoles("Dentist"),
+  async (req, res) => {
+    const { treatment_id } = req.params;
+    const { procedure_type, description, treatment_date } = req.body;
+
+    if (!procedure_type || !treatment_date) {
+      return res.status(400).json({
+        error: "Procedure type and treatment date are required",
+      });
+    }
+
+    try {
+      const updatedTreatment = await pool.query(
+        `UPDATE public.treatments
+         SET procedure_type = $1,
+             description = $2,
+             treatment_date = $3
+         WHERE treatment_id = $4
+         RETURNING *`,
+        [procedure_type, description || null, treatment_date, treatment_id],
+      );
+
+      if (updatedTreatment.rows.length === 0) {
+        return res.status(404).json({ error: "Treatment not found" });
+      }
+
+      const toothResult = await pool.query(
+        "SELECT record_id FROM public.teeth WHERE tooth_id = $1",
+        [updatedTreatment.rows[0].tooth_id],
+      );
+
+      if (toothResult.rows.length > 0) {
+        await pool.query(
+          `UPDATE public.dental_records
+           SET last_updated = CURRENT_TIMESTAMP
+           WHERE record_id = $1`,
+          [toothResult.rows[0].record_id],
+        );
+      }
+
+      res.status(200).json({
+        message: "Treatment updated successfully",
+        treatment: updatedTreatment.rows[0],
+      });
+    } catch (err) {
+      console.error("Update treatment error:", err.message);
+      res.status(500).json({ error: "Error updating treatment" });
+    }
+  },
+);
 
 module.exports = router;
