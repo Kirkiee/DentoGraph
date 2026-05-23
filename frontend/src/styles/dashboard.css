@@ -1140,3 +1140,55 @@
   text-align: center;
   text-decoration: none;
 }
+
+/* FILTER CONTROLS */
+
+.appointment-filters {
+  display: grid;
+  grid-template-columns: 1fr 220px 220px;
+  gap: 18px;
+  margin-bottom: 24px;
+  padding: 18px;
+  background: #f8fafc;
+  border: 1px solid var(--dg-border);
+  border-radius: 18px;
+}
+
+.appointment-filters .form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.appointment-filters label {
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.appointment-filters input,
+.appointment-filters select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--dg-border);
+  border-radius: 15px;
+  padding: 14px 15px;
+  background: #ffffff;
+  color: var(--dg-text);
+  font-size: 14px;
+  outline: none;
+  font-family: Arial, sans-serif;
+  transition: 0.2s ease;
+}
+
+.appointment-filters input:focus,
+.appointment-filters select:focus {
+  border-color: var(--dg-primary);
+  box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.14);
+}
+
+@media (max-width: 1000px) {
+  .appointment-filters {
+    grid-template-columns: 1fr;
+  }
+}

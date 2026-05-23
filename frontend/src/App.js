@@ -14,15 +14,22 @@ import DentistDashboard from "./pages/DentistDashboard";
 import PatientDashboard from "./pages/PatientDashboard";
 import AssistantDashboard from "./pages/AssistantDashboard";
 
+import AdminUsers from "./pages/AdminUsers";
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
 import PatientDentalRecords from "./pages/PatientDentalRecords";
 import PatientDentalRecordDetails from "./pages/PatientDentalRecordDetails";
 import PatientXrays from "./pages/PatientXrays";
+import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
 import DentistDentalRecords from "./pages/DentistDentalRecords";
 import DentistDentalRecordDetails from "./pages/DentistDentalRecordDetails";
 import DentistXrays from "./pages/DentistXrays";
+import AssistantProfile from "./pages/AssistantProfile";
+import AssistantAppointments from "./pages/AssistantAppointments";
+import AssistantDentalRecords from "./pages/AssistantDentalRecords";
+import AssistantDentalRecordDetails from "./pages/AssistantDentalRecordDetails";
+import AssistantXrays from "./pages/AssistantXrays";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -46,10 +53,28 @@ function App() {
         />
 
         <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminUsers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/dentist/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Dentist"]}>
               <DentistDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistProfile />
             </ProtectedRoute>
           }
         />
@@ -149,6 +174,51 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Assistant"]}>
               <AssistantDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Assistant"]}>
+              <AssistantProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/appointments"
+          element={
+            <ProtectedRoute allowedRoles={["Assistant"]}>
+              <AssistantAppointments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/records"
+          element={
+            <ProtectedRoute allowedRoles={["Assistant"]}>
+              <AssistantDentalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/records/:record_id"
+          element={
+            <ProtectedRoute allowedRoles={["Assistant"]}>
+              <AssistantDentalRecordDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/xrays"
+          element={
+            <ProtectedRoute allowedRoles={["Assistant"]}>
+              <AssistantXrays />
             </ProtectedRoute>
           }
         />
