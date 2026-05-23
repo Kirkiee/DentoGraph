@@ -18,9 +18,11 @@ import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
 import PatientDentalRecords from "./pages/PatientDentalRecords";
 import PatientDentalRecordDetails from "./pages/PatientDentalRecordDetails";
+import PatientXrays from "./pages/PatientXrays";
 import DentistAppointments from "./pages/DentistAppointments";
 import DentistDentalRecords from "./pages/DentistDentalRecords";
 import DentistDentalRecordDetails from "./pages/DentistDentalRecordDetails";
+import DentistXrays from "./pages/DentistXrays";
 
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -80,6 +82,15 @@ function App() {
         />
 
         <Route
+          path="/dentist/xrays"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistXrays />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/patient/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
@@ -120,6 +131,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientDentalRecordDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/xrays"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientXrays />
             </ProtectedRoute>
           }
         />

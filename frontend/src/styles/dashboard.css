@@ -901,3 +901,242 @@
     width: 100%;
   }
 }
+
+/* VISUAL TOOTH CHART */
+
+.tooth-chart-section {
+  margin-top: 28px;
+}
+
+.tooth-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+  color: var(--dg-muted);
+  font-size: 13px;
+}
+
+.tooth-chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.legend-dot.normal {
+  background: #22c55e;
+}
+
+.legend-dot.warning {
+  background: #f59e0b;
+}
+
+.legend-dot.treated {
+  background: #2b6cb0;
+}
+
+.legend-dot.danger {
+  background: #dc2626;
+}
+
+.legend-dot.empty {
+  background: #cbd5e1;
+}
+
+.tooth-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--dg-border);
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.tooth-chart-item {
+  border: 1px solid var(--dg-border);
+  border-radius: 16px;
+  padding: 12px 8px;
+  background: #ffffff;
+  cursor: pointer;
+  transition: 0.2s ease;
+  text-align: center;
+  min-height: 72px;
+}
+
+.tooth-chart-item span {
+  display: block;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--dg-text);
+}
+
+.tooth-chart-item small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--dg-muted);
+}
+
+.tooth-chart-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.08);
+}
+
+.tooth-chart-item.selected {
+  outline: 3px solid rgba(43, 108, 176, 0.25);
+  border-color: var(--dg-primary);
+}
+
+.tooth-chart-item.tooth-normal {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.tooth-chart-item.tooth-warning {
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+.tooth-chart-item.tooth-treated {
+  background: #e3f2fd;
+  border-color: #93c5fd;
+}
+
+.tooth-chart-item.tooth-danger {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.tooth-chart-item.tooth-empty {
+  background: #ffffff;
+  border-style: dashed;
+  opacity: 0.78;
+}
+
+.selected-tooth-panel {
+  margin-top: 24px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--dg-border);
+  background: #f8fafc;
+}
+
+.selected-tooth-panel h3 {
+  margin: 0 0 10px;
+  color: var(--dg-text);
+  font-size: 18px;
+}
+
+.selected-tooth-panel p {
+  margin: 6px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.selected-tooth-panel button {
+  margin-top: 12px;
+}
+
+.appointment-actions select {
+  border: 1px solid var(--dg-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #ffffff;
+  color: var(--dg-text);
+  font-size: 14px;
+  outline: none;
+}
+
+@media (max-width: 900px) {
+  .tooth-chart-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .tooth-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* X-RAY MANAGEMENT */
+
+.xray-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 18px;
+}
+
+.xray-card {
+  background: #f8fafc;
+  border: 1px solid var(--dg-border);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
+}
+
+.xray-preview {
+  height: 180px;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.xray-preview img {
+  width: 100%;
+  height: 100%;
+  -o-object-fit: cover;
+  object-fit: cover;
+}
+
+.xray-pdf-preview {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  background: #fee2e2;
+  color: #991b1b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.xray-info {
+  padding: 16px;
+}
+
+.xray-info h3 {
+  margin: 0 0 10px;
+  color: var(--dg-text);
+  font-size: 18px;
+}
+
+.xray-info p {
+  margin: 6px 0;
+  color: #475569;
+  font-size: 14px;
+}
+
+.xray-actions {
+  display: flex;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.xray-actions .secondary-button,
+.xray-actions .danger-button {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+}

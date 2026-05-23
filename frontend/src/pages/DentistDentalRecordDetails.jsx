@@ -10,6 +10,9 @@ function DentistDentalRecordDetails() {
   const [record, setRecord] = useState(null);
   const [teeth, setTeeth] = useState([]);
   const [treatments, setTreatments] = useState([]);
+  const [xrays, setXrays] = useState([]);
+
+  const [selectedTooth, setSelectedTooth] = useState(null);
 
   const [toothForm, setToothForm] = useState({
     tooth_number: "",
@@ -17,7 +20,6 @@ function DentistDentalRecordDetails() {
   });
 
   const [showTreatmentModal, setShowTreatmentModal] = useState(false);
-  const [selectedTooth, setSelectedTooth] = useState(null);
   const [treatmentForm, setTreatmentForm] = useState({
     procedure_type: "",
     description: "",
@@ -40,6 +42,11 @@ function DentistDentalRecordDetails() {
     },
   };
 
+  const adultTeethNumbers = [
+    18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46,
+    45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
+  ];
+
   useEffect(() => {
     fetchRecordDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -50,14 +57,29 @@ function DentistDentalRecordDetails() {
       setLoading(true);
       setError("");
 
-      const response = await API.get(
+      const recordResponse = await API.get(
         `/api/dental-records/${record_id}`,
         authHeaders,
       );
 
-      setRecord(response.data.dental_record);
-      setTeeth(response.data.teeth || []);
-      setTreatments(response.data.treatments || []);
+      setRecord(recordResponse.data.dental_record);
+      setTeeth(recordResponse.data.teeth || []);
+      setTreatments(recordResponse.data.treatments || []);
+
+      const xrayResponse = await API.get(
+        `/api/xrays/record/${record_id}`,
+        authHeaders,
+      );
+
+      setXrays(xrayResponse.data.xrays || []);
+
+      if (selectedTooth) {
+        const updatedSelectedTooth = recordResponse.data.teeth?.find(
+          (tooth) => tooth.tooth_id === selectedTooth.tooth_id,
+        );
+
+        setSelectedTooth(updatedSelectedTooth || null);
+      }
     } catch (err) {
       setError(
         err.response?.data?.error || "Unable to load dental record details.",
@@ -65,6 +87,16 @@ function DentistDentalRecordDetails() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getToothByNumber = (toothNumber) => {
+    return teeth.find(
+      (tooth) => Number(tooth.tooth_number) === Number(toothNumber),
+    );
+  };
+
+  const getTreatmentsByToothId = (toothId) => {
+    return treatments.filter((treatment) => treatment.tooth_id === toothId);
   };
 
   const handleToothChange = (e) => {
@@ -154,7 +186,6 @@ function DentistDentalRecordDetails() {
 
   const closeTreatmentModal = () => {
     setShowTreatmentModal(false);
-    setSelectedTooth(null);
     setTreatmentForm({
       procedure_type: "",
       description: "",
@@ -201,6 +232,22 @@ function DentistDentalRecordDetails() {
     }
   };
 
+  const getFileUrl = (filePath) => {
+    if (!filePath) return "#";
+
+    const normalizedPath = filePath.replace(/\\/g, "/");
+
+    if (normalizedPath.startsWith("http")) {
+      return normalizedPath;
+    }
+
+    return `http://localhost:5000/${normalizedPath}`;
+  };
+
+  const isImageFile = (filePath) => {
+    return /\.(jpg|jpeg|png|webp|gif)$/i.test(filePath || "");
+  };
+
   const getToothStatusClass = (status) => {
     switch (status) {
       case "Healthy":
@@ -220,14 +267,39 @@ function DentistDentalRecordDetails() {
     }
   };
 
+  const getToothChartClass = (status, isSelected) => {
+    let className = "tooth-chart-item";
+
+    if (isSelected) {
+      className += " selected";
+    }
+
+    switch (status) {
+      case "Healthy":
+      case "Normal":
+        return `${className} tooth-normal`;
+      case "Cavity":
+      case "Needs Treatment":
+        return `${className} tooth-warning`;
+      case "Extracted":
+      case "Missing":
+        return `${className} tooth-danger`;
+      case "Filled":
+      case "Treated":
+        return `${className} tooth-treated`;
+      default:
+        return `${className} tooth-empty`;
+    }
+  };
+
   return (
     <DashboardLayout role="Dentist">
       <div className="appointments-layout">
         <div className="appointment-form-card">
           <h2>Add Tooth</h2>
           <p>
-            Add tooth information to this dental record. Tooth details can later
-            be used for treatment tracking.
+            Add tooth information to this dental record. After adding a tooth,
+            it will appear in the visual dental chart.
           </p>
 
           {message && <div className="success-message">{message}</div>}
@@ -272,6 +344,26 @@ function DentistDentalRecordDetails() {
               {addingTooth ? "Adding..." : "Add Tooth"}
             </button>
           </form>
+
+          {selectedTooth && (
+            <div className="selected-tooth-panel">
+              <h3>Selected Tooth #{selectedTooth.tooth_number}</h3>
+              <p>
+                <strong>Status:</strong> {selectedTooth.tooth_status}
+              </p>
+              <p>
+                <strong>Treatments:</strong>{" "}
+                {getTreatmentsByToothId(selectedTooth.tooth_id).length}
+              </p>
+
+              <button
+                className="secondary-button"
+                onClick={() => openTreatmentModal(selectedTooth)}
+              >
+                Add Treatment
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="appointments-list-card">
@@ -279,8 +371,8 @@ function DentistDentalRecordDetails() {
             <div>
               <h2>Dental Record Details</h2>
               <p>
-                View and update teeth and treatment information for this patient
-                record.
+                View the visual tooth chart, update tooth status, manage
+                treatments, and view uploaded X-rays.
               </p>
             </div>
 
@@ -336,13 +428,12 @@ function DentistDentalRecordDetails() {
                 </div>
               </div>
 
-              <div style={{ marginTop: "22px" }}>
+              <div className="tooth-chart-section">
                 <div className="appointments-header">
                   <div>
-                    <h2>Teeth</h2>
+                    <h2>Visual Tooth Chart</h2>
                     <p>
-                      Manage tooth status and add treatments for this dental
-                      record.
+                      Click a recorded tooth to view details and add treatments.
                     </p>
                   </div>
 
@@ -352,6 +443,66 @@ function DentistDentalRecordDetails() {
                   >
                     Refresh
                   </button>
+                </div>
+
+                <div className="tooth-chart-legend">
+                  <span>
+                    <i className="legend-dot normal"></i> Normal
+                  </span>
+                  <span>
+                    <i className="legend-dot warning"></i> Needs Treatment
+                  </span>
+                  <span>
+                    <i className="legend-dot treated"></i> Treated
+                  </span>
+                  <span>
+                    <i className="legend-dot danger"></i> Missing/Extracted
+                  </span>
+                  <span>
+                    <i className="legend-dot empty"></i> Not Recorded
+                  </span>
+                </div>
+
+                <div className="tooth-chart-grid">
+                  {adultTeethNumbers.map((toothNumber) => {
+                    const tooth = getToothByNumber(toothNumber);
+                    const isSelected =
+                      selectedTooth?.tooth_number === toothNumber;
+
+                    return (
+                      <button
+                        key={toothNumber}
+                        type="button"
+                        className={getToothChartClass(
+                          tooth?.tooth_status,
+                          isSelected,
+                        )}
+                        onClick={() => {
+                          if (tooth) {
+                            setSelectedTooth(tooth);
+                          } else {
+                            setToothForm((prev) => ({
+                              ...prev,
+                              tooth_number: toothNumber,
+                            }));
+                            setSelectedTooth(null);
+                          }
+                        }}
+                      >
+                        <span>{toothNumber}</span>
+                        <small>{tooth ? tooth.tooth_status : "Empty"}</small>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginTop: "28px" }}>
+                <div className="appointments-header">
+                  <div>
+                    <h2>Recorded Teeth</h2>
+                    <p>Update tooth status or add treatment records.</p>
+                  </div>
                 </div>
 
                 {teeth.length === 0 ? (
@@ -378,6 +529,11 @@ function DentistDentalRecordDetails() {
 
                           <p>
                             <strong>Tooth ID:</strong> {tooth.tooth_id}
+                          </p>
+
+                          <p>
+                            <strong>Treatments:</strong>{" "}
+                            {getTreatmentsByToothId(tooth.tooth_id).length}
                           </p>
                         </div>
 
@@ -460,6 +616,70 @@ function DentistDentalRecordDetails() {
                                 ).toLocaleString()
                               : "N/A"}
                           </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ marginTop: "28px" }}>
+                <div className="appointments-header">
+                  <div>
+                    <h2>X-rays</h2>
+                    <p>Uploaded X-rays connected to this dental record.</p>
+                  </div>
+                </div>
+
+                {xrays.length === 0 ? (
+                  <div className="empty-state">
+                    <h3>No X-rays uploaded yet</h3>
+                    <p>
+                      X-rays uploaded from the X-ray module will appear here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="xray-grid">
+                    {xrays.map((xray) => (
+                      <div className="xray-card" key={xray.xray_id}>
+                        <div className="xray-preview">
+                          {isImageFile(xray.file_path) ? (
+                            <img
+                              src={getFileUrl(xray.file_path)}
+                              alt={`X-ray ${xray.xray_id}`}
+                            />
+                          ) : (
+                            <div className="xray-pdf-preview">PDF</div>
+                          )}
+                        </div>
+
+                        <div className="xray-info">
+                          <h3>X-ray #{xray.xray_id}</h3>
+
+                          <p>
+                            <strong>Tooth:</strong>{" "}
+                            {xray.tooth_number
+                              ? `Tooth #${xray.tooth_number}`
+                              : "General record X-ray"}
+                          </p>
+
+                          <p>
+                            <strong>Uploaded:</strong>{" "}
+                            {xray.upload_date
+                              ? new Date(xray.upload_date).toLocaleString()
+                              : "N/A"}
+                          </p>
+                        </div>
+
+                        <div className="xray-actions">
+                          <a
+                            href={getFileUrl(xray.file_path)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="secondary-button"
+                          >
+                            View
+                          </a>
                         </div>
                       </div>
                     ))}
