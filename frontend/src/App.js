@@ -18,6 +18,8 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminClinics from "./pages/AdminClinics";
 import AdminSubscriptions from "./pages/AdminSubscriptions";
 import AdminReports from "./pages/AdminReports";
+import AdminDentalRecords from "./pages/AdminDentalRecords";
+import AdminDentalRecordDetails from "./pages/AdminDentalRecordDetails";
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
 import PatientDentalRecords from "./pages/PatientDentalRecords";
@@ -87,6 +89,24 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminReports />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/dental-records"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminDentalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/dental-records/:record_id"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminDentalRecordDetails />
             </ProtectedRoute>
           }
         />
