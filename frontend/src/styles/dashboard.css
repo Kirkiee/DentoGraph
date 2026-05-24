@@ -1192,3 +1192,56 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ADMIN REPORTS */
+
+.report-section {
+  margin-top: 28px;
+}
+
+.report-two-column {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 28px;
+}
+
+.report-panel {
+  border: 1px solid var(--dg-border);
+  border-radius: 20px;
+  background: #f8fafc;
+  padding: 20px;
+}
+
+.report-panel .appointments-list {
+  margin-top: 14px;
+}
+
+@media (max-width: 1000px) {
+  .report-two-column {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* SELECTED DENTIST INFO */
+
+.selected-dentist-card {
+  margin-top: 14px;
+  padding: 16px;
+  border: 1px solid var(--dg-border);
+  border-radius: 16px;
+  background: #f8fafc;
+}
+
+.selected-dentist-card h3 {
+  margin: 0 0 10px;
+  color: var(--dg-text);
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.selected-dentist-card p {
+  margin: 6px 0;
+  color: var(--dg-muted);
+  font-size: 14px;
+}

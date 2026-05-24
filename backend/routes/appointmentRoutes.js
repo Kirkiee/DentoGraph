@@ -21,9 +21,12 @@ router.get(
           d.license_number,
           d.specialization,
           d.availability,
-          d.status
+          d.status,
+          d.clinic_id,
+          c.clinic_name
        FROM public.dentists d
        JOIN public.users u ON d.user_id = u.user_id
+       LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
        WHERE d.status = 'Active'
        ORDER BY u.name ASC`,
       );
@@ -80,10 +83,10 @@ router.post(
 
       const conflictCheck = await pool.query(
         `SELECT appointment_id
-       FROM public.appointments
-       WHERE dentist_id = $1
-       AND appointment_date = $2
-       AND status IN ('Pending', 'Scheduled')`,
+         FROM public.appointments
+         WHERE dentist_id = $1
+         AND appointment_date = $2
+         AND status IN ('Pending', 'Scheduled')`,
         [dentist_id, appointment_date],
       );
 
@@ -95,9 +98,19 @@ router.post(
 
       const newAppointment = await pool.query(
         `INSERT INTO public.appointments
-        (patient_id, dentist_id, appointment_date, status, notes, appointment_type, reschedule_request)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *`,
+          (
+            patient_id,
+            dentist_id,
+            appointment_date,
+            status,
+            notes,
+            appointment_type,
+            reschedule_request,
+            requested_appointment_date,
+            reschedule_status
+          )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING *`,
         [
           patient_id,
           dentist_id,
@@ -106,6 +119,8 @@ router.post(
           notes || null,
           appointment_type || "Consultation",
           false,
+          null,
+          "None",
         ],
       );
 
@@ -142,21 +157,25 @@ router.get(
 
       const appointments = await pool.query(
         `SELECT
-            a.appointment_id,
-            a.patient_id,
-            a.dentist_id,
-            du.name AS dentist_name,
-            a.appointment_date,
-            a.status,
-            a.notes,
-            a.appointment_type,
-            a.cancellation_reason,
-            a.reschedule_request
-         FROM public.appointments a
-         JOIN public.dentists d ON a.dentist_id = d.dentist_id
-         JOIN public.users du ON d.user_id = du.user_id
-         WHERE a.patient_id = $1
-         ORDER BY a.appointment_date DESC`,
+      a.appointment_id,
+      a.patient_id,
+      a.dentist_id,
+      du.name AS dentist_name,
+      c.clinic_name AS clinic_name,
+      a.appointment_date,
+      a.status,
+      a.notes,
+      a.appointment_type,
+      a.cancellation_reason,
+      a.reschedule_request,
+      a.requested_appointment_date,
+      a.reschedule_status
+   FROM public.appointments a
+   JOIN public.dentists d ON a.dentist_id = d.dentist_id
+   JOIN public.users du ON d.user_id = du.user_id
+   LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+   WHERE a.patient_id = $1
+   ORDER BY a.appointment_date DESC`,
         [patient_id],
       );
 
@@ -193,21 +212,26 @@ router.get(
 
       const appointments = await pool.query(
         `SELECT
-            a.appointment_id,
-            a.patient_id,
-            pu.name AS patient_name,
-            a.dentist_id,
-            a.appointment_date,
-            a.status,
-            a.notes,
-            a.appointment_type,
-            a.cancellation_reason,
-            a.reschedule_request
-         FROM public.appointments a
-         JOIN public.patients p ON a.patient_id = p.patient_id
-         JOIN public.users pu ON p.user_id = pu.user_id
-         WHERE a.dentist_id = $1
-         ORDER BY a.appointment_date DESC`,
+      a.appointment_id,
+      a.patient_id,
+      pu.name AS patient_name,
+      a.dentist_id,
+      c.clinic_name AS clinic_name,
+      a.appointment_date,
+      a.status,
+      a.notes,
+      a.appointment_type,
+      a.cancellation_reason,
+      a.reschedule_request,
+      a.requested_appointment_date,
+      a.reschedule_status
+   FROM public.appointments a
+   JOIN public.patients p ON a.patient_id = p.patient_id
+   JOIN public.users pu ON p.user_id = pu.user_id
+   JOIN public.dentists d ON a.dentist_id = d.dentist_id
+   LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+   WHERE a.dentist_id = $1
+   ORDER BY a.appointment_date DESC`,
         [dentist_id],
       );
 
@@ -222,40 +246,99 @@ router.get(
   },
 );
 
-// ADMIN / ASSISTANT: VIEW ALL APPOINTMENTS
+// ADMIN / ASSISTANT: VIEW APPOINTMENTS
 router.get(
   "/",
   authenticateToken,
   authorizeRoles("Admin", "Assistant"),
   async (req, res) => {
     try {
-      const appointments = await pool.query(
-        `SELECT
-            a.appointment_id,
-            a.patient_id,
-            pu.name AS patient_name,
-            a.dentist_id,
-            du.name AS dentist_name,
-            a.appointment_date,
-            a.status,
-            a.notes,
-            a.appointment_type,
-            a.cancellation_reason,
-            a.reschedule_request
-         FROM public.appointments a
-         JOIN public.patients p ON a.patient_id = p.patient_id
-         JOIN public.users pu ON p.user_id = pu.user_id
-         JOIN public.dentists d ON a.dentist_id = d.dentist_id
-         JOIN public.users du ON d.user_id = du.user_id
-         ORDER BY a.appointment_date DESC`,
-      );
+      let appointments;
+
+      if (
+        req.user.role === "Assistant" ||
+        req.user.role === "Dental Assistant"
+      ) {
+        const assistantResult = await pool.query(
+          `SELECT assistant_id, clinic_id
+           FROM public.assistants
+           WHERE user_id = $1`,
+          [req.user.user_id],
+        );
+
+        if (assistantResult.rows.length === 0) {
+          return res.status(404).json({
+            error: "Assistant profile not found",
+          });
+        }
+
+        const assistant = assistantResult.rows[0];
+
+        if (!assistant.clinic_id) {
+          return res.status(400).json({
+            error: "Assistant is not assigned to a clinic",
+          });
+        }
+
+        appointments = await pool.query(
+          `SELECT
+              a.appointment_id,
+              a.patient_id,
+              pu.name AS patient_name,
+              a.dentist_id,
+              du.name AS dentist_name,
+              c.clinic_name AS clinic_name,
+              a.appointment_date,
+              a.status,
+              a.notes,
+              a.appointment_type,
+              a.cancellation_reason,
+              a.reschedule_request,
+              a.requested_appointment_date,
+              a.reschedule_status
+           FROM public.appointments a
+           JOIN public.patients p ON a.patient_id = p.patient_id
+           JOIN public.users pu ON p.user_id = pu.user_id
+           JOIN public.dentists d ON a.dentist_id = d.dentist_id
+           JOIN public.users du ON d.user_id = du.user_id
+           LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+           WHERE d.clinic_id = $1
+           ORDER BY a.appointment_date DESC`,
+          [assistant.clinic_id],
+        );
+      } else {
+        appointments = await pool.query(
+          `SELECT
+              a.appointment_id,
+              a.patient_id,
+              pu.name AS patient_name,
+              a.dentist_id,
+              du.name AS dentist_name,
+              c.clinic_name AS clinic_name,
+              a.appointment_date,
+              a.status,
+              a.notes,
+              a.appointment_type,
+              a.cancellation_reason,
+              a.reschedule_request,
+              a.requested_appointment_date,
+              a.reschedule_status
+           FROM public.appointments a
+           JOIN public.patients p ON a.patient_id = p.patient_id
+           JOIN public.users pu ON p.user_id = pu.user_id
+           JOIN public.dentists d ON a.dentist_id = d.dentist_id
+           JOIN public.users du ON d.user_id = du.user_id
+           LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+           ORDER BY a.appointment_date DESC`,
+        );
+      }
 
       res.status(200).json({
-        message: "All appointments retrieved successfully",
+        message: "Appointments retrieved successfully",
         appointments: appointments.rows,
       });
     } catch (err) {
-      console.error("Get all appointments error:", err.message);
+      console.error("Get appointments error:", err.message);
       res.status(500).json({ error: "Error retrieving appointments" });
     }
   },
@@ -328,7 +411,10 @@ router.put(
       const cancelledAppointment = await pool.query(
         `UPDATE public.appointments
          SET status = $1,
-             cancellation_reason = $2
+             cancellation_reason = $2,
+             reschedule_request = false,
+             requested_appointment_date = NULL,
+             reschedule_status = 'None'
          WHERE appointment_id = $3
          AND patient_id = $4
          RETURNING *`,
@@ -385,22 +471,57 @@ router.put(
 
       const patient_id = patientResult.rows[0].patient_id;
 
-      const rescheduledAppointment = await pool.query(
-        `UPDATE public.appointments
-         SET appointment_date = $1,
-             reschedule_request = $2,
-             status = $3
-         WHERE appointment_id = $4
-         AND patient_id = $5
-         RETURNING *`,
-        [new_appointment_date, true, "Pending", appointment_id, patient_id],
+      const appointmentResult = await pool.query(
+        `SELECT appointment_id, dentist_id, status
+         FROM public.appointments
+         WHERE appointment_id = $1
+         AND patient_id = $2`,
+        [appointment_id, patient_id],
       );
 
-      if (rescheduledAppointment.rows.length === 0) {
+      if (appointmentResult.rows.length === 0) {
         return res.status(404).json({
           error: "Appointment not found or does not belong to this patient",
         });
       }
+
+      const appointment = appointmentResult.rows[0];
+
+      if (
+        appointment.status === "Cancelled" ||
+        appointment.status === "Completed"
+      ) {
+        return res.status(400).json({
+          error: "Cancelled or completed appointments cannot be rescheduled",
+        });
+      }
+
+      const conflictCheck = await pool.query(
+        `SELECT appointment_id
+         FROM public.appointments
+         WHERE dentist_id = $1
+         AND appointment_date = $2
+         AND appointment_id <> $3
+         AND status IN ('Pending', 'Scheduled')`,
+        [appointment.dentist_id, new_appointment_date, appointment_id],
+      );
+
+      if (conflictCheck.rows.length > 0) {
+        return res.status(400).json({
+          error: "This requested appointment slot is already taken",
+        });
+      }
+
+      const rescheduledAppointment = await pool.query(
+        `UPDATE public.appointments
+         SET requested_appointment_date = $1,
+             reschedule_request = true,
+             reschedule_status = 'Pending'
+         WHERE appointment_id = $2
+         AND patient_id = $3
+         RETURNING *`,
+        [new_appointment_date, appointment_id, patient_id],
+      );
 
       res.status(200).json({
         message: "Appointment reschedule request submitted successfully",
@@ -411,6 +532,166 @@ router.put(
       res
         .status(500)
         .json({ error: "Error requesting appointment reschedule" });
+    }
+  },
+);
+
+// ADMIN / ASSISTANT / DENTIST: APPROVE RESCHEDULE REQUEST
+router.put(
+  "/:appointment_id/reschedule/approve",
+  authenticateToken,
+  authorizeRoles("Admin", "Assistant", "Dentist"),
+  async (req, res) => {
+    const { appointment_id } = req.params;
+
+    try {
+      const appointmentResult = await pool.query(
+        `SELECT *
+         FROM public.appointments
+         WHERE appointment_id = $1`,
+        [appointment_id],
+      );
+
+      if (appointmentResult.rows.length === 0) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      const appointment = appointmentResult.rows[0];
+
+      if (
+        !appointment.reschedule_request ||
+        !appointment.requested_appointment_date
+      ) {
+        return res.status(400).json({
+          error: "This appointment has no pending reschedule request",
+        });
+      }
+
+      if (req.user.role === "Dentist") {
+        const dentistResult = await pool.query(
+          "SELECT dentist_id FROM public.dentists WHERE user_id = $1",
+          [req.user.user_id],
+        );
+
+        if (
+          dentistResult.rows.length === 0 ||
+          Number(dentistResult.rows[0].dentist_id) !==
+            Number(appointment.dentist_id)
+        ) {
+          return res.status(403).json({
+            error: "You can only approve reschedule requests assigned to you",
+          });
+        }
+      }
+
+      const conflictCheck = await pool.query(
+        `SELECT appointment_id
+         FROM public.appointments
+         WHERE dentist_id = $1
+         AND appointment_date = $2
+         AND appointment_id <> $3
+         AND status IN ('Pending', 'Scheduled')`,
+        [
+          appointment.dentist_id,
+          appointment.requested_appointment_date,
+          appointment_id,
+        ],
+      );
+
+      if (conflictCheck.rows.length > 0) {
+        return res.status(400).json({
+          error: "The requested appointment slot is already taken",
+        });
+      }
+
+      const approvedAppointment = await pool.query(
+        `UPDATE public.appointments
+         SET appointment_date = requested_appointment_date,
+             requested_appointment_date = NULL,
+             reschedule_request = false,
+             reschedule_status = 'Approved',
+             status = 'Scheduled'
+         WHERE appointment_id = $1
+         RETURNING *`,
+        [appointment_id],
+      );
+
+      res.status(200).json({
+        message: "Reschedule request approved successfully",
+        appointment: approvedAppointment.rows[0],
+      });
+    } catch (err) {
+      console.error("Approve reschedule error:", err.message);
+      res.status(500).json({ error: "Error approving reschedule request" });
+    }
+  },
+);
+
+// ADMIN / ASSISTANT / DENTIST: REJECT RESCHEDULE REQUEST
+router.put(
+  "/:appointment_id/reschedule/reject",
+  authenticateToken,
+  authorizeRoles("Admin", "Assistant", "Dentist"),
+  async (req, res) => {
+    const { appointment_id } = req.params;
+
+    try {
+      const appointmentResult = await pool.query(
+        `SELECT *
+         FROM public.appointments
+         WHERE appointment_id = $1`,
+        [appointment_id],
+      );
+
+      if (appointmentResult.rows.length === 0) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      const appointment = appointmentResult.rows[0];
+
+      if (
+        !appointment.reschedule_request ||
+        !appointment.requested_appointment_date
+      ) {
+        return res.status(400).json({
+          error: "This appointment has no pending reschedule request",
+        });
+      }
+
+      if (req.user.role === "Dentist") {
+        const dentistResult = await pool.query(
+          "SELECT dentist_id FROM public.dentists WHERE user_id = $1",
+          [req.user.user_id],
+        );
+
+        if (
+          dentistResult.rows.length === 0 ||
+          Number(dentistResult.rows[0].dentist_id) !==
+            Number(appointment.dentist_id)
+        ) {
+          return res.status(403).json({
+            error: "You can only reject reschedule requests assigned to you",
+          });
+        }
+      }
+
+      const rejectedAppointment = await pool.query(
+        `UPDATE public.appointments
+         SET requested_appointment_date = NULL,
+             reschedule_request = false,
+             reschedule_status = 'Rejected'
+         WHERE appointment_id = $1
+         RETURNING *`,
+        [appointment_id],
+      );
+
+      res.status(200).json({
+        message: "Reschedule request rejected successfully",
+        appointment: rejectedAppointment.rows[0],
+      });
+    } catch (err) {
+      console.error("Reject reschedule error:", err.message);
+      res.status(500).json({ error: "Error rejecting reschedule request" });
     }
   },
 );

@@ -6,6 +6,7 @@ function AdminUsers() {
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [clinics, setClinics] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
@@ -31,12 +32,14 @@ function AdminUsers() {
     license_number: "",
     specialization: "",
     availability: "",
+    clinic_id: "",
   });
 
   const [roleProfileForm, setRoleProfileForm] = useState({
     license_number: "",
     specialization: "",
     availability: "",
+    clinic_id: "",
   });
 
   const [message, setMessage] = useState("");
@@ -53,6 +56,7 @@ function AdminUsers() {
   useEffect(() => {
     fetchUsers();
     fetchRoles();
+    fetchClinics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -81,6 +85,15 @@ function AdminUsers() {
       setRoles(response.data || []);
     } catch (err) {
       console.error("Fetch roles error:", err);
+    }
+  };
+
+  const fetchClinics = async () => {
+    try {
+      const response = await API.get("/api/clinics", authHeaders);
+      setClinics(response.data.clinics || []);
+    } catch (err) {
+      console.error("Fetch clinics error:", err);
     }
   };
 
@@ -129,6 +142,16 @@ function AdminUsers() {
   const selectedCreateRoleName = getSelectedCreateRoleName();
   const selectedChangeRoleName = getSelectedChangeRoleName();
 
+  const isCreateDentist = selectedCreateRoleName === "Dentist";
+  const isCreateAssistant =
+    selectedCreateRoleName === "Assistant" ||
+    selectedCreateRoleName === "Dental Assistant";
+
+  const isChangeDentist = selectedChangeRoleName === "Dentist";
+  const isChangeAssistant =
+    selectedChangeRoleName === "Assistant" ||
+    selectedChangeRoleName === "Dental Assistant";
+
   const openCreateModal = () => {
     setCreateForm({
       name: "",
@@ -138,6 +161,7 @@ function AdminUsers() {
       license_number: "",
       specialization: "",
       availability: "",
+      clinic_id: "",
     });
     setMessage("");
     setError("");
@@ -154,6 +178,7 @@ function AdminUsers() {
       license_number: "",
       specialization: "",
       availability: "",
+      clinic_id: "",
     });
   };
 
@@ -168,6 +193,7 @@ function AdminUsers() {
           license_number: "",
           specialization: "",
           availability: "",
+          clinic_id: "",
         };
       }
 
@@ -199,7 +225,7 @@ function AdminUsers() {
     }
 
     if (
-      selectedCreateRoleName === "Dentist" &&
+      isCreateDentist &&
       (!createForm.license_number ||
         !createForm.specialization ||
         !createForm.availability)
@@ -209,7 +235,7 @@ function AdminUsers() {
     }
 
     if (
-      selectedCreateRoleName === "Assistant" &&
+      isCreateAssistant &&
       (!createForm.license_number || !createForm.availability)
     ) {
       setError("Please complete the assistant profile fields.");
@@ -228,15 +254,21 @@ function AdminUsers() {
         role_id: Number(createForm.role_id),
       };
 
-      if (selectedCreateRoleName === "Dentist") {
+      if (isCreateDentist) {
         payload.license_number = createForm.license_number;
         payload.specialization = createForm.specialization;
         payload.availability = createForm.availability;
+        payload.clinic_id = createForm.clinic_id
+          ? Number(createForm.clinic_id)
+          : null;
       }
 
-      if (selectedCreateRoleName === "Assistant") {
+      if (isCreateAssistant) {
         payload.license_number = createForm.license_number;
         payload.availability = createForm.availability;
+        payload.clinic_id = createForm.clinic_id
+          ? Number(createForm.clinic_id)
+          : null;
       }
 
       await API.post("/api/users/register", payload);
@@ -301,6 +333,7 @@ function AdminUsers() {
       license_number: "",
       specialization: "",
       availability: "",
+      clinic_id: "",
     });
     setMessage("");
     setError("");
@@ -315,6 +348,7 @@ function AdminUsers() {
       license_number: "",
       specialization: "",
       availability: "",
+      clinic_id: "",
     });
   };
 
@@ -327,7 +361,7 @@ function AdminUsers() {
     }
 
     if (
-      selectedChangeRoleName === "Dentist" &&
+      isChangeDentist &&
       (!roleProfileForm.license_number ||
         !roleProfileForm.specialization ||
         !roleProfileForm.availability)
@@ -337,7 +371,7 @@ function AdminUsers() {
     }
 
     if (
-      selectedChangeRoleName === "Assistant" &&
+      isChangeAssistant &&
       (!roleProfileForm.license_number || !roleProfileForm.availability)
     ) {
       setError("Please complete the assistant profile fields.");
@@ -353,15 +387,21 @@ function AdminUsers() {
         role_id: Number(selectedRoleId),
       };
 
-      if (selectedChangeRoleName === "Dentist") {
+      if (isChangeDentist) {
         payload.license_number = roleProfileForm.license_number;
         payload.specialization = roleProfileForm.specialization;
         payload.availability = roleProfileForm.availability;
+        payload.clinic_id = roleProfileForm.clinic_id
+          ? Number(roleProfileForm.clinic_id)
+          : null;
       }
 
-      if (selectedChangeRoleName === "Assistant") {
+      if (isChangeAssistant) {
         payload.license_number = roleProfileForm.license_number;
         payload.availability = roleProfileForm.availability;
+        payload.clinic_id = roleProfileForm.clinic_id
+          ? Number(roleProfileForm.clinic_id)
+          : null;
       }
 
       await API.put(
@@ -637,7 +677,27 @@ function AdminUsers() {
                 </select>
               </div>
 
-              {selectedCreateRoleName === "Dentist" && (
+              {(isCreateDentist || isCreateAssistant) && (
+                <div className="form-group">
+                  <label>Clinic</label>
+                  <select
+                    name="clinic_id"
+                    value={createForm.clinic_id}
+                    onChange={handleCreateChange}
+                  >
+                    <option value="">No assigned clinic</option>
+                    {clinics
+                      .filter((clinic) => clinic.status === "Active")
+                      .map((clinic) => (
+                        <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                          {clinic.clinic_name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {isCreateDentist && (
                 <>
                   <div className="form-group">
                     <label>License Number</label>
@@ -677,7 +737,7 @@ function AdminUsers() {
                 </>
               )}
 
-              {selectedCreateRoleName === "Assistant" && (
+              {isCreateAssistant && (
                 <>
                   <div className="form-group">
                     <label>License Number</label>
@@ -831,6 +891,7 @@ function AdminUsers() {
                       license_number: "",
                       specialization: "",
                       availability: "",
+                      clinic_id: "",
                     });
                   }}
                   required
@@ -844,7 +905,27 @@ function AdminUsers() {
                 </select>
               </div>
 
-              {selectedChangeRoleName === "Dentist" && (
+              {(isChangeDentist || isChangeAssistant) && (
+                <div className="form-group">
+                  <label>Clinic</label>
+                  <select
+                    name="clinic_id"
+                    value={roleProfileForm.clinic_id}
+                    onChange={handleRoleProfileChange}
+                  >
+                    <option value="">No assigned clinic</option>
+                    {clinics
+                      .filter((clinic) => clinic.status === "Active")
+                      .map((clinic) => (
+                        <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                          {clinic.clinic_name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              )}
+
+              {isChangeDentist && (
                 <>
                   <div className="form-group">
                     <label>License Number</label>
@@ -884,7 +965,7 @@ function AdminUsers() {
                 </>
               )}
 
-              {selectedChangeRoleName === "Assistant" && (
+              {isChangeAssistant && (
                 <>
                   <div className="form-group">
                     <label>License Number</label>

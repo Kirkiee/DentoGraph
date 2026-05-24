@@ -14,19 +14,19 @@ function PatientAppointments() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [loadingDentists, setLoadingDentists] = useState(true);
   const [booking, setBooking] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [newAppointmentDate, setNewAppointmentDate] = useState("");
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
-
-  const [newAppointmentDate, setNewAppointmentDate] = useState("");
-  const [cancellationReason, setCancellationReason] = useState("");
-
-  const [rescheduling, setRescheduling] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
 
   const token = localStorage.getItem("token");
 
@@ -62,6 +62,9 @@ function PatientAppointments() {
 
   const fetchDentists = async () => {
     try {
+      setLoadingDentists(true);
+      setError("");
+
       const response = await API.get(
         "/api/appointments/dentists/list",
         authHeaders,
@@ -69,7 +72,9 @@ function PatientAppointments() {
 
       setDentists(response.data.dentists || []);
     } catch (err) {
-      console.error("Fetch dentists error:", err);
+      setError(err.response?.data?.error || "Unable to load dentists.");
+    } finally {
+      setLoadingDentists(false);
     }
   };
 
@@ -83,26 +88,28 @@ function PatientAppointments() {
   const handleBookAppointment = async (e) => {
     e.preventDefault();
 
-    setBooking(true);
-    setMessage("");
-    setError("");
+    if (!formData.dentist_id || !formData.appointment_date) {
+      setError("Please select a dentist and appointment date.");
+      return;
+    }
 
     try {
+      setBooking(true);
+      setMessage("");
+      setError("");
+
       await API.post(
         "/api/appointments",
         {
           dentist_id: Number(formData.dentist_id),
-          appointment_date: formData.appointment_date.replace("T", " "),
+          appointment_date: formData.appointment_date,
           appointment_type: formData.appointment_type,
           notes: formData.notes,
         },
         authHeaders,
       );
 
-      setMessage(
-        "Appointment booked successfully. Please wait for confirmation.",
-      );
-
+      setMessage("Appointment booked successfully.");
       setFormData({
         dentist_id: "",
         appointment_date: "",
@@ -115,53 +122,6 @@ function PatientAppointments() {
       setError(err.response?.data?.error || "Unable to book appointment.");
     } finally {
       setBooking(false);
-    }
-  };
-
-  const openRescheduleModal = (appointment) => {
-    setSelectedAppointment(appointment);
-    setNewAppointmentDate("");
-    setMessage("");
-    setError("");
-    setShowRescheduleModal(true);
-  };
-
-  const closeRescheduleModal = () => {
-    setShowRescheduleModal(false);
-    setSelectedAppointment(null);
-    setNewAppointmentDate("");
-  };
-
-  const handleRescheduleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!newAppointmentDate) {
-      setError("Please select a new appointment date and time.");
-      return;
-    }
-
-    try {
-      setRescheduling(true);
-      setMessage("");
-      setError("");
-
-      await API.put(
-        `/api/appointments/${selectedAppointment.appointment_id}/reschedule`,
-        {
-          new_appointment_date: newAppointmentDate.replace("T", " "),
-        },
-        authHeaders,
-      );
-
-      setMessage("Reschedule request submitted successfully.");
-      closeRescheduleModal();
-      fetchAppointments();
-    } catch (err) {
-      setError(
-        err.response?.data?.error || "Unable to submit reschedule request.",
-      );
-    } finally {
-      setRescheduling(false);
     }
   };
 
@@ -179,19 +139,23 @@ function PatientAppointments() {
     setCancellationReason("");
   };
 
-  const handleCancelSubmit = async (e) => {
+  const handleCancelAppointment = async (e) => {
     e.preventDefault();
 
+    if (!selectedAppointment) {
+      setError("No appointment selected for cancellation.");
+      return;
+    }
+
     try {
-      setCancelling(true);
+      setUpdating(true);
       setMessage("");
       setError("");
 
       await API.put(
         `/api/appointments/${selectedAppointment.appointment_id}/cancel`,
         {
-          cancellation_reason:
-            cancellationReason.trim() || "No reason provided",
+          cancellation_reason: cancellationReason || "No reason provided",
         },
         authHeaders,
       );
@@ -202,7 +166,54 @@ function PatientAppointments() {
     } catch (err) {
       setError(err.response?.data?.error || "Unable to cancel appointment.");
     } finally {
-      setCancelling(false);
+      setUpdating(false);
+    }
+  };
+
+  const openRescheduleModal = (appointment) => {
+    setSelectedAppointment(appointment);
+    setNewAppointmentDate("");
+    setMessage("");
+    setError("");
+    setShowRescheduleModal(true);
+  };
+
+  const closeRescheduleModal = () => {
+    setShowRescheduleModal(false);
+    setSelectedAppointment(null);
+    setNewAppointmentDate("");
+  };
+
+  const handleRescheduleAppointment = async (e) => {
+    e.preventDefault();
+
+    if (!selectedAppointment || !newAppointmentDate) {
+      setError("Please select a new appointment date.");
+      return;
+    }
+
+    try {
+      setUpdating(true);
+      setMessage("");
+      setError("");
+
+      await API.put(
+        `/api/appointments/${selectedAppointment.appointment_id}/reschedule`,
+        {
+          new_appointment_date: newAppointmentDate,
+        },
+        authHeaders,
+      );
+
+      setMessage("Reschedule request submitted successfully.");
+      closeRescheduleModal();
+      fetchAppointments();
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Unable to submit reschedule request.",
+      );
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -219,99 +230,46 @@ function PatientAppointments() {
     }
   };
 
+  const selectedDentist = dentists.find(
+    (dentist) => Number(dentist.dentist_id) === Number(formData.dentist_id),
+  );
+
   return (
     <DashboardLayout role="Patient">
       <div className="appointments-layout">
-        <div className="appointment-form-card">
-          <h2>Book New Appointment</h2>
-          <p>
-            Select your preferred dentist, appointment date, and visit type.
-            Your appointment will be marked as pending until confirmed by the
-            clinic.
-          </p>
-
-          {message && <div className="success-message">{message}</div>}
-          {error && <div className="error-message">{error}</div>}
-
-          <form className="appointment-form" onSubmit={handleBookAppointment}>
-            <div className="form-group">
-              <label>Dentist</label>
-              <select
-                name="dentist_id"
-                value={formData.dentist_id}
-                onChange={handleChange}
-                required
-              >
-                <option value="">Select Dentist</option>
-                {dentists.map((dentist) => (
-                  <option key={dentist.dentist_id} value={dentist.dentist_id}>
-                    {dentist.dentist_name} -{" "}
-                    {dentist.specialization || "General Dentistry"}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Appointment Date and Time</label>
-              <input
-                type="datetime-local"
-                name="appointment_date"
-                value={formData.appointment_date}
-                onChange={handleChange}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Appointment Type</label>
-              <select
-                name="appointment_type"
-                value={formData.appointment_type}
-                onChange={handleChange}
-              >
-                <option value="Dental Consultation">Dental Consultation</option>
-                <option value="Cleaning">Cleaning</option>
-                <option value="Tooth Extraction">Tooth Extraction</option>
-                <option value="Dental Filling">Dental Filling</option>
-                <option value="Orthodontic Consultation">
-                  Orthodontic Consultation
-                </option>
-                <option value="X-ray Review">X-ray Review</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Notes</label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                placeholder="Describe your concern or reason for visit"
-                rows="4"
-              />
-            </div>
-
-            <button type="submit" className="primary-button" disabled={booking}>
-              {booking ? "Booking..." : "Book Appointment"}
-            </button>
-          </form>
-        </div>
-
         <div className="appointments-list-card">
           <div className="appointments-header">
             <div>
               <h2>My Appointments</h2>
-              <p>Track your appointment requests and confirmed schedules.</p>
+              <p>
+                View your appointment requests, schedules, cancellations, and
+                reschedule updates.
+              </p>
             </div>
+
+            <button
+              className="secondary-button"
+              onClick={() => {
+                fetchAppointments();
+                fetchDentists();
+              }}
+              disabled={loading || loadingDentists}
+            >
+              {loading || loadingDentists ? "Refreshing..." : "Refresh"}
+            </button>
           </div>
+
+          {message && <div className="success-message">{message}</div>}
+          {error && <div className="error-message">{error}</div>}
 
           {loading ? (
             <p>Loading appointments...</p>
           ) : appointments.length === 0 ? (
             <div className="empty-state">
               <h3>No appointments yet</h3>
-              <p>Your booked appointments will appear here.</p>
+              <p>
+                Book your first appointment using the form on the right side.
+              </p>
             </div>
           ) : (
             <div className="appointments-list">
@@ -329,6 +287,12 @@ function PatientAppointments() {
                       <span className={getStatusClass(appointment.status)}>
                         {appointment.status}
                       </span>
+
+                      {appointment.reschedule_request && (
+                        <span className="status-badge status-pending">
+                          Reschedule Request
+                        </span>
+                      )}
                     </div>
 
                     <p>
@@ -338,19 +302,40 @@ function PatientAppointments() {
                     </p>
 
                     <p>
-                      <strong>Date:</strong>{" "}
-                      {new Date(appointment.appointment_date).toLocaleString()}
+                      <strong>Clinic:</strong>{" "}
+                      {appointment.clinic_name || "No assigned clinic"}
                     </p>
+
+                    <p>
+                      <strong>Current Date:</strong>{" "}
+                      {appointment.appointment_date
+                        ? new Date(
+                            appointment.appointment_date,
+                          ).toLocaleString()
+                        : "N/A"}
+                    </p>
+
+                    {appointment.reschedule_request &&
+                      appointment.requested_appointment_date && (
+                        <p>
+                          <strong>Requested New Date:</strong>{" "}
+                          {new Date(
+                            appointment.requested_appointment_date,
+                          ).toLocaleString()}
+                        </p>
+                      )}
+
+                    {appointment.reschedule_status &&
+                      appointment.reschedule_status !== "None" && (
+                        <p>
+                          <strong>Reschedule Status:</strong>{" "}
+                          {appointment.reschedule_status}
+                        </p>
+                      )}
 
                     {appointment.notes && (
                       <p>
                         <strong>Notes:</strong> {appointment.notes}
-                      </p>
-                    )}
-
-                    {appointment.reschedule_request && (
-                      <p>
-                        <strong>Reschedule Request:</strong> Pending review
                       </p>
                     )}
 
@@ -367,13 +352,15 @@ function PatientAppointments() {
                       <div className="appointment-actions">
                         <button
                           className="secondary-button"
+                          disabled={updating}
                           onClick={() => openRescheduleModal(appointment)}
                         >
-                          Reschedule
+                          Request Reschedule
                         </button>
 
                         <button
                           className="danger-button"
+                          disabled={updating}
                           onClick={() => openCancelModal(appointment)}
                         >
                           Cancel
@@ -385,29 +372,132 @@ function PatientAppointments() {
             </div>
           )}
         </div>
+
+        <div className="appointment-form-card">
+          <h2>Book New Appointment</h2>
+          <p>
+            Select a dentist, choose your preferred date, and submit an
+            appointment request.
+          </p>
+
+          <form className="appointment-form" onSubmit={handleBookAppointment}>
+            <div className="form-group">
+              <label>Dentist</label>
+              <select
+                name="dentist_id"
+                value={formData.dentist_id}
+                onChange={handleChange}
+                disabled={loadingDentists}
+                required
+              >
+                <option value="">
+                  {loadingDentists ? "Loading dentists..." : "Select Dentist"}
+                </option>
+
+                {dentists.map((dentist) => (
+                  <option key={dentist.dentist_id} value={dentist.dentist_id}>
+                    {dentist.dentist_name}
+                    {dentist.specialization
+                      ? ` - ${dentist.specialization}`
+                      : ""}
+                    {dentist.clinic_name
+                      ? ` - ${dentist.clinic_name}`
+                      : " - No assigned clinic"}
+                  </option>
+                ))}
+              </select>
+
+              {selectedDentist && (
+                <div className="selected-dentist-card">
+                  <h3>{selectedDentist.dentist_name}</h3>
+
+                  <p>
+                    <strong>Specialization:</strong>{" "}
+                    {selectedDentist.specialization || "Not specified"}
+                  </p>
+
+                  <p>
+                    <strong>Clinic:</strong>{" "}
+                    {selectedDentist.clinic_name || "No assigned clinic"}
+                  </p>
+
+                  <p>
+                    <strong>Availability:</strong>{" "}
+                    {selectedDentist.availability || "Not specified"}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="form-group">
+              <label>Appointment Date</label>
+              <input
+                type="datetime-local"
+                name="appointment_date"
+                value={formData.appointment_date}
+                onChange={handleChange}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Appointment Type</label>
+              <select
+                name="appointment_type"
+                value={formData.appointment_type}
+                onChange={handleChange}
+              >
+                <option value="Dental Consultation">Dental Consultation</option>
+                <option value="Dental Cleaning">Dental Cleaning</option>
+                <option value="Tooth Extraction">Tooth Extraction</option>
+                <option value="Dental Filling">Dental Filling</option>
+                <option value="Orthodontic Consultation">
+                  Orthodontic Consultation
+                </option>
+                <option value="X-ray Review">X-ray Review</option>
+                <option value="Follow-up Checkup">Follow-up Checkup</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Notes</label>
+              <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Add notes or concerns for your appointment..."
+                rows="4"
+              />
+            </div>
+
+            <button type="submit" className="primary-button" disabled={booking}>
+              {booking ? "Booking..." : "Book Appointment"}
+            </button>
+          </form>
+        </div>
       </div>
 
-      {showRescheduleModal && (
+      {showCancelModal && (
         <div className="modal-overlay">
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <h3>Request Appointment Reschedule</h3>
-                <p>Select your preferred new appointment date and time.</p>
+                <h3>Cancel Appointment</h3>
+                <p>Please provide a reason for cancelling this appointment.</p>
               </div>
 
               <button
                 type="button"
                 className="modal-close-button"
-                onClick={closeRescheduleModal}
+                onClick={closeCancelModal}
               >
                 ×
               </button>
             </div>
 
-            <form className="modal-form" onSubmit={handleRescheduleSubmit}>
+            <form className="modal-form" onSubmit={handleCancelAppointment}>
               <div className="form-group">
-                <label>Current Appointment</label>
+                <label>Appointment</label>
                 <input
                   type="text"
                   value={
@@ -422,7 +512,76 @@ function PatientAppointments() {
               </div>
 
               <div className="form-group">
-                <label>New Appointment Date and Time</label>
+                <label>Reason</label>
+                <textarea
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  placeholder="Enter cancellation reason..."
+                  rows="4"
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={closeCancelModal}
+                >
+                  Go Back
+                </button>
+
+                <button
+                  type="submit"
+                  className="danger-button"
+                  disabled={updating}
+                >
+                  {updating ? "Cancelling..." : "Confirm Cancellation"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showRescheduleModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <div>
+                <h3>Request Reschedule</h3>
+                <p>
+                  Choose a new preferred appointment date. Your dentist or
+                  clinic staff will review the request.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close-button"
+                onClick={closeRescheduleModal}
+              >
+                ×
+              </button>
+            </div>
+
+            <form className="modal-form" onSubmit={handleRescheduleAppointment}>
+              <div className="form-group">
+                <label>Current Appointment Date</label>
+                <input
+                  type="text"
+                  value={
+                    selectedAppointment?.appointment_date
+                      ? new Date(
+                          selectedAppointment.appointment_date,
+                        ).toLocaleString()
+                      : ""
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>New Appointment Date</label>
                 <input
                   type="datetime-local"
                   value={newAppointmentDate}
@@ -443,75 +602,9 @@ function PatientAppointments() {
                 <button
                   type="submit"
                   className="primary-button"
-                  disabled={rescheduling}
+                  disabled={updating}
                 >
-                  {rescheduling ? "Submitting..." : "Submit Request"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {showCancelModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <div>
-                <h3>Cancel Appointment</h3>
-                <p>Please provide a reason for cancelling this appointment.</p>
-              </div>
-
-              <button
-                type="button"
-                className="modal-close-button"
-                onClick={closeCancelModal}
-              >
-                ×
-              </button>
-            </div>
-
-            <form className="modal-form" onSubmit={handleCancelSubmit}>
-              <div className="form-group">
-                <label>Appointment</label>
-                <input
-                  type="text"
-                  value={
-                    selectedAppointment?.appointment_date
-                      ? new Date(
-                          selectedAppointment.appointment_date,
-                        ).toLocaleString()
-                      : ""
-                  }
-                  disabled
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Reason for Cancellation</label>
-                <textarea
-                  value={cancellationReason}
-                  onChange={(e) => setCancellationReason(e.target.value)}
-                  placeholder="Enter your reason for cancellation..."
-                  rows="4"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={closeCancelModal}
-                >
-                  Keep Appointment
-                </button>
-
-                <button
-                  type="submit"
-                  className="danger-button"
-                  disabled={cancelling}
-                >
-                  {cancelling ? "Cancelling..." : "Cancel Appointment"}
+                  {updating ? "Submitting..." : "Submit Request"}
                 </button>
               </div>
             </form>

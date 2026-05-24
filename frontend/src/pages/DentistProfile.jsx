@@ -1,24 +1,28 @@
-import React, { useEffect, useState } from 'react';
-import API from '../api/axios';
-import DashboardLayout from '../components/dashboard/DashboardLayout';
+import React, { useEffect, useState } from "react";
+import API from "../api/axios";
+import DashboardLayout from "../components/dashboard/DashboardLayout";
 
 function DentistProfile() {
   const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-    license_number: '',
-    specialization: '',
-    availability: '',
-    account_status: '',
-    profile_status: '',
+    name: "",
+    email: "",
+    license_number: "",
+    specialization: "",
+    availability: "",
+    clinic_id: "",
+    clinic_name: "",
+    account_status: "",
+    profile_status: "",
   });
+
+  const [clinics, setClinics] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
 
   const authHeaders = {
     headers: {
@@ -27,32 +31,43 @@ function DentistProfile() {
   };
 
   useEffect(() => {
-    fetchProfile();
+    fetchInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchProfile = async () => {
+  const fetchInitialData = async () => {
     try {
       setLoading(true);
-      setError('');
+      setError("");
 
-      const response = await API.get('/api/dentists/profile', authHeaders);
-      const dentist = response.data.dentist;
-
-      setProfile({
-        name: dentist.name || '',
-        email: dentist.email || '',
-        license_number: dentist.license_number || '',
-        specialization: dentist.specialization || '',
-        availability: dentist.availability || '',
-        account_status: dentist.account_status || '',
-        profile_status: dentist.profile_status || '',
-      });
+      await Promise.all([fetchProfile(), fetchClinics()]);
     } catch (err) {
-      setError(err.response?.data?.error || 'Unable to load dentist profile.');
+      setError("Unable to load dentist profile data.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProfile = async () => {
+    const response = await API.get("/api/dentists/profile", authHeaders);
+    const dentist = response.data.dentist;
+
+    setProfile({
+      name: dentist.name || "",
+      email: dentist.email || "",
+      license_number: dentist.license_number || "",
+      specialization: dentist.specialization || "",
+      availability: dentist.availability || "",
+      clinic_id: dentist.clinic_id || "",
+      clinic_name: dentist.clinic_name || "",
+      account_status: dentist.account_status || "",
+      profile_status: dentist.profile_status || "",
+    });
+  };
+
+  const fetchClinics = async () => {
+    const response = await API.get("/api/clinics", authHeaders);
+    setClinics(response.data.clinics || []);
   };
 
   const handleChange = (e) => {
@@ -72,55 +87,62 @@ function DentistProfile() {
       !profile.specialization ||
       !profile.availability
     ) {
-      setError('Please complete all required fields.');
+      setError("Please complete all required fields.");
       return;
     }
 
     try {
       setSaving(true);
-      setMessage('');
-      setError('');
+      setMessage("");
+      setError("");
 
       const response = await API.put(
-        '/api/dentists/profile',
+        "/api/dentists/profile",
         {
           name: profile.name,
           email: profile.email,
           license_number: profile.license_number,
           specialization: profile.specialization,
           availability: profile.availability,
+          clinic_id: profile.clinic_id ? Number(profile.clinic_id) : null,
         },
-        authHeaders
+        authHeaders,
       );
 
       const updatedDentist = response.data.dentist;
 
       setProfile({
-        name: updatedDentist.name || '',
-        email: updatedDentist.email || '',
-        license_number: updatedDentist.license_number || '',
-        specialization: updatedDentist.specialization || '',
-        availability: updatedDentist.availability || '',
-        account_status: updatedDentist.account_status || '',
-        profile_status: updatedDentist.profile_status || '',
+        name: updatedDentist.name || "",
+        email: updatedDentist.email || "",
+        license_number: updatedDentist.license_number || "",
+        specialization: updatedDentist.specialization || "",
+        availability: updatedDentist.availability || "",
+        clinic_id: updatedDentist.clinic_id || "",
+        clinic_name: updatedDentist.clinic_name || "",
+        account_status: updatedDentist.account_status || "",
+        profile_status: updatedDentist.profile_status || "",
       });
 
-      const storedUser = localStorage.getItem('user');
+      const storedUser = localStorage.getItem("user");
+
       if (storedUser) {
         const user = JSON.parse(storedUser);
+
         localStorage.setItem(
-          'user',
+          "user",
           JSON.stringify({
             ...user,
             name: updatedDentist.name,
             email: updatedDentist.email,
-          })
+          }),
         );
       }
 
-      setMessage('Profile updated successfully.');
+      setMessage("Profile updated successfully.");
     } catch (err) {
-      setError(err.response?.data?.error || 'Unable to update dentist profile.');
+      setError(
+        err.response?.data?.error || "Unable to update dentist profile.",
+      );
     } finally {
       setSaving(false);
     }
@@ -132,8 +154,8 @@ function DentistProfile() {
         <div className="profile-card">
           <h2>My Profile</h2>
           <p>
-            Manage your dentist account details, professional information, and
-            availability.
+            Manage your dentist account details, professional information,
+            assigned clinic, and availability.
           </p>
 
           {message && <div className="profile-success">{message}</div>}
@@ -189,10 +211,42 @@ function DentistProfile() {
                 </div>
 
                 <div className="profile-field">
+                  <label>Assigned Clinic</label>
+                  <select
+                    name="clinic_id"
+                    value={profile.clinic_id}
+                    onChange={handleChange}
+                  >
+                    <option value="">No assigned clinic</option>
+                    {clinics
+                      .filter(
+                        (clinic) =>
+                          clinic.status === "Active" ||
+                          Number(clinic.clinic_id) ===
+                            Number(profile.clinic_id),
+                      )
+                      .map((clinic) => (
+                        <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                          {clinic.clinic_name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="profile-field">
+                  <label>Current Clinic</label>
+                  <input
+                    type="text"
+                    value={profile.clinic_name || "No assigned clinic"}
+                    disabled
+                  />
+                </div>
+
+                <div className="profile-field">
                   <label>Account Status</label>
                   <input
                     type="text"
-                    value={profile.account_status || 'Active'}
+                    value={profile.account_status || "Active"}
                     disabled
                   />
                 </div>
@@ -201,7 +255,7 @@ function DentistProfile() {
                   <label>Profile Status</label>
                   <input
                     type="text"
-                    value={profile.profile_status || 'Active'}
+                    value={profile.profile_status || "Active"}
                     disabled
                   />
                 </div>
@@ -223,7 +277,7 @@ function DentistProfile() {
                 className="profile-button"
                 disabled={saving}
               >
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? "Saving..." : "Save Changes"}
               </button>
             </form>
           )}

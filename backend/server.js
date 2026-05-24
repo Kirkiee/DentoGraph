@@ -10,6 +10,8 @@ const assistantRoutes = require("./routes/assistantRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
 const dentalRecordRoutes = require("./routes/dentalRecordRoutes");
 const xrayRoutes = require("./routes/xrayRoutes");
+const clinicRoutes = require("./routes/clinicRoutes");
+const subscriptionRoutes = require("./routes/subscriptionRoutes");
 
 const app = express();
 
@@ -40,6 +42,8 @@ app.use("/api/assistants", assistantRoutes);
 app.use("/api/appointments", appointmentRoutes);
 app.use("/api/dental-records", dentalRecordRoutes);
 app.use("/api/xrays", xrayRoutes);
+app.use("/api/clinics", clinicRoutes);
+app.use("/api/subscriptions", subscriptionRoutes);
 
 app.listen(5000, () => {
   console.log("Server running on port 5000");

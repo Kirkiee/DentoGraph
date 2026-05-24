@@ -16,6 +16,12 @@ function AssistantAppointments() {
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("");
 
+  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+  const [selectedRescheduleAppointment, setSelectedRescheduleAppointment] =
+    useState(null);
+  const [rescheduleAction, setRescheduleAction] = useState("");
+  const [processingReschedule, setProcessingReschedule] = useState(false);
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -121,6 +127,56 @@ function AssistantAppointments() {
     }
   };
 
+  const openRescheduleModal = (appointment, action) => {
+    setSelectedRescheduleAppointment(appointment);
+    setRescheduleAction(action);
+    setMessage("");
+    setError("");
+    setShowRescheduleModal(true);
+  };
+
+  const closeRescheduleModal = () => {
+    setShowRescheduleModal(false);
+    setSelectedRescheduleAppointment(null);
+    setRescheduleAction("");
+  };
+
+  const handleRescheduleDecision = async (e) => {
+    e.preventDefault();
+
+    if (!selectedRescheduleAppointment || !rescheduleAction) {
+      setError("Please select a valid reschedule action.");
+      return;
+    }
+
+    try {
+      setProcessingReschedule(true);
+      setMessage("");
+      setError("");
+
+      await API.put(
+        `/api/appointments/${selectedRescheduleAppointment.appointment_id}/reschedule/${rescheduleAction}`,
+        {},
+        authHeaders,
+      );
+
+      setMessage(
+        rescheduleAction === "approve"
+          ? "Reschedule request approved successfully."
+          : "Reschedule request rejected successfully.",
+      );
+
+      closeRescheduleModal();
+      fetchAppointments();
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Unable to process reschedule request.",
+      );
+    } finally {
+      setProcessingReschedule(false);
+    }
+  };
+
   const getStatusClass = (status) => {
     switch (status) {
       case "Scheduled":
@@ -151,7 +207,11 @@ function AssistantAppointments() {
         <div className="appointments-header">
           <div>
             <h2>Appointment Management</h2>
-            <p>View and manage patient appointments across the clinic.</p>
+            <p>
+              <p>
+                View and manage patient appointments for your assigned clinic.
+              </p>
+            </p>
           </div>
 
           <button
@@ -261,11 +321,34 @@ function AssistantAppointments() {
                   </p>
 
                   <p>
-                    <strong>Date:</strong>{" "}
+                    <strong>Clinic:</strong>{" "}
+                    {appointment.clinic_name || "No assigned clinic"}
+                  </p>
+
+                  <p>
+                    <strong>Current Date:</strong>{" "}
                     {appointment.appointment_date
                       ? new Date(appointment.appointment_date).toLocaleString()
                       : "N/A"}
                   </p>
+
+                  {appointment.reschedule_request &&
+                    appointment.requested_appointment_date && (
+                      <p>
+                        <strong>Requested New Date:</strong>{" "}
+                        {new Date(
+                          appointment.requested_appointment_date,
+                        ).toLocaleString()}
+                      </p>
+                    )}
+
+                  {appointment.reschedule_status &&
+                    appointment.reschedule_status !== "None" && (
+                      <p>
+                        <strong>Reschedule Status:</strong>{" "}
+                        {appointment.reschedule_status}
+                      </p>
+                    )}
 
                   {appointment.notes && (
                     <p>
@@ -284,6 +367,30 @@ function AssistantAppointments() {
                 {appointment.status !== "Cancelled" &&
                   appointment.status !== "Completed" && (
                     <div className="appointment-actions">
+                      {appointment.reschedule_request && (
+                        <>
+                          <button
+                            className="primary-button"
+                            disabled={processingReschedule}
+                            onClick={() =>
+                              openRescheduleModal(appointment, "approve")
+                            }
+                          >
+                            Approve Reschedule
+                          </button>
+
+                          <button
+                            className="danger-button"
+                            disabled={processingReschedule}
+                            onClick={() =>
+                              openRescheduleModal(appointment, "reject")
+                            }
+                          >
+                            Reject Reschedule
+                          </button>
+                        </>
+                      )}
+
                       {appointment.status !== "Scheduled" && (
                         <button
                           className="secondary-button"
@@ -408,6 +515,116 @@ function AssistantAppointments() {
                   disabled={updating}
                 >
                   {updating ? "Updating..." : `Confirm ${selectedStatus}`}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showRescheduleModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <div>
+                <h3>
+                  {rescheduleAction === "approve"
+                    ? "Approve Reschedule"
+                    : "Reject Reschedule"}
+                </h3>
+                <p>
+                  Confirm this action for appointment #
+                  {selectedRescheduleAppointment?.appointment_id}.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close-button"
+                onClick={closeRescheduleModal}
+              >
+                ×
+              </button>
+            </div>
+
+            <form className="modal-form" onSubmit={handleRescheduleDecision}>
+              <div className="form-group">
+                <label>Patient</label>
+                <input
+                  type="text"
+                  value={
+                    selectedRescheduleAppointment?.patient_name ||
+                    `Patient ID ${selectedRescheduleAppointment?.patient_id}`
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Dentist</label>
+                <input
+                  type="text"
+                  value={
+                    selectedRescheduleAppointment?.dentist_name ||
+                    `Dentist ID ${selectedRescheduleAppointment?.dentist_id}`
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Current Appointment Date</label>
+                <input
+                  type="text"
+                  value={
+                    selectedRescheduleAppointment?.appointment_date
+                      ? new Date(
+                          selectedRescheduleAppointment.appointment_date,
+                        ).toLocaleString()
+                      : ""
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Requested New Date</label>
+                <input
+                  type="text"
+                  value={
+                    selectedRescheduleAppointment?.requested_appointment_date
+                      ? new Date(
+                          selectedRescheduleAppointment.requested_appointment_date,
+                        ).toLocaleString()
+                      : ""
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={closeRescheduleModal}
+                >
+                  Go Back
+                </button>
+
+                <button
+                  type="submit"
+                  className={
+                    rescheduleAction === "approve"
+                      ? "primary-button"
+                      : "danger-button"
+                  }
+                  disabled={processingReschedule}
+                >
+                  {processingReschedule
+                    ? "Processing..."
+                    : rescheduleAction === "approve"
+                      ? "Confirm Approval"
+                      : "Confirm Rejection"}
                 </button>
               </div>
             </form>
