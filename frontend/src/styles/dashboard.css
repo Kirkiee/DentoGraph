@@ -1332,3 +1332,126 @@
     height: 520px;
   }
 }
+
+/* X-RAY ANNOTATION */
+
+.xray-annotation-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 24px;
+  margin-top: 24px;
+}
+
+.xray-annotation-viewer,
+.xray-annotation-panel {
+  border: 1px solid var(--dg-border);
+  border-radius: 22px;
+  background: #ffffff;
+  padding: 22px;
+}
+
+.xray-image-wrapper {
+  position: relative;
+  width: 100%;
+  min-height: 420px;
+  border-radius: 18px;
+  background: #020617;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.xray-annotation-image {
+  display: block;
+  width: 100%;
+  max-height: 680px;
+  -o-object-fit: contain;
+  object-fit: contain;
+  cursor: crosshair;
+}
+
+.xray-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 2px solid #ffffff;
+  color: #ffffff;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.35);
+  z-index: 5;
+}
+
+.xray-marker.suggested {
+  background: #f59e0b;
+}
+
+.xray-marker.confirmed {
+  background: #16a34a;
+}
+
+.xray-marker.rejected {
+  background: #dc2626;
+}
+
+.xray-helper-text {
+  margin-top: 12px;
+  color: var(--dg-muted);
+  font-size: 14px;
+}
+
+.annotation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.annotation-card {
+  border: 1px solid var(--dg-border);
+  border-radius: 18px;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.annotation-card h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--dg-text);
+}
+
+.annotation-card p {
+  margin: 7px 0;
+  color: var(--dg-muted);
+  font-size: 14px;
+}
+
+.legend-dot.ai-suggested {
+  background: #f59e0b;
+}
+
+.legend-dot.confirmed {
+  background: #16a34a;
+}
+
+.legend-dot.rejected {
+  background: #dc2626;
+}
+
+.info-message {
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 1100px) {
+  .xray-annotation-layout {
+    grid-template-columns: 1fr;
+  }
+}
