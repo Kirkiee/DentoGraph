@@ -12,6 +12,11 @@ function DentistDentalRecords() {
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -69,13 +74,26 @@ function DentistDentalRecords() {
       setMessage("");
       setError("");
 
-      await API.post(
+      const response = await API.post(
         "/api/dental-records",
         {
           patient_id: Number(selectedPatientId),
         },
         authHeaders,
       );
+
+      if (response.data.existing) {
+        setMessage("Dental record already exists. Opening existing record...");
+        setSelectedPatientId("");
+
+        const existingRecordId = response.data.dental_record?.record_id;
+
+        if (existingRecordId) {
+          navigate(`/dentist/dental-records/${existingRecordId}`);
+        }
+
+        return;
+      }
 
       setMessage("Dental record created successfully.");
       setSelectedPatientId("");
@@ -84,6 +102,57 @@ function DentistDentalRecords() {
       setError(err.response?.data?.error || "Unable to create dental record.");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const openArchiveModal = (record) => {
+    setSelectedRecord(record);
+    setMessage("");
+    setError("");
+    setShowArchiveModal(true);
+  };
+
+  const closeArchiveModal = () => {
+    setShowArchiveModal(false);
+    setSelectedRecord(null);
+  };
+
+  const handleArchiveRecord = async (e) => {
+    e.preventDefault();
+
+    if (!selectedRecord) {
+      setError("No dental record selected for archiving.");
+      return;
+    }
+
+    try {
+      setArchiving(true);
+      setMessage("");
+      setError("");
+
+      await API.put(
+        `/api/dental-records/${selectedRecord.record_id}/archive`,
+        {},
+        authHeaders,
+      );
+
+      setMessage(`Record #${selectedRecord.record_id} archived successfully.`);
+      closeArchiveModal();
+      fetchRecords();
+    } catch (err) {
+      setError(err.response?.data?.error || "Unable to archive dental record.");
+    } finally {
+      setArchiving(false);
+    }
+  };
+
+  const getRecordStatusClass = (status) => {
+    switch (status) {
+      case "Archived":
+        return "status-badge status-cancelled";
+      case "Active":
+      default:
+        return "status-badge status-scheduled";
     }
   };
 
@@ -132,8 +201,8 @@ function DentistDentalRecords() {
             <div>
               <h2>Dental Records</h2>
               <p>
-                View dental records created for patients under the DentoGraph
-                system.
+                View dental records created for patients under your assigned
+                dentist account.
               </p>
             </div>
 
@@ -160,8 +229,9 @@ function DentistDentalRecords() {
                   <div className="appointment-info">
                     <div className="appointment-title-row">
                       <h3>Record #{record.record_id}</h3>
-                      <span className="status-badge status-scheduled">
-                        Active
+
+                      <span className={getRecordStatusClass(record.status)}>
+                        {record.status || "Active"}
                       </span>
                     </div>
 
@@ -173,6 +243,11 @@ function DentistDentalRecords() {
                     <p>
                       <strong>Dentist:</strong>{" "}
                       {record.dentist_name || `Dentist ID ${record.dentist_id}`}
+                    </p>
+
+                    <p>
+                      <strong>Clinic:</strong>{" "}
+                      {record.clinic_name || "No assigned clinic"}
                     </p>
 
                     <p>
@@ -199,6 +274,14 @@ function DentistDentalRecords() {
                     >
                       View Details
                     </button>
+
+                    <button
+                      className="danger-button"
+                      disabled={archiving}
+                      onClick={() => openArchiveModal(record)}
+                    >
+                      Archive
+                    </button>
                   </div>
                 </div>
               ))}
@@ -206,6 +289,85 @@ function DentistDentalRecords() {
           )}
         </div>
       </div>
+
+      {showArchiveModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <div>
+                <h3>Archive Dental Record</h3>
+                <p>
+                  Confirm that you want to archive this dental record. Archived
+                  records will be hidden from the normal records list.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close-button"
+                onClick={closeArchiveModal}
+              >
+                ×
+              </button>
+            </div>
+
+            <form className="modal-form" onSubmit={handleArchiveRecord}>
+              <div className="form-group">
+                <label>Record</label>
+                <input
+                  type="text"
+                  value={
+                    selectedRecord ? `Record #${selectedRecord.record_id}` : ""
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Patient</label>
+                <input
+                  type="text"
+                  value={
+                    selectedRecord?.patient_name ||
+                    `Patient ID ${selectedRecord?.patient_id || ""}`
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Dentist</label>
+                <input
+                  type="text"
+                  value={
+                    selectedRecord?.dentist_name ||
+                    `Dentist ID ${selectedRecord?.dentist_id || ""}`
+                  }
+                  disabled
+                />
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={closeArchiveModal}
+                >
+                  Go Back
+                </button>
+
+                <button
+                  type="submit"
+                  className="danger-button"
+                  disabled={archiving}
+                >
+                  {archiving ? "Archiving..." : "Confirm Archive"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

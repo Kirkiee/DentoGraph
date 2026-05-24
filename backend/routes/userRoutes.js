@@ -32,6 +32,7 @@ router.post("/register", async (req, res) => {
     license_number,
     specialization,
     availability,
+    clinic_id,
   } = req.body || {};
 
   if (!name || !email || !password || !role_id) {
@@ -45,7 +46,6 @@ router.post("/register", async (req, res) => {
   try {
     await client.query("BEGIN");
 
-    // Check if role exists
     const roleCheck = await client.query(
       "SELECT role_id, role_name FROM public.roles WHERE role_id = $1",
       [role_id],
@@ -58,11 +58,8 @@ router.post("/register", async (req, res) => {
 
     const roleName = roleCheck.rows[0].role_name;
 
-    // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user
     const newUser = await client.query(
       `INSERT INTO public.users (name, email, password, status)
        VALUES ($1, $2, $3, $4)
@@ -72,25 +69,24 @@ router.post("/register", async (req, res) => {
 
     const userId = newUser.rows[0].user_id;
 
-    // Assign role
     await client.query(
       `INSERT INTO public.user_roles (user_id, role_id)
        VALUES ($1, $2)`,
       [userId, role_id],
     );
 
-    // Create role-specific profile
     if (roleName === "Dentist") {
       await client.query(
         `INSERT INTO public.dentists
-         (user_id, license_number, specialization, availability, status)
-         VALUES ($1, $2, $3, $4, $5)`,
+         (user_id, license_number, specialization, availability, status, clinic_id)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
         [
           userId,
           license_number || `DEN-${userId}`,
           specialization || "General Dentistry",
           availability || "Monday to Friday, 9:00 AM - 5:00 PM",
           "Active",
+          clinic_id || null,
         ],
       );
     }
@@ -98,21 +94,21 @@ router.post("/register", async (req, res) => {
     if (roleName === "Assistant") {
       await client.query(
         `INSERT INTO public.assistants
-         (user_id, license_number, availability, status)
-         VALUES ($1, $2, $3, $4)`,
+         (user_id, license_number, availability, status, clinic_id)
+         VALUES ($1, $2, $3, $4, $5)`,
         [
           userId,
           license_number || `AST-${userId}`,
           availability || "Monday to Friday, 9:00 AM - 5:00 PM",
           "Active",
+          clinic_id || null,
         ],
       );
     }
 
     if (roleName === "Patient") {
       await client.query(
-        `INSERT INTO public.patients
-         (user_id)
+        `INSERT INTO public.patients (user_id)
          VALUES ($1)`,
         [userId],
       );
@@ -340,7 +336,7 @@ router.put(
   authorizeRoles("Admin"),
   async (req, res) => {
     const { user_id } = req.params;
-    const { role_id, license_number, specialization, availability } =
+    const { role_id, license_number, specialization, availability, clinic_id } =
       req.body || {};
 
     if (!role_id) {
@@ -401,7 +397,6 @@ router.put(
         );
       }
 
-      // Dentist profile
       if (newRole.role_name === "Dentist") {
         const dentistCheck = await client.query(
           "SELECT dentist_id FROM public.dentists WHERE user_id = $1",
@@ -411,14 +406,15 @@ router.put(
         if (dentistCheck.rows.length === 0) {
           await client.query(
             `INSERT INTO public.dentists
-             (user_id, license_number, specialization, availability, status)
-             VALUES ($1, $2, $3, $4, $5)`,
+             (user_id, license_number, specialization, availability, status, clinic_id)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
             [
               user_id,
               license_number || `DEN-${user_id}`,
               specialization || "General Dentistry",
               availability || "Monday to Friday, 9:00 AM - 5:00 PM",
               "Active",
+              clinic_id || null,
             ],
           );
         } else {
@@ -426,19 +422,20 @@ router.put(
             `UPDATE public.dentists
              SET license_number = COALESCE($1, license_number),
                  specialization = COALESCE($2, specialization),
-                 availability = COALESCE($3, availability)
-             WHERE user_id = $4`,
+                 availability = COALESCE($3, availability),
+                 clinic_id = COALESCE($4, clinic_id)
+             WHERE user_id = $5`,
             [
               license_number || null,
               specialization || null,
               availability || null,
+              clinic_id || null,
               user_id,
             ],
           );
         }
       }
 
-      // Assistant profile
       if (newRole.role_name === "Assistant") {
         const assistantCheck = await client.query(
           "SELECT assistant_id FROM public.assistants WHERE user_id = $1",
@@ -448,27 +445,33 @@ router.put(
         if (assistantCheck.rows.length === 0) {
           await client.query(
             `INSERT INTO public.assistants
-             (user_id, license_number, availability, status)
-             VALUES ($1, $2, $3, $4)`,
+             (user_id, license_number, availability, status, clinic_id)
+             VALUES ($1, $2, $3, $4, $5)`,
             [
               user_id,
               license_number || `AST-${user_id}`,
               availability || "Monday to Friday, 9:00 AM - 5:00 PM",
               "Active",
+              clinic_id || null,
             ],
           );
         } else {
           await client.query(
             `UPDATE public.assistants
              SET license_number = COALESCE($1, license_number),
-                 availability = COALESCE($2, availability)
-             WHERE user_id = $3`,
-            [license_number || null, availability || null, user_id],
+                 availability = COALESCE($2, availability),
+                 clinic_id = COALESCE($3, clinic_id)
+             WHERE user_id = $4`,
+            [
+              license_number || null,
+              availability || null,
+              clinic_id || null,
+              user_id,
+            ],
           );
         }
       }
 
-      // Patient profile
       if (newRole.role_name === "Patient") {
         const patientCheck = await client.query(
           "SELECT patient_id FROM public.patients WHERE user_id = $1",

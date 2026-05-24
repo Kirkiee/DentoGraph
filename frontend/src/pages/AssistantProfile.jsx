@@ -1,23 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import API from '../api/axios';
-import DashboardLayout from '../components/dashboard/DashboardLayout';
+import React, { useEffect, useState } from "react";
+import API from "../api/axios";
+import DashboardLayout from "../components/dashboard/DashboardLayout";
 
 function AssistantProfile() {
   const [profile, setProfile] = useState({
-    name: '',
-    email: '',
-    license_number: '',
-    availability: '',
-    account_status: '',
-    profile_status: '',
+    name: "",
+    email: "",
+    license_number: "",
+    availability: "",
+    clinic_id: "",
+    clinic_name: "",
+    account_status: "",
+    profile_status: "",
   });
+
+  const [clinics, setClinics] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
 
   const authHeaders = {
     headers: {
@@ -26,31 +30,42 @@ function AssistantProfile() {
   };
 
   useEffect(() => {
-    fetchProfile();
+    fetchInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchProfile = async () => {
+  const fetchInitialData = async () => {
     try {
       setLoading(true);
-      setError('');
+      setError("");
 
-      const response = await API.get('/api/assistants/profile', authHeaders);
-      const assistant = response.data.assistant;
-
-      setProfile({
-        name: assistant.name || '',
-        email: assistant.email || '',
-        license_number: assistant.license_number || '',
-        availability: assistant.availability || '',
-        account_status: assistant.account_status || '',
-        profile_status: assistant.profile_status || '',
-      });
+      await Promise.all([fetchProfile(), fetchClinics()]);
     } catch (err) {
-      setError(err.response?.data?.error || 'Unable to load assistant profile.');
+      setError("Unable to load assistant profile data.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProfile = async () => {
+    const response = await API.get("/api/assistants/profile", authHeaders);
+    const assistant = response.data.assistant;
+
+    setProfile({
+      name: assistant.name || "",
+      email: assistant.email || "",
+      license_number: assistant.license_number || "",
+      availability: assistant.availability || "",
+      clinic_id: assistant.clinic_id || "",
+      clinic_name: assistant.clinic_name || "",
+      account_status: assistant.account_status || "",
+      profile_status: assistant.profile_status || "",
+    });
+  };
+
+  const fetchClinics = async () => {
+    const response = await API.get("/api/clinics", authHeaders);
+    setClinics(response.data.clinics || []);
   };
 
   const handleChange = (e) => {
@@ -69,53 +84,60 @@ function AssistantProfile() {
       !profile.license_number ||
       !profile.availability
     ) {
-      setError('Please complete all required fields.');
+      setError("Please complete all required fields.");
       return;
     }
 
     try {
       setSaving(true);
-      setMessage('');
-      setError('');
+      setMessage("");
+      setError("");
 
       const response = await API.put(
-        '/api/assistants/profile',
+        "/api/assistants/profile",
         {
           name: profile.name,
           email: profile.email,
           license_number: profile.license_number,
           availability: profile.availability,
+          clinic_id: profile.clinic_id ? Number(profile.clinic_id) : null,
         },
-        authHeaders
+        authHeaders,
       );
 
       const updatedAssistant = response.data.assistant;
 
       setProfile({
-        name: updatedAssistant.name || '',
-        email: updatedAssistant.email || '',
-        license_number: updatedAssistant.license_number || '',
-        availability: updatedAssistant.availability || '',
-        account_status: updatedAssistant.account_status || '',
-        profile_status: updatedAssistant.profile_status || '',
+        name: updatedAssistant.name || "",
+        email: updatedAssistant.email || "",
+        license_number: updatedAssistant.license_number || "",
+        availability: updatedAssistant.availability || "",
+        clinic_id: updatedAssistant.clinic_id || "",
+        clinic_name: updatedAssistant.clinic_name || "",
+        account_status: updatedAssistant.account_status || "",
+        profile_status: updatedAssistant.profile_status || "",
       });
 
-      const storedUser = localStorage.getItem('user');
+      const storedUser = localStorage.getItem("user");
+
       if (storedUser) {
         const user = JSON.parse(storedUser);
+
         localStorage.setItem(
-          'user',
+          "user",
           JSON.stringify({
             ...user,
             name: updatedAssistant.name,
             email: updatedAssistant.email,
-          })
+          }),
         );
       }
 
-      setMessage('Profile updated successfully.');
+      setMessage("Profile updated successfully.");
     } catch (err) {
-      setError(err.response?.data?.error || 'Unable to update assistant profile.');
+      setError(
+        err.response?.data?.error || "Unable to update assistant profile.",
+      );
     } finally {
       setSaving(false);
     }
@@ -127,8 +149,8 @@ function AssistantProfile() {
         <div className="profile-card">
           <h2>My Profile</h2>
           <p>
-            Manage your assistant account details, license information, and
-            availability.
+            Manage your assistant account details, assigned clinic, license
+            information, and availability.
           </p>
 
           {message && <div className="profile-success">{message}</div>}
@@ -173,10 +195,51 @@ function AssistantProfile() {
                 </div>
 
                 <div className="profile-field">
+                  <label>Assigned Clinic</label>
+                  <select
+                    name="clinic_id"
+                    value={profile.clinic_id}
+                    onChange={handleChange}
+                  >
+                    <option value="">No assigned clinic</option>
+                    {clinics
+                      .filter(
+                        (clinic) =>
+                          clinic.status === "Active" ||
+                          Number(clinic.clinic_id) ===
+                            Number(profile.clinic_id),
+                      )
+                      .map((clinic) => (
+                        <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                          {clinic.clinic_name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="profile-field">
+                  <label>Current Clinic</label>
+                  <input
+                    type="text"
+                    value={profile.clinic_name || "No assigned clinic"}
+                    disabled
+                  />
+                </div>
+
+                <div className="profile-field">
                   <label>Account Status</label>
                   <input
                     type="text"
-                    value={profile.account_status || 'Active'}
+                    value={profile.account_status || "Active"}
+                    disabled
+                  />
+                </div>
+
+                <div className="profile-field">
+                  <label>Profile Status</label>
+                  <input
+                    type="text"
+                    value={profile.profile_status || "Active"}
                     disabled
                   />
                 </div>
@@ -193,21 +256,12 @@ function AssistantProfile() {
                 />
               </div>
 
-              <div className="profile-field">
-                <label>Profile Status</label>
-                <input
-                  type="text"
-                  value={profile.profile_status || 'Active'}
-                  disabled
-                />
-              </div>
-
               <button
                 type="submit"
                 className="profile-button"
                 disabled={saving}
               >
-                {saving ? 'Saving...' : 'Save Changes'}
+                {saving ? "Saving..." : "Save Changes"}
               </button>
             </form>
           )}
