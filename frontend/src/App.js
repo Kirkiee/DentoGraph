@@ -21,17 +21,20 @@ import AdminReports from "./pages/AdminReports";
 import AdminDentalRecords from "./pages/AdminDentalRecords";
 import AdminDentalRecordDetails from "./pages/AdminDentalRecordDetails";
 import AdminDental3DViewer from "./pages/AdminDental3DViewer";
+import AdminXrayAnnotationView from "./pages/AdminXrayAnnotationView";
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
 import PatientDentalRecords from "./pages/PatientDentalRecords";
 import PatientDentalRecordDetails from "./pages/PatientDentalRecordDetails";
 import PatientXrays from "./pages/PatientXrays";
 import PatientDental3DViewer from "./pages/PatientDental3DViewer";
+import PatientXrayAnnotationView from "./pages/PatientXrayAnnotationView";
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
 import DentistDentalRecords from "./pages/DentistDentalRecords";
 import DentistDentalRecordDetails from "./pages/DentistDentalRecordDetails";
 import DentistXrays from "./pages/DentistXrays";
+import DentistXrayAnnotation from "./pages/DentistXrayAnnotation";
 import DentistDental3DViewer from "./pages/DentistDental3DViewer";
 import AssistantProfile from "./pages/AssistantProfile";
 import AssistantAppointments from "./pages/AssistantAppointments";
@@ -124,6 +127,15 @@ function App() {
         />
 
         <Route
+          path="/admin/xrays/:xray_id/annotations"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminXrayAnnotationView />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/dentist/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Dentist"]}>
@@ -173,6 +185,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Dentist"]}>
               <DentistXrays />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/xrays/:xray_id/annotate"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistXrayAnnotation />
             </ProtectedRoute>
           }
         />
@@ -236,6 +257,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientXrays />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/xrays/:xray_id/annotations"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientXrayAnnotationView />
             </ProtectedRoute>
           }
         />

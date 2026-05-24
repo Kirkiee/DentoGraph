@@ -112,6 +112,10 @@ function AdminDentalRecordDetails() {
     return `${baseURL}/${filePath}`;
   };
 
+  const isPdfFile = (filePath) => {
+    return filePath?.toLowerCase().endsWith(".pdf");
+  };
+
   return (
     <DashboardLayout role="Admin">
       <div className="appointments-list-card">
@@ -119,8 +123,8 @@ function AdminDentalRecordDetails() {
           <div>
             <h2>Dental Record Details</h2>
             <p>
-              View patient, dentist, clinic, teeth, treatments, X-rays, and 3D
-              dental visualization for this dental record.
+              View patient, dentist, clinic, teeth, treatments, X-rays, 3D
+              visualization, and AI-assisted X-ray annotations.
             </p>
           </div>
 
@@ -325,7 +329,10 @@ function AdminDentalRecordDetails() {
               <div className="appointments-header">
                 <div>
                   <h2>X-ray Images</h2>
-                  <p>View uploaded X-ray files connected to this record.</p>
+                  <p>
+                    View uploaded X-ray files and AI-assisted annotation results
+                    connected to this record.
+                  </p>
                 </div>
               </div>
 
@@ -370,6 +377,19 @@ function AdminDentalRecordDetails() {
                         >
                           Open File
                         </a>
+
+                        {!isPdfFile(xray.file_path) && (
+                          <button
+                            className="primary-button"
+                            onClick={() =>
+                              navigate(
+                                `/admin/xrays/${xray.xray_id}/annotations`,
+                              )
+                            }
+                          >
+                            View AI Annotations
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
