@@ -1,137 +1,195 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const pool = require('../config/db');
-const { authenticateToken, authorizeRoles } = require('../middleware/authMiddleware');
+const pool = require("../config/db");
+const { authenticateToken, authorizeRoles } = require("../middleware/authMiddleware");
 
-// CREATE DENTAL ASSISTANT PROFILE
-router.post('/profile', authenticateToken, authorizeRoles('Assistant'), async (req, res) => {
+// CREATE ASSISTANT PROFILE
+router.post("/profile", authenticateToken, authorizeRoles("Assistant"), async (req, res) => {
   const user_id = req.user.user_id;
-  const { license_number, availability, status } = req.body;
+  const { license_number, availability, status } = req.body || {};
 
   try {
-    // Check if assistant profile already exists
     const existingProfile = await pool.query(
-      'SELECT * FROM dental_assistants WHERE user_id = $1',
+      "SELECT * FROM public.assistants WHERE user_id = $1",
       [user_id]
     );
 
     if (existingProfile.rows.length > 0) {
       return res.status(400).json({
-        error: 'Dental assistant profile already exists'
+        error: "Assistant profile already exists",
       });
     }
 
     const newAssistant = await pool.query(
-      `INSERT INTO dental_assistants
+      `INSERT INTO public.assistants
        (user_id, license_number, availability, status)
        VALUES ($1, $2, $3, $4)
        RETURNING *`,
-      [user_id, license_number, availability, status || 'Active']
+      [
+        user_id,
+        license_number || `AST-${user_id}`,
+        availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+        status || "Active",
+      ]
     );
 
     res.status(201).json({
-      message: 'Dental assistant profile created successfully',
-      assistant: newAssistant.rows[0]
+      message: "Assistant profile created successfully",
+      assistant: newAssistant.rows[0],
     });
-
   } catch (err) {
-    console.error('Create dental assistant profile error:', err.message);
-    res.status(500).json({ error: 'Error creating dental assistant profile' });
+    console.error("Create assistant profile error:", err.message);
+    res.status(500).json({ error: "Error creating assistant profile" });
   }
 });
 
-// GET OWN DENTAL ASSISTANT PROFILE
-router.get('/profile', authenticateToken, authorizeRoles('Assistant'), async (req, res) => {
+// GET OWN ASSISTANT PROFILE
+router.get("/profile", authenticateToken, authorizeRoles("Assistant"), async (req, res) => {
   const user_id = req.user.user_id;
 
   try {
     const assistantProfile = await pool.query(
       `SELECT 
-          dental_assistants.assistant_id,
-          dental_assistants.user_id,
-          users.name,
-          users.email,
-          dental_assistants.license_number,
-          dental_assistants.availability,
-          dental_assistants.status
-       FROM dental_assistants
-       JOIN users ON dental_assistants.user_id = users.user_id
-       WHERE dental_assistants.user_id = $1`,
+          a.assistant_id,
+          a.user_id,
+          u.name,
+          u.email,
+          u.status AS account_status,
+          a.license_number,
+          a.availability,
+          a.status AS profile_status
+       FROM public.assistants a
+       JOIN public.users u ON a.user_id = u.user_id
+       WHERE a.user_id = $1`,
       [user_id]
     );
 
     if (assistantProfile.rows.length === 0) {
       return res.status(404).json({
-        error: 'Dental assistant profile not found'
+        error: "Assistant profile not found",
       });
     }
 
     res.status(200).json({
-      message: 'Dental assistant profile retrieved successfully',
-      assistant: assistantProfile.rows[0]
+      message: "Assistant profile retrieved successfully",
+      assistant: assistantProfile.rows[0],
     });
-
   } catch (err) {
-    console.error('Get dental assistant profile error:', err.message);
-    res.status(500).json({ error: 'Error retrieving dental assistant profile' });
+    console.error("Get assistant profile error:", err.message);
+    res.status(500).json({ error: "Error retrieving assistant profile" });
   }
 });
 
-// UPDATE OWN DENTAL ASSISTANT PROFILE
-router.put('/profile', authenticateToken, authorizeRoles('Assistant'), async (req, res) => {
+// UPDATE OWN ASSISTANT PROFILE
+router.put("/profile", authenticateToken, authorizeRoles("Assistant"), async (req, res) => {
   const user_id = req.user.user_id;
-  const { license_number, availability, status } = req.body;
+  const { name, email, license_number, availability } = req.body || {};
+
+  if (!name || !email || !license_number || !availability) {
+    return res.status(400).json({
+      error: "Name, email, license number, and availability are required",
+    });
+  }
+
+  const client = await pool.connect();
 
   try {
-    const updatedAssistant = await pool.query(
-      `UPDATE dental_assistants
+    await client.query("BEGIN");
+
+    const emailCheck = await client.query(
+      `SELECT user_id 
+       FROM public.users 
+       WHERE email = $1 AND user_id <> $2`,
+      [email, user_id]
+    );
+
+    if (emailCheck.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "Email is already used by another account" });
+    }
+
+    await client.query(
+      `UPDATE public.users
+       SET name = $1,
+           email = $2
+       WHERE user_id = $3`,
+      [name, email, user_id]
+    );
+
+    const updatedAssistant = await client.query(
+      `UPDATE public.assistants
        SET license_number = $1,
-           availability = $2,
-           status = $3
-       WHERE user_id = $4
+           availability = $2
+       WHERE user_id = $3
        RETURNING *`,
-      [license_number, availability, status, user_id]
+      [license_number, availability, user_id]
     );
 
     if (updatedAssistant.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({
-        error: 'Dental assistant profile not found'
+        error: "Assistant profile not found",
       });
     }
 
-    res.status(200).json({
-      message: 'Dental assistant profile updated successfully',
-      assistant: updatedAssistant.rows[0]
-    });
+    const fullProfile = await client.query(
+      `SELECT 
+          a.assistant_id,
+          a.user_id,
+          u.name,
+          u.email,
+          u.status AS account_status,
+          a.license_number,
+          a.availability,
+          a.status AS profile_status
+       FROM public.assistants a
+       JOIN public.users u ON a.user_id = u.user_id
+       WHERE a.user_id = $1`,
+      [user_id]
+    );
 
+    await client.query("COMMIT");
+
+    res.status(200).json({
+      message: "Assistant profile updated successfully",
+      assistant: fullProfile.rows[0],
+    });
   } catch (err) {
-    console.error('Update dental assistant profile error:', err.message);
-    res.status(500).json({ error: 'Error updating dental assistant profile' });
+    await client.query("ROLLBACK");
+
+    console.error("Update assistant profile error:", err.message);
+
+    if (err.code === "23505") {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+
+    res.status(500).json({ error: "Error updating assistant profile" });
+  } finally {
+    client.release();
   }
 });
 
-// ADMIN: GET ALL DENTAL ASSISTANT PROFILES
-router.get('/', authenticateToken, authorizeRoles('Admin'), async (req, res) => {
+// ADMIN: GET ALL ASSISTANT PROFILES
+router.get("/", authenticateToken, authorizeRoles("Admin"), async (req, res) => {
   try {
     const assistants = await pool.query(
       `SELECT 
-          dental_assistants.assistant_id,
-          dental_assistants.user_id,
-          users.name,
-          users.email,
-          dental_assistants.license_number,
-          dental_assistants.availability,
-          dental_assistants.status
-       FROM dental_assistants
-       JOIN users ON dental_assistants.user_id = users.user_id
-       ORDER BY dental_assistants.assistant_id`
+          a.assistant_id,
+          a.user_id,
+          u.name,
+          u.email,
+          a.license_number,
+          a.availability,
+          a.status
+       FROM public.assistants a
+       JOIN public.users u ON a.user_id = u.user_id
+       ORDER BY a.assistant_id`
     );
 
     res.status(200).json(assistants.rows);
-
   } catch (err) {
-    console.error('Get all dental assistants error:', err.message);
-    res.status(500).json({ error: 'Error retrieving dental assistants' });
+    console.error("Get all assistants error:", err.message);
+    res.status(500).json({ error: "Error retrieving assistants" });
   }
 });
 
