@@ -81,7 +81,7 @@ const getAccessibleRecord = async (req, record_id) => {
       allowed: result.rows.length > 0,
       record: result.rows[0] || null,
       error: result.rows.length === 0 ? "Dental record not found" : null,
-      status: result.rows.length === 0 ? 404 : 200,
+      statusCode: result.rows.length === 0 ? 404 : 200,
     };
   }
 
@@ -93,7 +93,7 @@ const getAccessibleRecord = async (req, record_id) => {
         allowed: false,
         record: null,
         error: "Dentist profile not found",
-        status: 404,
+        statusCode: 404,
       };
     }
 
@@ -111,7 +111,7 @@ const getAccessibleRecord = async (req, record_id) => {
         result.rows.length === 0
           ? "Dental record not found or not assigned to this dentist"
           : null,
-      status: result.rows.length === 0 ? 403 : 200,
+      statusCode: result.rows.length === 0 ? 403 : 200,
     };
   }
 
@@ -123,7 +123,7 @@ const getAccessibleRecord = async (req, record_id) => {
         allowed: false,
         record: null,
         error: "Assistant profile not found",
-        status: 404,
+        statusCode: 404,
       };
     }
 
@@ -132,7 +132,7 @@ const getAccessibleRecord = async (req, record_id) => {
         allowed: false,
         record: null,
         error: "Assistant is not assigned to a clinic",
-        status: 400,
+        statusCode: 400,
       };
     }
 
@@ -150,7 +150,7 @@ const getAccessibleRecord = async (req, record_id) => {
         result.rows.length === 0
           ? "Dental record not found or not under assistant assigned clinic"
           : null,
-      status: result.rows.length === 0 ? 403 : 200,
+      statusCode: result.rows.length === 0 ? 403 : 200,
     };
   }
 
@@ -162,7 +162,7 @@ const getAccessibleRecord = async (req, record_id) => {
         allowed: false,
         record: null,
         error: "Patient profile not found",
-        status: 404,
+        statusCode: 404,
       };
     }
 
@@ -180,7 +180,7 @@ const getAccessibleRecord = async (req, record_id) => {
         result.rows.length === 0
           ? "Dental record not found or does not belong to this patient"
           : null,
-      status: result.rows.length === 0 ? 403 : 200,
+      statusCode: result.rows.length === 0 ? 403 : 200,
     };
   }
 
@@ -188,7 +188,7 @@ const getAccessibleRecord = async (req, record_id) => {
     allowed: false,
     record: null,
     error: "Access denied",
-    status: 403,
+    statusCode: 403,
   };
 };
 
@@ -293,16 +293,26 @@ router.get(
   async (req, res) => {
     const role = req.user.role;
     const user_id = req.user.user_id;
+    const { status } = req.query;
+    const selectedStatus = status || "Active";
 
     try {
       let records;
 
       if (role === "Admin") {
-        records = await pool.query(
-          `${getDentalRecordBaseQuery()}
-           WHERE COALESCE(dr.status, 'Active') = 'Active'
-           ORDER BY dr.record_id DESC`,
-        );
+        if (selectedStatus === "All") {
+          records = await pool.query(
+            `${getDentalRecordBaseQuery()}
+             ORDER BY dr.record_id DESC`,
+          );
+        } else {
+          records = await pool.query(
+            `${getDentalRecordBaseQuery()}
+             WHERE COALESCE(dr.status, 'Active') = $1
+             ORDER BY dr.record_id DESC`,
+            [selectedStatus],
+          );
+        }
       } else if (role === "Dentist") {
         const dentist = await getDentistProfile(user_id);
 
@@ -489,7 +499,7 @@ router.get(
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
-        return res.status(access.status).json({ error: access.error });
+        return res.status(access.statusCode).json({ error: access.error });
       }
 
       if (access.record.status === "Archived" && req.user.role !== "Admin") {
@@ -551,7 +561,7 @@ router.post(
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
-        return res.status(access.status).json({ error: access.error });
+        return res.status(access.statusCode).json({ error: access.error });
       }
 
       if (access.record.status === "Archived") {
@@ -628,7 +638,7 @@ router.put(
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
-        return res.status(access.status).json({ error: access.error });
+        return res.status(access.statusCode).json({ error: access.error });
       }
 
       if (access.record.status === "Archived") {
@@ -692,7 +702,7 @@ router.post(
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
-        return res.status(access.status).json({ error: access.error });
+        return res.status(access.statusCode).json({ error: access.error });
       }
 
       if (access.record.status === "Archived") {
@@ -767,7 +777,7 @@ router.put(
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
-        return res.status(access.status).json({ error: access.error });
+        return res.status(access.statusCode).json({ error: access.error });
       }
 
       if (access.record.status === "Archived") {
@@ -816,7 +826,7 @@ router.put(
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
-        return res.status(access.status).json({ error: access.error });
+        return res.status(access.statusCode).json({ error: access.error });
       }
 
       const archivedRecord = await pool.query(
@@ -839,6 +849,45 @@ router.put(
     } catch (err) {
       console.error("Archive dental record error:", err.message);
       res.status(500).json({ error: "Error archiving dental record" });
+    }
+  },
+);
+
+// ADMIN: RESTORE ARCHIVED DENTAL RECORD
+router.put(
+  "/:record_id/restore",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { record_id } = req.params;
+
+    try {
+      const access = await getAccessibleRecord(req, record_id);
+
+      if (!access.allowed) {
+        return res.status(access.statusCode).json({ error: access.error });
+      }
+
+      const restoredRecord = await pool.query(
+        `UPDATE public.dental_records
+         SET status = 'Active',
+             last_updated = CURRENT_TIMESTAMP
+         WHERE record_id = $1
+         RETURNING *`,
+        [record_id],
+      );
+
+      if (restoredRecord.rows.length === 0) {
+        return res.status(404).json({ error: "Dental record not found" });
+      }
+
+      res.status(200).json({
+        message: "Dental record restored successfully",
+        dental_record: restoredRecord.rows[0],
+      });
+    } catch (err) {
+      console.error("Restore dental record error:", err.message);
+      res.status(500).json({ error: "Error restoring dental record" });
     }
   },
 );

@@ -39,6 +39,7 @@ function Sidebar({ role }) {
       { label: "Clinics", path: "/admin/clinics" },
       { label: "Subscriptions", path: "/admin/subscriptions" },
       { label: "Reports", path: "/admin/reports" },
+      { label: "Dental Records", path: "/admin/dental-records" },
     ],
   };
 

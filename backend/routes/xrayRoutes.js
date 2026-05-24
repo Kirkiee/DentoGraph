@@ -30,16 +30,26 @@ const storage = multer.diskStorage({
 
 // FILE FILTER
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|webp|gif|pdf/;
-  const extName = allowedTypes.test(
+  const allowedExtensions = /jpeg|jpg|png|webp|gif|pdf/;
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+    "application/pdf",
+  ];
+
+  const extName = allowedExtensions.test(
     path.extname(file.originalname).toLowerCase(),
   );
-  const mimeType = allowedTypes.test(file.mimetype);
+
+  const mimeType = allowedMimeTypes.includes(file.mimetype);
 
   if (extName && mimeType) {
     cb(null, true);
   } else {
-    cb(new Error("Only JPG, PNG, WEBP, and PDF files are allowed"));
+    cb(new Error("Only JPG, JPEG, PNG, WEBP, GIF, and PDF files are allowed"));
   }
 };
 
@@ -52,14 +62,221 @@ const upload = multer({
   fileFilter,
 });
 
+const isAssistantRole = (role) => {
+  return role === "Assistant" || role === "Dental Assistant";
+};
+
+const getDentistProfile = async (user_id) => {
+  const result = await pool.query(
+    `SELECT dentist_id, clinic_id
+     FROM public.dentists
+     WHERE user_id = $1`,
+    [user_id],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getAssistantProfile = async (user_id) => {
+  const result = await pool.query(
+    `SELECT assistant_id, clinic_id
+     FROM public.assistants
+     WHERE user_id = $1`,
+    [user_id],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getPatientProfile = async (user_id) => {
+  const result = await pool.query(
+    `SELECT patient_id
+     FROM public.patients
+     WHERE user_id = $1`,
+    [user_id],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getDentalRecordBaseQuery = () => {
+  return `
+    SELECT 
+      dr.record_id,
+      dr.patient_id,
+      dr.dentist_id,
+      COALESCE(dr.status, 'Active') AS record_status,
+      d.clinic_id,
+      patient_user.name AS patient_name,
+      dentist_user.name AS dentist_name,
+      c.clinic_name
+    FROM public.dental_records dr
+    JOIN public.patients p ON dr.patient_id = p.patient_id
+    JOIN public.users patient_user ON p.user_id = patient_user.user_id
+    JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+    JOIN public.users dentist_user ON d.user_id = dentist_user.user_id
+    LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+  `;
+};
+
+const getAccessibleRecord = async (req, record_id) => {
+  const role = req.user.role;
+  const user_id = req.user.user_id;
+
+  if (role === "Admin") {
+    const result = await pool.query(
+      `${getDentalRecordBaseQuery()}
+       WHERE dr.record_id = $1`,
+      [record_id],
+    );
+
+    return {
+      allowed: result.rows.length > 0,
+      record: result.rows[0] || null,
+      error: result.rows.length === 0 ? "Dental record not found" : null,
+      status: result.rows.length === 0 ? 404 : 200,
+    };
+  }
+
+  if (role === "Dentist") {
+    const dentist = await getDentistProfile(user_id);
+
+    if (!dentist) {
+      return {
+        allowed: false,
+        record: null,
+        error: "Dentist profile not found",
+        status: 404,
+      };
+    }
+
+    const result = await pool.query(
+      `${getDentalRecordBaseQuery()}
+       WHERE dr.record_id = $1
+       AND dr.dentist_id = $2`,
+      [record_id, dentist.dentist_id],
+    );
+
+    return {
+      allowed: result.rows.length > 0,
+      record: result.rows[0] || null,
+      error:
+        result.rows.length === 0
+          ? "Dental record not found or not assigned to this dentist"
+          : null,
+      status: result.rows.length === 0 ? 403 : 200,
+    };
+  }
+
+  if (isAssistantRole(role)) {
+    const assistant = await getAssistantProfile(user_id);
+
+    if (!assistant) {
+      return {
+        allowed: false,
+        record: null,
+        error: "Assistant profile not found",
+        status: 404,
+      };
+    }
+
+    if (!assistant.clinic_id) {
+      return {
+        allowed: false,
+        record: null,
+        error: "Assistant is not assigned to a clinic",
+        status: 400,
+      };
+    }
+
+    const result = await pool.query(
+      `${getDentalRecordBaseQuery()}
+       WHERE dr.record_id = $1
+       AND d.clinic_id = $2`,
+      [record_id, assistant.clinic_id],
+    );
+
+    return {
+      allowed: result.rows.length > 0,
+      record: result.rows[0] || null,
+      error:
+        result.rows.length === 0
+          ? "Dental record not found or not under assistant assigned clinic"
+          : null,
+      status: result.rows.length === 0 ? 403 : 200,
+    };
+  }
+
+  if (role === "Patient") {
+    const patient = await getPatientProfile(user_id);
+
+    if (!patient) {
+      return {
+        allowed: false,
+        record: null,
+        error: "Patient profile not found",
+        status: 404,
+      };
+    }
+
+    const result = await pool.query(
+      `${getDentalRecordBaseQuery()}
+       WHERE dr.record_id = $1
+       AND dr.patient_id = $2`,
+      [record_id, patient.patient_id],
+    );
+
+    return {
+      allowed: result.rows.length > 0,
+      record: result.rows[0] || null,
+      error:
+        result.rows.length === 0
+          ? "Dental record not found or does not belong to this patient"
+          : null,
+      status: result.rows.length === 0 ? 403 : 200,
+    };
+  }
+
+  return {
+    allowed: false,
+    record: null,
+    error: "Access denied",
+    status: 403,
+  };
+};
+
+const getXrayWithRecord = async (xray_id) => {
+  const result = await pool.query(
+    `SELECT 
+        x.xray_id,
+        x.record_id,
+        x.tooth_id,
+        t.tooth_number,
+        x.file_path,
+        x.upload_date,
+        dr.patient_id,
+        dr.dentist_id,
+        COALESCE(dr.status, 'Active') AS record_status,
+        d.clinic_id
+     FROM public.xray_images x
+     JOIN public.dental_records dr ON x.record_id = dr.record_id
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     LEFT JOIN public.teeth t ON x.tooth_id = t.tooth_id
+     WHERE x.xray_id = $1`,
+    [xray_id],
+  );
+
+  return result.rows[0] || null;
+};
+
 // DENTIST / ASSISTANT: UPLOAD X-RAY IMAGE
 router.post(
   "/upload",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant"),
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   upload.single("xray"),
   async (req, res) => {
-    const { record_id, tooth_id } = req.body;
+    const { record_id, tooth_id } = req.body || {};
 
     try {
       if (!req.file) {
@@ -74,14 +291,23 @@ router.post(
         });
       }
 
-      const recordCheck = await pool.query(
-        "SELECT record_id FROM public.dental_records WHERE record_id = $1",
-        [record_id],
-      );
+      const access = await getAccessibleRecord(req, record_id);
 
-      if (recordCheck.rows.length === 0) {
-        return res.status(404).json({
-          error: "Dental record not found",
+      if (!access.allowed) {
+        if (req.file?.path && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+
+        return res.status(access.status).json({ error: access.error });
+      }
+
+      if (access.record.record_status === "Archived") {
+        if (req.file?.path && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+
+        return res.status(400).json({
+          error: "Cannot upload X-rays to an archived dental record.",
         });
       }
 
@@ -95,6 +321,10 @@ router.post(
         );
 
         if (toothCheck.rows.length === 0) {
+          if (req.file?.path && fs.existsSync(req.file.path)) {
+            fs.unlinkSync(req.file.path);
+          }
+
           return res.status(404).json({
             error: "Tooth not found or does not belong to this dental record",
           });
@@ -130,6 +360,10 @@ router.post(
         },
       });
     } catch (err) {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+
       console.error("Upload X-ray error:", err.message);
       res.status(500).json({
         error: "Error uploading X-ray image",
@@ -142,11 +376,32 @@ router.post(
 router.get(
   "/record/:record_id",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Patient", "Admin"),
+  authorizeRoles(
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+    "Patient",
+    "Admin",
+  ),
   async (req, res) => {
     const { record_id } = req.params;
 
     try {
+      const access = await getAccessibleRecord(req, record_id);
+
+      if (!access.allowed) {
+        return res.status(access.status).json({ error: access.error });
+      }
+
+      if (
+        access.record.record_status === "Archived" &&
+        req.user.role !== "Admin"
+      ) {
+        return res.status(403).json({
+          error: "This dental record has been archived.",
+        });
+      }
+
       const xrays = await pool.query(
         `SELECT 
             x.xray_id,
@@ -179,34 +434,40 @@ router.get(
 router.get(
   "/:xray_id",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Patient", "Admin"),
+  authorizeRoles(
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+    "Patient",
+    "Admin",
+  ),
   async (req, res) => {
     const { xray_id } = req.params;
 
     try {
-      const xray = await pool.query(
-        `SELECT 
-            x.xray_id,
-            x.record_id,
-            x.tooth_id,
-            t.tooth_number,
-            x.file_path,
-            x.upload_date
-         FROM public.xray_images x
-         LEFT JOIN public.teeth t ON x.tooth_id = t.tooth_id
-         WHERE x.xray_id = $1`,
-        [xray_id],
-      );
+      const xray = await getXrayWithRecord(xray_id);
 
-      if (xray.rows.length === 0) {
+      if (!xray) {
         return res.status(404).json({
           error: "X-ray image not found",
         });
       }
 
+      const access = await getAccessibleRecord(req, xray.record_id);
+
+      if (!access.allowed) {
+        return res.status(access.status).json({ error: access.error });
+      }
+
+      if (xray.record_status === "Archived" && req.user.role !== "Admin") {
+        return res.status(403).json({
+          error: "This X-ray belongs to an archived dental record.",
+        });
+      }
+
       res.status(200).json({
         message: "X-ray image retrieved successfully",
-        xray: xray.rows[0],
+        xray,
       });
     } catch (err) {
       console.error("Get single X-ray error:", err.message);
@@ -221,11 +482,31 @@ router.get(
 router.delete(
   "/:xray_id",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant"),
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   async (req, res) => {
     const { xray_id } = req.params;
 
     try {
+      const xray = await getXrayWithRecord(xray_id);
+
+      if (!xray) {
+        return res.status(404).json({
+          error: "X-ray image not found",
+        });
+      }
+
+      const access = await getAccessibleRecord(req, xray.record_id);
+
+      if (!access.allowed) {
+        return res.status(access.status).json({ error: access.error });
+      }
+
+      if (xray.record_status === "Archived") {
+        return res.status(400).json({
+          error: "Cannot delete X-rays from an archived dental record.",
+        });
+      }
+
       const deletedXray = await pool.query(
         `DELETE FROM public.xray_images
          WHERE xray_id = $1
@@ -246,6 +527,13 @@ router.delete(
           fs.unlinkSync(filePath);
         }
       }
+
+      await pool.query(
+        `UPDATE public.dental_records
+         SET last_updated = CURRENT_TIMESTAMP
+         WHERE record_id = $1`,
+        [deletedXray.rows[0].record_id],
+      );
 
       res.status(200).json({
         message: "X-ray image record deleted successfully",
