@@ -89,6 +89,49 @@ router.get(
   },
 );
 
+// PATIENT / ADMIN / DENTIST / ASSISTANT: CLINIC DISCOVERY LIST
+router.get(
+  "/discovery/list",
+  authenticateToken,
+  authorizeRoles(
+    "Patient",
+    "Admin",
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+  ),
+  async (req, res) => {
+    try {
+      const clinics = await pool.query(
+        `SELECT 
+            clinic_id,
+            clinic_name,
+            address,
+            latitude,
+            longitude,
+            services,
+            contact_number,
+            opening_hours,
+            status,
+            created_at
+         FROM public.clinics
+         WHERE status = 'Active'
+         ORDER BY clinic_name ASC`,
+      );
+
+      res.status(200).json({
+        message: "Clinic discovery list retrieved successfully",
+        clinics: clinics.rows,
+      });
+    } catch (err) {
+      console.error("Clinic discovery error:", err.message);
+      res.status(500).json({
+        error: "Error retrieving clinic discovery list",
+      });
+    }
+  },
+);
+
 // ADMIN: GET SINGLE CLINIC
 router.get(
   "/:clinic_id",

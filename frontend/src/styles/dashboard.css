@@ -1455,3 +1455,75 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* CLINIC DISCOVERY */
+
+.clinic-discovery-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.clinic-card {
+  border: 1px solid var(--dg-border);
+  border-radius: 22px;
+  background: #ffffff;
+  padding: 20px;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+}
+
+.clinic-card h3 {
+  margin: 0;
+  color: var(--dg-text);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.clinic-card p {
+  margin: 9px 0;
+  color: var(--dg-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (max-width: 900px) {
+  .clinic-discovery-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* REAL-TIME CLINIC MAP */
+
+.clinic-map-card {
+  margin-top: 20px;
+  margin-bottom: 22px;
+  border: 1px solid var(--dg-border);
+  border-radius: 22px;
+  background: #ffffff;
+  padding: 20px;
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.06);
+}
+
+.clinic-map-wrapper {
+  width: 100%;
+  height: 460px;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--dg-border);
+  margin-top: 16px;
+}
+
+.clinic-map {
+  width: 100%;
+  height: 100%;
+}
+
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-popup-content {
+  font-size: 13px;
+  color: #334155;
+}
