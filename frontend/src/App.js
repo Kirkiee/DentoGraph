@@ -20,16 +20,19 @@ import AdminSubscriptions from "./pages/AdminSubscriptions";
 import AdminReports from "./pages/AdminReports";
 import AdminDentalRecords from "./pages/AdminDentalRecords";
 import AdminDentalRecordDetails from "./pages/AdminDentalRecordDetails";
+import AdminDental3DViewer from "./pages/AdminDental3DViewer";
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
 import PatientDentalRecords from "./pages/PatientDentalRecords";
 import PatientDentalRecordDetails from "./pages/PatientDentalRecordDetails";
 import PatientXrays from "./pages/PatientXrays";
+import PatientDental3DViewer from "./pages/PatientDental3DViewer";
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
 import DentistDentalRecords from "./pages/DentistDentalRecords";
 import DentistDentalRecordDetails from "./pages/DentistDentalRecordDetails";
 import DentistXrays from "./pages/DentistXrays";
+import DentistDental3DViewer from "./pages/DentistDental3DViewer";
 import AssistantProfile from "./pages/AssistantProfile";
 import AssistantAppointments from "./pages/AssistantAppointments";
 import AssistantDentalRecords from "./pages/AssistantDentalRecords";
@@ -103,6 +106,15 @@ function App() {
         />
 
         <Route
+          path="/admin/dental-records/:record_id/3d-view"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminDental3DViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/admin/dental-records/:record_id"
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
@@ -166,6 +178,15 @@ function App() {
         />
 
         <Route
+          path="/dentist/dental-records/:record_id/3d-view"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistDental3DViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/patient/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
@@ -215,6 +236,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientXrays />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/records/:record_id/3d-view"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientDental3DViewer />
             </ProtectedRoute>
           }
         />

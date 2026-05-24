@@ -81,6 +81,24 @@ function AdminDentalRecordDetails() {
     }
   };
 
+  const getToothStatusClass = (status) => {
+    switch (status) {
+      case "Decayed":
+        return "status-badge status-cancelled";
+      case "Filled":
+        return "status-badge status-pending";
+      case "Missing":
+        return "status-badge status-cancelled";
+      case "Crowned":
+        return "status-badge status-scheduled";
+      case "Impacted":
+        return "status-badge status-pending";
+      case "Normal":
+      default:
+        return "status-badge status-completed";
+    }
+  };
+
   const formatDate = (dateValue) => {
     if (!dateValue) return "N/A";
     return new Date(dateValue).toLocaleString();
@@ -101,8 +119,8 @@ function AdminDentalRecordDetails() {
           <div>
             <h2>Dental Record Details</h2>
             <p>
-              View patient, dentist, clinic, teeth, treatments, and X-ray
-              information for this dental record.
+              View patient, dentist, clinic, teeth, treatments, X-rays, and 3D
+              dental visualization for this dental record.
             </p>
           </div>
 
@@ -112,6 +130,15 @@ function AdminDentalRecordDetails() {
               onClick={() => navigate("/admin/dental-records")}
             >
               Back to Records
+            </button>
+
+            <button
+              className="primary-button"
+              onClick={() =>
+                navigate(`/admin/dental-records/${record_id}/3d-view`)
+              }
+            >
+              3D View
             </button>
 
             <button
@@ -187,8 +214,20 @@ function AdminDentalRecordDetails() {
               <div className="appointments-header">
                 <div>
                   <h2>Teeth Overview</h2>
-                  <p>View teeth added to this dental record.</p>
+                  <p>
+                    View teeth added to this dental record. Open the 3D dental
+                    chart for a visual overview.
+                  </p>
                 </div>
+
+                <button
+                  className="primary-button"
+                  onClick={() =>
+                    navigate(`/admin/dental-records/${record_id}/3d-view`)
+                  }
+                >
+                  Open 3D Chart
+                </button>
               </div>
 
               {teeth.length === 0 ? (
@@ -206,7 +245,11 @@ function AdminDentalRecordDetails() {
                         <div className="appointment-title-row">
                           <h3>Tooth #{tooth.tooth_number}</h3>
 
-                          <span className="status-badge status-scheduled">
+                          <span
+                            className={getToothStatusClass(
+                              tooth.tooth_status || "Normal",
+                            )}
+                          >
                             {tooth.tooth_status || "Normal"}
                           </span>
                         </div>

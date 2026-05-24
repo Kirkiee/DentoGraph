@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
+import { useNavigate, useParams } from "react-router-dom";
 
 function PatientDentalRecordDetails() {
   const { record_id } = useParams();
@@ -11,9 +11,11 @@ function PatientDentalRecordDetails() {
   const [teeth, setTeeth] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [xrays, setXrays] = useState([]);
-  const [selectedTooth, setSelectedTooth] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [loadingXrays, setLoadingXrays] = useState(true);
+
+  const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const token = localStorage.getItem("token");
@@ -24,13 +26,9 @@ function PatientDentalRecordDetails() {
     },
   };
 
-  const adultTeethNumbers = [
-    18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46,
-    45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
-  ];
-
   useEffect(() => {
     fetchRecordDetails();
+    fetchXrays();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record_id]);
 
@@ -39,29 +37,14 @@ function PatientDentalRecordDetails() {
       setLoading(true);
       setError("");
 
-      const recordResponse = await API.get(
+      const response = await API.get(
         `/api/dental-records/${record_id}`,
         authHeaders,
       );
 
-      setRecord(recordResponse.data.dental_record);
-      setTeeth(recordResponse.data.teeth || []);
-      setTreatments(recordResponse.data.treatments || []);
-
-      const xrayResponse = await API.get(
-        `/api/xrays/record/${record_id}`,
-        authHeaders,
-      );
-
-      setXrays(xrayResponse.data.xrays || []);
-
-      if (selectedTooth) {
-        const updatedSelectedTooth = recordResponse.data.teeth?.find(
-          (tooth) => tooth.tooth_id === selectedTooth.tooth_id,
-        );
-
-        setSelectedTooth(updatedSelectedTooth || null);
-      }
+      setRecord(response.data.dental_record || null);
+      setTeeth(response.data.teeth || []);
+      setTreatments(response.data.treatments || []);
     } catch (err) {
       setError(
         err.response?.data?.error || "Unable to load dental record details.",
@@ -71,74 +54,62 @@ function PatientDentalRecordDetails() {
     }
   };
 
-  const getToothByNumber = (toothNumber) => {
-    return teeth.find(
-      (tooth) => Number(tooth.tooth_number) === Number(toothNumber),
-    );
-  };
+  const fetchXrays = async () => {
+    try {
+      setLoadingXrays(true);
 
-  const getTreatmentsByToothId = (toothId) => {
-    return treatments.filter((treatment) => treatment.tooth_id === toothId);
-  };
+      const response = await API.get(
+        `/api/xrays/record/${record_id}`,
+        authHeaders,
+      );
 
-  const getFileUrl = (filePath) => {
-    if (!filePath) return "#";
-
-    const normalizedPath = filePath.replace(/\\/g, "/");
-
-    if (normalizedPath.startsWith("http")) {
-      return normalizedPath;
+      setXrays(response.data.xrays || []);
+    } catch (err) {
+      console.error("Fetch X-rays error:", err);
+    } finally {
+      setLoadingXrays(false);
     }
-
-    return `http://localhost:5000/${normalizedPath}`;
   };
 
-  const isImageFile = (filePath) => {
-    return /\.(jpg|jpeg|png|webp|gif)$/i.test(filePath || "");
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+    return new Date(dateValue).toLocaleString();
+  };
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case "Archived":
+        return "status-badge status-cancelled";
+      case "Active":
+      default:
+        return "status-badge status-scheduled";
+    }
   };
 
   const getToothStatusClass = (status) => {
     switch (status) {
-      case "Healthy":
-      case "Normal":
-        return "status-badge status-completed";
-      case "Cavity":
-      case "Needs Treatment":
-        return "status-badge status-pending";
-      case "Extracted":
-      case "Missing":
+      case "Decayed":
         return "status-badge status-cancelled";
       case "Filled":
-      case "Treated":
-        return "status-badge status-scheduled";
-      default:
         return "status-badge status-pending";
+      case "Missing":
+        return "status-badge status-cancelled";
+      case "Crowned":
+        return "status-badge status-scheduled";
+      case "Impacted":
+        return "status-badge status-pending";
+      case "Normal":
+      default:
+        return "status-badge status-completed";
     }
   };
 
-  const getToothChartClass = (status, isSelected) => {
-    let className = "tooth-chart-item";
+  const getFileUrl = (filePath) => {
+    if (!filePath) return "";
 
-    if (isSelected) {
-      className += " selected";
-    }
+    const baseURL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-    switch (status) {
-      case "Healthy":
-      case "Normal":
-        return `${className} tooth-normal`;
-      case "Cavity":
-      case "Needs Treatment":
-        return `${className} tooth-warning`;
-      case "Extracted":
-      case "Missing":
-        return `${className} tooth-danger`;
-      case "Filled":
-      case "Treated":
-        return `${className} tooth-treated`;
-      default:
-        return `${className} tooth-empty`;
-    }
+    return `${baseURL}/${filePath}`;
   };
 
   return (
@@ -146,29 +117,52 @@ function PatientDentalRecordDetails() {
       <div className="appointments-list-card">
         <div className="appointments-header">
           <div>
-            <h2>Dental Record Details</h2>
+            <h2>My Dental Record Details</h2>
             <p>
-              View your visual tooth chart, tooth status, treatment history, and
-              uploaded X-rays.
+              View your dental record, tooth status, treatment history, X-rays,
+              and 3D dental visualization.
             </p>
           </div>
 
-          <button
-            className="secondary-button"
-            onClick={() => navigate("/patient/records")}
-          >
-            Back
-          </button>
+          <div className="appointment-actions" style={{ flexDirection: "row" }}>
+            <button
+              className="secondary-button"
+              onClick={() => navigate("/patient/records")}
+            >
+              Back to Records
+            </button>
+
+            <button
+              className="primary-button"
+              onClick={() => navigate(`/patient/records/${record_id}/3d-view`)}
+            >
+              3D View
+            </button>
+
+            <button
+              className="secondary-button"
+              onClick={() => {
+                fetchRecordDetails();
+                fetchXrays();
+              }}
+              disabled={loading}
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </div>
 
+        {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
         {loading ? (
           <p>Loading dental record details...</p>
         ) : !record ? (
           <div className="empty-state">
-            <h3>Record not found</h3>
-            <p>The selected dental record could not be loaded.</p>
+            <h3>Dental record not found</h3>
+            <p>
+              The selected dental record may not exist or may be unavailable.
+            </p>
           </div>
         ) : (
           <>
@@ -176,7 +170,10 @@ function PatientDentalRecordDetails() {
               <div className="appointment-info">
                 <div className="appointment-title-row">
                   <h3>Record #{record.record_id}</h3>
-                  <span className="status-badge status-scheduled">Active</span>
+
+                  <span className={getStatusClass(record.status)}>
+                    {record.status || "Active"}
+                  </span>
                 </div>
 
                 <p>
@@ -190,116 +187,47 @@ function PatientDentalRecordDetails() {
                 </p>
 
                 <p>
+                  <strong>Clinic:</strong>{" "}
+                  {record.clinic_name || "No assigned clinic"}
+                </p>
+
+                <p>
                   <strong>Date Created:</strong>{" "}
-                  {record.date_created
-                    ? new Date(record.date_created).toLocaleString()
-                    : "N/A"}
+                  {formatDate(record.date_created)}
                 </p>
 
                 <p>
                   <strong>Last Updated:</strong>{" "}
-                  {record.last_updated
-                    ? new Date(record.last_updated).toLocaleString()
-                    : "N/A"}
+                  {formatDate(record.last_updated)}
                 </p>
               </div>
             </div>
 
-            <div className="tooth-chart-section">
+            <div className="report-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Visual Tooth Chart</h2>
+                  <h2>Teeth Overview</h2>
                   <p>
-                    Click a recorded tooth to view its status and treatment
-                    count.
+                    View the tooth status recorded by your dentist. For a visual
+                    version, open the 3D dental chart.
                   </p>
                 </div>
 
                 <button
-                  className="secondary-button"
-                  onClick={fetchRecordDetails}
+                  className="primary-button"
+                  onClick={() =>
+                    navigate(`/patient/records/${record_id}/3d-view`)
+                  }
                 >
-                  Refresh
+                  Open 3D Chart
                 </button>
-              </div>
-
-              <div className="tooth-chart-legend">
-                <span>
-                  <i className="legend-dot normal"></i> Normal
-                </span>
-                <span>
-                  <i className="legend-dot warning"></i> Needs Treatment
-                </span>
-                <span>
-                  <i className="legend-dot treated"></i> Treated
-                </span>
-                <span>
-                  <i className="legend-dot danger"></i> Missing/Extracted
-                </span>
-                <span>
-                  <i className="legend-dot empty"></i> Not Recorded
-                </span>
-              </div>
-
-              <div className="tooth-chart-grid">
-                {adultTeethNumbers.map((toothNumber) => {
-                  const tooth = getToothByNumber(toothNumber);
-                  const isSelected =
-                    selectedTooth?.tooth_number === toothNumber;
-
-                  return (
-                    <button
-                      key={toothNumber}
-                      type="button"
-                      className={getToothChartClass(
-                        tooth?.tooth_status,
-                        isSelected,
-                      )}
-                      onClick={() => {
-                        if (tooth) {
-                          setSelectedTooth(tooth);
-                        } else {
-                          setSelectedTooth(null);
-                        }
-                      }}
-                    >
-                      <span>{toothNumber}</span>
-                      <small>{tooth ? tooth.tooth_status : "Empty"}</small>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedTooth && (
-                <div className="selected-tooth-panel">
-                  <h3>Selected Tooth #{selectedTooth.tooth_number}</h3>
-
-                  <p>
-                    <strong>Status:</strong> {selectedTooth.tooth_status}
-                  </p>
-
-                  <p>
-                    <strong>Treatments:</strong>{" "}
-                    {getTreatmentsByToothId(selectedTooth.tooth_id).length}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginTop: "28px" }}>
-              <div className="appointments-header">
-                <div>
-                  <h2>Recorded Teeth</h2>
-                  <p>Your recorded tooth status information.</p>
-                </div>
               </div>
 
               {teeth.length === 0 ? (
                 <div className="empty-state">
-                  <h3>No teeth added yet</h3>
+                  <h3>No teeth added</h3>
                   <p>
-                    Tooth information will appear here once added by your
-                    dentist.
+                    Tooth records will appear here once added by your dentist.
                   </p>
                 </div>
               ) : (
@@ -311,9 +239,11 @@ function PatientDentalRecordDetails() {
                           <h3>Tooth #{tooth.tooth_number}</h3>
 
                           <span
-                            className={getToothStatusClass(tooth.tooth_status)}
+                            className={getToothStatusClass(
+                              tooth.tooth_status || "Normal",
+                            )}
                           >
-                            {tooth.tooth_status}
+                            {tooth.tooth_status || "Normal"}
                           </span>
                         </div>
 
@@ -322,8 +252,8 @@ function PatientDentalRecordDetails() {
                         </p>
 
                         <p>
-                          <strong>Treatments:</strong>{" "}
-                          {getTreatmentsByToothId(tooth.tooth_id).length}
+                          <strong>Status:</strong>{" "}
+                          {tooth.tooth_status || "Normal"}
                         </p>
                       </div>
                     </div>
@@ -332,20 +262,22 @@ function PatientDentalRecordDetails() {
               )}
             </div>
 
-            <div style={{ marginTop: "28px" }}>
+            <div className="report-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Treatments</h2>
-                  <p>Treatment history connected to your dental record.</p>
+                  <h2>Treatment History</h2>
+                  <p>
+                    View the treatments and procedures recorded by your dentist.
+                  </p>
                 </div>
               </div>
 
               {treatments.length === 0 ? (
                 <div className="empty-state">
-                  <h3>No treatments yet</h3>
+                  <h3>No treatments recorded</h3>
                   <p>
-                    Your treatment history will appear here once your dentist
-                    adds treatments.
+                    Treatment history will appear here once added by your
+                    dentist.
                   </p>
                 </div>
               ) : (
@@ -365,17 +297,18 @@ function PatientDentalRecordDetails() {
                         </div>
 
                         <p>
+                          <strong>Treatment ID:</strong>{" "}
+                          {treatment.treatment_id}
+                        </p>
+
+                        <p>
                           <strong>Description:</strong>{" "}
-                          {treatment.description || "No description provided."}
+                          {treatment.description || "No description provided"}
                         </p>
 
                         <p>
                           <strong>Treatment Date:</strong>{" "}
-                          {treatment.treatment_date
-                            ? new Date(
-                                treatment.treatment_date,
-                              ).toLocaleString()
-                            : "N/A"}
+                          {formatDate(treatment.treatment_date)}
                         </p>
                       </div>
                     </div>
@@ -384,63 +317,59 @@ function PatientDentalRecordDetails() {
               )}
             </div>
 
-            <div style={{ marginTop: "28px" }}>
+            <div className="report-section">
               <div className="appointments-header">
                 <div>
-                  <h2>X-rays</h2>
-                  <p>Uploaded X-rays connected to this dental record.</p>
+                  <h2>X-ray Images</h2>
+                  <p>
+                    View uploaded X-ray files connected to this dental record.
+                  </p>
                 </div>
               </div>
 
-              {xrays.length === 0 ? (
+              {loadingXrays ? (
+                <p>Loading X-rays...</p>
+              ) : xrays.length === 0 ? (
                 <div className="empty-state">
-                  <h3>No X-rays uploaded yet</h3>
+                  <h3>No X-rays uploaded</h3>
                   <p>
-                    Your uploaded X-rays will appear here once your dentist adds
-                    them.
+                    X-ray files will appear here once uploaded by clinical
+                    staff.
                   </p>
                 </div>
               ) : (
-                <div className="xray-grid">
+                <div className="appointments-list">
                   {xrays.map((xray) => (
-                    <div className="xray-card" key={xray.xray_id}>
-                      <div className="xray-preview">
-                        {isImageFile(xray.file_path) ? (
-                          <img
-                            src={getFileUrl(xray.file_path)}
-                            alt={`X-ray ${xray.xray_id}`}
-                          />
-                        ) : (
-                          <div className="xray-pdf-preview">PDF</div>
-                        )}
-                      </div>
+                    <div className="appointment-item" key={xray.xray_id}>
+                      <div className="appointment-info">
+                        <div className="appointment-title-row">
+                          <h3>X-ray #{xray.xray_id}</h3>
 
-                      <div className="xray-info">
-                        <h3>X-ray #{xray.xray_id}</h3>
-
-                        <p>
-                          <strong>Tooth:</strong>{" "}
-                          {xray.tooth_number
-                            ? `Tooth #${xray.tooth_number}`
-                            : "General record X-ray"}
-                        </p>
+                          <span className="status-badge status-scheduled">
+                            {xray.tooth_number
+                              ? `Tooth #${xray.tooth_number}`
+                              : "General"}
+                          </span>
+                        </div>
 
                         <p>
                           <strong>Uploaded:</strong>{" "}
-                          {xray.upload_date
-                            ? new Date(xray.upload_date).toLocaleString()
-                            : "N/A"}
+                          {formatDate(xray.upload_date)}
+                        </p>
+
+                        <p>
+                          <strong>File Path:</strong> {xray.file_path}
                         </p>
                       </div>
 
-                      <div className="xray-actions">
+                      <div className="appointment-actions">
                         <a
+                          className="secondary-button"
                           href={getFileUrl(xray.file_path)}
                           target="_blank"
                           rel="noreferrer"
-                          className="secondary-button"
                         >
-                          View
+                          Open File
                         </a>
                       </div>
                     </div>
