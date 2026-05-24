@@ -22,6 +22,7 @@ import AdminDentalRecords from "./pages/AdminDentalRecords";
 import AdminDentalRecordDetails from "./pages/AdminDentalRecordDetails";
 import AdminDental3DViewer from "./pages/AdminDental3DViewer";
 import AdminXrayAnnotationView from "./pages/AdminXrayAnnotationView";
+
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
 import PatientDentalRecords from "./pages/PatientDentalRecords";
@@ -29,6 +30,8 @@ import PatientDentalRecordDetails from "./pages/PatientDentalRecordDetails";
 import PatientXrays from "./pages/PatientXrays";
 import PatientDental3DViewer from "./pages/PatientDental3DViewer";
 import PatientXrayAnnotationView from "./pages/PatientXrayAnnotationView";
+import PatientClinicDiscovery from "./pages/PatientClinicDiscovery";
+
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
 import DentistDentalRecords from "./pages/DentistDentalRecords";
@@ -36,6 +39,7 @@ import DentistDentalRecordDetails from "./pages/DentistDentalRecordDetails";
 import DentistXrays from "./pages/DentistXrays";
 import DentistXrayAnnotation from "./pages/DentistXrayAnnotation";
 import DentistDental3DViewer from "./pages/DentistDental3DViewer";
+
 import AssistantProfile from "./pages/AssistantProfile";
 import AssistantAppointments from "./pages/AssistantAppointments";
 import AssistantDentalRecords from "./pages/AssistantDentalRecords";
@@ -275,6 +279,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientDental3DViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/clinics"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientClinicDiscovery />
             </ProtectedRoute>
           }
         />

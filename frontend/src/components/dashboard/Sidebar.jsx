@@ -18,6 +18,7 @@ function Sidebar({ role }) {
       { label: "Appointments", path: "/patient/appointments" },
       { label: "Dental Records", path: "/patient/records" },
       { label: "X-rays", path: "/patient/xrays" },
+      { label: "Clinic Discovery", path: "/patient/clinics" },
     ],
     Dentist: [
       { label: "Dashboard", path: "/dentist/dashboard" },
