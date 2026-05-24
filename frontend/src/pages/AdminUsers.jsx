@@ -1,8 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 
 function AdminUsers() {
+  const createFormRef = useRef(null);
+  const roleFormRef = useRef(null);
+  const statusFormRef = useRef(null);
+
   const [users, setUsers] = useState([]);
   const [filteredUsers, setFilteredUsers] = useState([]);
   const [roles, setRoles] = useState([]);
@@ -45,6 +49,10 @@ function AdminUsers() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const [createModalError, setCreateModalError] = useState("");
+  const [roleModalError, setRoleModalError] = useState("");
+  const [statusModalError, setStatusModalError] = useState("");
+
   const token = localStorage.getItem("token");
 
   const authHeaders = {
@@ -64,6 +72,38 @@ function AdminUsers() {
     filterUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users, searchTerm, roleFilter, statusFilter]);
+
+  useEffect(() => {
+    const isAnyModalOpen = showCreateModal || showStatusModal || showRoleModal;
+
+    if (isAnyModalOpen) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showCreateModal, showStatusModal, showRoleModal]);
+
+  useEffect(() => {
+    if (createModalError && createFormRef.current) {
+      createFormRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [createModalError]);
+
+  useEffect(() => {
+    if (roleModalError && roleFormRef.current) {
+      roleFormRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [roleModalError]);
+
+  useEffect(() => {
+    if (statusModalError && statusFormRef.current) {
+      statusFormRef.current.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }, [statusModalError]);
 
   const fetchUsers = async () => {
     try {
@@ -116,6 +156,8 @@ function AdminUsers() {
           user.name?.toLowerCase().includes(term) ||
           user.email?.toLowerCase().includes(term) ||
           user.role_name?.toLowerCase().includes(term) ||
+          user.dentist_clinic_name?.toLowerCase().includes(term) ||
+          user.assistant_clinic_name?.toLowerCase().includes(term) ||
           String(user.user_id).includes(term),
       );
     }
@@ -152,7 +194,7 @@ function AdminUsers() {
     selectedChangeRoleName === "Assistant" ||
     selectedChangeRoleName === "Dental Assistant";
 
-  const openCreateModal = () => {
+  const resetCreateForm = () => {
     setCreateForm({
       name: "",
       email: "",
@@ -163,27 +205,60 @@ function AdminUsers() {
       availability: "",
       clinic_id: "",
     });
+  };
+
+  const resetRoleProfileForm = () => {
+    setRoleProfileForm({
+      license_number: "",
+      specialization: "",
+      availability: "",
+      clinic_id: "",
+    });
+  };
+
+  const getExistingRoleProfile = (user, roleName = user?.role_name) => {
+    const isDentistUser = roleName === "Dentist";
+    const isAssistantUser =
+      roleName === "Assistant" || roleName === "Dental Assistant";
+
+    return {
+      license_number: isDentistUser
+        ? user?.dentist_license_number || ""
+        : isAssistantUser
+          ? user?.assistant_license_number || ""
+          : "",
+      specialization: isDentistUser ? user?.specialization || "" : "",
+      availability: isDentistUser
+        ? user?.dentist_availability || ""
+        : isAssistantUser
+          ? user?.assistant_availability || ""
+          : "",
+      clinic_id: isDentistUser
+        ? user?.dentist_clinic_id || ""
+        : isAssistantUser
+          ? user?.assistant_clinic_id || ""
+          : "",
+    };
+  };
+
+  const openCreateModal = () => {
+    resetCreateForm();
     setMessage("");
     setError("");
+    setCreateModalError("");
     setShowCreateModal(true);
   };
 
   const closeCreateModal = () => {
     setShowCreateModal(false);
-    setCreateForm({
-      name: "",
-      email: "",
-      password: "",
-      role_id: "",
-      license_number: "",
-      specialization: "",
-      availability: "",
-      clinic_id: "",
-    });
+    resetCreateForm();
+    setCreateModalError("");
   };
 
   const handleCreateChange = (e) => {
     const { name, value } = e.target;
+
+    setCreateModalError("");
 
     setCreateForm((prev) => {
       if (name === "role_id") {
@@ -205,6 +280,8 @@ function AdminUsers() {
   };
 
   const handleRoleProfileChange = (e) => {
+    setRoleModalError("");
+
     setRoleProfileForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
@@ -220,7 +297,7 @@ function AdminUsers() {
       !createForm.password ||
       !createForm.role_id
     ) {
-      setError("Please complete all required fields.");
+      setCreateModalError("Please complete all required fields.");
       return;
     }
 
@@ -230,7 +307,7 @@ function AdminUsers() {
         !createForm.specialization ||
         !createForm.availability)
     ) {
-      setError("Please complete the dentist profile fields.");
+      setCreateModalError("Please complete the dentist profile fields.");
       return;
     }
 
@@ -238,7 +315,7 @@ function AdminUsers() {
       isCreateAssistant &&
       (!createForm.license_number || !createForm.availability)
     ) {
-      setError("Please complete the assistant profile fields.");
+      setCreateModalError("Please complete the assistant profile fields.");
       return;
     }
 
@@ -246,6 +323,7 @@ function AdminUsers() {
       setCreating(true);
       setMessage("");
       setError("");
+      setCreateModalError("");
 
       const payload = {
         name: createForm.name,
@@ -277,7 +355,9 @@ function AdminUsers() {
       closeCreateModal();
       fetchUsers();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to create user account.");
+      setCreateModalError(
+        err.response?.data?.error || "Unable to create user account.",
+      );
     } finally {
       setCreating(false);
     }
@@ -288,6 +368,7 @@ function AdminUsers() {
     setSelectedStatus(status);
     setMessage("");
     setError("");
+    setStatusModalError("");
     setShowStatusModal(true);
   };
 
@@ -295,13 +376,14 @@ function AdminUsers() {
     setShowStatusModal(false);
     setSelectedUser(null);
     setSelectedStatus("");
+    setStatusModalError("");
   };
 
   const handleUpdateStatus = async (e) => {
     e.preventDefault();
 
     if (!selectedUser || !selectedStatus) {
-      setError("Please select a valid user and status.");
+      setStatusModalError("Please select a valid user and status.");
       return;
     }
 
@@ -309,6 +391,7 @@ function AdminUsers() {
       setUpdating(true);
       setMessage("");
       setError("");
+      setStatusModalError("");
 
       await API.put(
         `/api/users/admin/users/${selectedUser.user_id}/status`,
@@ -320,7 +403,9 @@ function AdminUsers() {
       closeStatusModal();
       fetchUsers();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to update user status.");
+      setStatusModalError(
+        err.response?.data?.error || "Unable to update user status.",
+      );
     } finally {
       setUpdating(false);
     }
@@ -329,14 +414,11 @@ function AdminUsers() {
   const openRoleModal = (user) => {
     setSelectedUser(user);
     setSelectedRoleId(user.role_id || "");
-    setRoleProfileForm({
-      license_number: "",
-      specialization: "",
-      availability: "",
-      clinic_id: "",
-    });
+    setRoleProfileForm(getExistingRoleProfile(user));
+
     setMessage("");
     setError("");
+    setRoleModalError("");
     setShowRoleModal(true);
   };
 
@@ -344,19 +426,15 @@ function AdminUsers() {
     setShowRoleModal(false);
     setSelectedUser(null);
     setSelectedRoleId("");
-    setRoleProfileForm({
-      license_number: "",
-      specialization: "",
-      availability: "",
-      clinic_id: "",
-    });
+    resetRoleProfileForm();
+    setRoleModalError("");
   };
 
   const handleUpdateRole = async (e) => {
     e.preventDefault();
 
     if (!selectedUser || !selectedRoleId) {
-      setError("Please select a valid role.");
+      setRoleModalError("Please select a valid role.");
       return;
     }
 
@@ -366,7 +444,7 @@ function AdminUsers() {
         !roleProfileForm.specialization ||
         !roleProfileForm.availability)
     ) {
-      setError("Please complete the dentist profile fields.");
+      setRoleModalError("Please complete the dentist profile fields.");
       return;
     }
 
@@ -374,7 +452,7 @@ function AdminUsers() {
       isChangeAssistant &&
       (!roleProfileForm.license_number || !roleProfileForm.availability)
     ) {
-      setError("Please complete the assistant profile fields.");
+      setRoleModalError("Please complete the assistant profile fields.");
       return;
     }
 
@@ -382,6 +460,7 @@ function AdminUsers() {
       setUpdating(true);
       setMessage("");
       setError("");
+      setRoleModalError("");
 
       const payload = {
         role_id: Number(selectedRoleId),
@@ -414,9 +493,29 @@ function AdminUsers() {
       closeRoleModal();
       fetchUsers();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to update user role.");
+      setRoleModalError(
+        err.response?.data?.error || "Unable to update user role.",
+      );
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleRoleChangeInModal = (e) => {
+    const newRoleId = e.target.value;
+    const newRole = roles.find(
+      (role) => Number(role.role_id) === Number(newRoleId),
+    );
+
+    setSelectedRoleId(newRoleId);
+    setRoleModalError("");
+
+    if (newRole?.role_name === selectedUser?.role_name) {
+      setRoleProfileForm(
+        getExistingRoleProfile(selectedUser, newRole.role_name),
+      );
+    } else {
+      resetRoleProfileForm();
     }
   };
 
@@ -497,7 +596,7 @@ function AdminUsers() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, email, role, or user ID"
+              placeholder="Search by name, email, role, clinic, or user ID"
             />
           </div>
 
@@ -561,6 +660,20 @@ function AdminUsers() {
                     <strong>Email:</strong> {user.email}
                   </p>
 
+                  {user.dentist_clinic_name && (
+                    <p>
+                      <strong>Dentist Clinic:</strong>{" "}
+                      {user.dentist_clinic_name}
+                    </p>
+                  )}
+
+                  {user.assistant_clinic_name && (
+                    <p>
+                      <strong>Assistant Clinic:</strong>{" "}
+                      {user.assistant_clinic_name}
+                    </p>
+                  )}
+
                   <p>
                     <strong>Created:</strong>{" "}
                     {user.created_at
@@ -623,7 +736,15 @@ function AdminUsers() {
               </button>
             </div>
 
-            <form className="modal-form" onSubmit={handleCreateUser}>
+            <form
+              ref={createFormRef}
+              className="modal-form"
+              onSubmit={handleCreateUser}
+            >
+              {createModalError && (
+                <div className="error-message">{createModalError}</div>
+              )}
+
               <div className="form-group">
                 <label>Name</label>
                 <input
@@ -808,7 +929,15 @@ function AdminUsers() {
               </button>
             </div>
 
-            <form className="modal-form" onSubmit={handleUpdateStatus}>
+            <form
+              ref={statusFormRef}
+              className="modal-form"
+              onSubmit={handleUpdateStatus}
+            >
+              {statusModalError && (
+                <div className="error-message">{statusModalError}</div>
+              )}
+
               <div className="form-group">
                 <label>Name</label>
                 <input type="text" value={selectedUser?.name || ""} disabled />
@@ -870,7 +999,15 @@ function AdminUsers() {
               </button>
             </div>
 
-            <form className="modal-form" onSubmit={handleUpdateRole}>
+            <form
+              ref={roleFormRef}
+              className="modal-form"
+              onSubmit={handleUpdateRole}
+            >
+              {roleModalError && (
+                <div className="error-message">{roleModalError}</div>
+              )}
+
               <div className="form-group">
                 <label>Name</label>
                 <input type="text" value={selectedUser?.name || ""} disabled />
@@ -885,15 +1022,7 @@ function AdminUsers() {
                 <label>Role</label>
                 <select
                   value={selectedRoleId}
-                  onChange={(e) => {
-                    setSelectedRoleId(e.target.value);
-                    setRoleProfileForm({
-                      license_number: "",
-                      specialization: "",
-                      availability: "",
-                      clinic_id: "",
-                    });
-                  }}
+                  onChange={handleRoleChangeInModal}
                   required
                 >
                   <option value="">Select Role</option>

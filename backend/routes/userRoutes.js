@@ -8,7 +8,114 @@ const {
   authorizeRoles,
 } = require("../middleware/authMiddleware");
 
+// ===============================
+// HELPER FUNCTIONS
+// ===============================
+
+const normalizeNullable = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  return value;
+};
+
+const checkClinicSubscriptionLimit = async (
+  client,
+  clinic_id,
+  limitType,
+  excludeUserId = null,
+) => {
+  if (!clinic_id) {
+    return {
+      allowed: true,
+      message: null,
+    };
+  }
+
+  const clinicPlanResult = await client.query(
+    `SELECT 
+        c.clinic_id,
+        c.clinic_name,
+        c.subscription_plan_id,
+        sp.plan_name,
+        sp.max_dentists,
+        sp.max_assistants,
+        sp.max_patients,
+        sp.max_records,
+        sp.max_xrays,
+        sp.storage_limit_mb
+     FROM public.clinics c
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
+     WHERE c.clinic_id = $1`,
+    [clinic_id],
+  );
+
+  if (clinicPlanResult.rows.length === 0) {
+    return {
+      allowed: false,
+      message: "Selected clinic was not found.",
+    };
+  }
+
+  const clinic = clinicPlanResult.rows[0];
+
+  if (!clinic.subscription_plan_id) {
+    return {
+      allowed: false,
+      message:
+        "This clinic has no subscription plan assigned. Please assign a plan before adding staff.",
+    };
+  }
+
+  if (limitType === "Dentist") {
+    const countResult = await client.query(
+      `SELECT COUNT(*)::int AS count
+       FROM public.dentists
+       WHERE clinic_id = $1
+       AND ($2::int IS NULL OR user_id <> $2)`,
+      [clinic_id, excludeUserId],
+    );
+
+    const currentCount = countResult.rows[0].count;
+    const maxAllowed = clinic.max_dentists;
+
+    if (maxAllowed !== null && currentCount >= maxAllowed) {
+      return {
+        allowed: false,
+        message: `${clinic.clinic_name} has reached the dentist limit for the ${clinic.plan_name} plan. Limit: ${maxAllowed}.`,
+      };
+    }
+  }
+
+  if (limitType === "Assistant") {
+    const countResult = await client.query(
+      `SELECT COUNT(*)::int AS count
+       FROM public.assistants
+       WHERE clinic_id = $1
+       AND ($2::int IS NULL OR user_id <> $2)`,
+      [clinic_id, excludeUserId],
+    );
+
+    const currentCount = countResult.rows[0].count;
+    const maxAllowed = clinic.max_assistants;
+
+    if (maxAllowed !== null && currentCount >= maxAllowed) {
+      return {
+        allowed: false,
+        message: `${clinic.clinic_name} has reached the assistant limit for the ${clinic.plan_name} plan. Limit: ${maxAllowed}.`,
+      };
+    }
+  }
+
+  return {
+    allowed: true,
+    message: null,
+  };
+};
+
+// ===============================
 // GET ALL ROLES
+// ===============================
+
 router.get("/roles", async (req, res) => {
   try {
     const result = await pool.query(
@@ -22,7 +129,10 @@ router.get("/roles", async (req, res) => {
   }
 });
 
+// ===============================
 // REGISTER USER WITH ROLE + CREATE ROLE PROFILE
+// ===============================
+
 router.post("/register", async (req, res) => {
   const {
     name,
@@ -57,6 +167,33 @@ router.post("/register", async (req, res) => {
     }
 
     const roleName = roleCheck.rows[0].role_name;
+    const normalizedClinicId = normalizeNullable(clinic_id);
+
+    if (roleName === "Dentist" && normalizedClinicId) {
+      const limitCheck = await checkClinicSubscriptionLimit(
+        client,
+        normalizedClinicId,
+        "Dentist",
+      );
+
+      if (!limitCheck.allowed) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: limitCheck.message });
+      }
+    }
+
+    if (roleName === "Assistant" && normalizedClinicId) {
+      const limitCheck = await checkClinicSubscriptionLimit(
+        client,
+        normalizedClinicId,
+        "Assistant",
+      );
+
+      if (!limitCheck.allowed) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: limitCheck.message });
+      }
+    }
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -86,7 +223,7 @@ router.post("/register", async (req, res) => {
           specialization || "General Dentistry",
           availability || "Monday to Friday, 9:00 AM - 5:00 PM",
           "Active",
-          clinic_id || null,
+          normalizedClinicId,
         ],
       );
     }
@@ -101,7 +238,7 @@ router.post("/register", async (req, res) => {
           license_number || `AST-${userId}`,
           availability || "Monday to Friday, 9:00 AM - 5:00 PM",
           "Active",
-          clinic_id || null,
+          normalizedClinicId,
         ],
       );
     }
@@ -136,7 +273,10 @@ router.post("/register", async (req, res) => {
   }
 });
 
+// ===============================
 // LOGIN USER WITH ROLE
+// ===============================
+
 router.post("/login", async (req, res) => {
   const { email, password } = req.body || {};
 
@@ -209,7 +349,10 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// ===============================
 // ADMIN: GET ALL USERS
+// ===============================
+
 router.get(
   "/admin/users",
   authenticateToken,
@@ -218,17 +361,39 @@ router.get(
     try {
       const users = await pool.query(
         `SELECT 
-            u.user_id,
-            u.name,
-            u.email,
-            u.status,
-            u.created_at,
-            r.role_id,
-            r.role_name
-         FROM public.users u
-         LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
-         LEFT JOIN public.roles r ON ur.role_id = r.role_id
-         ORDER BY u.user_id DESC`,
+      u.user_id,
+      u.name,
+      u.email,
+      u.status,
+      u.created_at,
+
+      r.role_id,
+      r.role_name,
+
+      d.dentist_id,
+      d.license_number AS dentist_license_number,
+      d.specialization,
+      d.availability AS dentist_availability,
+      d.clinic_id AS dentist_clinic_id,
+      dc.clinic_name AS dentist_clinic_name,
+
+      a.assistant_id,
+      a.license_number AS assistant_license_number,
+      a.availability AS assistant_availability,
+      a.clinic_id AS assistant_clinic_id,
+      ac.clinic_name AS assistant_clinic_name
+
+   FROM public.users u
+   LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
+   LEFT JOIN public.roles r ON ur.role_id = r.role_id
+
+   LEFT JOIN public.dentists d ON u.user_id = d.user_id
+   LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
+
+   LEFT JOIN public.assistants a ON u.user_id = a.user_id
+   LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
+
+   ORDER BY u.user_id DESC`,
       );
 
       res.status(200).json({
@@ -242,7 +407,10 @@ router.get(
   },
 );
 
+// ===============================
 // ADMIN: GET SINGLE USER
+// ===============================
+
 router.get(
   "/admin/users/:user_id",
   authenticateToken,
@@ -259,10 +427,25 @@ router.get(
             u.status,
             u.created_at,
             r.role_id,
-            r.role_name
+            r.role_name,
+            d.dentist_id,
+            d.license_number AS dentist_license_number,
+            d.specialization,
+            d.availability AS dentist_availability,
+            d.clinic_id AS dentist_clinic_id,
+            dc.clinic_name AS dentist_clinic_name,
+            a.assistant_id,
+            a.license_number AS assistant_license_number,
+            a.availability AS assistant_availability,
+            a.clinic_id AS assistant_clinic_id,
+            ac.clinic_name AS assistant_clinic_name
          FROM public.users u
          LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
          LEFT JOIN public.roles r ON ur.role_id = r.role_id
+         LEFT JOIN public.dentists d ON u.user_id = d.user_id
+         LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
+         LEFT JOIN public.assistants a ON u.user_id = a.user_id
+         LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
          WHERE u.user_id = $1`,
         [user_id],
       );
@@ -282,7 +465,10 @@ router.get(
   },
 );
 
+// ===============================
 // ADMIN: UPDATE USER STATUS
+// ===============================
+
 router.put(
   "/admin/users/:user_id/status",
   authenticateToken,
@@ -329,13 +515,17 @@ router.put(
   },
 );
 
+// ===============================
 // ADMIN: UPDATE USER ROLE + ENSURE ROLE PROFILE EXISTS
+// ===============================
+
 router.put(
   "/admin/users/:user_id/role",
   authenticateToken,
   authorizeRoles("Admin"),
   async (req, res) => {
     const { user_id } = req.params;
+
     const { role_id, license_number, specialization, availability, clinic_id } =
       req.body || {};
 
@@ -359,6 +549,7 @@ router.put(
       }
 
       const newRole = roleCheck.rows[0];
+      const normalizedClinicId = normalizeNullable(clinic_id);
 
       if (Number(user_id) === Number(req.user.user_id)) {
         await client.query("ROLLBACK");
@@ -375,6 +566,34 @@ router.put(
       if (userCheck.rows.length === 0) {
         await client.query("ROLLBACK");
         return res.status(404).json({ error: "User not found" });
+      }
+
+      if (newRole.role_name === "Dentist" && normalizedClinicId) {
+        const limitCheck = await checkClinicSubscriptionLimit(
+          client,
+          normalizedClinicId,
+          "Dentist",
+          user_id,
+        );
+
+        if (!limitCheck.allowed) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: limitCheck.message });
+        }
+      }
+
+      if (newRole.role_name === "Assistant" && normalizedClinicId) {
+        const limitCheck = await checkClinicSubscriptionLimit(
+          client,
+          normalizedClinicId,
+          "Assistant",
+          user_id,
+        );
+
+        if (!limitCheck.allowed) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: limitCheck.message });
+        }
       }
 
       const existingRole = await client.query(
@@ -414,7 +633,7 @@ router.put(
               specialization || "General Dentistry",
               availability || "Monday to Friday, 9:00 AM - 5:00 PM",
               "Active",
-              clinic_id || null,
+              normalizedClinicId,
             ],
           );
         } else {
@@ -423,13 +642,13 @@ router.put(
              SET license_number = COALESCE($1, license_number),
                  specialization = COALESCE($2, specialization),
                  availability = COALESCE($3, availability),
-                 clinic_id = COALESCE($4, clinic_id)
+                 clinic_id = $4
              WHERE user_id = $5`,
             [
-              license_number || null,
-              specialization || null,
-              availability || null,
-              clinic_id || null,
+              normalizeNullable(license_number),
+              normalizeNullable(specialization),
+              normalizeNullable(availability),
+              normalizedClinicId,
               user_id,
             ],
           );
@@ -452,7 +671,7 @@ router.put(
               license_number || `AST-${user_id}`,
               availability || "Monday to Friday, 9:00 AM - 5:00 PM",
               "Active",
-              clinic_id || null,
+              normalizedClinicId,
             ],
           );
         } else {
@@ -460,12 +679,12 @@ router.put(
             `UPDATE public.assistants
              SET license_number = COALESCE($1, license_number),
                  availability = COALESCE($2, availability),
-                 clinic_id = COALESCE($3, clinic_id)
+                 clinic_id = $3
              WHERE user_id = $4`,
             [
-              license_number || null,
-              availability || null,
-              clinic_id || null,
+              normalizeNullable(license_number),
+              normalizeNullable(availability),
+              normalizedClinicId,
               user_id,
             ],
           );
@@ -512,7 +731,10 @@ router.put(
   },
 );
 
+// ===============================
 // PROTECTED PROFILE ROUTE
+// ===============================
+
 router.get("/profile", authenticateToken, async (req, res) => {
   res.json({
     message: "Protected profile route accessed successfully",
@@ -520,7 +742,10 @@ router.get("/profile", authenticateToken, async (req, res) => {
   });
 });
 
-// ADMIN DASHBOARD
+// ===============================
+// DASHBOARD ROUTES
+// ===============================
+
 router.get(
   "/admin/dashboard",
   authenticateToken,
@@ -533,7 +758,6 @@ router.get(
   },
 );
 
-// DENTIST DASHBOARD
 router.get(
   "/dentist/dashboard",
   authenticateToken,
@@ -546,7 +770,6 @@ router.get(
   },
 );
 
-// PATIENT DASHBOARD
 router.get(
   "/patient/dashboard",
   authenticateToken,
@@ -559,7 +782,6 @@ router.get(
   },
 );
 
-// ASSISTANT DASHBOARD
 router.get(
   "/assistant/dashboard",
   authenticateToken,
@@ -572,7 +794,10 @@ router.get(
   },
 );
 
+// ===============================
 // CLINICAL AREA
+// ===============================
+
 router.get(
   "/clinical-area",
   authenticateToken,

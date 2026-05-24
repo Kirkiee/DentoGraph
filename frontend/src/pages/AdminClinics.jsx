@@ -1,15 +1,56 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+delete L.Icon.Default.prototype._getIconUrl;
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+function MapFitBounds({ clinics }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const validClinics = clinics.filter(
+      (clinic) => clinic.latitude && clinic.longitude,
+    );
+
+    if (validClinics.length === 0) return;
+
+    const bounds = validClinics.map((clinic) => [
+      Number(clinic.latitude),
+      Number(clinic.longitude),
+    ]);
+
+    map.fitBounds(bounds, {
+      padding: [50, 50],
+      maxZoom: 14,
+    });
+  }, [clinics, map]);
+
+  return null;
+}
 
 function AdminClinics() {
   const [clinics, setClinics] = useState([]);
   const [filteredClinics, setFilteredClinics] = useState([]);
+  const [subscriptionPlans, setSubscriptionPlans] = useState([]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
   const [loading, setLoading] = useState(true);
+  const [loadingPlans, setLoadingPlans] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -22,9 +63,12 @@ function AdminClinics() {
   const [clinicForm, setClinicForm] = useState({
     clinic_name: "",
     address: "",
+    latitude: "",
+    longitude: "",
+    services: "",
     contact_number: "",
-    email: "",
-    operating_hours: "",
+    opening_hours: "",
+    subscription_plan_id: "",
     status: "Active",
   });
 
@@ -41,6 +85,7 @@ function AdminClinics() {
 
   useEffect(() => {
     fetchClinics();
+    fetchSubscriptionPlans();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -63,6 +108,23 @@ function AdminClinics() {
     }
   };
 
+  const fetchSubscriptionPlans = async () => {
+    try {
+      setLoadingPlans(true);
+
+      const response = await API.get("/api/subscription-plans", authHeaders);
+
+      setSubscriptionPlans(
+        response.data.subscription_plans || response.data.plans || [],
+      );
+    } catch (err) {
+      console.error("Fetch subscription plans error:", err);
+      setSubscriptionPlans([]);
+    } finally {
+      setLoadingPlans(false);
+    }
+  };
+
   const filterClinics = () => {
     let filtered = [...clinics];
 
@@ -77,24 +139,32 @@ function AdminClinics() {
         (clinic) =>
           clinic.clinic_name?.toLowerCase().includes(term) ||
           clinic.address?.toLowerCase().includes(term) ||
-          clinic.email?.toLowerCase().includes(term) ||
-          clinic.contact_number?.toLowerCase().includes(term),
+          clinic.contact_number?.toLowerCase().includes(term) ||
+          clinic.services?.toLowerCase().includes(term) ||
+          clinic.plan_name?.toLowerCase().includes(term),
       );
     }
 
     setFilteredClinics(filtered);
   };
 
-  const openCreateModal = () => {
-    setSelectedClinic(null);
+  const resetClinicForm = () => {
     setClinicForm({
       clinic_name: "",
       address: "",
+      latitude: "",
+      longitude: "",
+      services: "",
       contact_number: "",
-      email: "",
-      operating_hours: "",
+      opening_hours: "",
+      subscription_plan_id: "",
       status: "Active",
     });
+  };
+
+  const openCreateModal = () => {
+    setSelectedClinic(null);
+    resetClinicForm();
     setMessage("");
     setError("");
     setShowClinicModal(true);
@@ -102,14 +172,19 @@ function AdminClinics() {
 
   const openEditModal = (clinic) => {
     setSelectedClinic(clinic);
+
     setClinicForm({
       clinic_name: clinic.clinic_name || "",
       address: clinic.address || "",
+      latitude: clinic.latitude || "",
+      longitude: clinic.longitude || "",
+      services: clinic.services || "",
       contact_number: clinic.contact_number || "",
-      email: clinic.email || "",
-      operating_hours: clinic.operating_hours || "",
+      opening_hours: clinic.opening_hours || clinic.operating_hours || "",
+      subscription_plan_id: clinic.subscription_plan_id || "",
       status: clinic.status || "Active",
     });
+
     setMessage("");
     setError("");
     setShowClinicModal(true);
@@ -118,14 +193,7 @@ function AdminClinics() {
   const closeClinicModal = () => {
     setShowClinicModal(false);
     setSelectedClinic(null);
-    setClinicForm({
-      clinic_name: "",
-      address: "",
-      contact_number: "",
-      email: "",
-      operating_hours: "",
-      status: "Active",
-    });
+    resetClinicForm();
   };
 
   const handleClinicChange = (e) => {
@@ -135,11 +203,42 @@ function AdminClinics() {
     }));
   };
 
+  const validateCoordinates = () => {
+    if (clinicForm.latitude !== "") {
+      const latitude = Number(clinicForm.latitude);
+
+      if (Number.isNaN(latitude) || latitude < -90 || latitude > 90) {
+        setError("Latitude must be a valid number between -90 and 90.");
+        return false;
+      }
+    }
+
+    if (clinicForm.longitude !== "") {
+      const longitude = Number(clinicForm.longitude);
+
+      if (Number.isNaN(longitude) || longitude < -180 || longitude > 180) {
+        setError("Longitude must be a valid number between -180 and 180.");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleSaveClinic = async (e) => {
     e.preventDefault();
 
-    if (!clinicForm.clinic_name) {
+    if (!clinicForm.clinic_name.trim()) {
       setError("Clinic name is required.");
+      return;
+    }
+
+    if (!clinicForm.address.trim()) {
+      setError("Clinic address is required.");
+      return;
+    }
+
+    if (!validateCoordinates()) {
       return;
     }
 
@@ -151,9 +250,12 @@ function AdminClinics() {
       const payload = {
         clinic_name: clinicForm.clinic_name,
         address: clinicForm.address,
+        latitude: clinicForm.latitude || null,
+        longitude: clinicForm.longitude || null,
+        services: clinicForm.services,
         contact_number: clinicForm.contact_number,
-        email: clinicForm.email,
-        operating_hours: clinicForm.operating_hours,
+        opening_hours: clinicForm.opening_hours,
+        subscription_plan_id: clinicForm.subscription_plan_id || null,
         status: clinicForm.status,
       };
 
@@ -207,7 +309,7 @@ function AdminClinics() {
       setError("");
 
       await API.put(
-        `/api/clinics/${selectedClinic.clinic_id}/status`,
+        `/api/clinics/${selectedClinic.clinic_id}`,
         { status: selectedStatus },
         authHeaders,
       );
@@ -233,12 +335,42 @@ function AdminClinics() {
     }
   };
 
+  const getMapSearchLink = (clinic) => {
+    if (clinic.latitude && clinic.longitude) {
+      return `https://www.google.com/maps/search/?api=1&query=${clinic.latitude},${clinic.longitude}`;
+    }
+
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+      `${clinic.clinic_name} ${clinic.address || ""}`,
+    )}`;
+  };
+
+  const validMapClinics = useMemo(() => {
+    return filteredClinics.filter(
+      (clinic) => clinic.latitude && clinic.longitude,
+    );
+  }, [filteredClinics]);
+
+  const mapCenter = useMemo(() => {
+    if (validMapClinics.length > 0) {
+      return [
+        Number(validMapClinics[0].latitude),
+        Number(validMapClinics[0].longitude),
+      ];
+    }
+
+    return [14.5995, 120.9842];
+  }, [validMapClinics]);
+
   const totalClinics = clinics.length;
   const activeClinics = clinics.filter(
     (clinic) => clinic.status === "Active",
   ).length;
   const inactiveClinics = clinics.filter(
     (clinic) => clinic.status === "Inactive",
+  ).length;
+  const mappedClinics = clinics.filter(
+    (clinic) => clinic.latitude && clinic.longitude,
   ).length;
 
   return (
@@ -248,8 +380,8 @@ function AdminClinics() {
           <div>
             <h2>Clinic Management</h2>
             <p>
-              Manage clinic branches, contact details, operating hours, and
-              availability status.
+              Manage clinic branches, map coordinates, services, subscription
+              plans, contact details, and availability status.
             </p>
           </div>
 
@@ -260,12 +392,20 @@ function AdminClinics() {
 
             <button
               className="secondary-button"
-              onClick={fetchClinics}
+              onClick={() => {
+                fetchClinics();
+                fetchSubscriptionPlans();
+              }}
               disabled={loading}
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
+        </div>
+
+        <div className="info-message">
+          Clinics with active status and valid latitude/longitude coordinates
+          will appear in Patient Clinic Discovery and on the real-time map.
         </div>
 
         {message && <div className="success-message">{message}</div>}
@@ -288,8 +428,8 @@ function AdminClinics() {
           </div>
 
           <div className="dashboard-card">
-            <h3>Listed Branches</h3>
-            <strong>{filteredClinics.length}</strong>
+            <h3>Mapped Clinics</h3>
+            <strong>{mappedClinics}</strong>
           </div>
         </div>
 
@@ -300,7 +440,7 @@ function AdminClinics() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search clinic name, address, email, or contact"
+              placeholder="Search clinic, address, service, contact, or plan"
             />
           </div>
 
@@ -314,6 +454,66 @@ function AdminClinics() {
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
             </select>
+          </div>
+        </div>
+
+        <div className="clinic-map-card">
+          <div className="appointments-header">
+            <div>
+              <h2>Clinic Location Map</h2>
+              <p>
+                View clinic markers based on saved latitude and longitude
+                coordinates. The map follows the current search and status
+                filters.
+              </p>
+            </div>
+
+            <span className="status-badge status-scheduled">
+              {validMapClinics.length} mapped
+            </span>
+          </div>
+
+          <div className="clinic-map-wrapper">
+            <MapContainer
+              center={mapCenter}
+              zoom={12}
+              scrollWheelZoom={true}
+              className="clinic-map"
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+
+              <MapFitBounds clinics={validMapClinics} />
+
+              {validMapClinics.map((clinic) => (
+                <Marker
+                  key={clinic.clinic_id}
+                  position={[Number(clinic.latitude), Number(clinic.longitude)]}
+                >
+                  <Popup>
+                    <strong>{clinic.clinic_name}</strong>
+                    <br />
+                    Status: {clinic.status || "N/A"}
+                    <br />
+                    {clinic.address || "No address provided"}
+                    <br />
+                    Services: {clinic.services || "No services listed"}
+                    <br />
+                    Plan: {clinic.plan_name || "No plan assigned"}
+                    <br />
+                    <a
+                      href={getMapSearchLink(clinic)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open in Google Maps
+                    </a>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
           </div>
         </div>
 
@@ -347,18 +547,30 @@ function AdminClinics() {
                   </p>
 
                   <p>
+                    <strong>Coordinates:</strong>{" "}
+                    {clinic.latitude && clinic.longitude
+                      ? `${clinic.latitude}, ${clinic.longitude}`
+                      : "No coordinates provided"}
+                  </p>
+
+                  <p>
+                    <strong>Services:</strong>{" "}
+                    {clinic.services || "No services listed"}
+                  </p>
+
+                  <p>
                     <strong>Contact:</strong>{" "}
                     {clinic.contact_number || "No contact provided"}
                   </p>
 
                   <p>
-                    <strong>Email:</strong>{" "}
-                    {clinic.email || "No email provided"}
+                    <strong>Opening Hours:</strong>{" "}
+                    {clinic.opening_hours || "No opening hours provided"}
                   </p>
 
                   <p>
-                    <strong>Operating Hours:</strong>{" "}
-                    {clinic.operating_hours || "No operating hours provided"}
+                    <strong>Subscription Plan:</strong>{" "}
+                    {clinic.plan_name || "No plan assigned"}
                   </p>
 
                   <p>
@@ -377,6 +589,15 @@ function AdminClinics() {
                     Edit
                   </button>
 
+                  <a
+                    className="secondary-button"
+                    href={getMapSearchLink(clinic)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View Map
+                  </a>
+
                   {clinic.status === "Active" ? (
                     <button
                       className="danger-button"
@@ -387,7 +608,7 @@ function AdminClinics() {
                     </button>
                   ) : (
                     <button
-                      className="secondary-button"
+                      className="primary-button"
                       disabled={updatingStatus}
                       onClick={() => openStatusModal(clinic, "Active")}
                     >
@@ -409,8 +630,8 @@ function AdminClinics() {
                 <h3>{selectedClinic ? "Edit Clinic" : "Add Clinic"}</h3>
                 <p>
                   {selectedClinic
-                    ? "Update clinic branch information."
-                    : "Create a new clinic branch record."}
+                    ? "Update clinic branch information, map coordinates, and subscription plan."
+                    : "Create a new clinic branch record for discovery and map display."}
                 </p>
               </div>
 
@@ -444,6 +665,42 @@ function AdminClinics() {
                   onChange={handleClinicChange}
                   placeholder="Enter clinic address"
                   rows="3"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Latitude</label>
+                <input
+                  type="number"
+                  name="latitude"
+                  value={clinicForm.latitude}
+                  onChange={handleClinicChange}
+                  placeholder="Example: 14.5995"
+                  step="0.0000001"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Longitude</label>
+                <input
+                  type="number"
+                  name="longitude"
+                  value={clinicForm.longitude}
+                  onChange={handleClinicChange}
+                  placeholder="Example: 120.9842"
+                  step="0.0000001"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Services</label>
+                <textarea
+                  name="services"
+                  value={clinicForm.services}
+                  onChange={handleClinicChange}
+                  placeholder="Example: Dental Consultation, Cleaning, Filling, X-ray"
+                  rows="3"
                 />
               </div>
 
@@ -459,25 +716,31 @@ function AdminClinics() {
               </div>
 
               <div className="form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  name="email"
-                  value={clinicForm.email}
-                  onChange={handleClinicChange}
-                  placeholder="Example: clinic@example.com"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Operating Hours</label>
+                <label>Opening Hours</label>
                 <textarea
-                  name="operating_hours"
-                  value={clinicForm.operating_hours}
+                  name="opening_hours"
+                  value={clinicForm.opening_hours}
                   onChange={handleClinicChange}
                   placeholder="Example: Monday to Saturday, 9:00 AM - 6:00 PM"
                   rows="3"
                 />
+              </div>
+
+              <div className="form-group">
+                <label>Subscription Plan</label>
+                <select
+                  name="subscription_plan_id"
+                  value={clinicForm.subscription_plan_id}
+                  onChange={handleClinicChange}
+                  disabled={loadingPlans}
+                >
+                  <option value="">No Plan Assigned</option>
+                  {subscriptionPlans.map((plan) => (
+                    <option key={plan.plan_id} value={plan.plan_id}>
+                      {plan.plan_name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
@@ -490,6 +753,11 @@ function AdminClinics() {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
+              </div>
+
+              <div className="info-message">
+                Tip: To get coordinates, open Google Maps, right-click the
+                clinic location, then copy the latitude and longitude.
               </div>
 
               <div className="modal-actions">
