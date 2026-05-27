@@ -56,6 +56,10 @@ function AdminClinics() {
 
   const [showClinicModal, setShowClinicModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showUsageModal, setShowUsageModal] = useState(false);
+
+  const [usageLoading, setUsageLoading] = useState(false);
+  const [clinicUsage, setClinicUsage] = useState(null);
 
   const [selectedClinic, setSelectedClinic] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("");
@@ -74,6 +78,7 @@ function AdminClinics() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -94,6 +99,20 @@ function AdminClinics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinics, searchTerm, statusFilter]);
 
+  useEffect(() => {
+    const isAnyModalOpen = showClinicModal || showStatusModal || showUsageModal;
+
+    if (isAnyModalOpen) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showClinicModal, showStatusModal, showUsageModal]);
+
   const fetchClinics = async () => {
     try {
       setLoading(true);
@@ -112,11 +131,9 @@ function AdminClinics() {
     try {
       setLoadingPlans(true);
 
-      const response = await API.get("/api/subscription-plans", authHeaders);
+      const response = await API.get("/api/subscriptions", authHeaders);
 
-      setSubscriptionPlans(
-        response.data.subscription_plans || response.data.plans || [],
-      );
+      setSubscriptionPlans(response.data.plans || []);
     } catch (err) {
       console.error("Fetch subscription plans error:", err);
       setSubscriptionPlans([]);
@@ -167,6 +184,7 @@ function AdminClinics() {
     resetClinicForm();
     setMessage("");
     setError("");
+    setModalError("");
     setShowClinicModal(true);
   };
 
@@ -187,6 +205,7 @@ function AdminClinics() {
 
     setMessage("");
     setError("");
+    setModalError("");
     setShowClinicModal(true);
   };
 
@@ -194,9 +213,12 @@ function AdminClinics() {
     setShowClinicModal(false);
     setSelectedClinic(null);
     resetClinicForm();
+    setModalError("");
   };
 
   const handleClinicChange = (e) => {
+    setModalError("");
+
     setClinicForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
@@ -208,7 +230,7 @@ function AdminClinics() {
       const latitude = Number(clinicForm.latitude);
 
       if (Number.isNaN(latitude) || latitude < -90 || latitude > 90) {
-        setError("Latitude must be a valid number between -90 and 90.");
+        setModalError("Latitude must be a valid number between -90 and 90.");
         return false;
       }
     }
@@ -217,7 +239,7 @@ function AdminClinics() {
       const longitude = Number(clinicForm.longitude);
 
       if (Number.isNaN(longitude) || longitude < -180 || longitude > 180) {
-        setError("Longitude must be a valid number between -180 and 180.");
+        setModalError("Longitude must be a valid number between -180 and 180.");
         return false;
       }
     }
@@ -229,12 +251,12 @@ function AdminClinics() {
     e.preventDefault();
 
     if (!clinicForm.clinic_name.trim()) {
-      setError("Clinic name is required.");
+      setModalError("Clinic name is required.");
       return;
     }
 
     if (!clinicForm.address.trim()) {
-      setError("Clinic address is required.");
+      setModalError("Clinic address is required.");
       return;
     }
 
@@ -246,6 +268,7 @@ function AdminClinics() {
       setSaving(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       const payload = {
         clinic_name: clinicForm.clinic_name,
@@ -275,7 +298,7 @@ function AdminClinics() {
       closeClinicModal();
       fetchClinics();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to save clinic.");
+      setModalError(err.response?.data?.error || "Unable to save clinic.");
     } finally {
       setSaving(false);
     }
@@ -286,6 +309,7 @@ function AdminClinics() {
     setSelectedStatus(status);
     setMessage("");
     setError("");
+    setModalError("");
     setShowStatusModal(true);
   };
 
@@ -293,13 +317,14 @@ function AdminClinics() {
     setShowStatusModal(false);
     setSelectedClinic(null);
     setSelectedStatus("");
+    setModalError("");
   };
 
   const handleUpdateStatus = async (e) => {
     e.preventDefault();
 
     if (!selectedClinic || !selectedStatus) {
-      setError("Please select a valid clinic status.");
+      setModalError("Please select a valid clinic status.");
       return;
     }
 
@@ -307,6 +332,7 @@ function AdminClinics() {
       setUpdatingStatus(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/clinics/${selectedClinic.clinic_id}`,
@@ -318,10 +344,44 @@ function AdminClinics() {
       closeStatusModal();
       fetchClinics();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to update clinic status.");
+      setModalError(
+        err.response?.data?.error || "Unable to update clinic status.",
+      );
     } finally {
       setUpdatingStatus(false);
     }
+  };
+
+  const openUsageModal = async (clinic) => {
+    try {
+      setSelectedClinic(clinic);
+      setClinicUsage(null);
+      setUsageLoading(true);
+      setMessage("");
+      setError("");
+      setModalError("");
+      setShowUsageModal(true);
+
+      const response = await API.get(
+        `/api/clinics/${clinic.clinic_id}/subscription-usage`,
+        authHeaders,
+      );
+
+      setClinicUsage(response.data);
+    } catch (err) {
+      setModalError(
+        err.response?.data?.error || "Unable to load subscription usage.",
+      );
+    } finally {
+      setUsageLoading(false);
+    }
+  };
+
+  const closeUsageModal = () => {
+    setShowUsageModal(false);
+    setSelectedClinic(null);
+    setClinicUsage(null);
+    setModalError("");
   };
 
   const getStatusClass = (status) => {
@@ -343,6 +403,25 @@ function AdminClinics() {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
       `${clinic.clinic_name} ${clinic.address || ""}`,
     )}`;
+  };
+
+  const getUsagePercent = (used, max) => {
+    const usedNumber = Number(used || 0);
+    const maxNumber = Number(max || 0);
+
+    if (maxNumber <= 0) return 0;
+
+    return Math.min((usedNumber / maxNumber) * 100, 100);
+  };
+
+  const formatUsage = (used, max, unit = "") => {
+    const usedValue = used ?? 0;
+
+    if (max === null || max === undefined) {
+      return `${usedValue}${unit} / No limit`;
+    }
+
+    return `${usedValue}${unit} / ${max}${unit}`;
   };
 
   const validMapClinics = useMemo(() => {
@@ -589,6 +668,13 @@ function AdminClinics() {
                     Edit
                   </button>
 
+                  <button
+                    className="secondary-button"
+                    onClick={() => openUsageModal(clinic)}
+                  >
+                    View Usage
+                  </button>
+
                   <a
                     className="secondary-button"
                     href={getMapSearchLink(clinic)}
@@ -645,6 +731,8 @@ function AdminClinics() {
             </div>
 
             <form className="modal-form" onSubmit={handleSaveClinic}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Clinic Name</label>
                 <input
@@ -808,6 +896,8 @@ function AdminClinics() {
             </div>
 
             <form className="modal-form" onSubmit={handleUpdateStatus}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Clinic</label>
                 <input
@@ -844,6 +934,210 @@ function AdminClinics() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showUsageModal && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <div>
+                <h3>Subscription Usage</h3>
+                <p>
+                  View how much of this clinic’s subscription plan is currently
+                  being used.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close-button"
+                onClick={closeUsageModal}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-form">
+              {modalError && <div className="error-message">{modalError}</div>}
+
+              {usageLoading ? (
+                <p>Loading subscription usage...</p>
+              ) : !clinicUsage ? (
+                <div className="empty-state">
+                  <h3>No usage data found</h3>
+                  <p>Usage details could not be loaded for this clinic.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="usage-summary-card">
+                    <h3>{clinicUsage.clinic.clinic_name}</h3>
+                    <p>
+                      <strong>Plan:</strong>{" "}
+                      {clinicUsage.clinic.plan_name || "No plan assigned"}
+                    </p>
+                  </div>
+
+                  <div className="usage-grid">
+                    <div className="usage-card">
+                      <div className="usage-card-header">
+                        <h4>Dentists</h4>
+                        <span>
+                          {formatUsage(
+                            clinicUsage.usage.dentists,
+                            clinicUsage.clinic.max_dentists,
+                          )}
+                        </span>
+                      </div>
+                      <div className="usage-bar">
+                        <div
+                          className="usage-bar-fill"
+                          style={{
+                            width: `${getUsagePercent(
+                              clinicUsage.usage.dentists,
+                              clinicUsage.clinic.max_dentists,
+                            )}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="usage-card">
+                      <div className="usage-card-header">
+                        <h4>Assistants</h4>
+                        <span>
+                          {formatUsage(
+                            clinicUsage.usage.assistants,
+                            clinicUsage.clinic.max_assistants,
+                          )}
+                        </span>
+                      </div>
+                      <div className="usage-bar">
+                        <div
+                          className="usage-bar-fill"
+                          style={{
+                            width: `${getUsagePercent(
+                              clinicUsage.usage.assistants,
+                              clinicUsage.clinic.max_assistants,
+                            )}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="usage-card">
+                      <div className="usage-card-header">
+                        <h4>Patients</h4>
+                        <span>
+                          {formatUsage(
+                            clinicUsage.usage.patients,
+                            clinicUsage.clinic.max_patients,
+                          )}
+                        </span>
+                      </div>
+                      <div className="usage-bar">
+                        <div
+                          className="usage-bar-fill"
+                          style={{
+                            width: `${getUsagePercent(
+                              clinicUsage.usage.patients,
+                              clinicUsage.clinic.max_patients,
+                            )}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="usage-card">
+                      <div className="usage-card-header">
+                        <h4>Dental Records</h4>
+                        <span>
+                          {formatUsage(
+                            clinicUsage.usage.records,
+                            clinicUsage.clinic.max_records,
+                          )}
+                        </span>
+                      </div>
+                      <div className="usage-bar">
+                        <div
+                          className="usage-bar-fill"
+                          style={{
+                            width: `${getUsagePercent(
+                              clinicUsage.usage.records,
+                              clinicUsage.clinic.max_records,
+                            )}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="usage-card">
+                      <div className="usage-card-header">
+                        <h4>X-rays</h4>
+                        <span>
+                          {formatUsage(
+                            clinicUsage.usage.xrays,
+                            clinicUsage.clinic.max_xrays,
+                          )}
+                        </span>
+                      </div>
+                      <div className="usage-bar">
+                        <div
+                          className="usage-bar-fill"
+                          style={{
+                            width: `${getUsagePercent(
+                              clinicUsage.usage.xrays,
+                              clinicUsage.clinic.max_xrays,
+                            )}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="usage-card">
+                      <div className="usage-card-header">
+                        <h4>Storage</h4>
+                        <span>
+                          {formatUsage(
+                            clinicUsage.usage.storage_used_mb,
+                            clinicUsage.clinic.storage_limit_mb,
+                            " MB",
+                          )}
+                        </span>
+                      </div>
+                      <div className="usage-bar">
+                        <div
+                          className="usage-bar-fill"
+                          style={{
+                            width: `${getUsagePercent(
+                              clinicUsage.usage.storage_used_mb,
+                              clinicUsage.clinic.storage_limit_mb,
+                            )}%`,
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="info-message">
+                    These values are calculated from the current database
+                    records and are used to enforce the clinic’s subscription
+                    limits.
+                  </div>
+
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={closeUsageModal}
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

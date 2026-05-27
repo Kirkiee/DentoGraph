@@ -13,6 +13,8 @@ const xrayRoutes = require("./routes/xrayRoutes");
 const clinicRoutes = require("./routes/clinicRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const reportRoutes = require("./routes/reportRoutes");
+const auditLogRoutes = require("./routes/auditLogRoutes");
 
 const app = express();
 
@@ -46,6 +48,8 @@ app.use("/api/xrays", xrayRoutes);
 app.use("/api/clinics", clinicRoutes);
 app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/reports", reportRoutes);
+app.use("/api/audit-logs", auditLogRoutes);
 
 app.listen(5000, () => {
   console.log("Server running on port 5000");

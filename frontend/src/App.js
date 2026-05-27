@@ -22,6 +22,7 @@ import AdminDentalRecords from "./pages/AdminDentalRecords";
 import AdminDentalRecordDetails from "./pages/AdminDentalRecordDetails";
 import AdminDental3DViewer from "./pages/AdminDental3DViewer";
 import AdminXrayAnnotationView from "./pages/AdminXrayAnnotationView";
+import AdminAuditLogs from "./pages/AdminAuditLogs";
 
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
@@ -135,6 +136,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminXrayAnnotationView />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/audit-logs"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminAuditLogs />
             </ProtectedRoute>
           }
         />
