@@ -192,6 +192,71 @@ const getAccessibleRecord = async (req, record_id) => {
   };
 };
 
+const checkClinicRecordLimit = async (clinic_id) => {
+  if (!clinic_id) {
+    return {
+      allowed: false,
+      error:
+        "Dentist is not assigned to a clinic. Cannot validate subscription limits.",
+    };
+  }
+
+  const clinicPlanResult = await pool.query(
+    `SELECT 
+        c.clinic_id,
+        c.clinic_name,
+        c.subscription_plan_id,
+        sp.plan_name,
+        sp.max_records
+     FROM public.clinics c
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
+     WHERE c.clinic_id = $1`,
+    [clinic_id],
+  );
+
+  if (clinicPlanResult.rows.length === 0) {
+    return {
+      allowed: false,
+      error: "Clinic not found. Cannot validate subscription limits.",
+    };
+  }
+
+  const clinic = clinicPlanResult.rows[0];
+
+  if (!clinic.subscription_plan_id) {
+    return {
+      allowed: false,
+      error:
+        "This clinic has no subscription plan assigned. Please assign a plan before creating dental records.",
+    };
+  }
+
+  const recordCountResult = await pool.query(
+    `SELECT COUNT(*)::int AS count
+     FROM public.dental_records dr
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     WHERE d.clinic_id = $1
+     AND COALESCE(dr.status, 'Active') = 'Active'`,
+    [clinic_id],
+  );
+
+  const currentRecords = recordCountResult.rows[0].count;
+  const maxRecords = clinic.max_records;
+
+  if (maxRecords !== null && currentRecords >= maxRecords) {
+    return {
+      allowed: false,
+      error: `${clinic.clinic_name} has reached the dental record limit for the ${clinic.plan_name} plan. Limit: ${maxRecords}.`,
+    };
+  }
+
+  return {
+    allowed: true,
+    error: null,
+  };
+};
+
 // DENTIST: CREATE DENTAL RECORD FOR A PATIENT
 router.post(
   "/",
@@ -263,6 +328,14 @@ router.post(
           message: "Dental record already exists for this patient and dentist.",
           dental_record: existingRecord.rows[0],
           existing: true,
+        });
+      }
+
+      const limitCheck = await checkClinicRecordLimit(dentist.clinic_id);
+
+      if (!limitCheck.allowed) {
+        return res.status(400).json({
+          error: limitCheck.error,
         });
       }
 

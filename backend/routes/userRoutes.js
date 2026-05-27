@@ -3,6 +3,7 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const pool = require("../config/db");
+const createAuditLog = require("../utils/auditLogger");
 const {
   authenticateToken,
   authorizeRoles,
@@ -15,6 +16,10 @@ const {
 const normalizeNullable = (value) => {
   if (value === undefined || value === null || value === "") return null;
   return value;
+};
+
+const isAssistantRole = (role) => {
+  return role === "Assistant" || role === "Dental Assistant";
 };
 
 const checkClinicSubscriptionLimit = async (
@@ -182,7 +187,7 @@ router.post("/register", async (req, res) => {
       }
     }
 
-    if (roleName === "Assistant" && normalizedClinicId) {
+    if (isAssistantRole(roleName) && normalizedClinicId) {
       const limitCheck = await checkClinicSubscriptionLimit(
         client,
         normalizedClinicId,
@@ -228,7 +233,7 @@ router.post("/register", async (req, res) => {
       );
     }
 
-    if (roleName === "Assistant") {
+    if (isAssistantRole(roleName)) {
       await client.query(
         `INSERT INTO public.assistants
          (user_id, license_number, availability, status, clinic_id)
@@ -252,6 +257,14 @@ router.post("/register", async (req, res) => {
     }
 
     await client.query("COMMIT");
+
+    await createAuditLog({
+      user_id: req.user?.user_id || null,
+      action: "CREATE_USER",
+      module: "User Management",
+      description: `Created user account for ${newUser.rows[0].name} as ${roleName}.`,
+      ip_address: req.ip,
+    });
 
     res.status(201).json({
       message: "User registered successfully with role profile",
@@ -331,6 +344,14 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1h" },
     );
 
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "LOGIN",
+      module: "Authentication",
+      description: `${user.name} logged in as ${user.role_name}.`,
+      ip_address: req.ip,
+    });
+
     res.status(200).json({
       message: "Login successful",
       token,
@@ -361,39 +382,39 @@ router.get(
     try {
       const users = await pool.query(
         `SELECT 
-      u.user_id,
-      u.name,
-      u.email,
-      u.status,
-      u.created_at,
+            u.user_id,
+            u.name,
+            u.email,
+            u.status,
+            u.created_at,
 
-      r.role_id,
-      r.role_name,
+            r.role_id,
+            r.role_name,
 
-      d.dentist_id,
-      d.license_number AS dentist_license_number,
-      d.specialization,
-      d.availability AS dentist_availability,
-      d.clinic_id AS dentist_clinic_id,
-      dc.clinic_name AS dentist_clinic_name,
+            d.dentist_id,
+            d.license_number AS dentist_license_number,
+            d.specialization,
+            d.availability AS dentist_availability,
+            d.clinic_id AS dentist_clinic_id,
+            dc.clinic_name AS dentist_clinic_name,
 
-      a.assistant_id,
-      a.license_number AS assistant_license_number,
-      a.availability AS assistant_availability,
-      a.clinic_id AS assistant_clinic_id,
-      ac.clinic_name AS assistant_clinic_name
+            a.assistant_id,
+            a.license_number AS assistant_license_number,
+            a.availability AS assistant_availability,
+            a.clinic_id AS assistant_clinic_id,
+            ac.clinic_name AS assistant_clinic_name
 
-   FROM public.users u
-   LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
-   LEFT JOIN public.roles r ON ur.role_id = r.role_id
+         FROM public.users u
+         LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
+         LEFT JOIN public.roles r ON ur.role_id = r.role_id
 
-   LEFT JOIN public.dentists d ON u.user_id = d.user_id
-   LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
+         LEFT JOIN public.dentists d ON u.user_id = d.user_id
+         LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
 
-   LEFT JOIN public.assistants a ON u.user_id = a.user_id
-   LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
+         LEFT JOIN public.assistants a ON u.user_id = a.user_id
+         LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
 
-   ORDER BY u.user_id DESC`,
+         ORDER BY u.user_id DESC`,
       );
 
       res.status(200).json({
@@ -426,26 +447,33 @@ router.get(
             u.email,
             u.status,
             u.created_at,
+
             r.role_id,
             r.role_name,
+
             d.dentist_id,
             d.license_number AS dentist_license_number,
             d.specialization,
             d.availability AS dentist_availability,
             d.clinic_id AS dentist_clinic_id,
             dc.clinic_name AS dentist_clinic_name,
+
             a.assistant_id,
             a.license_number AS assistant_license_number,
             a.availability AS assistant_availability,
             a.clinic_id AS assistant_clinic_id,
             ac.clinic_name AS assistant_clinic_name
+
          FROM public.users u
          LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
          LEFT JOIN public.roles r ON ur.role_id = r.role_id
+
          LEFT JOIN public.dentists d ON u.user_id = d.user_id
          LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
+
          LEFT JOIN public.assistants a ON u.user_id = a.user_id
          LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
+
          WHERE u.user_id = $1`,
         [user_id],
       );
@@ -503,6 +531,14 @@ router.put(
       if (updatedUser.rows.length === 0) {
         return res.status(404).json({ error: "User not found" });
       }
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_USER_STATUS",
+        module: "User Management",
+        description: `Updated user ${updatedUser.rows[0].name} status to ${status}.`,
+        ip_address: req.ip,
+      });
 
       res.status(200).json({
         message: `User status updated to ${status}`,
@@ -582,7 +618,7 @@ router.put(
         }
       }
 
-      if (newRole.role_name === "Assistant" && normalizedClinicId) {
+      if (isAssistantRole(newRole.role_name) && normalizedClinicId) {
         const limitCheck = await checkClinicSubscriptionLimit(
           client,
           normalizedClinicId,
@@ -655,7 +691,7 @@ router.put(
         }
       }
 
-      if (newRole.role_name === "Assistant") {
+      if (isAssistantRole(newRole.role_name)) {
         const assistantCheck = await client.query(
           "SELECT assistant_id FROM public.assistants WHERE user_id = $1",
           [user_id],
@@ -707,6 +743,14 @@ router.put(
       }
 
       await client.query("COMMIT");
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_ROLE",
+        module: "User Management",
+        description: `Updated user ${userCheck.rows[0].name} to role ${newRole.role_name}.`,
+        ip_address: req.ip,
+      });
 
       res.status(200).json({
         message: `User role updated to ${newRole.role_name}`,
@@ -785,7 +829,7 @@ router.get(
 router.get(
   "/assistant/dashboard",
   authenticateToken,
-  authorizeRoles("Assistant"),
+  authorizeRoles("Assistant", "Dental Assistant"),
   (req, res) => {
     res.json({
       message: "Welcome to the Dental Assistant Dashboard",
@@ -801,7 +845,7 @@ router.get(
 router.get(
   "/clinical-area",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant"),
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   (req, res) => {
     res.json({
       message: "Clinical area accessed successfully",

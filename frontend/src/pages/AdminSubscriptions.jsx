@@ -23,15 +23,18 @@ function AdminSubscriptions() {
     plan_name: "",
     price: "",
     billing_cycle: "Monthly",
-    storage_limit: "",
-    max_clinics: 1,
     max_dentists: 1,
-    features: "",
+    max_assistants: 1,
+    max_patients: 50,
+    max_records: 100,
+    max_xrays: 100,
+    storage_limit_mb: 500,
     status: "Active",
   });
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -50,6 +53,35 @@ function AdminSubscriptions() {
     filterPlans();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plans, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    const isAnyModalOpen = showPlanModal || showStatusModal;
+
+    if (isAnyModalOpen) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showPlanModal, showStatusModal]);
+
+  const resetPlanForm = () => {
+    setPlanForm({
+      plan_name: "",
+      price: "",
+      billing_cycle: "Monthly",
+      max_dentists: 1,
+      max_assistants: 1,
+      max_patients: 50,
+      max_records: 100,
+      max_xrays: 100,
+      storage_limit_mb: 500,
+      status: "Active",
+    });
+  };
 
   const fetchPlans = async () => {
     try {
@@ -81,8 +113,13 @@ function AdminSubscriptions() {
         (plan) =>
           plan.plan_name?.toLowerCase().includes(term) ||
           plan.billing_cycle?.toLowerCase().includes(term) ||
-          plan.storage_limit?.toLowerCase().includes(term) ||
-          plan.features?.toLowerCase().includes(term),
+          String(plan.price || "").includes(term) ||
+          String(plan.max_dentists || "").includes(term) ||
+          String(plan.max_assistants || "").includes(term) ||
+          String(plan.max_patients || "").includes(term) ||
+          String(plan.max_records || "").includes(term) ||
+          String(plan.max_xrays || "").includes(term) ||
+          String(plan.storage_limit_mb || "").includes(term),
       );
     }
 
@@ -91,65 +128,85 @@ function AdminSubscriptions() {
 
   const openCreateModal = () => {
     setSelectedPlan(null);
-    setPlanForm({
-      plan_name: "",
-      price: "",
-      billing_cycle: "Monthly",
-      storage_limit: "",
-      max_clinics: 1,
-      max_dentists: 1,
-      features: "",
-      status: "Active",
-    });
+    resetPlanForm();
     setMessage("");
     setError("");
+    setModalError("");
     setShowPlanModal(true);
   };
 
   const openEditModal = (plan) => {
     setSelectedPlan(plan);
+
     setPlanForm({
       plan_name: plan.plan_name || "",
       price: plan.price || "",
       billing_cycle: plan.billing_cycle || "Monthly",
-      storage_limit: plan.storage_limit || "",
-      max_clinics: plan.max_clinics || 1,
-      max_dentists: plan.max_dentists || 1,
-      features: plan.features || "",
+      max_dentists: plan.max_dentists ?? 1,
+      max_assistants: plan.max_assistants ?? 1,
+      max_patients: plan.max_patients ?? 50,
+      max_records: plan.max_records ?? 100,
+      max_xrays: plan.max_xrays ?? 100,
+      storage_limit_mb: plan.storage_limit_mb ?? 500,
       status: plan.status || "Active",
     });
+
     setMessage("");
     setError("");
+    setModalError("");
     setShowPlanModal(true);
   };
 
   const closePlanModal = () => {
     setShowPlanModal(false);
     setSelectedPlan(null);
-    setPlanForm({
-      plan_name: "",
-      price: "",
-      billing_cycle: "Monthly",
-      storage_limit: "",
-      max_clinics: 1,
-      max_dentists: 1,
-      features: "",
-      status: "Active",
-    });
+    resetPlanForm();
+    setModalError("");
   };
 
   const handlePlanChange = (e) => {
+    setModalError("");
+
     setPlanForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
   };
 
+  const validatePlanForm = () => {
+    if (!planForm.plan_name.trim()) {
+      setModalError("Plan name is required.");
+      return false;
+    }
+
+    if (Number(planForm.price) < 0) {
+      setModalError("Price cannot be negative.");
+      return false;
+    }
+
+    const numericFields = [
+      "max_dentists",
+      "max_assistants",
+      "max_patients",
+      "max_records",
+      "max_xrays",
+      "storage_limit_mb",
+    ];
+
+    for (const field of numericFields) {
+      if (Number(planForm[field]) < 0) {
+        setModalError("Plan limits cannot be negative.");
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleSavePlan = async (e) => {
     e.preventDefault();
 
-    if (!planForm.plan_name) {
-      setError("Plan name is required.");
+    if (!validatePlanForm()) {
       return;
     }
 
@@ -157,15 +214,18 @@ function AdminSubscriptions() {
       setSaving(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       const payload = {
         plan_name: planForm.plan_name,
         price: Number(planForm.price || 0),
         billing_cycle: planForm.billing_cycle,
-        storage_limit: planForm.storage_limit,
-        max_clinics: Number(planForm.max_clinics || 1),
-        max_dentists: Number(planForm.max_dentists || 1),
-        features: planForm.features,
+        max_dentists: Number(planForm.max_dentists || 0),
+        max_assistants: Number(planForm.max_assistants || 0),
+        max_patients: Number(planForm.max_patients || 0),
+        max_records: Number(planForm.max_records || 0),
+        max_xrays: Number(planForm.max_xrays || 0),
+        storage_limit_mb: Number(planForm.storage_limit_mb || 0),
         status: planForm.status,
       };
 
@@ -185,7 +245,7 @@ function AdminSubscriptions() {
       closePlanModal();
       fetchPlans();
     } catch (err) {
-      setError(
+      setModalError(
         err.response?.data?.error || "Unable to save subscription plan.",
       );
     } finally {
@@ -198,6 +258,7 @@ function AdminSubscriptions() {
     setSelectedStatus(status);
     setMessage("");
     setError("");
+    setModalError("");
     setShowStatusModal(true);
   };
 
@@ -205,13 +266,14 @@ function AdminSubscriptions() {
     setShowStatusModal(false);
     setSelectedPlan(null);
     setSelectedStatus("");
+    setModalError("");
   };
 
   const handleUpdateStatus = async (e) => {
     e.preventDefault();
 
     if (!selectedPlan || !selectedStatus) {
-      setError("Please select a valid subscription status.");
+      setModalError("Please select a valid subscription status.");
       return;
     }
 
@@ -219,6 +281,7 @@ function AdminSubscriptions() {
       setUpdatingStatus(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/subscriptions/${selectedPlan.plan_id}/status`,
@@ -230,7 +293,7 @@ function AdminSubscriptions() {
       closeStatusModal();
       fetchPlans();
     } catch (err) {
-      setError(
+      setModalError(
         err.response?.data?.error ||
           "Unable to update subscription plan status.",
       );
@@ -259,11 +322,26 @@ function AdminSubscriptions() {
     });
   };
 
+  const formatStorage = (mb) => {
+    const storage = Number(mb || 0);
+
+    if (storage >= 1024) {
+      return `${(storage / 1024).toFixed(1)} GB`;
+    }
+
+    return `${storage} MB`;
+  };
+
   const totalPlans = plans.length;
   const activePlans = plans.filter((plan) => plan.status === "Active").length;
   const inactivePlans = plans.filter(
     (plan) => plan.status === "Inactive",
   ).length;
+
+  const totalRecordCapacity = plans.reduce(
+    (sum, plan) => sum + Number(plan.max_records || 0),
+    0,
+  );
 
   return (
     <DashboardLayout role="Admin">
@@ -272,8 +350,8 @@ function AdminSubscriptions() {
           <div>
             <h2>Subscription Management</h2>
             <p>
-              Manage subscription plans, pricing, billing cycles, limits, and
-              included features.
+              Manage subscription plans and the actual limits used by clinics,
+              dentists, records, X-rays, and storage enforcement.
             </p>
           </div>
 
@@ -290,6 +368,12 @@ function AdminSubscriptions() {
               {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
+        </div>
+
+        <div className="info-message">
+          These plan limits are used by the backend to control how many
+          dentists, assistants, dental records, X-rays, and uploaded files each
+          subscribed clinic can use.
         </div>
 
         {message && <div className="success-message">{message}</div>}
@@ -312,8 +396,8 @@ function AdminSubscriptions() {
           </div>
 
           <div className="dashboard-card">
-            <h3>Listed Plans</h3>
-            <strong>{filteredPlans.length}</strong>
+            <h3>Record Capacity</h3>
+            <strong>{totalRecordCapacity}</strong>
           </div>
         </div>
 
@@ -324,7 +408,7 @@ function AdminSubscriptions() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search plan name, billing cycle, storage, or features"
+              placeholder="Search plan name, billing cycle, limits, or storage"
             />
           </div>
 
@@ -346,7 +430,7 @@ function AdminSubscriptions() {
         ) : filteredPlans.length === 0 ? (
           <div className="empty-state">
             <h3>No subscription plans found</h3>
-            <p>Add a subscription plan to start managing plan options.</p>
+            <p>Add a subscription plan to start managing plan limits.</p>
           </div>
         ) : (
           <div className="appointments-list">
@@ -357,7 +441,7 @@ function AdminSubscriptions() {
                     <h3>{plan.plan_name}</h3>
 
                     <span className={getStatusClass(plan.status)}>
-                      {plan.status}
+                      {plan.status || "Active"}
                     </span>
                   </div>
 
@@ -371,21 +455,30 @@ function AdminSubscriptions() {
                   </p>
 
                   <p>
+                    <strong>Staff Limits:</strong> {plan.max_dentists ?? 0}{" "}
+                    dentist
+                    {(plan.max_dentists ?? 0) === 1 ? "" : "s"},{" "}
+                    {plan.max_assistants ?? 0} assistant
+                    {(plan.max_assistants ?? 0) === 1 ? "" : "s"}
+                  </p>
+
+                  <p>
+                    <strong>Patient Limit:</strong> {plan.max_patients ?? 0}{" "}
+                    patients
+                  </p>
+
+                  <p>
+                    <strong>Dental Record Limit:</strong>{" "}
+                    {plan.max_records ?? 0} records
+                  </p>
+
+                  <p>
+                    <strong>X-ray Limit:</strong> {plan.max_xrays ?? 0} X-rays
+                  </p>
+
+                  <p>
                     <strong>Storage Limit:</strong>{" "}
-                    {plan.storage_limit || "Not specified"}
-                  </p>
-
-                  <p>
-                    <strong>Max Clinics:</strong> {plan.max_clinics}
-                  </p>
-
-                  <p>
-                    <strong>Max Dentists:</strong> {plan.max_dentists}
-                  </p>
-
-                  <p>
-                    <strong>Features:</strong>{" "}
-                    {plan.features || "No features provided"}
+                    {formatStorage(plan.storage_limit_mb)}
                   </p>
 
                   <p>
@@ -440,8 +533,8 @@ function AdminSubscriptions() {
                 </h3>
                 <p>
                   {selectedPlan
-                    ? "Update subscription plan details."
-                    : "Create a new subscription plan."}
+                    ? "Update pricing and enforcement limits for this plan."
+                    : "Create a new subscription plan with enforceable limits."}
                 </p>
               </div>
 
@@ -455,6 +548,8 @@ function AdminSubscriptions() {
             </div>
 
             <form className="modal-form" onSubmit={handleSavePlan}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Plan Name</label>
                 <input
@@ -494,46 +589,69 @@ function AdminSubscriptions() {
               </div>
 
               <div className="form-group">
-                <label>Storage Limit</label>
-                <input
-                  type="text"
-                  name="storage_limit"
-                  value={planForm.storage_limit}
-                  onChange={handlePlanChange}
-                  placeholder="Example: 10 GB"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Max Clinics</label>
-                <input
-                  type="number"
-                  name="max_clinics"
-                  min="1"
-                  value={planForm.max_clinics}
-                  onChange={handlePlanChange}
-                />
-              </div>
-
-              <div className="form-group">
                 <label>Max Dentists</label>
                 <input
                   type="number"
                   name="max_dentists"
-                  min="1"
+                  min="0"
                   value={planForm.max_dentists}
                   onChange={handlePlanChange}
                 />
               </div>
 
               <div className="form-group">
-                <label>Features</label>
-                <textarea
-                  name="features"
-                  value={planForm.features}
+                <label>Max Assistants</label>
+                <input
+                  type="number"
+                  name="max_assistants"
+                  min="0"
+                  value={planForm.max_assistants}
                   onChange={handlePlanChange}
-                  placeholder="Example: Digital records, X-ray uploads, appointment management"
-                  rows="4"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Max Patients</label>
+                <input
+                  type="number"
+                  name="max_patients"
+                  min="0"
+                  value={planForm.max_patients}
+                  onChange={handlePlanChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Max Dental Records</label>
+                <input
+                  type="number"
+                  name="max_records"
+                  min="0"
+                  value={planForm.max_records}
+                  onChange={handlePlanChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Max X-rays</label>
+                <input
+                  type="number"
+                  name="max_xrays"
+                  min="0"
+                  value={planForm.max_xrays}
+                  onChange={handlePlanChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Storage Limit in MB</label>
+                <input
+                  type="number"
+                  name="storage_limit_mb"
+                  min="0"
+                  value={planForm.storage_limit_mb}
+                  onChange={handlePlanChange}
+                  placeholder="Example: 500"
                 />
               </div>
 
@@ -547,6 +665,12 @@ function AdminSubscriptions() {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
+              </div>
+
+              <div className="info-message">
+                These values are not just labels. They are used by the backend
+                when assigning staff, creating dental records, and uploading
+                X-rays.
               </div>
 
               <div className="modal-actions">
@@ -597,6 +721,8 @@ function AdminSubscriptions() {
             </div>
 
             <form className="modal-form" onSubmit={handleUpdateStatus}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Plan</label>
                 <input
