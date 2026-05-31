@@ -6,6 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const axios = require("axios");
 const FormData = require("form-data");
+const createAuditLog = require("../utils/auditLogger");
 
 const {
   authenticateToken,
@@ -65,6 +66,57 @@ const deleteUploadedFile = (filePath) => {
   if (fs.existsSync(fullPath)) {
     fs.unlinkSync(fullPath);
   }
+};
+
+const normalizeAnnotationStatus = (status) => {
+  if (!status) return null;
+
+  const normalized = String(status).trim().toLowerCase();
+
+  if (
+    normalized === "confirmed" ||
+    normalized === "confirm" ||
+    normalized === "approved" ||
+    normalized === "approve" ||
+    normalized === "accepted" ||
+    normalized === "accept"
+  ) {
+    return "Confirmed";
+  }
+
+  if (
+    normalized === "rejected" ||
+    normalized === "reject" ||
+    normalized === "declined" ||
+    normalized === "decline"
+  ) {
+    return "Rejected";
+  }
+
+  if (
+    normalized === "suggested" ||
+    normalized === "pending" ||
+    normalized === "pending review"
+  ) {
+    return "Suggested";
+  }
+
+  return null;
+};
+
+const getRoboflowModelUrl = () => {
+  if (process.env.ROBOFLOW_MODEL_URL) {
+    return process.env.ROBOFLOW_MODEL_URL;
+  }
+
+  const model = process.env.ROBOFLOW_MODEL;
+  const version = process.env.ROBOFLOW_VERSION;
+
+  if (model && version) {
+    return `https://detect.roboflow.com/${model}/${version}`;
+  }
+
+  return null;
 };
 
 const getDentistProfile = async (user_id) => {
@@ -362,20 +414,6 @@ const checkClinicXrayLimit = async (record_id, newFileSizeBytes) => {
   const storageLimitMb = Number(record.storage_limit_mb || 0);
   const storageLimitBytes = storageLimitMb * 1024 * 1024;
 
-  console.log("X-ray subscription check:", {
-    clinic_id: record.clinic_id,
-    clinic_name: record.clinic_name,
-    plan_name: record.plan_name,
-    currentXrays,
-    maxXrays,
-    currentBytes,
-    currentMb: (currentBytes / 1024 / 1024).toFixed(2),
-    newFileSizeBytes,
-    newFileMb: (Number(newFileSizeBytes || 0) / 1024 / 1024).toFixed(2),
-    storageLimitMb,
-    storageLimitBytes,
-  });
-
   if (maxXrays > 0 && currentXrays >= maxXrays) {
     return {
       allowed: false,
@@ -445,10 +483,12 @@ const mapRoboflowLabel = (rawLabel) => {
 
 const analyzeImageWithRoboflow = async (imagePath) => {
   const apiKey = process.env.ROBOFLOW_API_KEY;
-  const modelUrl = process.env.ROBOFLOW_MODEL_URL;
+  const modelUrl = getRoboflowModelUrl();
 
   if (!apiKey || !modelUrl) {
-    throw new Error("Roboflow API key or model URL is missing.");
+    throw new Error(
+      "Roboflow API key or model URL is missing. Check ROBOFLOW_API_KEY and either ROBOFLOW_MODEL_URL or ROBOFLOW_MODEL plus ROBOFLOW_VERSION in your backend .env.",
+    );
   }
 
   const fullImagePath = path.join(__dirname, "..", imagePath);
@@ -467,6 +507,7 @@ const analyzeImageWithRoboflow = async (imagePath) => {
   return response.data;
 };
 
+// UPLOAD X-RAY
 router.post(
   "/upload",
   authenticateToken,
@@ -523,6 +564,14 @@ router.post(
         [record_id, tooth_number || null, filePath, fileSizeBytes],
       );
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPLOAD_XRAY",
+        module: "X-rays",
+        description: `Uploaded X-ray #${newXray.rows[0].xray_id} for dental record #${record_id}.`,
+        ip_address: req.ip,
+      });
+
       res.status(201).json({
         message: "X-ray uploaded successfully",
         xray: newXray.rows[0],
@@ -538,6 +587,7 @@ router.post(
   },
 );
 
+// GET XRAYS BY RECORD
 router.get(
   "/record/:record_id",
   authenticateToken,
@@ -573,14 +623,15 @@ router.get(
         xrays: xrays.rows,
       });
     } catch (err) {
-      console.error("Get X-rays error:", err.message);
+      console.error("Get X-rays error:", err);
       res.status(500).json({
-        error: "Error retrieving X-rays",
+        error: err.message || "Error retrieving X-rays",
       });
     }
   },
 );
 
+// GET SINGLE XRAY
 router.get(
   "/:xray_id",
   authenticateToken,
@@ -608,14 +659,15 @@ router.get(
         xray: access.xray,
       });
     } catch (err) {
-      console.error("Get X-ray error:", err.message);
+      console.error("Get X-ray error:", err);
       res.status(500).json({
-        error: "Error retrieving X-ray",
+        error: err.message || "Error retrieving X-ray",
       });
     }
   },
 );
 
+// DELETE XRAY
 router.delete(
   "/:xray_id",
   authenticateToken,
@@ -647,19 +699,28 @@ router.delete(
 
       deleteUploadedFile(deletedXray.rows[0].file_path);
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "DELETE_XRAY",
+        module: "X-rays",
+        description: `Deleted X-ray #${deletedXray.rows[0].xray_id} from dental record #${deletedXray.rows[0].record_id}.`,
+        ip_address: req.ip,
+      });
+
       res.status(200).json({
         message: "X-ray deleted successfully",
         xray: deletedXray.rows[0],
       });
     } catch (err) {
-      console.error("Delete X-ray error:", err.message);
+      console.error("Delete X-ray error:", err);
       res.status(500).json({
-        error: "Error deleting X-ray",
+        error: err.message || "Error deleting X-ray",
       });
     }
   },
 );
 
+// RUN AI ANALYSIS
 router.post(
   "/:xray_id/analyze",
   authenticateToken,
@@ -688,6 +749,14 @@ router.post(
       const predictions = roboflowResult.predictions || [];
 
       if (predictions.length === 0) {
+        await createAuditLog({
+          user_id: req.user.user_id,
+          action: "RUN_AI_ANALYSIS",
+          module: "AI X-ray Analysis",
+          description: `Ran AI analysis for X-ray #${xray_id}. No findings were detected.`,
+          ip_address: req.ip,
+        });
+
         return res.status(200).json({
           message: "AI analysis completed. No findings were detected.",
           annotations: [],
@@ -745,13 +814,21 @@ router.post(
         insertedAnnotations.push(inserted.rows[0]);
       }
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "RUN_AI_ANALYSIS",
+        module: "AI X-ray Analysis",
+        description: `Ran AI analysis for X-ray #${xray_id}. ${insertedAnnotations.length} annotation(s) were suggested.`,
+        ip_address: req.ip,
+      });
+
       res.status(201).json({
         message:
           "AI analysis completed. Suggestions were saved and are pending dentist review.",
         annotations: insertedAnnotations,
       });
     } catch (err) {
-      console.error("AI X-ray analysis error:", err.message);
+      console.error("AI X-ray analysis error:", err);
       res.status(500).json({
         error: err.message || "Error analyzing X-ray",
       });
@@ -759,6 +836,7 @@ router.post(
   },
 );
 
+// GET XRAY ANNOTATIONS
 router.get(
   "/:xray_id/annotations",
   authenticateToken,
@@ -807,33 +885,111 @@ router.get(
         pending_review_count: pendingCount.rows[0].count,
       });
     } catch (err) {
-      console.error("Get X-ray annotations error:", err.message);
+      console.error("Get X-ray annotations error:", err);
       res.status(500).json({
-        error: "Error retrieving X-ray annotations",
+        error: err.message || "Error retrieving X-ray annotations",
       });
     }
   },
 );
 
-router.put(
-  "/annotations/:annotation_id/review",
+// CREATE MANUAL ANNOTATION
+router.post(
+  "/:xray_id/annotations",
   authenticateToken,
-  authorizeRoles("Dentist"),
+  authorizeRoles("Dentist", "Admin"),
   async (req, res) => {
-    const { annotation_id } = req.params;
-    const { status, label, note } = req.body || {};
+    const { xray_id } = req.params;
+    const { label, note, x_position, y_position, width, height } =
+      req.body || {};
 
-    const allowedStatuses = ["Confirmed", "Rejected", "Suggested"];
-
-    if (!status || !allowedStatuses.includes(status)) {
+    if (!label || x_position === undefined || y_position === undefined) {
       return res.status(400).json({
-        error: "Valid status is required.",
+        error: "Label, X position, and Y position are required.",
       });
     }
 
     try {
+      const access = await getAccessibleXray(req, xray_id);
+
+      if (!access.allowed) {
+        return res.status(access.statusCode).json({
+          error: access.error,
+        });
+      }
+
+      const dentist = await getDentistProfile(req.user.user_id);
+
+      const newAnnotation = await pool.query(
+        `INSERT INTO public.xray_annotations
+         (
+           xray_id,
+           dentist_id,
+           label,
+           note,
+           x_position,
+           y_position,
+           width,
+           height,
+           confidence,
+           source,
+           status,
+           created_at,
+           reviewed_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NULL, 'Dentist', 'Confirmed', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [
+          xray_id,
+          dentist?.dentist_id || null,
+          label,
+          note || null,
+          Number(x_position),
+          Number(y_position),
+          width !== undefined && width !== "" ? Number(width) : 0,
+          height !== undefined && height !== "" ? Number(height) : 0,
+        ],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "CREATE_XRAY_ANNOTATION",
+        module: "AI X-ray Analysis",
+        description: `Created manual annotation #${newAnnotation.rows[0].annotation_id} for X-ray #${xray_id}.`,
+        ip_address: req.ip,
+      });
+
+      res.status(201).json({
+        message: "Manual annotation created successfully",
+        annotation: newAnnotation.rows[0],
+      });
+    } catch (err) {
+      console.error("Create annotation error:", err);
+
+      res.status(500).json({
+        error: err.message || "Error creating annotation",
+      });
+    }
+  },
+);
+
+// UPDATE ANNOTATION DETAILS
+router.put(
+  "/annotations/:annotation_id",
+  authenticateToken,
+  authorizeRoles("Dentist", "Admin"),
+  async (req, res) => {
+    const { annotation_id } = req.params;
+
+    const { label, note, x_position, y_position, width, height, status } =
+      req.body || {};
+
+    try {
       const annotationResult = await pool.query(
-        `SELECT xa.*, x.record_id
+        `SELECT 
+            xa.*,
+            x.record_id,
+            x.xray_id
          FROM public.xray_annotations xa
          JOIN public.xray_images x ON xa.xray_id = x.xray_id
          WHERE xa.annotation_id = $1`,
@@ -842,11 +998,12 @@ router.put(
 
       if (annotationResult.rows.length === 0) {
         return res.status(404).json({
-          error: "Annotation not found",
+          error: "Annotation not found.",
         });
       }
 
       const annotation = annotationResult.rows[0];
+
       const access = await getAccessibleRecordForXray(
         req,
         annotation.record_id,
@@ -859,42 +1016,192 @@ router.put(
       }
 
       const dentist = await getDentistProfile(req.user.user_id);
+      const normalizedStatus = status
+        ? normalizeAnnotationStatus(status)
+        : annotation.status;
 
       const updatedAnnotation = await pool.query(
         `UPDATE public.xray_annotations
-         SET status = $1,
-             label = COALESCE($2, label),
-             note = COALESCE($3, note),
-             dentist_id = $4,
+         SET label = COALESCE($1, label),
+             note = COALESCE($2, note),
+             x_position = COALESCE($3, x_position),
+             y_position = COALESCE($4, y_position),
+             width = COALESCE($5, width),
+             height = COALESCE($6, height),
+             status = COALESCE($7, status),
+             dentist_id = COALESCE($8, dentist_id),
              reviewed_at = CURRENT_TIMESTAMP
-         WHERE annotation_id = $5
+         WHERE annotation_id = $9
          RETURNING *`,
         [
-          status,
           label || null,
           note || null,
+          x_position !== undefined && x_position !== ""
+            ? Number(x_position)
+            : null,
+          y_position !== undefined && y_position !== ""
+            ? Number(y_position)
+            : null,
+          width !== undefined && width !== "" ? Number(width) : null,
+          height !== undefined && height !== "" ? Number(height) : null,
+          normalizedStatus,
           dentist?.dentist_id || null,
           annotation_id,
         ],
       );
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_XRAY_ANNOTATION",
+        module: "AI X-ray Analysis",
+        description: `Updated annotation #${annotation_id} for X-ray #${annotation.xray_id}.`,
+        ip_address: req.ip,
+      });
+
       res.status(200).json({
-        message: "Annotation reviewed successfully",
+        message: "Annotation updated successfully",
         annotation: updatedAnnotation.rows[0],
       });
     } catch (err) {
-      console.error("Review annotation error:", err.message);
+      console.error("Update annotation error:", err);
+
       res.status(500).json({
-        error: "Error reviewing annotation",
+        error: err.message || "Error updating annotation",
       });
     }
   },
 );
 
+// REVIEW ANNOTATION STATUS
+const reviewAnnotationHandler = async (req, res) => {
+  const { annotation_id } = req.params;
+  const { status, review_status, new_status, label, note } = req.body || {};
+
+  const requestedStatus = status || review_status || new_status;
+  const reviewedStatus = normalizeAnnotationStatus(requestedStatus);
+
+  if (!reviewedStatus) {
+    return res.status(400).json({
+      error:
+        "Valid status is required. Use Confirmed, Rejected, Suggested, Approved, or Declined.",
+    });
+  }
+
+  try {
+    const annotationResult = await pool.query(
+      `SELECT 
+          xa.*,
+          x.record_id,
+          x.xray_id,
+          dr.dentist_id,
+          dr.patient_id,
+          d.user_id AS record_dentist_user_id
+       FROM public.xray_annotations xa
+       JOIN public.xray_images x ON xa.xray_id = x.xray_id
+       JOIN public.dental_records dr ON x.record_id = dr.record_id
+       JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+       WHERE xa.annotation_id = $1`,
+      [annotation_id],
+    );
+
+    if (annotationResult.rows.length === 0) {
+      return res.status(404).json({
+        error: "Annotation not found.",
+      });
+    }
+
+    const annotation = annotationResult.rows[0];
+
+    if (
+      req.user.role === "Dentist" &&
+      Number(annotation.record_dentist_user_id) !== Number(req.user.user_id)
+    ) {
+      return res.status(403).json({
+        error:
+          "This annotation belongs to a dental record assigned to another dentist.",
+      });
+    }
+
+    const dentist = await getDentistProfile(req.user.user_id);
+
+    const updatedAnnotation = await pool.query(
+      `UPDATE public.xray_annotations
+       SET status = $1,
+           label = COALESCE($2, label),
+           note = COALESCE($3, note),
+           dentist_id = COALESCE($4, dentist_id),
+           reviewed_at = CURRENT_TIMESTAMP
+       WHERE annotation_id = $5
+       RETURNING *`,
+      [
+        reviewedStatus,
+        label || null,
+        note || null,
+        dentist?.dentist_id || null,
+        annotation_id,
+      ],
+    );
+
+    if (updatedAnnotation.rows.length === 0) {
+      return res.status(404).json({
+        error: "Annotation could not be updated because it was not found.",
+      });
+    }
+
+    await createAuditLog({
+      user_id: req.user.user_id,
+      action: "REVIEW_AI_ANNOTATION",
+      module: "AI X-ray Analysis",
+      description: `Reviewed annotation #${annotation_id}. Status set to ${reviewedStatus}.`,
+      ip_address: req.ip,
+    });
+
+    return res.status(200).json({
+      message: "Annotation reviewed successfully",
+      annotation: updatedAnnotation.rows[0],
+    });
+  } catch (err) {
+    console.error("Review annotation error:", err);
+
+    return res.status(500).json({
+      error: err.message || "Error reviewing annotation.",
+    });
+  }
+};
+
+router.put(
+  "/annotations/:annotation_id/review",
+  authenticateToken,
+  authorizeRoles("Dentist", "Admin"),
+  reviewAnnotationHandler,
+);
+
+router.put(
+  "/annotations/:annotation_id/status",
+  authenticateToken,
+  authorizeRoles("Dentist", "Admin"),
+  reviewAnnotationHandler,
+);
+
+router.patch(
+  "/annotations/:annotation_id/review",
+  authenticateToken,
+  authorizeRoles("Dentist", "Admin"),
+  reviewAnnotationHandler,
+);
+
+router.patch(
+  "/annotations/:annotation_id/status",
+  authenticateToken,
+  authorizeRoles("Dentist", "Admin"),
+  reviewAnnotationHandler,
+);
+
+// DELETE ANNOTATION
 router.delete(
   "/annotations/:annotation_id",
   authenticateToken,
-  authorizeRoles("Dentist"),
+  authorizeRoles("Dentist", "Admin"),
   async (req, res) => {
     const { annotation_id } = req.params;
 
@@ -914,6 +1221,7 @@ router.delete(
       }
 
       const annotation = annotationResult.rows[0];
+
       const access = await getAccessibleRecordForXray(
         req,
         annotation.record_id,
@@ -932,14 +1240,22 @@ router.delete(
         [annotation_id],
       );
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "DELETE_AI_ANNOTATION",
+        module: "AI X-ray Analysis",
+        description: `Deleted annotation #${deletedAnnotation.rows[0].annotation_id} from X-ray #${deletedAnnotation.rows[0].xray_id}.`,
+        ip_address: req.ip,
+      });
+
       res.status(200).json({
         message: "Annotation deleted successfully",
         annotation: deletedAnnotation.rows[0],
       });
     } catch (err) {
-      console.error("Delete annotation error:", err.message);
+      console.error("Delete annotation error:", err);
       res.status(500).json({
-        error: "Error deleting annotation",
+        error: err.message || "Error deleting annotation",
       });
     }
   },

@@ -1,14 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
+const createAuditLog = require("../utils/auditLogger");
 const {
   authenticateToken,
   authorizeRoles,
 } = require("../middleware/authMiddleware");
-
-const isAssistantRole = (role) => {
-  return role === "Assistant" || role === "Dental Assistant";
-};
 
 const normalizeNullable = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -112,6 +109,7 @@ router.get(
 );
 
 // ADMIN: GET CLINIC SUBSCRIPTION USAGE
+// IMPORTANT: Keep this above "/:clinic_id"
 router.get(
   "/:clinic_id/subscription-usage",
   authenticateToken,
@@ -163,7 +161,8 @@ router.get(
         `SELECT COUNT(DISTINCT dr.patient_id)::int AS count
          FROM public.dental_records dr
          JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1`,
+         WHERE d.clinic_id = $1
+         AND COALESCE(dr.status, 'Active') = 'Active'`,
         [clinic_id],
       );
 
@@ -171,7 +170,8 @@ router.get(
         `SELECT COUNT(*)::int AS count
          FROM public.dental_records dr
          JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1`,
+         WHERE d.clinic_id = $1
+         AND COALESCE(dr.status, 'Active') = 'Active'`,
         [clinic_id],
       );
 
@@ -184,6 +184,18 @@ router.get(
         [clinic_id],
       );
 
+      const storageUsage = await pool.query(
+        `SELECT COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint AS total_bytes
+         FROM public.xray_images x
+         JOIN public.dental_records dr ON x.record_id = dr.record_id
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         WHERE d.clinic_id = $1`,
+        [clinic_id],
+      );
+
+      const totalBytes = Number(storageUsage.rows[0].total_bytes || 0);
+      const storageUsedMb = totalBytes / 1024 / 1024;
+
       res.status(200).json({
         message: "Clinic subscription usage retrieved successfully",
         clinic: clinicResult.rows[0],
@@ -193,6 +205,8 @@ router.get(
           patients: patientCount.rows[0].count,
           records: recordCount.rows[0].count,
           xrays: xrayCount.rows[0].count,
+          storage_used_mb: Number(storageUsedMb.toFixed(2)),
+          storage_used_bytes: totalBytes,
         },
       });
     } catch (err) {
@@ -349,6 +363,14 @@ router.post(
         ],
       );
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "CREATE_CLINIC",
+        module: "Clinic Management",
+        description: `Created clinic: ${newClinic.rows[0].clinic_name}.`,
+        ip_address: req.ip,
+      });
+
       res.status(201).json({
         message: "Clinic created successfully",
         clinic: newClinic.rows[0],
@@ -411,6 +433,8 @@ router.put(
         }
       }
 
+      const oldClinic = clinicCheck.rows[0];
+
       const updatedClinic = await pool.query(
         `UPDATE public.clinics
          SET clinic_name = COALESCE($1, clinic_name),
@@ -437,6 +461,30 @@ router.put(
           clinic_id,
         ],
       );
+
+      const newStatus = updatedClinic.rows[0].status;
+      const oldStatus = oldClinic.status;
+
+      let action = "UPDATE_CLINIC";
+      let description = `Updated clinic: ${updatedClinic.rows[0].clinic_name}.`;
+
+      if (oldStatus !== newStatus && newStatus === "Inactive") {
+        action = "ARCHIVE_CLINIC";
+        description = `Deactivated clinic: ${updatedClinic.rows[0].clinic_name}.`;
+      }
+
+      if (oldStatus !== newStatus && newStatus === "Active") {
+        action = "RESTORE_CLINIC";
+        description = `Activated clinic: ${updatedClinic.rows[0].clinic_name}.`;
+      }
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action,
+        module: "Clinic Management",
+        description,
+        ip_address: req.ip,
+      });
 
       res.status(200).json({
         message: "Clinic updated successfully",
@@ -481,6 +529,14 @@ router.put(
         [clinic_id],
       );
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "ARCHIVE_CLINIC",
+        module: "Clinic Management",
+        description: `Archived clinic: ${archivedClinic.rows[0].clinic_name}.`,
+        ip_address: req.ip,
+      });
+
       res.status(200).json({
         message: "Clinic archived successfully",
         clinic: archivedClinic.rows[0],
@@ -523,6 +579,14 @@ router.put(
          RETURNING *`,
         [clinic_id],
       );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "RESTORE_CLINIC",
+        module: "Clinic Management",
+        description: `Restored clinic: ${restoredClinic.rows[0].clinic_name}.`,
+        ip_address: req.ip,
+      });
 
       res.status(200).json({
         message: "Clinic restored successfully",
@@ -588,6 +652,14 @@ router.delete(
          RETURNING *`,
         [clinic_id],
       );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "DELETE_CLINIC",
+        module: "Clinic Management",
+        description: `Deleted clinic permanently: ${deletedClinic.rows[0].clinic_name}.`,
+        ip_address: req.ip,
+      });
 
       res.status(200).json({
         message: "Clinic deleted permanently",
