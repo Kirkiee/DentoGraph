@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../config/db");
+const createAuditLog = require("../utils/auditLogger");
 const {
   authenticateToken,
   authorizeRoles,
@@ -8,6 +9,15 @@ const {
 
 const isAssistantRole = (role) => {
   return role === "Assistant" || role === "Dental Assistant";
+};
+
+const VALID_TOOTH_NUMBERS = [
+  11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33,
+  34, 35, 36, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48,
+];
+
+const isValidToothNumber = (toothNumber) => {
+  return VALID_TOOTH_NUMBERS.includes(Number(toothNumber));
 };
 
 const getDentistProfile = async (user_id) => {
@@ -281,9 +291,12 @@ router.post(
       }
 
       const patientResult = await pool.query(
-        `SELECT patient_id
-         FROM public.patients
-         WHERE patient_id = $1`,
+        `SELECT 
+            p.patient_id,
+            u.name AS patient_name
+         FROM public.patients p
+         JOIN public.users u ON p.user_id = u.user_id
+         WHERE p.patient_id = $1`,
         [patient_id],
       );
 
@@ -346,6 +359,14 @@ router.post(
          RETURNING *`,
         [patient_id, dentist.dentist_id],
       );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "CREATE_DENTAL_RECORD",
+        module: "Dental Records",
+        description: `Created dental record #${newRecord.rows[0].record_id} for patient ${patientResult.rows[0].patient_name}.`,
+        ip_address: req.ip,
+      });
 
       res.status(201).json({
         message: "Dental record created successfully",
@@ -630,6 +651,13 @@ router.post(
       return res.status(400).json({ error: "Tooth number is required" });
     }
 
+    if (!isValidToothNumber(tooth_number)) {
+      return res.status(400).json({
+        error:
+          "Invalid tooth number. Please use a valid FDI tooth number from 11-18, 21-28, 31-38, or 41-48.",
+      });
+    }
+
     try {
       const access = await getAccessibleRecord(req, record_id);
 
@@ -647,7 +675,7 @@ router.post(
         `SELECT tooth_id
          FROM public.teeth
          WHERE record_id = $1 AND tooth_number = $2`,
-        [record_id, tooth_number],
+        [record_id, Number(tooth_number)],
       );
 
       if (duplicateCheck.rows.length > 0) {
@@ -661,7 +689,7 @@ router.post(
          (record_id, tooth_number, tooth_status)
          VALUES ($1, $2, $3)
          RETURNING *`,
-        [record_id, tooth_number, tooth_status || "Normal"],
+        [record_id, Number(tooth_number), tooth_status || "Normal"],
       );
 
       await pool.query(
@@ -670,6 +698,14 @@ router.post(
          WHERE record_id = $1`,
         [record_id],
       );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "ADD_TOOTH",
+        module: "Dental Records",
+        description: `Added tooth #${newTooth.rows[0].tooth_number} to dental record #${record_id}.`,
+        ip_address: req.ip,
+      });
 
       res.status(201).json({
         message: "Tooth added successfully",
@@ -697,7 +733,7 @@ router.put(
 
     try {
       const toothResult = await pool.query(
-        `SELECT tooth_id, record_id
+        `SELECT tooth_id, record_id, tooth_number
          FROM public.teeth
          WHERE tooth_id = $1`,
         [tooth_id],
@@ -708,6 +744,8 @@ router.put(
       }
 
       const record_id = toothResult.rows[0].record_id;
+      const tooth_number = toothResult.rows[0].tooth_number;
+
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
@@ -735,6 +773,14 @@ router.put(
         [record_id],
       );
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_TOOTH",
+        module: "Dental Records",
+        description: `Updated tooth #${tooth_number} status to ${tooth_status} in dental record #${record_id}.`,
+        ip_address: req.ip,
+      });
+
       res.status(200).json({
         message: "Tooth status updated successfully",
         tooth: updatedTooth.rows[0],
@@ -761,7 +807,7 @@ router.post(
 
     try {
       const toothCheck = await pool.query(
-        `SELECT tooth_id, record_id
+        `SELECT tooth_id, record_id, tooth_number
          FROM public.teeth
          WHERE tooth_id = $1`,
         [tooth_id],
@@ -772,6 +818,8 @@ router.post(
       }
 
       const record_id = toothCheck.rows[0].record_id;
+      const tooth_number = toothCheck.rows[0].tooth_number;
+
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
@@ -804,6 +852,14 @@ router.post(
         [record_id],
       );
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "ADD_TREATMENT",
+        module: "Dental Records",
+        description: `Added treatment "${procedure_type}" to tooth #${tooth_number} in dental record #${record_id}.`,
+        ip_address: req.ip,
+      });
+
       res.status(201).json({
         message: "Treatment added successfully",
         treatment: newTreatment.rows[0],
@@ -835,7 +891,8 @@ router.put(
         `SELECT 
             t.treatment_id,
             t.tooth_id,
-            teeth.record_id
+            teeth.record_id,
+            teeth.tooth_number
          FROM public.treatments t
          JOIN public.teeth teeth ON t.tooth_id = teeth.tooth_id
          WHERE t.treatment_id = $1`,
@@ -847,6 +904,8 @@ router.put(
       }
 
       const record_id = treatmentResult.rows[0].record_id;
+      const tooth_number = treatmentResult.rows[0].tooth_number;
+
       const access = await getAccessibleRecord(req, record_id);
 
       if (!access.allowed) {
@@ -875,6 +934,14 @@ router.put(
          WHERE record_id = $1`,
         [record_id],
       );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_TREATMENT",
+        module: "Dental Records",
+        description: `Updated treatment #${treatment_id} for tooth #${tooth_number} in dental record #${record_id}.`,
+        ip_address: req.ip,
+      });
 
       res.status(200).json({
         message: "Treatment updated successfully",
@@ -915,6 +982,14 @@ router.put(
         return res.status(404).json({ error: "Dental record not found" });
       }
 
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "ARCHIVE_DENTAL_RECORD",
+        module: "Dental Records",
+        description: `Archived dental record #${archivedRecord.rows[0].record_id}.`,
+        ip_address: req.ip,
+      });
+
       res.status(200).json({
         message: "Dental record archived successfully",
         dental_record: archivedRecord.rows[0],
@@ -953,6 +1028,14 @@ router.put(
       if (restoredRecord.rows.length === 0) {
         return res.status(404).json({ error: "Dental record not found" });
       }
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "RESTORE_DENTAL_RECORD",
+        module: "Dental Records",
+        description: `Restored dental record #${restoredRecord.rows[0].record_id}.`,
+        ip_address: req.ip,
+      });
 
       res.status(200).json({
         message: "Dental record restored successfully",

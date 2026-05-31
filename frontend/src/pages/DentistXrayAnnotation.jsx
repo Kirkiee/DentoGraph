@@ -216,13 +216,11 @@ function DentistXrayAnnotation() {
       setError("");
 
       await API.put(
-        `/api/xrays/annotations/${annotation.annotation_id}`,
+        `/api/xrays/annotations/${annotation.annotation_id}/review`,
         {
+          status,
           label: annotation.label,
           note: annotation.note,
-          x_position: Number(annotation.x_position),
-          y_position: Number(annotation.y_position),
-          status,
         },
         authHeaders,
       );

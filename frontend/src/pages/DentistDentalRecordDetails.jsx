@@ -3,6 +3,11 @@ import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate, useParams } from "react-router-dom";
 
+const VALID_TOOTH_NUMBERS = [
+  11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33,
+  34, 35, 36, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48,
+];
+
 function DentistDentalRecordDetails() {
   const { record_id } = useParams();
   const navigate = useNavigate();
@@ -16,12 +21,13 @@ function DentistDentalRecordDetails() {
   const [loadingXrays, setLoadingXrays] = useState(true);
   const [updatingTooth, setUpdatingTooth] = useState(false);
   const [addingTooth, setAddingTooth] = useState(false);
-  const [addingTreatment, setAddingTreatment] = useState(false);
+  const [savingTreatment, setSavingTreatment] = useState(false);
 
   const [showToothModal, setShowToothModal] = useState(false);
   const [showTreatmentModal, setShowTreatmentModal] = useState(false);
 
   const [selectedTooth, setSelectedTooth] = useState(null);
+  const [selectedTreatment, setSelectedTreatment] = useState(null);
 
   const [toothForm, setToothForm] = useState({
     tooth_number: "",
@@ -37,6 +43,7 @@ function DentistDentalRecordDetails() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -51,6 +58,20 @@ function DentistDentalRecordDetails() {
     fetchXrays();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record_id]);
+
+  useEffect(() => {
+    const isAnyModalOpen = showToothModal || showTreatmentModal;
+
+    if (isAnyModalOpen) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showToothModal, showTreatmentModal]);
 
   const fetchRecordDetails = async () => {
     try {
@@ -96,6 +117,16 @@ function DentistDentalRecordDetails() {
     return new Date(dateValue).toLocaleString();
   };
 
+  const formatDateTimeLocal = (dateValue) => {
+    if (!dateValue) return "";
+
+    const date = new Date(dateValue);
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - offset * 60 * 1000);
+
+    return localDate.toISOString().slice(0, 16);
+  };
+
   const getStatusClass = (status) => {
     switch (status) {
       case "Archived":
@@ -132,18 +163,33 @@ function DentistDentalRecordDetails() {
     return `${baseURL}/${filePath}`;
   };
 
+  const getAvailableToothNumbers = () => {
+    const usedToothNumbers = teeth.map((tooth) => Number(tooth.tooth_number));
+
+    return VALID_TOOTH_NUMBERS.filter(
+      (toothNumber) => !usedToothNumbers.includes(toothNumber),
+    );
+  };
+
   const openToothModal = () => {
+    const availableToothNumbers = getAvailableToothNumbers();
+
     setToothForm({
-      tooth_number: "",
+      tooth_number: availableToothNumbers[0]
+        ? String(availableToothNumbers[0])
+        : "",
       tooth_status: "Normal",
     });
+
     setMessage("");
     setError("");
+    setModalError("");
     setShowToothModal(true);
   };
 
   const closeToothModal = () => {
     setShowToothModal(false);
+    setModalError("");
     setToothForm({
       tooth_number: "",
       tooth_status: "Normal",
@@ -151,6 +197,8 @@ function DentistDentalRecordDetails() {
   };
 
   const handleToothChange = (e) => {
+    setModalError("");
+
     setToothForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
@@ -161,7 +209,7 @@ function DentistDentalRecordDetails() {
     e.preventDefault();
 
     if (!toothForm.tooth_number) {
-      setError("Tooth number is required.");
+      setModalError("Please select a valid tooth number.");
       return;
     }
 
@@ -169,6 +217,7 @@ function DentistDentalRecordDetails() {
       setAddingTooth(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.post(
         `/api/dental-records/${record_id}/teeth`,
@@ -183,7 +232,7 @@ function DentistDentalRecordDetails() {
       closeToothModal();
       fetchRecordDetails();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to add tooth.");
+      setModalError(err.response?.data?.error || "Unable to add tooth.");
     } finally {
       setAddingTooth(false);
     }
@@ -212,24 +261,51 @@ function DentistDentalRecordDetails() {
     }
   };
 
-  const openTreatmentModal = (tooth = null) => {
+  const openAddTreatmentModal = (tooth = null) => {
     setSelectedTooth(tooth);
+    setSelectedTreatment(null);
 
     setTreatmentForm({
       tooth_id: tooth?.tooth_id || "",
       procedure_type: "",
       description: "",
-      treatment_date: "",
+      treatment_date: formatDateTimeLocal(new Date()),
     });
 
     setMessage("");
     setError("");
+    setModalError("");
+    setShowTreatmentModal(true);
+  };
+
+  const openEditTreatmentModal = (treatment) => {
+    setSelectedTreatment(treatment);
+
+    const matchingTooth = teeth.find(
+      (tooth) => Number(tooth.tooth_id) === Number(treatment.tooth_id),
+    );
+
+    setSelectedTooth(matchingTooth || null);
+
+    setTreatmentForm({
+      tooth_id: treatment.tooth_id || "",
+      procedure_type: treatment.procedure_type || "",
+      description: treatment.description || "",
+      treatment_date: formatDateTimeLocal(treatment.treatment_date),
+    });
+
+    setMessage("");
+    setError("");
+    setModalError("");
     setShowTreatmentModal(true);
   };
 
   const closeTreatmentModal = () => {
     setShowTreatmentModal(false);
     setSelectedTooth(null);
+    setSelectedTreatment(null);
+    setModalError("");
+
     setTreatmentForm({
       tooth_id: "",
       procedure_type: "",
@@ -239,44 +315,74 @@ function DentistDentalRecordDetails() {
   };
 
   const handleTreatmentChange = (e) => {
+    setModalError("");
+
     setTreatmentForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
   };
 
-  const handleAddTreatment = async (e) => {
+  const handleSaveTreatment = async (e) => {
     e.preventDefault();
 
     if (!treatmentForm.tooth_id || !treatmentForm.procedure_type) {
-      setError("Please select a tooth and enter a procedure type.");
+      setModalError("Please select a tooth and enter a procedure type.");
+      return;
+    }
+
+    if (selectedTreatment && !treatmentForm.treatment_date) {
+      setModalError("Treatment date is required when updating a treatment.");
       return;
     }
 
     try {
-      setAddingTreatment(true);
+      setSavingTreatment(true);
       setMessage("");
       setError("");
+      setModalError("");
 
-      await API.post(
-        `/api/dental-records/teeth/${treatmentForm.tooth_id}/treatments`,
-        {
-          procedure_type: treatmentForm.procedure_type,
-          description: treatmentForm.description,
-          treatment_date: treatmentForm.treatment_date || new Date(),
-        },
-        authHeaders,
-      );
+      if (selectedTreatment) {
+        await API.put(
+          `/api/dental-records/treatments/${selectedTreatment.treatment_id}`,
+          {
+            procedure_type: treatmentForm.procedure_type,
+            description: treatmentForm.description,
+            treatment_date: treatmentForm.treatment_date,
+          },
+          authHeaders,
+        );
 
-      setMessage("Treatment added successfully.");
+        setMessage("Treatment updated successfully.");
+      } else {
+        await API.post(
+          `/api/dental-records/teeth/${treatmentForm.tooth_id}/treatments`,
+          {
+            procedure_type: treatmentForm.procedure_type,
+            description: treatmentForm.description,
+            treatment_date: treatmentForm.treatment_date || new Date(),
+          },
+          authHeaders,
+        );
+
+        setMessage("Treatment added successfully.");
+      }
+
       closeTreatmentModal();
       fetchRecordDetails();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to add treatment.");
+      setModalError(
+        err.response?.data?.error ||
+          (selectedTreatment
+            ? "Unable to update treatment."
+            : "Unable to add treatment."),
+      );
     } finally {
-      setAddingTreatment(false);
+      setSavingTreatment(false);
     }
   };
+
+  const availableToothNumbers = getAvailableToothNumbers();
 
   return (
     <DashboardLayout role="Dentist">
@@ -381,8 +487,8 @@ function DentistDentalRecordDetails() {
                 <div>
                   <h2>Teeth Overview</h2>
                   <p>
-                    Add teeth, update tooth status, or open the 3D chart for a
-                    visual tooth map.
+                    Add valid FDI tooth numbers, update tooth status, or open
+                    the 3D chart for a visual tooth map.
                   </p>
                 </div>
 
@@ -390,7 +496,11 @@ function DentistDentalRecordDetails() {
                   className="appointment-actions"
                   style={{ flexDirection: "row" }}
                 >
-                  <button className="primary-button" onClick={openToothModal}>
+                  <button
+                    className="primary-button"
+                    onClick={openToothModal}
+                    disabled={availableToothNumbers.length === 0}
+                  >
                     Add Tooth
                   </button>
 
@@ -458,7 +568,7 @@ function DentistDentalRecordDetails() {
 
                         <button
                           className="secondary-button"
-                          onClick={() => openTreatmentModal(tooth)}
+                          onClick={() => openAddTreatmentModal(tooth)}
                         >
                           Add Treatment
                         </button>
@@ -473,12 +583,15 @@ function DentistDentalRecordDetails() {
               <div className="appointments-header">
                 <div>
                   <h2>Treatment History</h2>
-                  <p>View procedures recorded under this dental record.</p>
+                  <p>
+                    View and update procedures recorded under this dental
+                    record.
+                  </p>
                 </div>
 
                 <button
                   className="primary-button"
-                  onClick={() => openTreatmentModal()}
+                  onClick={() => openAddTreatmentModal()}
                   disabled={teeth.length === 0}
                 >
                   Add Treatment
@@ -520,6 +633,15 @@ function DentistDentalRecordDetails() {
                           <strong>Treatment Date:</strong>{" "}
                           {formatDate(treatment.treatment_date)}
                         </p>
+                      </div>
+
+                      <div className="appointment-actions">
+                        <button
+                          className="secondary-button"
+                          onClick={() => openEditTreatmentModal(treatment)}
+                        >
+                          Edit Treatment
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -599,7 +721,9 @@ function DentistDentalRecordDetails() {
             <div className="modal-header">
               <div>
                 <h3>Add Tooth</h3>
-                <p>Add a tooth entry to this dental record.</p>
+                <p>
+                  Add a valid FDI permanent tooth number to this dental record.
+                </p>
               </div>
 
               <button
@@ -612,16 +736,23 @@ function DentistDentalRecordDetails() {
             </div>
 
             <form className="modal-form" onSubmit={handleAddTooth}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Tooth Number</label>
-                <input
-                  type="number"
+                <select
                   name="tooth_number"
                   value={toothForm.tooth_number}
                   onChange={handleToothChange}
-                  placeholder="Example: 11, 12, 21, 36"
                   required
-                />
+                >
+                  <option value="">Select Tooth</option>
+                  {availableToothNumbers.map((toothNumber) => (
+                    <option key={toothNumber} value={toothNumber}>
+                      Tooth #{toothNumber}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="form-group">
@@ -638,6 +769,11 @@ function DentistDentalRecordDetails() {
                   <option value="Crowned">Crowned</option>
                   <option value="Impacted">Impacted</option>
                 </select>
+              </div>
+
+              <div className="info-message">
+                Valid FDI tooth numbers are 11-18, 21-28, 31-38, and 41-48.
+                Teeth already added to this record are hidden from the list.
               </div>
 
               <div className="modal-actions">
@@ -667,8 +803,14 @@ function DentistDentalRecordDetails() {
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <h3>Add Treatment</h3>
-                <p>Add a treatment or procedure for a selected tooth.</p>
+                <h3>
+                  {selectedTreatment ? "Edit Treatment" : "Add Treatment"}
+                </h3>
+                <p>
+                  {selectedTreatment
+                    ? "Update the selected treatment or procedure."
+                    : "Add a treatment or procedure for a selected tooth."}
+                </p>
               </div>
 
               <button
@@ -680,7 +822,9 @@ function DentistDentalRecordDetails() {
               </button>
             </div>
 
-            <form className="modal-form" onSubmit={handleAddTreatment}>
+            <form className="modal-form" onSubmit={handleSaveTreatment}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Tooth</label>
                 <select
@@ -688,6 +832,7 @@ function DentistDentalRecordDetails() {
                   value={treatmentForm.tooth_id}
                   onChange={handleTreatmentChange}
                   required
+                  disabled={Boolean(selectedTreatment)}
                 >
                   <option value="">Select Tooth</option>
                   {teeth.map((tooth) => (
@@ -729,8 +874,17 @@ function DentistDentalRecordDetails() {
                   name="treatment_date"
                   value={treatmentForm.treatment_date}
                   onChange={handleTreatmentChange}
+                  required={Boolean(selectedTreatment)}
                 />
               </div>
+
+              {selectedTreatment && (
+                <div className="info-message">
+                  Tooth selection is locked when editing an existing treatment.
+                  To move a treatment to another tooth, delete and recreate it
+                  under the correct tooth.
+                </div>
+              )}
 
               <div className="modal-actions">
                 <button
@@ -744,9 +898,13 @@ function DentistDentalRecordDetails() {
                 <button
                   type="submit"
                   className="primary-button"
-                  disabled={addingTreatment}
+                  disabled={savingTreatment}
                 >
-                  {addingTreatment ? "Saving..." : "Add Treatment"}
+                  {savingTreatment
+                    ? "Saving..."
+                    : selectedTreatment
+                      ? "Save Changes"
+                      : "Add Treatment"}
                 </button>
               </div>
             </form>
