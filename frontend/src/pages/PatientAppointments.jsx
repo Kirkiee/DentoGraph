@@ -27,6 +27,7 @@ function PatientAppointments() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -41,6 +42,18 @@ function PatientAppointments() {
     fetchDentists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (showCancelModal || showRescheduleModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showCancelModal, showRescheduleModal]);
 
   const fetchAppointments = async () => {
     try {
@@ -130,6 +143,7 @@ function PatientAppointments() {
     setCancellationReason("");
     setMessage("");
     setError("");
+    setModalError("");
     setShowCancelModal(true);
   };
 
@@ -137,13 +151,21 @@ function PatientAppointments() {
     setShowCancelModal(false);
     setSelectedAppointment(null);
     setCancellationReason("");
+    setModalError("");
   };
 
   const handleCancelAppointment = async (e) => {
     e.preventDefault();
 
     if (!selectedAppointment) {
-      setError("No appointment selected for cancellation.");
+      setModalError("No appointment selected for cancellation.");
+      return;
+    }
+
+    const trimmedReason = cancellationReason.trim();
+
+    if (!trimmedReason) {
+      setModalError("Cancellation remarks are required.");
       return;
     }
 
@@ -151,11 +173,12 @@ function PatientAppointments() {
       setUpdating(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/appointments/${selectedAppointment.appointment_id}/cancel`,
         {
-          cancellation_reason: cancellationReason || "No reason provided",
+          cancellation_reason: trimmedReason,
         },
         authHeaders,
       );
@@ -164,7 +187,9 @@ function PatientAppointments() {
       closeCancelModal();
       fetchAppointments();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to cancel appointment.");
+      setModalError(
+        err.response?.data?.error || "Unable to cancel appointment.",
+      );
     } finally {
       setUpdating(false);
     }
@@ -175,6 +200,7 @@ function PatientAppointments() {
     setNewAppointmentDate("");
     setMessage("");
     setError("");
+    setModalError("");
     setShowRescheduleModal(true);
   };
 
@@ -182,13 +208,14 @@ function PatientAppointments() {
     setShowRescheduleModal(false);
     setSelectedAppointment(null);
     setNewAppointmentDate("");
+    setModalError("");
   };
 
   const handleRescheduleAppointment = async (e) => {
     e.preventDefault();
 
     if (!selectedAppointment || !newAppointmentDate) {
-      setError("Please select a new appointment date.");
+      setModalError("Please select a new appointment date.");
       return;
     }
 
@@ -196,6 +223,7 @@ function PatientAppointments() {
       setUpdating(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/appointments/${selectedAppointment.appointment_id}/reschedule`,
@@ -209,7 +237,7 @@ function PatientAppointments() {
       closeRescheduleModal();
       fetchAppointments();
     } catch (err) {
-      setError(
+      setModalError(
         err.response?.data?.error || "Unable to submit reschedule request.",
       );
     } finally {
@@ -341,8 +369,22 @@ function PatientAppointments() {
 
                     {appointment.cancellation_reason && (
                       <p>
-                        <strong>Cancellation Reason:</strong>{" "}
+                        <strong>Cancellation Remarks:</strong>{" "}
                         {appointment.cancellation_reason}
+                      </p>
+                    )}
+
+                    {appointment.cancelled_at && (
+                      <p>
+                        <strong>Cancelled At:</strong>{" "}
+                        {new Date(appointment.cancelled_at).toLocaleString()}
+                      </p>
+                    )}
+
+                    {appointment.cancelled_by_name && (
+                      <p>
+                        <strong>Cancelled By:</strong>{" "}
+                        {appointment.cancelled_by_name}
                       </p>
                     )}
                   </div>
@@ -483,7 +525,7 @@ function PatientAppointments() {
             <div className="modal-header">
               <div>
                 <h3>Cancel Appointment</h3>
-                <p>Please provide a reason for cancelling this appointment.</p>
+                <p>Please provide remarks for cancelling this appointment.</p>
               </div>
 
               <button
@@ -496,6 +538,8 @@ function PatientAppointments() {
             </div>
 
             <form className="modal-form" onSubmit={handleCancelAppointment}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Appointment</label>
                 <input
@@ -512,13 +556,22 @@ function PatientAppointments() {
               </div>
 
               <div className="form-group">
-                <label>Reason</label>
+                <label>Cancellation Remarks</label>
                 <textarea
                   value={cancellationReason}
-                  onChange={(e) => setCancellationReason(e.target.value)}
-                  placeholder="Enter cancellation reason..."
+                  onChange={(e) => {
+                    setCancellationReason(e.target.value);
+                    setModalError("");
+                  }}
+                  placeholder="Enter cancellation remarks..."
                   rows="4"
+                  required
                 />
+              </div>
+
+              <div className="info-message">
+                Cancellation remarks are required and will be saved in the
+                appointment record.
               </div>
 
               <div className="modal-actions">
@@ -565,6 +618,8 @@ function PatientAppointments() {
             </div>
 
             <form className="modal-form" onSubmit={handleRescheduleAppointment}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Current Appointment Date</label>
                 <input
@@ -585,7 +640,10 @@ function PatientAppointments() {
                 <input
                   type="datetime-local"
                   value={newAppointmentDate}
-                  onChange={(e) => setNewAppointmentDate(e.target.value)}
+                  onChange={(e) => {
+                    setNewAppointmentDate(e.target.value);
+                    setModalError("");
+                  }}
                   required
                 />
               </div>

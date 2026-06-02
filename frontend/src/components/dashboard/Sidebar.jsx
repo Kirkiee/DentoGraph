@@ -1,13 +1,26 @@
+import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 function Sidebar({ role }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const openLogoutModal = () => {
+    setShowLogoutModal(true);
+  };
+
+  const closeLogoutModal = () => {
+    setShowLogoutModal(false);
+  };
+
+  const confirmLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
     localStorage.removeItem("rememberMe");
+
+    setShowLogoutModal(false);
     navigate("/");
   };
 
@@ -48,38 +61,83 @@ function Sidebar({ role }) {
   const links = linksByRole[role] || [];
 
   return (
-    <aside className="dashboard-sidebar">
-      <div className="sidebar-brand">
-        <div className="sidebar-logo">DG</div>
+    <>
+      <aside className="dashboard-sidebar">
+        <div className="sidebar-brand">
+          <div className="sidebar-logo">DG</div>
 
-        <div className="sidebar-brand-text">
-          <h2>DentoGraph</h2>
-          <p>{role} Portal</p>
+          <div className="sidebar-brand-text">
+            <h2>DentoGraph</h2>
+            <p>{role} Portal</p>
+          </div>
         </div>
-      </div>
 
-      <nav className="sidebar-nav">
-        {links.map((link) => (
-          <button
-            key={link.path}
-            className={
-              location.pathname === link.path
-                ? "sidebar-link active"
-                : "sidebar-link"
-            }
-            onClick={() => navigate(link.path)}
-          >
-            {link.label}
+        <nav className="sidebar-nav">
+          {links.map((link) => (
+            <button
+              key={link.path}
+              className={
+                location.pathname === link.path
+                  ? "sidebar-link active"
+                  : "sidebar-link"
+              }
+              onClick={() => navigate(link.path)}
+            >
+              {link.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <button className="logout-button" onClick={openLogoutModal}>
+            Logout
           </button>
-        ))}
-      </nav>
+        </div>
+      </aside>
 
-      <div className="sidebar-footer">
-        <button className="logout-button" onClick={handleLogout}>
-          Logout
-        </button>
-      </div>
-    </aside>
+      {showLogoutModal && (
+        <div className="modal-overlay">
+          <div className="modal-card logout-confirmation-modal">
+            <div className="modal-header">
+              <div>
+                <h3>Confirm Logout</h3>
+                <p>Are you sure you want to log out of your account?</p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close-button"
+                onClick={closeLogoutModal}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="info-message">
+              Any unsaved changes may be lost after logging out.
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={closeLogoutModal}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="danger-button"
+                onClick={confirmLogout}
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
