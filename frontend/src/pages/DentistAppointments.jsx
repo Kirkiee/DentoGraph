@@ -13,6 +13,7 @@ function DentistAppointments() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [cancellationReason, setCancellationReason] = useState("");
 
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedRescheduleAppointment, setSelectedRescheduleAppointment] =
@@ -22,6 +23,7 @@ function DentistAppointments() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -40,6 +42,18 @@ function DentistAppointments() {
     filterAppointments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointments, statusFilter]);
+
+  useEffect(() => {
+    if (showStatusModal || showRescheduleModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showStatusModal, showRescheduleModal]);
 
   const fetchAppointments = async () => {
     try {
@@ -75,8 +89,10 @@ function DentistAppointments() {
   const openStatusModal = (appointment, status) => {
     setSelectedAppointment(appointment);
     setSelectedStatus(status);
+    setCancellationReason("");
     setMessage("");
     setError("");
+    setModalError("");
     setShowStatusModal(true);
   };
 
@@ -84,13 +100,22 @@ function DentistAppointments() {
     setShowStatusModal(false);
     setSelectedAppointment(null);
     setSelectedStatus("");
+    setCancellationReason("");
+    setModalError("");
   };
 
   const handleUpdateStatus = async (e) => {
     e.preventDefault();
 
     if (!selectedAppointment || !selectedStatus) {
-      setError("Please select a valid appointment status.");
+      setModalError("Please select a valid appointment status.");
+      return;
+    }
+
+    const trimmedReason = cancellationReason.trim();
+
+    if (selectedStatus === "Cancelled" && !trimmedReason) {
+      setModalError("Cancellation remarks are required.");
       return;
     }
 
@@ -98,18 +123,28 @@ function DentistAppointments() {
       setUpdating(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/appointments/${selectedAppointment.appointment_id}/status`,
-        { status: selectedStatus },
+        {
+          status: selectedStatus,
+          cancellation_reason:
+            selectedStatus === "Cancelled" ? trimmedReason : null,
+        },
         authHeaders,
       );
 
-      setMessage(`Appointment marked as ${selectedStatus}.`);
+      setMessage(
+        selectedStatus === "Cancelled"
+          ? "Appointment cancelled successfully."
+          : `Appointment marked as ${selectedStatus}.`,
+      );
+
       closeStatusModal();
       fetchAppointments();
     } catch (err) {
-      setError(
+      setModalError(
         err.response?.data?.error || "Unable to update appointment status.",
       );
     } finally {
@@ -122,6 +157,7 @@ function DentistAppointments() {
     setRescheduleAction(action);
     setMessage("");
     setError("");
+    setModalError("");
     setShowRescheduleModal(true);
   };
 
@@ -129,13 +165,14 @@ function DentistAppointments() {
     setShowRescheduleModal(false);
     setSelectedRescheduleAppointment(null);
     setRescheduleAction("");
+    setModalError("");
   };
 
   const handleRescheduleDecision = async (e) => {
     e.preventDefault();
 
     if (!selectedRescheduleAppointment || !rescheduleAction) {
-      setError("Please select a valid reschedule action.");
+      setModalError("Please select a valid reschedule action.");
       return;
     }
 
@@ -143,6 +180,7 @@ function DentistAppointments() {
       setProcessingReschedule(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/appointments/${selectedRescheduleAppointment.appointment_id}/reschedule/${rescheduleAction}`,
@@ -159,7 +197,7 @@ function DentistAppointments() {
       closeRescheduleModal();
       fetchAppointments();
     } catch (err) {
-      setError(
+      setModalError(
         err.response?.data?.error || "Unable to process reschedule request.",
       );
     } finally {
@@ -331,8 +369,22 @@ function DentistAppointments() {
 
                   {appointment.cancellation_reason && (
                     <p>
-                      <strong>Cancellation Reason:</strong>{" "}
+                      <strong>Cancellation Remarks:</strong>{" "}
                       {appointment.cancellation_reason}
+                    </p>
+                  )}
+
+                  {appointment.cancelled_at && (
+                    <p>
+                      <strong>Cancelled At:</strong>{" "}
+                      {new Date(appointment.cancelled_at).toLocaleString()}
+                    </p>
+                  )}
+
+                  {appointment.cancelled_by_name && (
+                    <p>
+                      <strong>Cancelled By:</strong>{" "}
+                      {appointment.cancelled_by_name}
                     </p>
                   )}
                 </div>
@@ -408,7 +460,11 @@ function DentistAppointments() {
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <h3>Update Appointment Status</h3>
+                <h3>
+                  {selectedStatus === "Cancelled"
+                    ? "Cancel Appointment"
+                    : "Update Appointment Status"}
+                </h3>
                 <p>
                   Confirm that you want to mark this appointment as{" "}
                   <strong>{selectedStatus}</strong>.
@@ -425,6 +481,8 @@ function DentistAppointments() {
             </div>
 
             <form className="modal-form" onSubmit={handleUpdateStatus}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Patient</label>
                 <input
@@ -456,6 +514,29 @@ function DentistAppointments() {
                 <label>New Status</label>
                 <input type="text" value={selectedStatus} disabled />
               </div>
+
+              {selectedStatus === "Cancelled" && (
+                <>
+                  <div className="form-group">
+                    <label>Cancellation Remarks</label>
+                    <textarea
+                      value={cancellationReason}
+                      onChange={(e) => {
+                        setCancellationReason(e.target.value);
+                        setModalError("");
+                      }}
+                      placeholder="Enter cancellation remarks..."
+                      rows="4"
+                      required
+                    />
+                  </div>
+
+                  <div className="info-message">
+                    Cancellation remarks are required and will be saved in the
+                    appointment record.
+                  </div>
+                </>
+              )}
 
               <div className="modal-actions">
                 <button
@@ -509,6 +590,8 @@ function DentistAppointments() {
             </div>
 
             <form className="modal-form" onSubmit={handleRescheduleDecision}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Patient</label>
                 <input

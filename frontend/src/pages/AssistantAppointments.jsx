@@ -15,6 +15,7 @@ function AssistantAppointments() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [cancellationReason, setCancellationReason] = useState("");
 
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [selectedRescheduleAppointment, setSelectedRescheduleAppointment] =
@@ -24,6 +25,7 @@ function AssistantAppointments() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [modalError, setModalError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -42,6 +44,18 @@ function AssistantAppointments() {
     filterAppointments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appointments, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    if (showStatusModal || showRescheduleModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showStatusModal, showRescheduleModal]);
 
   const fetchAppointments = async () => {
     try {
@@ -75,7 +89,8 @@ function AssistantAppointments() {
           appointment.patient_name?.toLowerCase().includes(term) ||
           appointment.dentist_name?.toLowerCase().includes(term) ||
           appointment.appointment_type?.toLowerCase().includes(term) ||
-          appointment.notes?.toLowerCase().includes(term),
+          appointment.notes?.toLowerCase().includes(term) ||
+          appointment.cancellation_reason?.toLowerCase().includes(term),
       );
     }
 
@@ -85,8 +100,10 @@ function AssistantAppointments() {
   const openStatusModal = (appointment, status) => {
     setSelectedAppointment(appointment);
     setSelectedStatus(status);
+    setCancellationReason("");
     setMessage("");
     setError("");
+    setModalError("");
     setShowStatusModal(true);
   };
 
@@ -94,13 +111,22 @@ function AssistantAppointments() {
     setShowStatusModal(false);
     setSelectedAppointment(null);
     setSelectedStatus("");
+    setCancellationReason("");
+    setModalError("");
   };
 
   const handleUpdateStatus = async (e) => {
     e.preventDefault();
 
     if (!selectedAppointment || !selectedStatus) {
-      setError("Please select a valid appointment status.");
+      setModalError("Please select a valid appointment status.");
+      return;
+    }
+
+    const trimmedReason = cancellationReason.trim();
+
+    if (selectedStatus === "Cancelled" && !trimmedReason) {
+      setModalError("Cancellation remarks are required.");
       return;
     }
 
@@ -108,18 +134,28 @@ function AssistantAppointments() {
       setUpdating(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/appointments/${selectedAppointment.appointment_id}/status`,
-        { status: selectedStatus },
+        {
+          status: selectedStatus,
+          cancellation_reason:
+            selectedStatus === "Cancelled" ? trimmedReason : null,
+        },
         authHeaders,
       );
 
-      setMessage(`Appointment marked as ${selectedStatus}.`);
+      setMessage(
+        selectedStatus === "Cancelled"
+          ? "Appointment cancelled successfully."
+          : `Appointment marked as ${selectedStatus}.`,
+      );
+
       closeStatusModal();
       fetchAppointments();
     } catch (err) {
-      setError(
+      setModalError(
         err.response?.data?.error || "Unable to update appointment status.",
       );
     } finally {
@@ -132,6 +168,7 @@ function AssistantAppointments() {
     setRescheduleAction(action);
     setMessage("");
     setError("");
+    setModalError("");
     setShowRescheduleModal(true);
   };
 
@@ -139,13 +176,14 @@ function AssistantAppointments() {
     setShowRescheduleModal(false);
     setSelectedRescheduleAppointment(null);
     setRescheduleAction("");
+    setModalError("");
   };
 
   const handleRescheduleDecision = async (e) => {
     e.preventDefault();
 
     if (!selectedRescheduleAppointment || !rescheduleAction) {
-      setError("Please select a valid reschedule action.");
+      setModalError("Please select a valid reschedule action.");
       return;
     }
 
@@ -153,6 +191,7 @@ function AssistantAppointments() {
       setProcessingReschedule(true);
       setMessage("");
       setError("");
+      setModalError("");
 
       await API.put(
         `/api/appointments/${selectedRescheduleAppointment.appointment_id}/reschedule/${rescheduleAction}`,
@@ -169,7 +208,7 @@ function AssistantAppointments() {
       closeRescheduleModal();
       fetchAppointments();
     } catch (err) {
-      setError(
+      setModalError(
         err.response?.data?.error || "Unable to process reschedule request.",
       );
     } finally {
@@ -208,9 +247,7 @@ function AssistantAppointments() {
           <div>
             <h2>Appointment Management</h2>
             <p>
-              <p>
-                View and manage patient appointments for your assigned clinic.
-              </p>
+              View and manage patient appointments for your assigned clinic.
             </p>
           </div>
 
@@ -255,7 +292,7 @@ function AssistantAppointments() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search patient, dentist, type, or notes"
+              placeholder="Search patient, dentist, type, notes, or remarks"
             />
           </div>
 
@@ -358,8 +395,22 @@ function AssistantAppointments() {
 
                   {appointment.cancellation_reason && (
                     <p>
-                      <strong>Cancellation Reason:</strong>{" "}
+                      <strong>Cancellation Remarks:</strong>{" "}
                       {appointment.cancellation_reason}
+                    </p>
+                  )}
+
+                  {appointment.cancelled_at && (
+                    <p>
+                      <strong>Cancelled At:</strong>{" "}
+                      {new Date(appointment.cancelled_at).toLocaleString()}
+                    </p>
+                  )}
+
+                  {appointment.cancelled_by_name && (
+                    <p>
+                      <strong>Cancelled By:</strong>{" "}
+                      {appointment.cancelled_by_name}
                     </p>
                   )}
                 </div>
@@ -435,7 +486,11 @@ function AssistantAppointments() {
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <h3>Update Appointment Status</h3>
+                <h3>
+                  {selectedStatus === "Cancelled"
+                    ? "Cancel Appointment"
+                    : "Update Appointment Status"}
+                </h3>
                 <p>
                   Confirm that you want to mark this appointment as{" "}
                   <strong>{selectedStatus}</strong>.
@@ -452,6 +507,8 @@ function AssistantAppointments() {
             </div>
 
             <form className="modal-form" onSubmit={handleUpdateStatus}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Patient</label>
                 <input
@@ -495,6 +552,29 @@ function AssistantAppointments() {
                 <label>New Status</label>
                 <input type="text" value={selectedStatus} disabled />
               </div>
+
+              {selectedStatus === "Cancelled" && (
+                <>
+                  <div className="form-group">
+                    <label>Cancellation Remarks</label>
+                    <textarea
+                      value={cancellationReason}
+                      onChange={(e) => {
+                        setCancellationReason(e.target.value);
+                        setModalError("");
+                      }}
+                      placeholder="Enter cancellation remarks..."
+                      rows="4"
+                      required
+                    />
+                  </div>
+
+                  <div className="info-message">
+                    Cancellation remarks are required and will be saved in the
+                    appointment record.
+                  </div>
+                </>
+              )}
 
               <div className="modal-actions">
                 <button
@@ -548,6 +628,8 @@ function AssistantAppointments() {
             </div>
 
             <form className="modal-form" onSubmit={handleRescheduleDecision}>
+              {modalError && <div className="error-message">{modalError}</div>}
+
               <div className="form-group">
                 <label>Patient</label>
                 <input
