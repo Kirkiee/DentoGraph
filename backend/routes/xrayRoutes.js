@@ -481,6 +481,89 @@ const mapRoboflowLabel = (rawLabel) => {
     .join(" ");
 };
 
+const getConfidenceLevel = (confidence) => {
+  const percent = Number(confidence || 0) * 100;
+
+  if (percent >= 80) return "High";
+  if (percent >= 50) return "Moderate";
+  return "Low";
+};
+
+const getFindingReason = (rawLabel, mappedLabel) => {
+  const label = String(rawLabel || mappedLabel || "").toLowerCase();
+
+  if (label.includes("cavity") || label.includes("caries")) {
+    return "The AI detected a darkened or radiolucent area that may be associated with enamel or dentin breakdown, which can suggest possible dental caries.";
+  }
+
+  if (label.includes("impacted")) {
+    return "The AI detected a tooth-like structure that may appear unerupted, partially erupted, or positioned abnormally compared with the surrounding teeth.";
+  }
+
+  if (label.includes("infection") || label.includes("abscess")) {
+    return "The AI detected an abnormal radiographic area near the tooth root or surrounding bone that may be associated with infection or periapical changes.";
+  }
+
+  if (label.includes("bone")) {
+    return "The AI detected changes in the surrounding bone level or density that may suggest possible bone loss or periodontal involvement.";
+  }
+
+  if (label.includes("filling")) {
+    return "The AI detected a radiopaque area that may correspond to an existing dental filling or restorative material.";
+  }
+
+  if (label.includes("crown")) {
+    return "The AI detected a radiopaque coverage-like structure that may correspond to an existing crown restoration.";
+  }
+
+  if (label.includes("root")) {
+    return "The AI detected a finding near the root area, which may require dentist review to determine whether it relates to root condition, canal treatment, or pathology.";
+  }
+
+  return "The AI detected a visual pattern in the X-ray image that matched one of its trained dental finding categories. This should be reviewed clinically by the dentist.";
+};
+
+const generateXrayInterpretation = ({
+  rawLabel,
+  mappedLabel,
+  confidence,
+  xPosition,
+  yPosition,
+  width,
+  height,
+}) => {
+  const percent = Number(confidence || 0) * 100;
+  const confidenceLevel = getConfidenceLevel(confidence);
+  const reason = getFindingReason(rawLabel, mappedLabel);
+
+  let confidenceExplanation = "";
+
+  if (confidenceLevel === "High") {
+    confidenceExplanation =
+      "The confidence is high, meaning the detected region strongly matched patterns learned by the AI model.";
+  } else if (confidenceLevel === "Moderate") {
+    confidenceExplanation =
+      "The confidence is moderate, meaning the detected region has some matching features but still needs careful dentist verification.";
+  } else {
+    confidenceExplanation =
+      "The confidence is low, meaning the detected region only weakly matched the AI model pattern and should be treated as a cautious suggestion.";
+  }
+
+  return [
+    `AI Interpretation: ${mappedLabel}.`,
+    `Reason: ${reason}`,
+    `Confidence: ${percent.toFixed(1)}% (${confidenceLevel}). ${confidenceExplanation}`,
+    `Location: The suggested finding is located around X ${xPosition.toFixed(
+      1,
+    )}% and Y ${yPosition.toFixed(
+      1,
+    )}% of the image, with an estimated box size of ${width.toFixed(
+      1,
+    )}% by ${height.toFixed(1)}%.`,
+    "Clinical Reminder: This is not a final diagnosis. The dentist must review the X-ray, patient history, symptoms, and clinical examination before confirming or rejecting the finding.",
+  ].join("\n");
+};
+
 const analyzeImageWithRoboflow = async (imagePath) => {
   const apiKey = process.env.ROBOFLOW_API_KEY;
   const modelUrl = getRoboflowModelUrl();
@@ -776,11 +859,15 @@ router.post(
 
         const label = mapRoboflowLabel(prediction.class);
 
-        const note = `AI suggestion from Roboflow model. Confidence: ${(
-          Number(prediction.confidence || 0) * 100
-        ).toFixed(
-          1,
-        )}%. This is not a final diagnosis and requires dentist review.`;
+        const note = generateXrayInterpretation({
+          rawLabel: prediction.class,
+          mappedLabel: label,
+          confidence: prediction.confidence,
+          xPosition,
+          yPosition,
+          width,
+          height,
+        });
 
         const inserted = await pool.query(
           `INSERT INTO public.xray_annotations
@@ -824,7 +911,7 @@ router.post(
 
       res.status(201).json({
         message:
-          "AI analysis completed. Suggestions were saved and are pending dentist review.",
+          "AI analysis completed. Suggestions with interpretations were saved and are pending dentist review.",
         annotations: insertedAnnotations,
       });
     } catch (err) {
@@ -920,6 +1007,10 @@ router.post(
 
       const dentist = await getDentistProfile(req.user.user_id);
 
+      const finalNote =
+        note ||
+        "Manual dentist annotation. This finding was added through clinical review and should be interpreted together with the patient record, symptoms, and dental examination.";
+
       const newAnnotation = await pool.query(
         `INSERT INTO public.xray_annotations
          (
@@ -943,7 +1034,7 @@ router.post(
           xray_id,
           dentist?.dentist_id || null,
           label,
-          note || null,
+          finalNote,
           Number(x_position),
           Number(y_position),
           width !== undefined && width !== "" ? Number(width) : 0,

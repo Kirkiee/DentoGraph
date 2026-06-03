@@ -19,6 +19,7 @@ function DentistDentalRecords() {
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [policyError, setPolicyError] = useState(null);
 
   const token = localStorage.getItem("token");
 
@@ -38,6 +39,7 @@ function DentistDentalRecords() {
     try {
       setLoading(true);
       setError("");
+      setPolicyError(null);
 
       const response = await API.get("/api/dental-records", authHeaders);
       setRecords(response.data.dental_records || []);
@@ -61,11 +63,29 @@ function DentistDentalRecords() {
     }
   };
 
+  const getPatientDentitionLabel = (dentitionType) => {
+    if (dentitionType === "Child") return "Child / Primary Teeth";
+    if (dentitionType === "Adult") return "Adult / Permanent Teeth";
+
+    return "Dentition type not set";
+  };
+
+  const getPatientOptionLabel = (patient) => {
+    const dentitionLabel = getPatientDentitionLabel(patient.dentition_type);
+
+    return `${patient.patient_name} - ${patient.email} (${dentitionLabel})`;
+  };
+
+  const selectedPatient = patients.find(
+    (patient) => Number(patient.patient_id) === Number(selectedPatientId),
+  );
+
   const handleCreateRecord = async (e) => {
     e.preventDefault();
 
     if (!selectedPatientId) {
       setError("Please select a patient first.");
+      setPolicyError(null);
       return;
     }
 
@@ -73,6 +93,7 @@ function DentistDentalRecords() {
       setCreating(true);
       setMessage("");
       setError("");
+      setPolicyError(null);
 
       const response = await API.post(
         "/api/dental-records",
@@ -95,11 +116,27 @@ function DentistDentalRecords() {
         return;
       }
 
-      setMessage("Dental record created successfully.");
+      setMessage(
+        response.data.message || "Dental record created successfully.",
+      );
       setSelectedPatientId("");
       fetchRecords();
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to create dental record.");
+      const responseData = err.response?.data;
+
+      if (responseData?.policy || responseData?.existing_record) {
+        setPolicyError({
+          message:
+            responseData.error ||
+            "Dental record creation was blocked by policy.",
+          policy: responseData.policy || null,
+          existingRecord: responseData.existing_record || null,
+        });
+        setError("");
+      } else {
+        setError(responseData?.error || "Unable to create dental record.");
+        setPolicyError(null);
+      }
     } finally {
       setCreating(false);
     }
@@ -109,6 +146,7 @@ function DentistDentalRecords() {
     setSelectedRecord(record);
     setMessage("");
     setError("");
+    setPolicyError(null);
     setShowArchiveModal(true);
   };
 
@@ -129,6 +167,7 @@ function DentistDentalRecords() {
       setArchiving(true);
       setMessage("");
       setError("");
+      setPolicyError(null);
 
       await API.put(
         `/api/dental-records/${selectedRecord.record_id}/archive`,
@@ -156,6 +195,18 @@ function DentistDentalRecords() {
     }
   };
 
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return "N/A";
+    }
+
+    return date.toLocaleString();
+  };
+
   return (
     <DashboardLayout role="Dentist">
       <div className="appointments-layout">
@@ -163,24 +214,112 @@ function DentistDentalRecords() {
           <h2>Create Dental Record</h2>
           <p>
             Select a patient to create a new dental record. This record can
-            later contain tooth details, treatments, and clinical notes.
+            later contain tooth details, treatments, X-rays, and clinical notes.
           </p>
+
+          <div className="info-message" style={{ marginBottom: "16px" }}>
+            <strong>Dental Record Creation Policy:</strong>
+            <br />A dental record can only be created for an existing patient
+            profile with Adult/Child dentition type set. The dentist must have
+            an appointment connection with the patient, and only one active
+            dental record is allowed per patient per clinic. Archived records
+            cannot be modified.
+          </div>
+
+          {selectedPatient && (
+            <div className="info-message" style={{ marginBottom: "16px" }}>
+              <strong>Selected Patient:</strong> {selectedPatient.patient_name}
+              <br />
+              <strong>Email:</strong> {selectedPatient.email}
+              <br />
+              <strong>Dentition Type:</strong>{" "}
+              {getPatientDentitionLabel(selectedPatient.dentition_type)}
+              {!selectedPatient.dentition_type && (
+                <>
+                  <br />
+                  <strong>Action Needed:</strong> This patient must update their
+                  profile and select Adult or Child before a dental record can
+                  be created.
+                </>
+              )}
+            </div>
+          )}
 
           {message && <div className="success-message">{message}</div>}
           {error && <div className="error-message">{error}</div>}
+
+          {policyError && (
+            <div className="error-message">
+              <strong>{policyError.message}</strong>
+
+              {policyError.existingRecord && (
+                <div style={{ marginTop: "10px" }}>
+                  <p>
+                    <strong>Existing Active Record:</strong> Record #
+                    {policyError.existingRecord.record_id}
+                  </p>
+
+                  <p>
+                    <strong>Assigned Dentist:</strong>{" "}
+                    {policyError.existingRecord.dentist_name || "N/A"}
+                  </p>
+
+                  <p>
+                    <strong>Clinic:</strong>{" "}
+                    {policyError.existingRecord.clinic_name || "N/A"}
+                  </p>
+
+                  <p>
+                    <strong>Status:</strong>{" "}
+                    {policyError.existingRecord.status || "Active"}
+                  </p>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      navigate(
+                        `/dentist/dental-records/${policyError.existingRecord.record_id}`,
+                      )
+                    }
+                    style={{ marginTop: "8px" }}
+                  >
+                    Open Existing Record
+                  </button>
+                </div>
+              )}
+
+              {policyError.policy?.rules?.length > 0 && (
+                <div style={{ marginTop: "10px" }}>
+                  <strong>{policyError.policy.name || "Policy Rules"}:</strong>
+
+                  <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
+                    {policyError.policy.rules.map((rule, index) => (
+                      <li key={index}>{rule}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           <form className="appointment-form" onSubmit={handleCreateRecord}>
             <div className="form-group">
               <label>Patient</label>
               <select
                 value={selectedPatientId}
-                onChange={(e) => setSelectedPatientId(e.target.value)}
+                onChange={(e) => {
+                  setSelectedPatientId(e.target.value);
+                  setMessage("");
+                  setError("");
+                  setPolicyError(null);
+                }}
                 required
               >
                 <option value="">Select Patient</option>
                 {patients.map((patient) => (
                   <option key={patient.patient_id} value={patient.patient_id}>
-                    {patient.patient_name} - {patient.email}
+                    {getPatientOptionLabel(patient)}
                   </option>
                 ))}
               </select>
@@ -189,7 +328,7 @@ function DentistDentalRecords() {
             <button
               type="submit"
               className="primary-button"
-              disabled={creating}
+              disabled={creating || !selectedPatientId}
             >
               {creating ? "Creating..." : "Create Dental Record"}
             </button>
@@ -241,6 +380,11 @@ function DentistDentalRecords() {
                     </p>
 
                     <p>
+                      <strong>Patient Type:</strong>{" "}
+                      {getPatientDentitionLabel(record.dentition_type)}
+                    </p>
+
+                    <p>
                       <strong>Dentist:</strong>{" "}
                       {record.dentist_name || `Dentist ID ${record.dentist_id}`}
                     </p>
@@ -252,16 +396,12 @@ function DentistDentalRecords() {
 
                     <p>
                       <strong>Date Created:</strong>{" "}
-                      {record.date_created
-                        ? new Date(record.date_created).toLocaleString()
-                        : "N/A"}
+                      {formatDate(record.date_created)}
                     </p>
 
                     <p>
                       <strong>Last Updated:</strong>{" "}
-                      {record.last_updated
-                        ? new Date(record.last_updated).toLocaleString()
-                        : "N/A"}
+                      {formatDate(record.last_updated)}
                     </p>
                   </div>
 
@@ -298,7 +438,8 @@ function DentistDentalRecords() {
                 <h3>Archive Dental Record</h3>
                 <p>
                   Confirm that you want to archive this dental record. Archived
-                  records will be hidden from the normal records list.
+                  records will be hidden from the normal records list and cannot
+                  be modified unless restored by an administrator.
                 </p>
               </div>
 
@@ -312,6 +453,13 @@ function DentistDentalRecords() {
             </div>
 
             <form className="modal-form" onSubmit={handleArchiveRecord}>
+              <div className="info-message">
+                <strong>Policy Reminder:</strong> Archiving this record allows a
+                new active dental record to be created for this patient under
+                the same clinic, but the archived record itself cannot be
+                modified while archived.
+              </div>
+
               <div className="form-group">
                 <label>Record</label>
                 <input
@@ -331,6 +479,17 @@ function DentistDentalRecords() {
                     selectedRecord?.patient_name ||
                     `Patient ID ${selectedRecord?.patient_id || ""}`
                   }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Dentition Type</label>
+                <input
+                  type="text"
+                  value={getPatientDentitionLabel(
+                    selectedRecord?.dentition_type,
+                  )}
                   disabled
                 />
               </div>

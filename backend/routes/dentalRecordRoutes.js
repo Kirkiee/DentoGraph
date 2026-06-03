@@ -21,6 +21,20 @@ const CHILD_TOOTH_NUMBERS = [
   85,
 ];
 
+const ALLOWED_TOOTH_STATUSES = [
+  "Sound",
+  "Caries",
+  "Filled",
+  "Missing",
+  "Crown",
+  "Impacted",
+  "Root Canal Treated",
+  "For Extraction",
+  "Normal",
+  "Decayed",
+  "Crowned",
+];
+
 const getValidToothNumbersByDentition = (dentitionType) => {
   return dentitionType === "Child" ? CHILD_TOOTH_NUMBERS : ADULT_TOOTH_NUMBERS;
 };
@@ -36,6 +50,31 @@ const getToothNumberErrorMessage = (dentitionType) => {
   }
 
   return "Invalid tooth number for an adult patient. Please use permanent FDI tooth numbers: 11-18, 21-28, 31-38, or 41-48.";
+};
+
+const normalizeDentitionType = (dentitionType) => {
+  if (dentitionType === "Adult" || dentitionType === "Child") {
+    return dentitionType;
+  }
+
+  return null;
+};
+
+const normalizeToothStatus = (status) => {
+  switch (status) {
+    case "Normal":
+      return "Sound";
+    case "Decayed":
+      return "Caries";
+    case "Crowned":
+      return "Crown";
+    default:
+      return status || "Sound";
+  }
+};
+
+const isValidToothStatus = (status) => {
+  return ALLOWED_TOOTH_STATUSES.includes(status);
 };
 
 const getDentitionLabel = (dentitionType) => {
@@ -72,7 +111,7 @@ const getPatientProfile = async (user_id) => {
   const result = await pool.query(
     `SELECT 
         patient_id,
-        COALESCE(dentition_type, 'Adult') AS dentition_type
+        dentition_type
      FROM public.patients
      WHERE user_id = $1`,
     [user_id],
@@ -88,7 +127,7 @@ const getDentalRecordBaseQuery = () => {
       dr.patient_id,
       patient_user.name AS patient_name,
       patient_user.email AS patient_email,
-      COALESCE(p.dentition_type, 'Adult') AS dentition_type,
+      p.dentition_type AS dentition_type,
       dr.dentist_id,
       dentist_user.name AS dentist_name,
       d.clinic_id,
@@ -296,6 +335,127 @@ const checkClinicRecordLimit = async (clinic_id) => {
   };
 };
 
+const validateDentalRecordCreationPolicy = async ({ patient_id, dentist }) => {
+  if (!dentist) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error:
+        "Dental Record Creation Policy: Dentist profile must exist before creating dental records.",
+    };
+  }
+
+  if (!dentist.clinic_id) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error:
+        "Dental Record Creation Policy: Dentist must be assigned to a clinic before creating dental records.",
+    };
+  }
+
+  const patientResult = await pool.query(
+    `SELECT 
+        p.patient_id,
+        p.user_id,
+        u.name AS patient_name,
+        u.email AS patient_email,
+        p.contact_number,
+        p.date_of_birth,
+        p.address,
+        p.gender,
+        p.medical_history,
+        p.dentition_type
+     FROM public.patients p
+     JOIN public.users u ON p.user_id = u.user_id
+     WHERE p.patient_id = $1`,
+    [patient_id],
+  );
+
+  if (patientResult.rows.length === 0) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error:
+        "Dental Record Creation Policy: A dental record can only be created for an existing patient profile.",
+    };
+  }
+
+  const patient = patientResult.rows[0];
+  const normalizedDentitionType = normalizeDentitionType(
+    patient.dentition_type,
+  );
+
+  if (!normalizedDentitionType) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error:
+        "Dental Record Creation Policy: Patient dentition type must be set to Adult or Child before creating a dental record.",
+    };
+  }
+
+  const appointmentCheck = await pool.query(
+    `SELECT appointment_id
+     FROM public.appointments
+     WHERE patient_id = $1
+     AND dentist_id = $2
+     AND status IN ('Pending', 'Scheduled', 'Completed')
+     LIMIT 1`,
+    [patient_id, dentist.dentist_id],
+  );
+
+  if (appointmentCheck.rows.length === 0) {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error:
+        "Dental Record Creation Policy: You can only create dental records for patients assigned to your appointments.",
+    };
+  }
+
+  const existingClinicRecord = await pool.query(
+    `SELECT 
+        dr.record_id,
+        dr.patient_id,
+        dr.dentist_id,
+        d.clinic_id,
+        c.clinic_name,
+        dentist_user.name AS dentist_name,
+        dr.date_created,
+        dr.last_updated,
+        COALESCE(dr.status, 'Active') AS status
+     FROM public.dental_records dr
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     JOIN public.users dentist_user ON d.user_id = dentist_user.user_id
+     LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     WHERE dr.patient_id = $1
+     AND d.clinic_id = $2
+     AND COALESCE(dr.status, 'Active') = 'Active'
+     LIMIT 1`,
+    [patient_id, dentist.clinic_id],
+  );
+
+  if (existingClinicRecord.rows.length > 0) {
+    return {
+      allowed: false,
+      statusCode: 409,
+      error:
+        "Dental Record Creation Policy: This patient already has an active dental record under this clinic. Archive the existing record before creating a new one.",
+      existingRecord: existingClinicRecord.rows[0],
+      patient,
+    };
+  }
+
+  return {
+    allowed: true,
+    statusCode: 200,
+    error: null,
+    patient,
+    dentitionType: normalizedDentitionType,
+  };
+};
+
 // DENTIST: CREATE DENTAL RECORD FOR A PATIENT
 router.post(
   "/",
@@ -312,66 +472,32 @@ router.post(
     try {
       const dentist = await getDentistProfile(user_id);
 
-      if (!dentist) {
-        return res.status(404).json({
-          error:
-            "Dentist profile not found. Please create your dentist profile first.",
-        });
-      }
+      const policyCheck = await validateDentalRecordCreationPolicy({
+        patient_id,
+        dentist,
+      });
 
-      const patientResult = await pool.query(
-        `SELECT 
-            p.patient_id,
-            u.name AS patient_name,
-            COALESCE(p.dentition_type, 'Adult') AS dentition_type
-         FROM public.patients p
-         JOIN public.users u ON p.user_id = u.user_id
-         WHERE p.patient_id = $1`,
-        [patient_id],
-      );
+      if (!policyCheck.allowed) {
+        const responseBody = {
+          error: policyCheck.error,
+          policy: {
+            name: "Dental Record Creation Policy",
+            rules: [
+              "A dental record can only be created for an existing patient profile.",
+              "The patient must have dentition type set to Adult or Child.",
+              "The dentist must have an assigned clinic.",
+              "The dentist must have an appointment connection with the patient.",
+              "Only one active dental record is allowed per patient per clinic.",
+              "Archived records must be restored or a new record can be created only after the previous record is archived.",
+            ],
+          },
+        };
 
-      if (patientResult.rows.length === 0) {
-        return res.status(404).json({ error: "Patient not found" });
-      }
+        if (policyCheck.existingRecord) {
+          responseBody.existing_record = policyCheck.existingRecord;
+        }
 
-      const appointmentCheck = await pool.query(
-        `SELECT appointment_id
-         FROM public.appointments
-         WHERE patient_id = $1
-         AND dentist_id = $2
-         AND status IN ('Pending', 'Scheduled', 'Completed')
-         LIMIT 1`,
-        [patient_id, dentist.dentist_id],
-      );
-
-      if (appointmentCheck.rows.length === 0) {
-        return res.status(403).json({
-          error:
-            "You can only create dental records for patients assigned to your appointments.",
-        });
-      }
-
-      const existingRecord = await pool.query(
-        `SELECT 
-            record_id,
-            patient_id,
-            dentist_id,
-            date_created,
-            last_updated,
-            COALESCE(status, 'Active') AS status
-         FROM public.dental_records
-         WHERE patient_id = $1
-         AND dentist_id = $2
-         AND COALESCE(status, 'Active') = 'Active'`,
-        [patient_id, dentist.dentist_id],
-      );
-
-      if (existingRecord.rows.length > 0) {
-        return res.status(200).json({
-          message: "Dental record already exists for this patient and dentist.",
-          dental_record: existingRecord.rows[0],
-          existing: true,
-        });
+        return res.status(policyCheck.statusCode).json(responseBody);
       }
 
       const limitCheck = await checkClinicRecordLimit(dentist.clinic_id);
@@ -394,15 +520,20 @@ router.post(
         user_id: req.user.user_id,
         action: "CREATE_DENTAL_RECORD",
         module: "Dental Records",
-        description: `Created dental record #${newRecord.rows[0].record_id} for patient ${patientResult.rows[0].patient_name}.`,
+        description: `Created dental record #${newRecord.rows[0].record_id} for patient ${policyCheck.patient.patient_name}.`,
         ip_address: req.ip,
       });
 
       res.status(201).json({
-        message: `Dental record created successfully for ${patientResult.rows[0].patient_name} (${getDentitionLabel(
-          patientResult.rows[0].dentition_type,
-        )}).`,
+        message: `Dental record created successfully for ${
+          policyCheck.patient.patient_name
+        } (${getDentitionLabel(policyCheck.dentitionType)}).`,
         dental_record: newRecord.rows[0],
+        policy_applied: {
+          name: "Dental Record Creation Policy",
+          summary:
+            "Patient profile, dentition type, appointment assignment, clinic assignment, active record uniqueness, and subscription record limits were validated.",
+        },
       });
     } catch (err) {
       console.error("Create dental record error:", err.message);
@@ -505,7 +636,7 @@ router.get(
               p.user_id,
               u.name AS patient_name,
               u.email,
-              COALESCE(p.dentition_type, 'Adult') AS dentition_type
+              p.dentition_type
            FROM public.patients p
            JOIN public.users u ON p.user_id = u.user_id
            ORDER BY u.name ASC`,
@@ -523,7 +654,7 @@ router.get(
               p.user_id,
               u.name AS patient_name,
               u.email,
-              COALESCE(p.dentition_type, 'Adult') AS dentition_type
+              p.dentition_type
            FROM public.appointments a
            JOIN public.patients p ON a.patient_id = p.patient_id
            JOIN public.users u ON p.user_id = u.user_id
@@ -551,7 +682,7 @@ router.get(
               p.user_id,
               u.name AS patient_name,
               u.email,
-              COALESCE(p.dentition_type, 'Adult') AS dentition_type
+              p.dentition_type
            FROM public.appointments a
            JOIN public.patients p ON a.patient_id = p.patient_id
            JOIN public.users u ON p.user_id = u.user_id
@@ -637,6 +768,17 @@ router.get(
         });
       }
 
+      const dentitionType = normalizeDentitionType(
+        access.record.dentition_type,
+      );
+
+      if (!dentitionType) {
+        return res.status(400).json({
+          error:
+            "Dental Record Policy: This patient record has no valid dentition type. Please update the patient profile to Adult or Child.",
+        });
+      }
+
       const teethResult = await pool.query(
         `SELECT *
          FROM public.teeth
@@ -664,13 +806,21 @@ router.get(
         message: "Dental record details retrieved successfully",
         dental_record: {
           ...access.record,
-          valid_tooth_numbers: getValidToothNumbersByDentition(
-            access.record.dentition_type,
-          ),
-          dentition_label: getDentitionLabel(access.record.dentition_type),
+          dentition_type: dentitionType,
+          valid_tooth_numbers: getValidToothNumbersByDentition(dentitionType),
+          dentition_label: getDentitionLabel(dentitionType),
         },
         teeth: teethResult.rows,
         treatments: treatmentsResult.rows,
+        policy: {
+          name: "Dental Record Creation Policy",
+          applied_rules: [
+            "Record belongs to authorized role scope.",
+            "Archived records cannot be modified.",
+            "Adult/Child dentition type controls valid tooth numbers.",
+            "Treatments must be attached to existing teeth.",
+          ],
+        },
       });
     } catch (err) {
       console.error("Get dental record details error:", err.message);
@@ -692,6 +842,15 @@ router.post(
       return res.status(400).json({ error: "Tooth number is required" });
     }
 
+    const normalizedStatus = normalizeToothStatus(tooth_status);
+
+    if (!isValidToothStatus(normalizedStatus)) {
+      return res.status(400).json({
+        error:
+          "Invalid tooth status. Use Sound, Caries, Filled, Missing, Crown, Impacted, Root Canal Treated, or For Extraction.",
+      });
+    }
+
     try {
       const access = await getAccessibleRecord(req, record_id);
 
@@ -705,7 +864,16 @@ router.post(
         });
       }
 
-      const dentitionType = access.record.dentition_type || "Adult";
+      const dentitionType = normalizeDentitionType(
+        access.record.dentition_type,
+      );
+
+      if (!dentitionType) {
+        return res.status(400).json({
+          error:
+            "Dental Record Policy: Patient dentition type must be set to Adult or Child before adding teeth.",
+        });
+      }
 
       if (!isValidToothNumberForDentition(tooth_number, dentitionType)) {
         return res.status(400).json({
@@ -731,7 +899,7 @@ router.post(
          (record_id, tooth_number, tooth_status)
          VALUES ($1, $2, $3)
          RETURNING *`,
-        [record_id, Number(tooth_number), tooth_status || "Normal"],
+        [record_id, Number(tooth_number), normalizedStatus],
       );
 
       await pool.query(
@@ -775,6 +943,15 @@ router.put(
       return res.status(400).json({ error: "Tooth status is required" });
     }
 
+    const normalizedStatus = normalizeToothStatus(tooth_status);
+
+    if (!isValidToothStatus(normalizedStatus)) {
+      return res.status(400).json({
+        error:
+          "Invalid tooth status. Use Sound, Caries, Filled, Missing, Crown, Impacted, Root Canal Treated, or For Extraction.",
+      });
+    }
+
     try {
       const toothResult = await pool.query(
         `SELECT tooth_id, record_id, tooth_number
@@ -807,7 +984,7 @@ router.put(
          SET tooth_status = $1
          WHERE tooth_id = $2
          RETURNING *`,
-        [tooth_status, tooth_id],
+        [normalizedStatus, tooth_id],
       );
 
       await pool.query(
@@ -821,7 +998,7 @@ router.put(
         user_id: req.user.user_id,
         action: "UPDATE_TOOTH",
         module: "Dental Records",
-        description: `Updated tooth #${tooth_number} status to ${tooth_status} in dental record #${record_id}.`,
+        description: `Updated tooth #${tooth_number} status to ${normalizedStatus} in dental record #${record_id}.`,
         ip_address: req.ip,
       });
 
@@ -1013,6 +1190,12 @@ router.put(
         return res.status(access.statusCode).json({ error: access.error });
       }
 
+      if (access.record.status === "Archived") {
+        return res.status(400).json({
+          error: "Dental record is already archived.",
+        });
+      }
+
       const archivedRecord = await pool.query(
         `UPDATE public.dental_records
          SET status = 'Archived',
@@ -1058,6 +1241,30 @@ router.put(
 
       if (!access.allowed) {
         return res.status(access.statusCode).json({ error: access.error });
+      }
+
+      const existingClinicRecord = await pool.query(
+        `SELECT 
+            existing.record_id
+         FROM public.dental_records existing
+         JOIN public.dentists existing_dentist
+           ON existing.dentist_id = existing_dentist.dentist_id
+         JOIN public.dentists target_dentist
+           ON target_dentist.dentist_id = $2
+         WHERE existing.patient_id = $1
+         AND existing_dentist.clinic_id = target_dentist.clinic_id
+         AND COALESCE(existing.status, 'Active') = 'Active'
+         AND existing.record_id <> $3
+         LIMIT 1`,
+        [access.record.patient_id, access.record.dentist_id, record_id],
+      );
+
+      if (existingClinicRecord.rows.length > 0) {
+        return res.status(409).json({
+          error:
+            "Dental Record Creation Policy: Cannot restore this record because the patient already has another active dental record under the same clinic.",
+          existing_record_id: existingClinicRecord.rows[0].record_id,
+        });
       }
 
       const restoredRecord = await pool.query(

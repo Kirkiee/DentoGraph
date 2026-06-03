@@ -124,6 +124,116 @@ function PatientXrayAnnotationView() {
     return new Date(dateValue).toLocaleString();
   };
 
+  const formatConfidence = (confidence) => {
+    if (confidence === null || confidence === undefined || confidence === "") {
+      return "N/A";
+    }
+
+    return `${(Number(confidence) * 100).toFixed(1)}%`;
+  };
+
+  const getConfidenceLevel = (confidence) => {
+    const percent = Number(confidence || 0) * 100;
+
+    if (percent >= 80) return "High";
+    if (percent >= 50) return "Moderate";
+    return "Low";
+  };
+
+  const parseAnnotationNote = (note) => {
+    if (!note) {
+      return {
+        isStructured: false,
+        plainNote: "No note provided",
+        interpretation: "",
+        reason: "",
+        confidence: "",
+        location: "",
+        reminder: "",
+      };
+    }
+
+    const lines = String(note)
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const getLineValue = (prefix) => {
+      const matchedLine = lines.find((line) =>
+        line.toLowerCase().startsWith(prefix.toLowerCase()),
+      );
+
+      if (!matchedLine) return "";
+
+      return matchedLine.replace(new RegExp(`^${prefix}\\s*`, "i"), "").trim();
+    };
+
+    const interpretation = getLineValue("AI Interpretation:");
+    const reason = getLineValue("Reason:");
+    const confidence = getLineValue("Confidence:");
+    const location = getLineValue("Location:");
+    const reminder = getLineValue("Clinical Reminder:");
+
+    const isStructured =
+      interpretation || reason || confidence || location || reminder;
+
+    return {
+      isStructured,
+      plainNote: note,
+      interpretation,
+      reason,
+      confidence,
+      location,
+      reminder,
+    };
+  };
+
+  const renderAnnotationInterpretation = (annotation) => {
+    const parsedNote = parseAnnotationNote(annotation.note);
+
+    if (!parsedNote.isStructured) {
+      return (
+        <p>
+          <strong>Note:</strong> {parsedNote.plainNote}
+        </p>
+      );
+    }
+
+    return (
+      <div className="info-message" style={{ marginTop: "12px" }}>
+        {parsedNote.interpretation && (
+          <p>
+            <strong>AI Interpretation:</strong> {parsedNote.interpretation}
+          </p>
+        )}
+
+        {parsedNote.reason && (
+          <p>
+            <strong>Reason:</strong> {parsedNote.reason}
+          </p>
+        )}
+
+        {parsedNote.confidence && (
+          <p>
+            <strong>Confidence Explanation:</strong> {parsedNote.confidence}
+          </p>
+        )}
+
+        {parsedNote.location && (
+          <p>
+            <strong>Location:</strong> {parsedNote.location}
+          </p>
+        )}
+
+        {parsedNote.reminder && (
+          <p>
+            <strong>Clinical Reminder:</strong> {parsedNote.reminder}
+          </p>
+        )}
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout role="Patient">
       <div className="appointments-list-card">
@@ -309,16 +419,25 @@ function PatientXrayAnnotationView() {
                         </p>
 
                         <p>
+                          <strong>Confidence:</strong>{" "}
+                          {formatConfidence(annotation.confidence)}
+                          {annotation.confidence !== null &&
+                            annotation.confidence !== undefined && (
+                              <>
+                                {" "}
+                                ({getConfidenceLevel(annotation.confidence)})
+                              </>
+                            )}
+                        </p>
+
+                        <p>
                           <strong>Reviewed by:</strong>{" "}
                           {annotation.status === "Confirmed"
                             ? annotation.dentist_name || "Dentist"
                             : "Pending dentist review"}
                         </p>
 
-                        <p>
-                          <strong>Note:</strong>{" "}
-                          {annotation.note || "No note provided"}
-                        </p>
+                        {renderAnnotationInterpretation(annotation)}
 
                         <p>
                           <strong>Created At:</strong>{" "}

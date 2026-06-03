@@ -162,7 +162,14 @@ function DentistDentalRecordDetails() {
 
   const formatDate = (dateValue) => {
     if (!dateValue) return "N/A";
-    return new Date(dateValue).toLocaleString();
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return "N/A";
+    }
+
+    return date.toLocaleString();
   };
 
   const formatDateTimeLocal = (dateValue) => {
@@ -219,11 +226,9 @@ function DentistDentalRecordDetails() {
   const normalizeToothStatusLabel = (status) => {
     switch (status) {
       case "Normal":
-        return "Sound / Normal";
       case "Sound":
         return "Sound / Normal";
       case "Decayed":
-        return "Caries / Decayed";
       case "Caries":
         return "Caries / Decayed";
       case "Filled":
@@ -231,7 +236,6 @@ function DentistDentalRecordDetails() {
       case "Missing":
         return "Missing / Extracted";
       case "Crowned":
-        return "Crown";
       case "Crown":
         return "Crown";
       case "Impacted":
@@ -242,6 +246,19 @@ function DentistDentalRecordDetails() {
         return "For Extraction";
       default:
         return status || "Sound / Normal";
+    }
+  };
+
+  const normalizeToothStatusValue = (status) => {
+    switch (status) {
+      case "Normal":
+        return "Sound";
+      case "Decayed":
+        return "Caries";
+      case "Crowned":
+        return "Crown";
+      default:
+        return status || "Sound";
     }
   };
 
@@ -294,6 +311,10 @@ function DentistDentalRecordDetails() {
     return validToothNumbers.filter(
       (toothNumber) => !usedToothNumbers.includes(toothNumber),
     );
+  };
+
+  const handlePrintReport = () => {
+    window.print();
   };
 
   const openToothModal = () => {
@@ -512,7 +533,7 @@ function DentistDentalRecordDetails() {
   return (
     <DashboardLayout role="Dentist">
       <div className="appointments-list-card">
-        <div className="appointments-header">
+        <div className="appointments-header no-print">
           <div>
             <h2>Dental Record Details</h2>
             <p>
@@ -527,6 +548,14 @@ function DentistDentalRecordDetails() {
               onClick={() => navigate("/dentist/dental-records")}
             >
               Back to Records
+            </button>
+
+            <button
+              className="secondary-button"
+              onClick={handlePrintReport}
+              disabled={loading || !record}
+            >
+              Print Report
             </button>
 
             <button
@@ -554,8 +583,8 @@ function DentistDentalRecordDetails() {
           </div>
         </div>
 
-        {message && <div className="success-message">{message}</div>}
-        {error && <div className="error-message">{error}</div>}
+        {message && <div className="success-message no-print">{message}</div>}
+        {error && <div className="error-message no-print">{error}</div>}
 
         {loading ? (
           <p>Loading dental record details...</p>
@@ -568,7 +597,199 @@ function DentistDentalRecordDetails() {
           </div>
         ) : (
           <>
-            <div className="appointment-item">
+            <div className="dental-record-print-report">
+              <div className="print-report-header">
+                <h1>DentoGraph Dental Record Report</h1>
+                <p>
+                  Generated on {formatDate(new Date())} | Record #
+                  {record.record_id}
+                </p>
+                <p>
+                  This report is generated from DentoGraph and is intended for
+                  dental record documentation and review.
+                </p>
+              </div>
+
+              <div className="print-section">
+                <h2>Patient and Record Information</h2>
+
+                <div className="print-grid">
+                  <p>
+                    <strong>Patient:</strong>{" "}
+                    {record.patient_name || `Patient ID ${record.patient_id}`}
+                  </p>
+                  <p>
+                    <strong>Patient Email:</strong>{" "}
+                    {record.patient_email || "N/A"}
+                  </p>
+                  <p>
+                    <strong>Patient Type:</strong> {getDentitionLabel()}
+                  </p>
+                  <p>
+                    <strong>Record Status:</strong> {record.status || "Active"}
+                  </p>
+                  <p>
+                    <strong>Dentist:</strong>{" "}
+                    {record.dentist_name || `Dentist ID ${record.dentist_id}`}
+                  </p>
+                  <p>
+                    <strong>Clinic:</strong>{" "}
+                    {record.clinic_name || "No assigned clinic"}
+                  </p>
+                  <p>
+                    <strong>Date Created:</strong>{" "}
+                    {formatDate(record.date_created)}
+                  </p>
+                  <p>
+                    <strong>Last Updated:</strong>{" "}
+                    {formatDate(record.last_updated)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="print-section">
+                <h2>Tooth Numbering Guide</h2>
+                <p>{getToothGuideText()}</p>
+              </div>
+
+              <div className="print-section">
+                <h2>Philippine Dental Association Form</h2>
+                {pdaForm ? (
+                  <div className="print-grid">
+                    <p>
+                      <strong>Status:</strong> Uploaded
+                    </p>
+                    <p>
+                      <strong>File Name:</strong>{" "}
+                      {pdaForm.original_filename ||
+                        "PDA Dental Chart / Patient Information Record"}
+                    </p>
+                    <p>
+                      <strong>File Type:</strong> {pdaForm.mime_type || "N/A"}
+                    </p>
+                    <p>
+                      <strong>Uploaded At:</strong>{" "}
+                      {formatDate(pdaForm.uploaded_at)}
+                    </p>
+                  </div>
+                ) : (
+                  <p>
+                    No PDA Dental Chart / Patient Information Record uploaded.
+                  </p>
+                )}
+              </div>
+
+              <div className="print-section">
+                <h2>Teeth Overview</h2>
+
+                {teeth.length === 0 ? (
+                  <p>No teeth have been added to this record.</p>
+                ) : (
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th>Tooth Number</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teeth.map((tooth) => (
+                        <tr key={tooth.tooth_id}>
+                          <td>{tooth.tooth_number}</td>
+                          <td>
+                            {normalizeToothStatusLabel(
+                              tooth.tooth_status || "Sound",
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="print-section">
+                <h2>Treatment History</h2>
+
+                {treatments.length === 0 ? (
+                  <p>No treatments recorded.</p>
+                ) : (
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th>Tooth</th>
+                        <th>Procedure</th>
+                        <th>Description</th>
+                        <th>Treatment Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {treatments.map((treatment) => (
+                        <tr key={treatment.treatment_id}>
+                          <td>Tooth #{treatment.tooth_number}</td>
+                          <td>{treatment.procedure_type || "N/A"}</td>
+                          <td>
+                            {treatment.description || "No description provided"}
+                          </td>
+                          <td>{formatDate(treatment.treatment_date)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="print-section">
+                <h2>X-ray Images</h2>
+
+                {xrays.length === 0 ? (
+                  <p>No X-ray files uploaded.</p>
+                ) : (
+                  <table className="print-table">
+                    <thead>
+                      <tr>
+                        <th>X-ray ID</th>
+                        <th>Tooth</th>
+                        <th>Uploaded</th>
+                        <th>File Path</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {xrays.map((xray) => (
+                        <tr key={xray.xray_id}>
+                          <td>#{xray.xray_id}</td>
+                          <td>
+                            {xray.tooth_number
+                              ? `Tooth #${xray.tooth_number}`
+                              : "General"}
+                          </td>
+                          <td>{formatDate(xray.upload_date)}</td>
+                          <td>{xray.file_path || "N/A"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+
+              <div className="print-section">
+                <h2>Clinical Reminder</h2>
+                <p>
+                  This printed report summarizes recorded dental information in
+                  the system. Final diagnosis, treatment planning, and clinical
+                  interpretation must be completed by a licensed dentist.
+                </p>
+              </div>
+
+              <div className="print-signature-row">
+                <div className="print-signature-line">
+                  Dentist Signature / Name
+                </div>
+                <div className="print-signature-line">Date Signed</div>
+              </div>
+            </div>
+
+            <div className="appointment-item no-print">
               <div className="appointment-info">
                 <div className="appointment-title-row">
                   <h3>Record #{record.record_id}</h3>
@@ -614,11 +835,11 @@ function DentistDentalRecordDetails() {
               </div>
             </div>
 
-            <div className="info-message">
+            <div className="info-message no-print">
               <strong>Tooth Numbering Guide:</strong> {getToothGuideText()}
             </div>
 
-            <div className="report-section">
+            <div className="report-section no-print">
               <div className="appointments-header">
                 <div>
                   <h2>Philippine Dental Association Form</h2>
@@ -684,7 +905,7 @@ function DentistDentalRecordDetails() {
               )}
             </div>
 
-            <div className="report-section">
+            <div className="report-section no-print">
               <div className="appointments-header">
                 <div>
                   <h2>Teeth Overview</h2>
@@ -759,15 +980,7 @@ function DentistDentalRecordDetails() {
 
                       <div className="appointment-actions">
                         <select
-                          value={
-                            tooth.tooth_status === "Normal"
-                              ? "Sound"
-                              : tooth.tooth_status === "Decayed"
-                                ? "Caries"
-                                : tooth.tooth_status === "Crowned"
-                                  ? "Crown"
-                                  : tooth.tooth_status || "Sound"
-                          }
+                          value={normalizeToothStatusValue(tooth.tooth_status)}
                           onChange={(e) =>
                             handleUpdateToothStatus(tooth, e.target.value)
                           }
@@ -793,7 +1006,7 @@ function DentistDentalRecordDetails() {
               )}
             </div>
 
-            <div className="report-section">
+            <div className="report-section no-print">
               <div className="appointments-header">
                 <div>
                   <h2>Treatment History</h2>
@@ -863,7 +1076,7 @@ function DentistDentalRecordDetails() {
               )}
             </div>
 
-            <div className="report-section">
+            <div className="report-section no-print">
               <div className="appointments-header">
                 <div>
                   <h2>X-ray Images</h2>
