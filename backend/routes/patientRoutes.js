@@ -6,6 +6,18 @@ const {
   authorizeRoles,
 } = require("../middleware/authMiddleware");
 
+const normalizeDentitionType = (dentition_type) => {
+  if (!dentition_type) return "Adult";
+
+  const value = String(dentition_type).trim();
+
+  if (value === "Adult" || value === "Child") {
+    return value;
+  }
+
+  return null;
+};
+
 // CREATE PATIENT PROFILE
 router.post(
   "/profile",
@@ -13,8 +25,23 @@ router.post(
   authorizeRoles("Patient"),
   async (req, res) => {
     const user_id = req.user.user_id;
-    const { contact_number, date_of_birth, address, gender, medical_history } =
-      req.body || {};
+
+    const {
+      contact_number,
+      date_of_birth,
+      address,
+      gender,
+      medical_history,
+      dentition_type,
+    } = req.body || {};
+
+    const normalizedDentitionType = normalizeDentitionType(dentition_type);
+
+    if (!normalizedDentitionType) {
+      return res.status(400).json({
+        error: "Dentition type must be either Adult or Child.",
+      });
+    }
 
     try {
       const existingProfile = await pool.query(
@@ -30,9 +57,25 @@ router.post(
 
       const newPatient = await pool.query(
         `INSERT INTO public.patients
-       (user_id, contact_number, date_of_birth, address, gender, medical_history)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+         (
+           user_id,
+           contact_number,
+           date_of_birth,
+           address,
+           gender,
+           medical_history,
+           dentition_type
+         )
+         VALUES ($1, $2, $3::date, $4, $5, $6, $7)
+         RETURNING 
+           patient_id,
+           user_id,
+           contact_number,
+           TO_CHAR(date_of_birth::date, 'YYYY-MM-DD') AS date_of_birth,
+           address,
+           gender,
+           medical_history,
+           COALESCE(dentition_type, 'Adult') AS dentition_type`,
         [
           user_id,
           contact_number || null,
@@ -40,6 +83,7 @@ router.post(
           address || null,
           gender || null,
           medical_history || null,
+          normalizedDentitionType,
         ],
       );
 
@@ -71,10 +115,11 @@ router.get(
           u.email,
           u.status AS account_status,
           p.contact_number,
-          p.date_of_birth,
+          TO_CHAR(p.date_of_birth::date, 'YYYY-MM-DD') AS date_of_birth,
           p.address,
           p.gender,
-          p.medical_history
+          p.medical_history,
+          COALESCE(p.dentition_type, 'Adult') AS dentition_type
        FROM public.patients p
        JOIN public.users u ON p.user_id = u.user_id
        WHERE p.user_id = $1`,
@@ -105,6 +150,7 @@ router.put(
   authorizeRoles("Patient"),
   async (req, res) => {
     const user_id = req.user.user_id;
+
     const {
       name,
       email,
@@ -113,11 +159,20 @@ router.put(
       address,
       gender,
       medical_history,
+      dentition_type,
     } = req.body || {};
 
     if (!name || !email) {
       return res.status(400).json({
         error: "Name and email are required",
+      });
+    }
+
+    const normalizedDentitionType = normalizeDentitionType(dentition_type);
+
+    if (!normalizedDentitionType) {
+      return res.status(400).json({
+        error: "Dentition type must be either Adult or Child.",
       });
     }
 
@@ -128,8 +183,8 @@ router.put(
 
       const emailCheck = await client.query(
         `SELECT user_id
-       FROM public.users
-       WHERE email = $1 AND user_id <> $2`,
+         FROM public.users
+         WHERE email = $1 AND user_id <> $2`,
         [email, user_id],
       );
 
@@ -142,27 +197,29 @@ router.put(
 
       await client.query(
         `UPDATE public.users
-       SET name = $1,
-           email = $2
-       WHERE user_id = $3`,
+         SET name = $1,
+             email = $2
+         WHERE user_id = $3`,
         [name, email, user_id],
       );
 
       const updatedPatient = await client.query(
         `UPDATE public.patients
-       SET contact_number = $1,
-           date_of_birth = $2,
-           address = $3,
-           gender = $4,
-           medical_history = $5
-       WHERE user_id = $6
-       RETURNING *`,
+         SET contact_number = $1,
+             date_of_birth = $2::date,
+             address = $3,
+             gender = $4,
+             medical_history = $5,
+             dentition_type = $6
+         WHERE user_id = $7
+         RETURNING *`,
         [
           contact_number || null,
           date_of_birth || null,
           address || null,
           gender || null,
           medical_history || null,
+          normalizedDentitionType,
           user_id,
         ],
       );
@@ -182,10 +239,11 @@ router.put(
           u.email,
           u.status AS account_status,
           p.contact_number,
-          p.date_of_birth,
+          TO_CHAR(p.date_of_birth::date, 'YYYY-MM-DD') AS date_of_birth,
           p.address,
           p.gender,
-          p.medical_history
+          p.medical_history,
+          COALESCE(p.dentition_type, 'Adult') AS dentition_type
        FROM public.patients p
        JOIN public.users u ON p.user_id = u.user_id
        WHERE p.user_id = $1`,
@@ -229,10 +287,11 @@ router.get(
           u.email,
           u.status AS account_status,
           p.contact_number,
-          p.date_of_birth,
+          TO_CHAR(p.date_of_birth::date, 'YYYY-MM-DD') AS date_of_birth,
           p.address,
           p.gender,
-          p.medical_history
+          p.medical_history,
+          COALESCE(p.dentition_type, 'Adult') AS dentition_type
        FROM public.patients p
        JOIN public.users u ON p.user_id = u.user_id
        ORDER BY p.patient_id`,

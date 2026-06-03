@@ -11,13 +11,39 @@ const isAssistantRole = (role) => {
   return role === "Assistant" || role === "Dental Assistant";
 };
 
-const VALID_TOOTH_NUMBERS = [
+const ADULT_TOOTH_NUMBERS = [
   11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33,
   34, 35, 36, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48,
 ];
 
-const isValidToothNumber = (toothNumber) => {
-  return VALID_TOOTH_NUMBERS.includes(Number(toothNumber));
+const CHILD_TOOTH_NUMBERS = [
+  51, 52, 53, 54, 55, 61, 62, 63, 64, 65, 71, 72, 73, 74, 75, 81, 82, 83, 84,
+  85,
+];
+
+const getValidToothNumbersByDentition = (dentitionType) => {
+  return dentitionType === "Child" ? CHILD_TOOTH_NUMBERS : ADULT_TOOTH_NUMBERS;
+};
+
+const isValidToothNumberForDentition = (toothNumber, dentitionType) => {
+  const validNumbers = getValidToothNumbersByDentition(dentitionType);
+  return validNumbers.includes(Number(toothNumber));
+};
+
+const getToothNumberErrorMessage = (dentitionType) => {
+  if (dentitionType === "Child") {
+    return "Invalid tooth number for a child patient. Please use primary FDI tooth numbers: 51-55, 61-65, 71-75, or 81-85.";
+  }
+
+  return "Invalid tooth number for an adult patient. Please use permanent FDI tooth numbers: 11-18, 21-28, 31-38, or 41-48.";
+};
+
+const getDentitionLabel = (dentitionType) => {
+  if (dentitionType === "Child") {
+    return "Child / Primary Teeth";
+  }
+
+  return "Adult / Permanent Teeth";
 };
 
 const getDentistProfile = async (user_id) => {
@@ -44,7 +70,9 @@ const getAssistantProfile = async (user_id) => {
 
 const getPatientProfile = async (user_id) => {
   const result = await pool.query(
-    `SELECT patient_id
+    `SELECT 
+        patient_id,
+        COALESCE(dentition_type, 'Adult') AS dentition_type
      FROM public.patients
      WHERE user_id = $1`,
     [user_id],
@@ -60,6 +88,7 @@ const getDentalRecordBaseQuery = () => {
       dr.patient_id,
       patient_user.name AS patient_name,
       patient_user.email AS patient_email,
+      COALESCE(p.dentition_type, 'Adult') AS dentition_type,
       dr.dentist_id,
       dentist_user.name AS dentist_name,
       d.clinic_id,
@@ -293,7 +322,8 @@ router.post(
       const patientResult = await pool.query(
         `SELECT 
             p.patient_id,
-            u.name AS patient_name
+            u.name AS patient_name,
+            COALESCE(p.dentition_type, 'Adult') AS dentition_type
          FROM public.patients p
          JOIN public.users u ON p.user_id = u.user_id
          WHERE p.patient_id = $1`,
@@ -369,7 +399,9 @@ router.post(
       });
 
       res.status(201).json({
-        message: "Dental record created successfully",
+        message: `Dental record created successfully for ${patientResult.rows[0].patient_name} (${getDentitionLabel(
+          patientResult.rows[0].dentition_type,
+        )}).`,
         dental_record: newRecord.rows[0],
       });
     } catch (err) {
@@ -472,7 +504,8 @@ router.get(
               p.patient_id,
               p.user_id,
               u.name AS patient_name,
-              u.email
+              u.email,
+              COALESCE(p.dentition_type, 'Adult') AS dentition_type
            FROM public.patients p
            JOIN public.users u ON p.user_id = u.user_id
            ORDER BY u.name ASC`,
@@ -489,7 +522,8 @@ router.get(
               p.patient_id,
               p.user_id,
               u.name AS patient_name,
-              u.email
+              u.email,
+              COALESCE(p.dentition_type, 'Adult') AS dentition_type
            FROM public.appointments a
            JOIN public.patients p ON a.patient_id = p.patient_id
            JOIN public.users u ON p.user_id = u.user_id
@@ -516,7 +550,8 @@ router.get(
               p.patient_id,
               p.user_id,
               u.name AS patient_name,
-              u.email
+              u.email,
+              COALESCE(p.dentition_type, 'Adult') AS dentition_type
            FROM public.appointments a
            JOIN public.patients p ON a.patient_id = p.patient_id
            JOIN public.users u ON p.user_id = u.user_id
@@ -627,7 +662,13 @@ router.get(
 
       res.status(200).json({
         message: "Dental record details retrieved successfully",
-        dental_record: access.record,
+        dental_record: {
+          ...access.record,
+          valid_tooth_numbers: getValidToothNumbersByDentition(
+            access.record.dentition_type,
+          ),
+          dentition_label: getDentitionLabel(access.record.dentition_type),
+        },
         teeth: teethResult.rows,
         treatments: treatmentsResult.rows,
       });
@@ -651,13 +692,6 @@ router.post(
       return res.status(400).json({ error: "Tooth number is required" });
     }
 
-    if (!isValidToothNumber(tooth_number)) {
-      return res.status(400).json({
-        error:
-          "Invalid tooth number. Please use a valid FDI tooth number from 11-18, 21-28, 31-38, or 41-48.",
-      });
-    }
-
     try {
       const access = await getAccessibleRecord(req, record_id);
 
@@ -668,6 +702,14 @@ router.post(
       if (access.record.status === "Archived") {
         return res.status(400).json({
           error: "Cannot modify an archived dental record.",
+        });
+      }
+
+      const dentitionType = access.record.dentition_type || "Adult";
+
+      if (!isValidToothNumberForDentition(tooth_number, dentitionType)) {
+        return res.status(400).json({
+          error: getToothNumberErrorMessage(dentitionType),
         });
       }
 
@@ -703,7 +745,9 @@ router.post(
         user_id: req.user.user_id,
         action: "ADD_TOOTH",
         module: "Dental Records",
-        description: `Added tooth #${newTooth.rows[0].tooth_number} to dental record #${record_id}.`,
+        description: `Added tooth #${newTooth.rows[0].tooth_number} to ${getDentitionLabel(
+          dentitionType,
+        )} dental record #${record_id}.`,
         ip_address: req.ip,
       });
 

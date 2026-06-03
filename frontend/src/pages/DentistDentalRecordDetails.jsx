@@ -3,9 +3,25 @@ import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate, useParams } from "react-router-dom";
 
-const VALID_TOOTH_NUMBERS = [
+const ADULT_TOOTH_NUMBERS = [
   11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25, 26, 27, 28, 31, 32, 33,
   34, 35, 36, 37, 38, 41, 42, 43, 44, 45, 46, 47, 48,
+];
+
+const CHILD_TOOTH_NUMBERS = [
+  51, 52, 53, 54, 55, 61, 62, 63, 64, 65, 71, 72, 73, 74, 75, 81, 82, 83, 84,
+  85,
+];
+
+const TOOTH_STATUS_OPTIONS = [
+  { value: "Sound", label: "Sound / Normal" },
+  { value: "Caries", label: "Caries / Decayed" },
+  { value: "Filled", label: "Filled / Restored" },
+  { value: "Missing", label: "Missing / Extracted" },
+  { value: "Crown", label: "Crown" },
+  { value: "Impacted", label: "Impacted" },
+  { value: "Root Canal Treated", label: "Root Canal Treated" },
+  { value: "For Extraction", label: "For Extraction" },
 ];
 
 function DentistDentalRecordDetails() {
@@ -16,9 +32,11 @@ function DentistDentalRecordDetails() {
   const [teeth, setTeeth] = useState([]);
   const [treatments, setTreatments] = useState([]);
   const [xrays, setXrays] = useState([]);
+  const [pdaForm, setPdaForm] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [loadingXrays, setLoadingXrays] = useState(true);
+  const [loadingPdaForm, setLoadingPdaForm] = useState(false);
   const [updatingTooth, setUpdatingTooth] = useState(false);
   const [addingTooth, setAddingTooth] = useState(false);
   const [savingTreatment, setSavingTreatment] = useState(false);
@@ -31,7 +49,7 @@ function DentistDentalRecordDetails() {
 
   const [toothForm, setToothForm] = useState({
     tooth_number: "",
-    tooth_status: "Normal",
+    tooth_status: "Sound",
   });
 
   const [treatmentForm, setTreatmentForm] = useState({
@@ -44,6 +62,7 @@ function DentistDentalRecordDetails() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [modalError, setModalError] = useState("");
+  const [pdaError, setPdaError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -58,6 +77,13 @@ function DentistDentalRecordDetails() {
     fetchXrays();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record_id]);
+
+  useEffect(() => {
+    if (record?.patient_id) {
+      fetchPdaForm(record.patient_id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [record?.patient_id]);
 
   useEffect(() => {
     const isAnyModalOpen = showToothModal || showTreatmentModal;
@@ -112,6 +138,28 @@ function DentistDentalRecordDetails() {
     }
   };
 
+  const fetchPdaForm = async (patientId) => {
+    if (!patientId) return;
+
+    try {
+      setLoadingPdaForm(true);
+      setPdaError("");
+
+      const response = await API.get(
+        `/api/patient-documents/patient/${patientId}/pda-form`,
+        authHeaders,
+      );
+
+      setPdaForm(response.data.document || null);
+    } catch (err) {
+      setPdaError(
+        err.response?.data?.error || "Unable to load patient PDA form.",
+      );
+    } finally {
+      setLoadingPdaForm(false);
+    }
+  };
+
   const formatDate = (dateValue) => {
     if (!dateValue) return "N/A";
     return new Date(dateValue).toLocaleString();
@@ -127,6 +175,76 @@ function DentistDentalRecordDetails() {
     return localDate.toISOString().slice(0, 16);
   };
 
+  const formatFileSize = (bytes) => {
+    if (!bytes && bytes !== 0) return "N/A";
+
+    const size = Number(bytes);
+
+    if (size < 1024) return `${size} B`;
+    if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)} KB`;
+
+    return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const getRecordDentitionType = () => {
+    return record?.dentition_type === "Child" ? "Child" : "Adult";
+  };
+
+  const getDentitionLabel = () => {
+    if (record?.dentition_label) return record.dentition_label;
+
+    return getRecordDentitionType() === "Child"
+      ? "Child / Primary Teeth"
+      : "Adult / Permanent Teeth";
+  };
+
+  const getValidToothNumbers = () => {
+    if (Array.isArray(record?.valid_tooth_numbers)) {
+      return record.valid_tooth_numbers.map((value) => Number(value));
+    }
+
+    return getRecordDentitionType() === "Child"
+      ? CHILD_TOOTH_NUMBERS
+      : ADULT_TOOTH_NUMBERS;
+  };
+
+  const getToothGuideText = () => {
+    if (getRecordDentitionType() === "Child") {
+      return "Valid primary FDI tooth numbers are 51-55, 61-65, 71-75, and 81-85. Teeth already added to this record are hidden from the list.";
+    }
+
+    return "Valid permanent FDI tooth numbers are 11-18, 21-28, 31-38, and 41-48. Teeth already added to this record are hidden from the list.";
+  };
+
+  const normalizeToothStatusLabel = (status) => {
+    switch (status) {
+      case "Normal":
+        return "Sound / Normal";
+      case "Sound":
+        return "Sound / Normal";
+      case "Decayed":
+        return "Caries / Decayed";
+      case "Caries":
+        return "Caries / Decayed";
+      case "Filled":
+        return "Filled / Restored";
+      case "Missing":
+        return "Missing / Extracted";
+      case "Crowned":
+        return "Crown";
+      case "Crown":
+        return "Crown";
+      case "Impacted":
+        return "Impacted";
+      case "Root Canal Treated":
+        return "Root Canal Treated";
+      case "For Extraction":
+        return "For Extraction";
+      default:
+        return status || "Sound / Normal";
+    }
+  };
+
   const getStatusClass = (status) => {
     switch (status) {
       case "Archived":
@@ -139,16 +257,22 @@ function DentistDentalRecordDetails() {
 
   const getToothStatusClass = (status) => {
     switch (status) {
+      case "Caries":
       case "Decayed":
-        return "status-badge status-cancelled";
-      case "Filled":
-        return "status-badge status-pending";
+      case "For Extraction":
       case "Missing":
         return "status-badge status-cancelled";
-      case "Crowned":
-        return "status-badge status-scheduled";
-      case "Impacted":
+
+      case "Filled":
+      case "Root Canal Treated":
         return "status-badge status-pending";
+
+      case "Crown":
+      case "Crowned":
+      case "Impacted":
+        return "status-badge status-scheduled";
+
+      case "Sound":
       case "Normal":
       default:
         return "status-badge status-completed";
@@ -165,8 +289,9 @@ function DentistDentalRecordDetails() {
 
   const getAvailableToothNumbers = () => {
     const usedToothNumbers = teeth.map((tooth) => Number(tooth.tooth_number));
+    const validToothNumbers = getValidToothNumbers();
 
-    return VALID_TOOTH_NUMBERS.filter(
+    return validToothNumbers.filter(
       (toothNumber) => !usedToothNumbers.includes(toothNumber),
     );
   };
@@ -178,7 +303,7 @@ function DentistDentalRecordDetails() {
       tooth_number: availableToothNumbers[0]
         ? String(availableToothNumbers[0])
         : "",
-      tooth_status: "Normal",
+      tooth_status: "Sound",
     });
 
     setMessage("");
@@ -192,7 +317,7 @@ function DentistDentalRecordDetails() {
     setModalError("");
     setToothForm({
       tooth_number: "",
-      tooth_status: "Normal",
+      tooth_status: "Sound",
     });
   };
 
@@ -391,8 +516,8 @@ function DentistDentalRecordDetails() {
           <div>
             <h2>Dental Record Details</h2>
             <p>
-              View and manage teeth, treatments, and X-rays connected to this
-              patient dental record.
+              View and manage teeth, treatments, X-rays, and uploaded patient
+              forms connected to this dental record.
             </p>
           </div>
 
@@ -418,6 +543,9 @@ function DentistDentalRecordDetails() {
               onClick={() => {
                 fetchRecordDetails();
                 fetchXrays();
+                if (record?.patient_id) {
+                  fetchPdaForm(record.patient_id);
+                }
               }}
               disabled={loading}
             >
@@ -461,6 +589,10 @@ function DentistDentalRecordDetails() {
                 </p>
 
                 <p>
+                  <strong>Patient Type:</strong> {getDentitionLabel()}
+                </p>
+
+                <p>
                   <strong>Dentist:</strong>{" "}
                   {record.dentist_name || `Dentist ID ${record.dentist_id}`}
                 </p>
@@ -482,13 +614,84 @@ function DentistDentalRecordDetails() {
               </div>
             </div>
 
+            <div className="info-message">
+              <strong>Tooth Numbering Guide:</strong> {getToothGuideText()}
+            </div>
+
+            <div className="report-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Philippine Dental Association Form</h2>
+                  <p>
+                    View the PDA Dental Chart / Patient Information Record
+                    uploaded by this patient.
+                  </p>
+                </div>
+              </div>
+
+              {pdaError && <div className="error-message">{pdaError}</div>}
+
+              {loadingPdaForm ? (
+                <p>Loading patient PDA form...</p>
+              ) : pdaForm ? (
+                <div className="appointment-item">
+                  <div className="appointment-info">
+                    <div className="appointment-title-row">
+                      <h3>
+                        {pdaForm.original_filename ||
+                          "PDA Dental Chart / Patient Information Record"}
+                      </h3>
+
+                      <span className="status-badge status-scheduled">
+                        Uploaded
+                      </span>
+                    </div>
+
+                    <p>
+                      <strong>File Type:</strong> {pdaForm.mime_type || "N/A"}
+                    </p>
+
+                    <p>
+                      <strong>File Size:</strong>{" "}
+                      {formatFileSize(pdaForm.file_size_bytes)}
+                    </p>
+
+                    <p>
+                      <strong>Uploaded At:</strong>{" "}
+                      {formatDate(pdaForm.uploaded_at)}
+                    </p>
+                  </div>
+
+                  <div className="appointment-actions">
+                    <a
+                      className="secondary-button"
+                      href={getFileUrl(pdaForm.file_path)}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open PDA Form
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <h3>No PDA form uploaded</h3>
+                  <p>
+                    This patient has not uploaded a PDA Dental Chart / Patient
+                    Information Record yet.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="report-section">
               <div className="appointments-header">
                 <div>
                   <h2>Teeth Overview</h2>
                   <p>
-                    Add valid FDI tooth numbers, update tooth status, or open
-                    the 3D chart for a visual tooth map.
+                    Add valid FDI tooth numbers based on the patient type,
+                    update tooth status, or open the 3D chart for a visual tooth
+                    map.
                   </p>
                 </div>
 
@@ -533,10 +736,12 @@ function DentistDentalRecordDetails() {
 
                           <span
                             className={getToothStatusClass(
-                              tooth.tooth_status || "Normal",
+                              tooth.tooth_status || "Sound",
                             )}
                           >
-                            {tooth.tooth_status || "Normal"}
+                            {normalizeToothStatusLabel(
+                              tooth.tooth_status || "Sound",
+                            )}
                           </span>
                         </div>
 
@@ -546,24 +751,33 @@ function DentistDentalRecordDetails() {
 
                         <p>
                           <strong>Status:</strong>{" "}
-                          {tooth.tooth_status || "Normal"}
+                          {normalizeToothStatusLabel(
+                            tooth.tooth_status || "Sound",
+                          )}
                         </p>
                       </div>
 
                       <div className="appointment-actions">
                         <select
-                          value={tooth.tooth_status || "Normal"}
+                          value={
+                            tooth.tooth_status === "Normal"
+                              ? "Sound"
+                              : tooth.tooth_status === "Decayed"
+                                ? "Caries"
+                                : tooth.tooth_status === "Crowned"
+                                  ? "Crown"
+                                  : tooth.tooth_status || "Sound"
+                          }
                           onChange={(e) =>
                             handleUpdateToothStatus(tooth, e.target.value)
                           }
                           disabled={updatingTooth}
                         >
-                          <option value="Normal">Normal</option>
-                          <option value="Decayed">Decayed</option>
-                          <option value="Filled">Filled</option>
-                          <option value="Missing">Missing</option>
-                          <option value="Crowned">Crowned</option>
-                          <option value="Impacted">Impacted</option>
+                          {TOOTH_STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
                         </select>
 
                         <button
@@ -722,7 +936,11 @@ function DentistDentalRecordDetails() {
               <div>
                 <h3>Add Tooth</h3>
                 <p>
-                  Add a valid FDI permanent tooth number to this dental record.
+                  Add a valid FDI tooth number for this{" "}
+                  {getRecordDentitionType() === "Child"
+                    ? "child / primary"
+                    : "adult / permanent"}{" "}
+                  dental record.
                 </p>
               </div>
 
@@ -762,19 +980,15 @@ function DentistDentalRecordDetails() {
                   value={toothForm.tooth_status}
                   onChange={handleToothChange}
                 >
-                  <option value="Normal">Normal</option>
-                  <option value="Decayed">Decayed</option>
-                  <option value="Filled">Filled</option>
-                  <option value="Missing">Missing</option>
-                  <option value="Crowned">Crowned</option>
-                  <option value="Impacted">Impacted</option>
+                  {TOOTH_STATUS_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
                 </select>
               </div>
 
-              <div className="info-message">
-                Valid FDI tooth numbers are 11-18, 21-28, 31-38, and 41-48.
-                Teeth already added to this record are hidden from the list.
-              </div>
+              <div className="info-message">{getToothGuideText()}</div>
 
               <div className="modal-actions">
                 <button
@@ -838,7 +1052,7 @@ function DentistDentalRecordDetails() {
                   {teeth.map((tooth) => (
                     <option key={tooth.tooth_id} value={tooth.tooth_id}>
                       Tooth #{tooth.tooth_number} -{" "}
-                      {tooth.tooth_status || "Normal"}
+                      {normalizeToothStatusLabel(tooth.tooth_status || "Sound")}
                     </option>
                   ))}
                 </select>
