@@ -5,6 +5,7 @@ const cors = require("cors");
 const pool = require("./config/db");
 const userRoutes = require("./routes/userRoutes");
 const patientRoutes = require("./routes/patientRoutes");
+const patientDocumentRoutes = require("./routes/patientDocumentRoutes");
 const dentistRoutes = require("./routes/dentistRoutes");
 const assistantRoutes = require("./routes/assistantRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
@@ -40,6 +41,7 @@ app.get("/users", async (req, res) => {
 // User management routes
 app.use("/api/users", userRoutes);
 app.use("/api/patients", patientRoutes);
+app.use("/api/patient-documents", patientDocumentRoutes);
 app.use("/api/dentists", dentistRoutes);
 app.use("/api/assistants", assistantRoutes);
 app.use("/api/appointments", appointmentRoutes);

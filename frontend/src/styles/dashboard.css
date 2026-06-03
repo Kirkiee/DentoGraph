@@ -1323,6 +1323,24 @@
   background: #0ea5e9;
 }
 
+.legend-dot.root-canal {
+  background: #eab308;
+}
+
+.legend-dot.for-extraction {
+  background: #7f1d1d;
+}
+
+.tooth-chart-item.tooth-root-canal {
+  background: #fef9c3;
+  border-color: #fde047;
+}
+
+.tooth-chart-item.tooth-for-extraction {
+  background: #fecaca;
+  border-color: #7f1d1d;
+}
+
 @media (max-width: 1100px) {
   .dental-3d-layout {
     grid-template-columns: 1fr;

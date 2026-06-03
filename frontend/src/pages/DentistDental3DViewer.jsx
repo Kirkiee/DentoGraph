@@ -5,6 +5,29 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 
+const ADULT_UPPER_NUMBERS = [
+  18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28,
+];
+
+const ADULT_LOWER_NUMBERS = [
+  48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
+];
+
+const CHILD_UPPER_NUMBERS = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65];
+
+const CHILD_LOWER_NUMBERS = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
+
+const TOOTH_STATUS_OPTIONS = [
+  { value: "Sound", label: "Sound / Normal" },
+  { value: "Caries", label: "Caries / Decayed" },
+  { value: "Filled", label: "Filled / Restored" },
+  { value: "Missing", label: "Missing / Extracted" },
+  { value: "Crown", label: "Crown" },
+  { value: "Impacted", label: "Impacted" },
+  { value: "Root Canal Treated", label: "Root Canal Treated" },
+  { value: "For Extraction", label: "For Extraction" },
+];
+
 function ToothModel({
   tooth,
   position,
@@ -12,6 +35,7 @@ function ToothModel({
   isUpper,
   selectedTooth,
   onSelect,
+  dentitionType,
 }) {
   const isSelected = selectedTooth?.tooth_number === tooth.tooth_number;
   const toothNumber = Number(tooth.tooth_number);
@@ -21,6 +45,12 @@ function ToothModel({
 
     if (lastDigit === 1 || lastDigit === 2) return "incisor";
     if (lastDigit === 3) return "canine";
+
+    if (dentitionType === "Child") {
+      if (lastDigit === 4 || lastDigit === 5) return "molar";
+      return "incisor";
+    }
+
     if (lastDigit === 4 || lastDigit === 5) return "premolar";
 
     return "molar";
@@ -30,16 +60,30 @@ function ToothModel({
     if (isSelected) return "#14b8a6";
 
     switch (tooth.tooth_status) {
+      case "Caries":
       case "Decayed":
         return "#ef4444";
+
       case "Filled":
-        return "#f59e0b";
+        return "#2563eb";
+
       case "Missing":
         return "#64748b";
+
+      case "Crown":
       case "Crowned":
         return "#a855f7";
+
       case "Impacted":
         return "#0ea5e9";
+
+      case "Root Canal Treated":
+        return "#eab308";
+
+      case "For Extraction":
+        return "#7f1d1d";
+
+      case "Sound":
       case "Normal":
       default:
         return "#fefce8";
@@ -50,30 +94,34 @@ function ToothModel({
   const toothColor = getToothColor();
 
   const getCrownScale = () => {
+    const childScale = dentitionType === "Child" ? 0.82 : 1;
+
     switch (toothType) {
       case "incisor":
-        return [0.32, 0.55, 0.22];
+        return [0.32 * childScale, 0.55 * childScale, 0.22 * childScale];
       case "canine":
-        return [0.35, 0.65, 0.28];
+        return [0.35 * childScale, 0.65 * childScale, 0.28 * childScale];
       case "premolar":
-        return [0.43, 0.5, 0.38];
+        return [0.43 * childScale, 0.5 * childScale, 0.38 * childScale];
       case "molar":
       default:
-        return [0.58, 0.48, 0.5];
+        return [0.58 * childScale, 0.48 * childScale, 0.5 * childScale];
     }
   };
 
   const getRootScale = () => {
+    const childScale = dentitionType === "Child" ? 0.8 : 1;
+
     switch (toothType) {
       case "incisor":
-        return [0.18, 0.45, 0.14];
+        return [0.18 * childScale, 0.45 * childScale, 0.14 * childScale];
       case "canine":
-        return [0.2, 0.55, 0.16];
+        return [0.2 * childScale, 0.55 * childScale, 0.16 * childScale];
       case "premolar":
-        return [0.24, 0.42, 0.2];
+        return [0.24 * childScale, 0.42 * childScale, 0.2 * childScale];
       case "molar":
       default:
-        return [0.32, 0.38, 0.26];
+        return [0.32 * childScale, 0.38 * childScale, 0.26 * childScale];
     }
   };
 
@@ -152,9 +200,9 @@ function ToothModel({
           <mesh
             position={[0, 0.15, 0]}
             scale={[
-              crownScale[0] * 1.12,
-              crownScale[1] * 1.12,
-              crownScale[2] * 1.12,
+              crownScale[0] * 1.15,
+              crownScale[1] * 1.15,
+              crownScale[2] * 1.15,
             ]}
           >
             <sphereGeometry args={[1, 32, 32]} />
@@ -165,7 +213,7 @@ function ToothModel({
 
       <Text
         position={[0, isUpper ? 0.95 : -0.95, 0]}
-        fontSize={0.18}
+        fontSize={dentitionType === "Child" ? 0.2 : 0.18}
         color="#1e293b"
         anchorX="center"
         anchorY="middle"
@@ -176,18 +224,22 @@ function ToothModel({
   );
 }
 
-function DentalArch({ teeth, selectedTooth, onSelect }) {
+function DentalArch({ teeth, selectedTooth, onSelect, dentitionType }) {
   const positionedTeeth = useMemo(() => {
-    const upperNumbers = [
-      18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28,
-    ];
+    const upperNumbers =
+      dentitionType === "Child" ? CHILD_UPPER_NUMBERS : ADULT_UPPER_NUMBERS;
 
-    const lowerNumbers = [
-      48, 47, 46, 45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
-    ];
+    const lowerNumbers =
+      dentitionType === "Child" ? CHILD_LOWER_NUMBERS : ADULT_LOWER_NUMBERS;
 
     const getSpacing = (number) => {
       const lastDigit = Number(number) % 10;
+
+      if (dentitionType === "Child") {
+        if (lastDigit === 1 || lastDigit === 2) return 0.58;
+        if (lastDigit === 3) return 0.62;
+        return 0.72;
+      }
 
       if (lastDigit === 1 || lastDigit === 2) return 0.46;
       if (lastDigit === 3) return 0.52;
@@ -196,8 +248,12 @@ function DentalArch({ teeth, selectedTooth, onSelect }) {
       return 0.68;
     };
 
+    const getStartingX = () => {
+      return dentitionType === "Child" ? -3.25 : -4.4;
+    };
+
     const makeArch = (numbers, yOffset, curveDirection, isUpper) => {
-      let currentX = -4.4;
+      let currentX = getStartingX();
 
       return numbers.map((number, index) => {
         const tooth = teeth.find(
@@ -205,7 +261,7 @@ function DentalArch({ teeth, selectedTooth, onSelect }) {
         ) || {
           tooth_id: null,
           tooth_number: number,
-          tooth_status: "Normal",
+          tooth_status: "Sound",
         };
 
         const spacing = getSpacing(number);
@@ -215,7 +271,11 @@ function DentalArch({ teeth, selectedTooth, onSelect }) {
         const distanceFromCenter = index - center;
 
         const x = currentX;
-        const z = curveDirection * Math.pow(distanceFromCenter, 2) * 0.035;
+        const z =
+          curveDirection *
+          Math.pow(distanceFromCenter, 2) *
+          (dentitionType === "Child" ? 0.045 : 0.035);
+
         const rotationZ = distanceFromCenter * 0.035;
 
         return {
@@ -228,10 +288,20 @@ function DentalArch({ teeth, selectedTooth, onSelect }) {
     };
 
     return [
-      ...makeArch(upperNumbers, 1.15, -1, true),
-      ...makeArch(lowerNumbers, -1.15, 1, false),
+      ...makeArch(
+        upperNumbers,
+        dentitionType === "Child" ? 1.05 : 1.15,
+        -1,
+        true,
+      ),
+      ...makeArch(
+        lowerNumbers,
+        dentitionType === "Child" ? -1.05 : -1.15,
+        1,
+        false,
+      ),
     ];
-  }, [teeth]);
+  }, [teeth, dentitionType]);
 
   return (
     <>
@@ -244,6 +314,7 @@ function DentalArch({ teeth, selectedTooth, onSelect }) {
           isUpper={item.isUpper}
           selectedTooth={selectedTooth}
           onSelect={onSelect}
+          dentitionType={dentitionType}
         />
       ))}
     </>
@@ -261,7 +332,7 @@ function DentistDental3DViewer() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
-  const [newStatus, setNewStatus] = useState("Normal");
+  const [newStatus, setNewStatus] = useState("Sound");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -277,6 +348,45 @@ function DentistDental3DViewer() {
     fetchRecordDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record_id]);
+
+  const normalizeToothStatus = (status) => {
+    switch (status) {
+      case "Normal":
+        return "Sound";
+      case "Decayed":
+        return "Caries";
+      case "Crowned":
+        return "Crown";
+      default:
+        return status || "Sound";
+    }
+  };
+
+  const normalizeToothStatusLabel = (status) => {
+    switch (status) {
+      case "Normal":
+      case "Sound":
+        return "Sound / Normal";
+      case "Decayed":
+      case "Caries":
+        return "Caries / Decayed";
+      case "Filled":
+        return "Filled / Restored";
+      case "Missing":
+        return "Missing / Extracted";
+      case "Crowned":
+      case "Crown":
+        return "Crown";
+      case "Impacted":
+        return "Impacted";
+      case "Root Canal Treated":
+        return "Root Canal Treated";
+      case "For Extraction":
+        return "For Extraction";
+      default:
+        return status || "Sound / Normal";
+    }
+  };
 
   const fetchRecordDetails = async () => {
     try {
@@ -299,9 +409,29 @@ function DentistDental3DViewer() {
     }
   };
 
+  const getDentitionType = () => {
+    return record?.dentition_type === "Child" ? "Child" : "Adult";
+  };
+
+  const getDentitionLabel = () => {
+    if (record?.dentition_label) return record.dentition_label;
+
+    return getDentitionType() === "Child"
+      ? "Child / Primary Teeth"
+      : "Adult / Permanent Teeth";
+  };
+
+  const getToothGuideText = () => {
+    if (getDentitionType() === "Child") {
+      return "This chart uses primary FDI tooth numbers: 51-55, 61-65, 71-75, and 81-85.";
+    }
+
+    return "This chart uses permanent FDI tooth numbers: 11-18, 21-28, 31-38, and 41-48.";
+  };
+
   const handleSelectTooth = (tooth) => {
     setSelectedTooth(tooth);
-    setNewStatus(tooth.tooth_status || "Normal");
+    setNewStatus(normalizeToothStatus(tooth.tooth_status));
     setMessage("");
     setError("");
   };
@@ -360,19 +490,26 @@ function DentistDental3DViewer() {
 
   const getStatusDescription = (status) => {
     switch (status) {
+      case "Caries":
       case "Decayed":
-        return "Tooth has decay or cavity concerns.";
+        return "Tooth has caries or decay concerns.";
       case "Filled":
-        return "Tooth has an existing dental filling.";
+        return "Tooth has an existing filling or restoration.";
       case "Missing":
-        return "Tooth is marked as missing.";
+        return "Tooth is missing or extracted.";
+      case "Crown":
       case "Crowned":
         return "Tooth has a crown restoration.";
       case "Impacted":
         return "Tooth may be impacted or not fully erupted.";
+      case "Root Canal Treated":
+        return "Tooth has undergone root canal treatment.";
+      case "For Extraction":
+        return "Tooth is marked for extraction.";
+      case "Sound":
       case "Normal":
       default:
-        return "Tooth is marked as normal.";
+        return "Tooth is sound or normal.";
     }
   };
 
@@ -416,115 +553,139 @@ function DentistDental3DViewer() {
             <p>The selected dental record could not be loaded.</p>
           </div>
         ) : (
-          <div className="dental-3d-layout">
-            <div className="dental-3d-viewer">
-              <Canvas camera={{ position: [0, 0, 7], fov: 55 }} shadows>
-                <ambientLight intensity={0.85} />
-                <directionalLight
-                  position={[5, 5, 5]}
-                  intensity={1.2}
-                  castShadow
-                />
-                <pointLight position={[-5, -5, 5]} intensity={0.6} />
-
-                <DentalArch
-                  teeth={teeth}
-                  selectedTooth={selectedTooth}
-                  onSelect={handleSelectTooth}
-                />
-
-                <OrbitControls enablePan enableZoom enableRotate />
-              </Canvas>
+          <>
+            <div className="info-message">
+              <strong>Patient Type:</strong> {getDentitionLabel()} <br />
+              <strong>Tooth Numbering:</strong> {getToothGuideText()}
             </div>
 
-            <div className="dental-3d-panel">
-              <h3>Record #{record.record_id}</h3>
+            <div className="dental-3d-layout">
+              <div className="dental-3d-viewer">
+                <Canvas camera={{ position: [0, 0, 7], fov: 55 }} shadows>
+                  <ambientLight intensity={0.85} />
+                  <directionalLight
+                    position={[5, 5, 5]}
+                    intensity={1.2}
+                    castShadow
+                  />
+                  <pointLight position={[-5, -5, 5]} intensity={0.6} />
 
-              <p>
-                <strong>Patient:</strong>{" "}
-                {record.patient_name || `Patient ID ${record.patient_id}`}
-              </p>
+                  <DentalArch
+                    teeth={teeth}
+                    selectedTooth={selectedTooth}
+                    onSelect={handleSelectTooth}
+                    dentitionType={getDentitionType()}
+                  />
 
-              <p>
-                <strong>Clinic:</strong>{" "}
-                {record.clinic_name || "No assigned clinic"}
-              </p>
+                  <OrbitControls enablePan enableZoom enableRotate />
+                </Canvas>
+              </div>
 
-              <p>
-                <strong>Selected Tooth:</strong>{" "}
-                {selectedTooth
-                  ? `Tooth #${selectedTooth.tooth_number}`
-                  : "None selected"}
-              </p>
+              <div className="dental-3d-panel">
+                <h3>Record #{record.record_id}</h3>
 
-              {selectedTooth ? (
-                <>
-                  <p>
-                    <strong>Current Status:</strong>{" "}
-                    {selectedTooth.tooth_status || "Normal"}
-                  </p>
+                <p>
+                  <strong>Patient:</strong>{" "}
+                  {record.patient_name || `Patient ID ${record.patient_id}`}
+                </p>
 
-                  <p>{getStatusDescription(selectedTooth.tooth_status)}</p>
+                <p>
+                  <strong>Patient Type:</strong> {getDentitionLabel()}
+                </p>
 
-                  <form
-                    className="appointment-form"
-                    onSubmit={handleUpdateToothStatus}
-                  >
-                    <div className="form-group">
-                      <label>Update Tooth Status</label>
-                      <select
-                        value={newStatus}
-                        onChange={(e) => setNewStatus(e.target.value)}
-                      >
-                        <option value="Normal">Normal</option>
-                        <option value="Decayed">Decayed</option>
-                        <option value="Filled">Filled</option>
-                        <option value="Missing">Missing</option>
-                        <option value="Crowned">Crowned</option>
-                        <option value="Impacted">Impacted</option>
-                      </select>
-                    </div>
+                <p>
+                  <strong>Clinic:</strong>{" "}
+                  {record.clinic_name || "No assigned clinic"}
+                </p>
 
-                    <button
-                      type="submit"
-                      className="primary-button"
-                      disabled={updating}
+                <p>
+                  <strong>Selected Tooth:</strong>{" "}
+                  {selectedTooth
+                    ? `Tooth #${selectedTooth.tooth_number}`
+                    : "None selected"}
+                </p>
+
+                {selectedTooth ? (
+                  <>
+                    <p>
+                      <strong>Current Status:</strong>{" "}
+                      {normalizeToothStatusLabel(
+                        selectedTooth.tooth_status || "Sound",
+                      )}
+                    </p>
+
+                    <p>{getStatusDescription(selectedTooth.tooth_status)}</p>
+
+                    <form
+                      className="appointment-form"
+                      onSubmit={handleUpdateToothStatus}
                     >
-                      {updating ? "Saving..." : "Save Tooth Status"}
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <div className="empty-state">
-                  <h3>No tooth selected</h3>
-                  <p>Click a tooth in the 3D chart to view or update it.</p>
+                      <div className="form-group">
+                        <label>Update Tooth Status</label>
+                        <select
+                          value={newStatus}
+                          onChange={(e) => setNewStatus(e.target.value)}
+                        >
+                          {TOOTH_STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="primary-button"
+                        disabled={updating}
+                      >
+                        {updating ? "Saving..." : "Save Tooth Status"}
+                      </button>
+                    </form>
+                  </>
+                ) : (
+                  <div className="empty-state">
+                    <h3>No tooth selected</h3>
+                    <p>Click a tooth in the 3D chart to view or update it.</p>
+                  </div>
+                )}
+
+                <div className="dental-legend">
+                  <h3>Dental Legend</h3>
+
+                  <p>
+                    <span className="legend-dot normal"></span> Sound / Normal
+                  </p>
+                  <p>
+                    <span className="legend-dot decayed"></span> Caries /
+                    Decayed
+                  </p>
+                  <p>
+                    <span className="legend-dot filled"></span> Filled /
+                    Restored
+                  </p>
+                  <p>
+                    <span className="legend-dot missing"></span> Missing /
+                    Extracted
+                  </p>
+                  <p>
+                    <span className="legend-dot crowned"></span> Crown
+                  </p>
+                  <p>
+                    <span className="legend-dot impacted"></span> Impacted
+                  </p>
+                  <p>
+                    <span className="legend-dot root-canal"></span> Root Canal
+                    Treated
+                  </p>
+                  <p>
+                    <span className="legend-dot for-extraction"></span> For
+                    Extraction
+                  </p>
                 </div>
-              )}
-
-              <div className="dental-legend">
-                <h3>Legend</h3>
-
-                <p>
-                  <span className="legend-dot normal"></span> Normal
-                </p>
-                <p>
-                  <span className="legend-dot decayed"></span> Decayed
-                </p>
-                <p>
-                  <span className="legend-dot filled"></span> Filled
-                </p>
-                <p>
-                  <span className="legend-dot missing"></span> Missing
-                </p>
-                <p>
-                  <span className="legend-dot crowned"></span> Crowned
-                </p>
-                <p>
-                  <span className="legend-dot impacted"></span> Impacted
-                </p>
               </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     </DashboardLayout>
