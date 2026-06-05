@@ -348,3 +348,60 @@
   font-weight: 800;
   letter-spacing: -1px;
 }
+
+.auth-textarea-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-bottom: 18px;
+}
+
+.auth-textarea-group label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a202c;
+  line-height: 1.2;
+}
+
+.auth-textarea-group textarea {
+  width: 100%;
+  min-height: 95px;
+  resize: vertical;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 14px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  color: #1a202c;
+  background: #ffffff;
+  outline: none;
+  transition: 0.2s ease;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+
+.auth-textarea-group textarea:focus {
+  border-color: #2b6cb0;
+  box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.12);
+}
+
+.auth-textarea-group textarea::-webkit-input-placeholder {
+  color: #a0aec0;
+}
+
+.auth-textarea-group textarea::-moz-placeholder {
+  color: #a0aec0;
+}
+
+.auth-textarea-group textarea:-ms-input-placeholder {
+  color: #a0aec0;
+}
+
+.auth-textarea-group textarea::-ms-input-placeholder {
+  color: #a0aec0;
+}
+
+.auth-textarea-group textarea::placeholder {
+  color: #a0aec0;
+}

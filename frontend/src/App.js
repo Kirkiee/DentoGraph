@@ -10,6 +10,9 @@ import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
+import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
+import ClinicRegister from "./pages/ClinicRegister";
+
 import AdminDashboard from "./pages/AdminDashboard";
 import DentistDashboard from "./pages/DentistDashboard";
 import PatientDashboard from "./pages/PatientDashboard";
@@ -61,6 +64,9 @@ function App() {
 
         <Route path="/register" element={<Register />} />
         <Route path="/auth/register" element={<Register />} />
+
+        <Route path="/clinic/register" element={<ClinicRegister />} />
+        <Route path="/auth/clinic-register" element={<ClinicRegister />} />
 
         <Route
           path="/admin/dashboard"
@@ -148,6 +154,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminAuditLogs />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerDashboard />
             </ProtectedRoute>
           }
         />

@@ -29,10 +29,14 @@ function Login() {
       case "Admin":
         navigate("/admin/dashboard");
         break;
+      case "Clinic Owner":
+        navigate("/clinic-owner/dashboard");
+        break;
       case "Dentist":
         navigate("/dentist/dashboard");
         break;
       case "Assistant":
+      case "Dental Assistant":
         navigate("/assistant/dashboard");
         break;
       case "Patient":
