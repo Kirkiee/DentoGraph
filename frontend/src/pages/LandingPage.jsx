@@ -40,24 +40,38 @@ function LandingPage() {
     {
       name: "Free",
       price: "₱0",
-      description: "For small clinics starting with digital records.",
+      description:
+        "For small clinics starting their digital dental record workflow.",
       items: [
-        "Basic clinic profile",
-        "Limited records",
+        "Basic clinic registration",
+        "Limited dental records",
         "Limited X-ray uploads",
+        "Free plan assigned by default",
       ],
     },
     {
       name: "Standard",
       price: "Monthly",
-      description: "For growing clinics that need more storage and users.",
-      items: ["More patient records", "More X-ray storage", "Staff management"],
+      description:
+        "For growing clinics that need more storage, records, and staff access.",
+      items: [
+        "More patient records",
+        "More X-ray storage",
+        "Dentist and assistant management",
+        "Subscription upgrade support",
+      ],
     },
     {
       name: "Premium",
       price: "Custom",
-      description: "For multi-clinic dental groups with larger operations.",
-      items: ["Multi-clinic support", "Advanced reports", "Higher limits"],
+      description:
+        "For larger dental groups that need wider clinic and record capacity.",
+      items: [
+        "Higher storage limits",
+        "Expanded staff access",
+        "Advanced reports",
+        "Multi-clinic scalability",
+      ],
     },
   ];
 
@@ -74,8 +88,8 @@ function LandingPage() {
           <a href="#plans">Plans</a>
           <a href="#workflow">Workflow</a>
           <Link to="/auth/login">Login</Link>
-          <Link to="/auth/register" className="landing-nav-button">
-            Register
+          <Link to="/clinic/register" className="landing-nav-button">
+            Register Clinic
           </Link>
         </div>
       </nav>
@@ -101,8 +115,8 @@ function LandingPage() {
                 Login to DentoGraph
               </Link>
 
-              <Link to="/auth/register" className="landing-secondary-button">
-                Create Account
+              <Link to="/clinic/register" className="landing-secondary-button">
+                Register Clinic
               </Link>
             </div>
 
@@ -204,29 +218,33 @@ function LandingPage() {
         <section className="landing-section landing-workflow" id="workflow">
           <div className="landing-section-heading">
             <span>Workflow</span>
-            <h2>From registration to printable clinical records.</h2>
+            <h2>From clinic registration to printable clinical records.</h2>
           </div>
 
           <div className="workflow-steps">
             <div>
               <strong>01</strong>
-              <h3>Register and manage users</h3>
+              <h3>Register clinic</h3>
               <p>
-                Admins manage clinics, users, subscriptions, and access roles.
+                Clinic clients can create a clinic owner account and receive the
+                Free plan by default.
               </p>
             </div>
 
             <div>
               <strong>02</strong>
-              <h3>Create dental records</h3>
-              <p>Dentists create policy-based records for assigned patients.</p>
+              <h3>Manage clinic access</h3>
+              <p>
+                Clinic owners and admins manage clinic details, staff, and
+                subscription limits.
+              </p>
             </div>
 
             <div>
               <strong>03</strong>
               <h3>Record findings and X-rays</h3>
               <p>
-                Use adult or child tooth charts, treatments, and X-ray
+                Dentists use adult or child tooth charts, treatments, and X-ray
                 annotations.
               </p>
             </div>
@@ -235,7 +253,8 @@ function LandingPage() {
               <strong>04</strong>
               <h3>Print reports</h3>
               <p>
-                Generate tangible dental record summaries for documentation.
+                Generate tangible dental record summaries for documentation and
+                review.
               </p>
             </div>
           </div>
@@ -247,7 +266,7 @@ function LandingPage() {
             <h2>Flexible plans for different clinic sizes.</h2>
             <p>
               Start with basic access, then upgrade clinic limits through
-              subscription management and future payment gateway integration.
+              subscription management and future PayMongo payment integration.
             </p>
           </div>
 
@@ -273,8 +292,8 @@ function LandingPage() {
         <section className="landing-cta">
           <h2>Ready to manage dental records digitally?</h2>
           <p>
-            Access your dashboard or create an account to begin using
-            DentoGraph.
+            Register your clinic to start with the Free plan, or log in if you
+            already have an account.
           </p>
 
           <div className="landing-hero-actions center">
@@ -282,8 +301,8 @@ function LandingPage() {
               Login
             </Link>
 
-            <Link to="/auth/register" className="landing-secondary-button">
-              Register
+            <Link to="/clinic/register" className="landing-secondary-button">
+              Register Clinic
             </Link>
           </div>
         </section>

@@ -803,6 +803,18 @@ router.get(
 );
 
 router.get(
+  "/clinic-owner/dashboard",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  (req, res) => {
+    res.json({
+      message: "Welcome to the Clinic Owner Dashboard",
+      user: req.user,
+    });
+  },
+);
+
+router.get(
   "/dentist/dashboard",
   authenticateToken,
   authorizeRoles("Dentist"),

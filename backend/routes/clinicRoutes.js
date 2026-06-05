@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const bcrypt = require("bcrypt");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
 const {
@@ -14,8 +15,223 @@ const normalizeNullable = (value) => {
 
 const normalizeNumber = (value) => {
   if (value === undefined || value === null || value === "") return null;
-  return Number(value);
+
+  const numberValue = Number(value);
+
+  if (Number.isNaN(numberValue)) return null;
+
+  return numberValue;
 };
+
+const getFreePlan = async (client) => {
+  const result = await client.query(
+    `SELECT 
+        plan_id,
+        plan_name,
+        plan_tier,
+        price,
+        billing_cycle,
+        max_dentists,
+        max_assistants,
+        max_patients,
+        max_records,
+        max_xrays,
+        storage_limit_mb,
+        status
+     FROM public.subscription_plans
+     WHERE LOWER(plan_name) = 'free'
+     AND COALESCE(status, 'Active') = 'Active'
+     ORDER BY plan_id ASC
+     LIMIT 1`,
+  );
+
+  return result.rows[0] || null;
+};
+
+const getClinicOwnerRole = async (client) => {
+  const result = await client.query(
+    `SELECT role_id, role_name
+     FROM public.roles
+     WHERE role_name = 'Clinic Owner'
+     LIMIT 1`,
+  );
+
+  return result.rows[0] || null;
+};
+
+// PUBLIC: REGISTER CLINIC OWNER + CLINIC WITH FREE PLAN
+router.post("/register", async (req, res) => {
+  const {
+    owner_name,
+    owner_email,
+    password,
+    clinic_name,
+    address,
+    latitude,
+    longitude,
+    services,
+    contact_number,
+    opening_hours,
+  } = req.body || {};
+
+  if (!owner_name || !owner_email || !password || !clinic_name || !address) {
+    return res.status(400).json({
+      error:
+        "Owner name, owner email, password, clinic name, and address are required.",
+    });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({
+      error: "Password must be at least 6 characters long.",
+    });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+
+    const role = await getClinicOwnerRole(client);
+
+    if (!role) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        error:
+          "Clinic Owner role was not found. Please add the Clinic Owner role first.",
+      });
+    }
+
+    const freePlan = await getFreePlan(client);
+
+    if (!freePlan) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        error:
+          "Free subscription plan was not found. Please create an active Free plan first.",
+      });
+    }
+
+    const emailCheck = await client.query(
+      `SELECT user_id
+       FROM public.users
+       WHERE LOWER(email) = LOWER($1)
+       LIMIT 1`,
+      [owner_email],
+    );
+
+    if (emailCheck.rows.length > 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        error: "Email already exists. Please use another email address.",
+      });
+    }
+
+    const duplicateClinicCheck = await client.query(
+      `SELECT clinic_id
+       FROM public.clinics
+       WHERE LOWER(clinic_name) = LOWER($1)
+       AND LOWER(address) = LOWER($2)
+       LIMIT 1`,
+      [clinic_name, address],
+    );
+
+    if (duplicateClinicCheck.rows.length > 0) {
+      await client.query("ROLLBACK");
+
+      return res.status(400).json({
+        error: "A clinic with the same name and address already exists.",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newOwner = await client.query(
+      `INSERT INTO public.users
+       (name, email, password, status)
+       VALUES ($1, $2, $3, 'Active')
+       RETURNING user_id, name, email, status, created_at`,
+      [owner_name, owner_email, hashedPassword],
+    );
+
+    const ownerUserId = newOwner.rows[0].user_id;
+
+    await client.query(
+      `INSERT INTO public.user_roles
+       (user_id, role_id)
+       VALUES ($1, $2)`,
+      [ownerUserId, role.role_id],
+    );
+
+    const newClinic = await client.query(
+      `INSERT INTO public.clinics
+       (
+         clinic_name,
+         address,
+         latitude,
+         longitude,
+         services,
+         contact_number,
+         opening_hours,
+         subscription_plan_id,
+         owner_user_id,
+         status,
+         created_at
+       )
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Active', CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [
+        clinic_name,
+        address,
+        normalizeNumber(latitude),
+        normalizeNumber(longitude),
+        normalizeNullable(services),
+        normalizeNullable(contact_number),
+        normalizeNullable(opening_hours),
+        freePlan.plan_id,
+        ownerUserId,
+      ],
+    );
+
+    await client.query("COMMIT");
+
+    await createAuditLog({
+      user_id: ownerUserId,
+      action: "REGISTER_CLINIC",
+      module: "Clinic Registration",
+      description: `Clinic owner ${owner_name} registered clinic ${clinic_name} with the Free plan.`,
+      ip_address: req.ip,
+    });
+
+    res.status(201).json({
+      message:
+        "Clinic registered successfully. Your clinic has been assigned the Free plan by default. You may now log in.",
+      owner: newOwner.rows[0],
+      role: role.role_name,
+      clinic: newClinic.rows[0],
+      subscription_plan: freePlan,
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+
+    console.error("Clinic registration error:", err.message);
+
+    if (err.code === "23505") {
+      return res.status(400).json({
+        error: "A duplicate record already exists.",
+      });
+    }
+
+    res.status(500).json({
+      error: err.message || "Error registering clinic.",
+    });
+  } finally {
+    client.release();
+  }
+});
 
 // ADMIN / STAFF: GET ALL CLINICS
 router.get(
@@ -35,6 +251,9 @@ router.get(
             c.contact_number,
             c.opening_hours,
             c.subscription_plan_id,
+            c.owner_user_id,
+            owner_user.name AS owner_name,
+            owner_user.email AS owner_email,
             sp.plan_name,
             sp.price,
             sp.max_dentists,
@@ -46,6 +265,8 @@ router.get(
             c.status,
             c.created_at
          FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
          LEFT JOIN public.subscription_plans sp
            ON c.subscription_plan_id = sp.plan_id
          ORDER BY c.clinic_id DESC`,
@@ -65,7 +286,6 @@ router.get(
 );
 
 // PATIENT / ADMIN / DENTIST / ASSISTANT: CLINIC DISCOVERY LIST
-// IMPORTANT: Keep this above "/:clinic_id"
 router.get(
   "/discovery/list",
   authenticateToken,
@@ -109,7 +329,6 @@ router.get(
 );
 
 // ADMIN: GET CLINIC SUBSCRIPTION USAGE
-// IMPORTANT: Keep this above "/:clinic_id"
 router.get(
   "/:clinic_id/subscription-usage",
   authenticateToken,
@@ -123,6 +342,9 @@ router.get(
             c.clinic_id,
             c.clinic_name,
             c.subscription_plan_id,
+            c.owner_user_id,
+            owner_user.name AS owner_name,
+            owner_user.email AS owner_email,
             sp.plan_name,
             sp.max_dentists,
             sp.max_assistants,
@@ -131,6 +353,8 @@ router.get(
             sp.max_xrays,
             sp.storage_limit_mb
          FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
          LEFT JOIN public.subscription_plans sp
            ON c.subscription_plan_id = sp.plan_id
          WHERE c.clinic_id = $1`,
@@ -244,6 +468,9 @@ router.get(
             c.contact_number,
             c.opening_hours,
             c.subscription_plan_id,
+            c.owner_user_id,
+            owner_user.name AS owner_name,
+            owner_user.email AS owner_email,
             sp.plan_name,
             sp.price,
             sp.max_dentists,
@@ -255,6 +482,8 @@ router.get(
             c.status,
             c.created_at
          FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
          LEFT JOIN public.subscription_plans sp
            ON c.subscription_plan_id = sp.plan_id
          WHERE c.clinic_id = $1`,
@@ -296,6 +525,7 @@ router.post(
       opening_hours,
       subscription_plan_id,
       status,
+      owner_user_id,
     } = req.body || {};
 
     if (!clinic_name || !address) {
@@ -316,6 +546,21 @@ router.post(
         if (planCheck.rows.length === 0) {
           return res.status(404).json({
             error: "Subscription plan not found",
+          });
+        }
+      }
+
+      if (owner_user_id) {
+        const ownerCheck = await pool.query(
+          `SELECT user_id
+           FROM public.users
+           WHERE user_id = $1`,
+          [owner_user_id],
+        );
+
+        if (ownerCheck.rows.length === 0) {
+          return res.status(404).json({
+            error: "Selected clinic owner user not found",
           });
         }
       }
@@ -345,10 +590,11 @@ router.post(
            contact_number,
            opening_hours,
            subscription_plan_id,
+           owner_user_id,
            status,
            created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'Active'), CURRENT_TIMESTAMP)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'Active'), CURRENT_TIMESTAMP)
          RETURNING *`,
         [
           clinic_name,
@@ -359,6 +605,7 @@ router.post(
           normalizeNullable(contact_number),
           normalizeNullable(opening_hours),
           normalizeNumber(subscription_plan_id),
+          normalizeNumber(owner_user_id),
           status || "Active",
         ],
       );
@@ -378,7 +625,7 @@ router.post(
     } catch (err) {
       console.error("Create clinic error:", err.message);
       res.status(500).json({
-        error: "Error creating clinic",
+        error: err.message || "Error creating clinic",
       });
     }
   },
@@ -402,6 +649,7 @@ router.put(
       opening_hours,
       subscription_plan_id,
       status,
+      owner_user_id,
     } = req.body || {};
 
     try {
@@ -433,6 +681,21 @@ router.put(
         }
       }
 
+      if (owner_user_id) {
+        const ownerCheck = await pool.query(
+          `SELECT user_id
+           FROM public.users
+           WHERE user_id = $1`,
+          [owner_user_id],
+        );
+
+        if (ownerCheck.rows.length === 0) {
+          return res.status(404).json({
+            error: "Selected clinic owner user not found",
+          });
+        }
+      }
+
       const oldClinic = clinicCheck.rows[0];
 
       const updatedClinic = await pool.query(
@@ -445,8 +708,9 @@ router.put(
              contact_number = $6,
              opening_hours = $7,
              subscription_plan_id = $8,
-             status = COALESCE($9, status)
-         WHERE clinic_id = $10
+             owner_user_id = $9,
+             status = COALESCE($10, status)
+         WHERE clinic_id = $11
          RETURNING *`,
         [
           normalizeNullable(clinic_name),
@@ -457,6 +721,7 @@ router.put(
           normalizeNullable(contact_number),
           normalizeNullable(opening_hours),
           normalizeNumber(subscription_plan_id),
+          normalizeNumber(owner_user_id),
           normalizeNullable(status),
           clinic_id,
         ],
@@ -493,7 +758,7 @@ router.put(
     } catch (err) {
       console.error("Update clinic error:", err.message);
       res.status(500).json({
-        error: "Error updating clinic",
+        error: err.message || "Error updating clinic",
       });
     }
   },
@@ -544,7 +809,7 @@ router.put(
     } catch (err) {
       console.error("Archive clinic error:", err.message);
       res.status(500).json({
-        error: "Error archiving clinic",
+        error: err.message || "Error archiving clinic",
       });
     }
   },
@@ -595,7 +860,7 @@ router.put(
     } catch (err) {
       console.error("Restore clinic error:", err.message);
       res.status(500).json({
-        error: "Error restoring clinic",
+        error: err.message || "Error restoring clinic",
       });
     }
   },
@@ -668,7 +933,7 @@ router.delete(
     } catch (err) {
       console.error("Delete clinic error:", err.message);
       res.status(500).json({
-        error: "Error deleting clinic",
+        error: err.message || "Error deleting clinic",
       });
     }
   },
