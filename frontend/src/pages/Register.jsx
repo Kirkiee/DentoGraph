@@ -1,164 +1,179 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import API from '../api/axios';
-import AuthLayout from '../components/AuthLayout';
-import FormInput from '../components/FormInput';
-import Button from '../components/Button';
+import React, { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import API from "../api/axios";
+import AuthLayout from "../components/auth/AuthLayout";
+import AuthInput from "../components/auth/AuthInput";
+import AuthButton from "../components/auth/AuthButton";
 
 function Register() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
 
-    const [formData, setFormData] = useState({
-        name: '',
-        email: '',
-        password: '',
-    });
+  const PATIENT_ROLE_ID = 3;
 
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
-    const [loading, setLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    contact_number: "",
+    password: "",
+    confirmPassword: "",
+  });
 
-    const PATIENT_ROLE_ID = 3;
+  const [agree, setAgree] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
 
-    const handleChange = (e) => {
-        setFormData({
-            ...formData,
-            [e.target.name]: e.target.value,
-        });
-    };
+  const handleChange = (e) => {
+    setFormData((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-        setSuccess('');
-        setLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
 
-        try {
-            const payload = {
-                ...formData,
-                role_id: PATIENT_ROLE_ID,
-            };
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
 
-            await API.post('/api/users/register', payload);
+    if (!agree) {
+      setError("Please agree to the Terms of Service and Privacy Policy.");
+      return;
+    }
 
-            setSuccess('Patient account registered successfully. You may now log in.');
+    setLoading(true);
 
-            setFormData({
-                name: '',
-                email: '',
-                password: '',
-            });
+    try {
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
 
-            setTimeout(() => {
-                navigate('/');
-            }, 1200);
-        } catch (err) {
-            if (err.response?.data?.error) {
-                setError(err.response.data.error);
-            } else {
-                setError('Something went wrong. Please try again.');
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
+      await API.post("/api/users/register", {
+        name: fullName,
+        email: formData.email,
+        password: formData.password,
+        role_id: PATIENT_ROLE_ID,
+      });
 
-    return (
-        <AuthLayout
-            title="Create Patient Account"
-            subtitle="Register as a patient to access DentoGraph"
-        >
-            {error && <div style={styles.error}>{error}</div>}
-            {success && <div style={styles.success}>{success}</div>}
+      setSuccess("Patient account created successfully. You may now log in.");
 
-            <form onSubmit={handleSubmit} style={styles.form}>
-                <FormInput
-                    label="Full Name"
-                    name="name"
-                    placeholder="Enter your full name"
-                    value={formData.name}
-                    onChange={handleChange}
-                />
+      setTimeout(() => {
+        navigate("/auth/login");
+      }, 1200);
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Registration failed. Please try again.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
-                <FormInput
-                    label="Email"
-                    type="email"
-                    name="email"
-                    placeholder="Enter your email address"
-                    value={formData.email}
-                    onChange={handleChange}
-                />
+  return (
+    <AuthLayout
+      title="Create Patient Account"
+      subtitle="Register as a patient to access DentoGraph"
+      wide
+    >
+      <Link to="/" className="auth-back-link">
+        ← Back to Landing Page
+      </Link>
 
-                <FormInput
-                    label="Password"
-                    type="password"
-                    name="password"
-                    placeholder="Enter your password"
-                    value={formData.password}
-                    onChange={handleChange}
-                />
+      {error && <div className="auth-error">{error}</div>}
+      {success && <div className="auth-success">{success}</div>}
 
-                <Button type="submit" disabled={loading}>
-                    {loading ? 'Registering...' : 'Register'}
-                </Button>
-            </form>
+      <form className="auth-form" onSubmit={handleSubmit}>
+        <div className="auth-row">
+          <AuthInput
+            label="First Name"
+            name="firstName"
+            placeholder="Juan"
+            value={formData.firstName}
+            onChange={handleChange}
+            icon="👤"
+          />
 
-            <p style={styles.footerText}>
-                Already have an account?{' '}
-                <span style={styles.link} onClick={() => navigate('/')}>
-                    Login
-                </span>
-            </p>
+          <AuthInput
+            label="Last Name"
+            name="lastName"
+            placeholder="Dela Cruz"
+            value={formData.lastName}
+            onChange={handleChange}
+          />
+        </div>
 
-            <p style={styles.note}>
-                Dentists and dental assistants are registered through a subscribed clinic account.
-            </p>
-        </AuthLayout>
-    );
+        <AuthInput
+          label="Email Address"
+          type="email"
+          name="email"
+          placeholder="juan@example.com"
+          value={formData.email}
+          onChange={handleChange}
+          icon="✉"
+        />
+
+        <AuthInput
+          label="Phone Number"
+          type="tel"
+          name="contact_number"
+          placeholder="09123456789"
+          value={formData.contact_number}
+          onChange={handleChange}
+          icon="☎"
+          required={false}
+        />
+
+        <div className="auth-row">
+          <AuthInput
+            label="Password"
+            type="password"
+            name="password"
+            placeholder="Create password"
+            value={formData.password}
+            onChange={handleChange}
+            icon="🔒"
+          />
+
+          <AuthInput
+            label="Confirm Password"
+            type="password"
+            name="confirmPassword"
+            placeholder="Confirm password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+          />
+        </div>
+
+        <label className="auth-check">
+          <input
+            type="checkbox"
+            checked={agree}
+            onChange={(e) => setAgree(e.target.checked)}
+          />
+          <span>I agree to the Terms of Service and Privacy Policy</span>
+        </label>
+
+        <AuthButton type="submit" disabled={loading}>
+          {loading ? "Creating Account..." : "Create Patient Account"}
+        </AuthButton>
+      </form>
+
+      <p className="auth-footer">
+        Already have an account?{" "}
+        <button className="auth-link" onClick={() => navigate("/auth/login")}>
+          Sign in
+        </button>
+      </p>
+
+      <div className="auth-note">
+        Dentists and dental assistants are registered through a subscribed
+        clinic account.
+      </div>
+    </AuthLayout>
+  );
 }
-
-const styles = {
-    form: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-    },
-    error: {
-        backgroundColor: '#fee2e2',
-        color: '#b91c1c',
-        padding: '10px',
-        borderRadius: '8px',
-        marginBottom: '15px',
-        fontSize: '14px',
-        textAlign: 'center',
-    },
-    success: {
-        backgroundColor: '#dcfce7',
-        color: '#166534',
-        padding: '10px',
-        borderRadius: '8px',
-        marginBottom: '15px',
-        fontSize: '14px',
-        textAlign: 'center',
-    },
-    footerText: {
-        textAlign: 'center',
-        color: '#6b7280',
-        fontSize: '14px',
-        marginTop: '20px',
-    },
-    link: {
-        color: '#2563eb',
-        fontWeight: '600',
-        cursor: 'pointer',
-    },
-    note: {
-        marginTop: '15px',
-        fontSize: '13px',
-        color: '#6b7280',
-        textAlign: 'center',
-        lineHeight: '1.4',
-    },
-};
 
 export default Register;
