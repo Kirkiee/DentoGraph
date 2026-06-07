@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://dentograph.site/api",
+  baseURL: "https://api.dentograph.site",
 });
 
 export default API;
