@@ -1,8 +1,10 @@
 {
-  "dependencies": {
-    "bcrypt": "^6.0.0",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "lucide-react": "^1.16.0"
+  "name": "dentograph",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm install --prefix backend",
+    "start": "npm start --prefix backend",
+    "build": "echo \"No build needed for backend\""
   }
 }
