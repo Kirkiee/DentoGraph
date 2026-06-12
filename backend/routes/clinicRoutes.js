@@ -328,6 +328,301 @@ router.get(
   },
 );
 
+// CLINIC OWNER: GET OWN CLINIC
+router.get(
+  "/owner/my-clinic",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    try {
+      const clinic = await pool.query(
+        `SELECT 
+            c.clinic_id,
+            c.clinic_name,
+            c.address,
+            c.latitude,
+            c.longitude,
+            c.services,
+            c.contact_number,
+            c.opening_hours,
+            c.subscription_plan_id,
+            c.owner_user_id,
+            owner_user.name AS owner_name,
+            owner_user.email AS owner_email,
+            sp.plan_name,
+            sp.plan_tier,
+            sp.price,
+            sp.billing_cycle,
+            sp.max_dentists,
+            sp.max_assistants,
+            sp.max_patients,
+            sp.max_records,
+            sp.max_xrays,
+            sp.storage_limit_mb,
+            c.status,
+            c.created_at
+         FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.subscription_plans sp
+           ON c.subscription_plan_id = sp.plan_id
+         WHERE c.owner_user_id = $1
+         LIMIT 1`,
+        [req.user.user_id],
+      );
+
+      if (clinic.rows.length === 0) {
+        return res.status(404).json({
+          error: "No clinic is linked to this clinic owner account.",
+        });
+      }
+
+      res.status(200).json({
+        message: "Clinic owner clinic retrieved successfully",
+        clinic: clinic.rows[0],
+      });
+    } catch (err) {
+      console.error("Get clinic owner clinic error:", err.message);
+      res.status(500).json({
+        error: err.message || "Error retrieving clinic owner clinic",
+      });
+    }
+  },
+);
+
+// CLINIC OWNER: UPDATE OWN CLINIC PROFILE
+router.put(
+  "/owner/my-clinic",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const {
+      clinic_name,
+      address,
+      latitude,
+      longitude,
+      services,
+      contact_number,
+      opening_hours,
+    } = req.body || {};
+
+    if (!clinic_name || !address) {
+      return res.status(400).json({
+        error: "Clinic name and address are required.",
+      });
+    }
+
+    try {
+      const clinicCheck = await pool.query(
+        `SELECT clinic_id, clinic_name
+         FROM public.clinics
+         WHERE owner_user_id = $1
+         LIMIT 1`,
+        [req.user.user_id],
+      );
+
+      if (clinicCheck.rows.length === 0) {
+        return res.status(404).json({
+          error: "No clinic is linked to this clinic owner account.",
+        });
+      }
+
+      const clinicId = clinicCheck.rows[0].clinic_id;
+
+      const duplicateCheck = await pool.query(
+        `SELECT clinic_id
+         FROM public.clinics
+         WHERE LOWER(clinic_name) = LOWER($1)
+         AND LOWER(address) = LOWER($2)
+         AND clinic_id <> $3
+         LIMIT 1`,
+        [clinic_name, address, clinicId],
+      );
+
+      if (duplicateCheck.rows.length > 0) {
+        return res.status(400).json({
+          error:
+            "Another clinic with the same name and address already exists.",
+        });
+      }
+
+      const updatedClinic = await pool.query(
+        `UPDATE public.clinics
+         SET clinic_name = $1,
+             address = $2,
+             latitude = $3,
+             longitude = $4,
+             services = $5,
+             contact_number = $6,
+             opening_hours = $7
+         WHERE clinic_id = $8
+         AND owner_user_id = $9
+         RETURNING 
+           clinic_id,
+           clinic_name,
+           address,
+           latitude,
+           longitude,
+           services,
+           contact_number,
+           opening_hours,
+           subscription_plan_id,
+           owner_user_id,
+           status,
+           created_at`,
+        [
+          clinic_name,
+          address,
+          latitude || null,
+          longitude || null,
+          services || null,
+          contact_number || null,
+          opening_hours || null,
+          clinicId,
+          req.user.user_id,
+        ],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_CLINIC_PROFILE",
+        module: "Clinic Owner Profile",
+        description: `Clinic owner updated clinic profile for ${updatedClinic.rows[0].clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      res.status(200).json({
+        message: "Clinic profile updated successfully.",
+        clinic: updatedClinic.rows[0],
+      });
+    } catch (err) {
+      console.error("Update clinic owner profile error:", err.message);
+      res.status(500).json({
+        error: err.message || "Error updating clinic profile.",
+      });
+    }
+  },
+);
+
+// CLINIC OWNER: GET OWN CLINIC SUBSCRIPTION USAGE
+router.get(
+  "/owner/usage",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    try {
+      const clinicResult = await pool.query(
+        `SELECT 
+            c.clinic_id,
+            c.clinic_name,
+            c.subscription_plan_id,
+            c.owner_user_id,
+            owner_user.name AS owner_name,
+            owner_user.email AS owner_email,
+            sp.plan_name,
+            sp.plan_tier,
+            sp.price,
+            sp.billing_cycle,
+            sp.max_dentists,
+            sp.max_assistants,
+            sp.max_patients,
+            sp.max_records,
+            sp.max_xrays,
+            sp.storage_limit_mb
+         FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.subscription_plans sp
+           ON c.subscription_plan_id = sp.plan_id
+         WHERE c.owner_user_id = $1
+         LIMIT 1`,
+        [req.user.user_id],
+      );
+
+      if (clinicResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "No clinic is linked to this clinic owner account.",
+        });
+      }
+
+      const clinic = clinicResult.rows[0];
+      const clinicId = clinic.clinic_id;
+
+      const dentistCount = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM public.dentists
+         WHERE clinic_id = $1`,
+        [clinicId],
+      );
+
+      const assistantCount = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM public.assistants
+         WHERE clinic_id = $1`,
+        [clinicId],
+      );
+
+      const patientCount = await pool.query(
+        `SELECT COUNT(DISTINCT dr.patient_id)::int AS count
+         FROM public.dental_records dr
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         WHERE d.clinic_id = $1
+         AND COALESCE(dr.status, 'Active') = 'Active'`,
+        [clinicId],
+      );
+
+      const recordCount = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM public.dental_records dr
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         WHERE d.clinic_id = $1
+         AND COALESCE(dr.status, 'Active') = 'Active'`,
+        [clinicId],
+      );
+
+      const xrayCount = await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM public.xray_images x
+         JOIN public.dental_records dr ON x.record_id = dr.record_id
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         WHERE d.clinic_id = $1`,
+        [clinicId],
+      );
+
+      const storageUsage = await pool.query(
+        `SELECT COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint AS total_bytes
+         FROM public.xray_images x
+         JOIN public.dental_records dr ON x.record_id = dr.record_id
+         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         WHERE d.clinic_id = $1`,
+        [clinicId],
+      );
+
+      const totalBytes = Number(storageUsage.rows[0].total_bytes || 0);
+      const storageUsedMb = totalBytes / 1024 / 1024;
+
+      res.status(200).json({
+        message: "Clinic owner usage retrieved successfully",
+        clinic,
+        usage: {
+          dentists: dentistCount.rows[0].count,
+          assistants: assistantCount.rows[0].count,
+          patients: patientCount.rows[0].count,
+          records: recordCount.rows[0].count,
+          xrays: xrayCount.rows[0].count,
+          storage_used_mb: Number(storageUsedMb.toFixed(2)),
+          storage_used_bytes: totalBytes,
+        },
+      });
+    } catch (err) {
+      console.error("Get clinic owner usage error:", err.message);
+      res.status(500).json({
+        error: err.message || "Error retrieving clinic owner usage",
+      });
+    }
+  },
+);
+
 // ADMIN: GET CLINIC SUBSCRIPTION USAGE
 router.get(
   "/:clinic_id/subscription-usage",

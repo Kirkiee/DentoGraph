@@ -12,6 +12,9 @@ import Register from "./pages/Register";
 
 import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
+import ClinicOwnerStaff from "./pages/ClinicOwnerStaff";
+import ClinicOwnerProfile from "./pages/ClinicOwnerProfile";
+import ClinicOwnerSubscription from "./pages/ClinicOwnerSubscription";
 
 import AdminDashboard from "./pages/AdminDashboard";
 import DentistDashboard from "./pages/DentistDashboard";
@@ -163,6 +166,33 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/staff"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerStaff />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/subscription"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerSubscription />
             </ProtectedRoute>
           }
         />
