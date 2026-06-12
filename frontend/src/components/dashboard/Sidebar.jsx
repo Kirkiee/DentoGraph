@@ -33,6 +33,7 @@ function Sidebar({ role }) {
       { label: "X-rays", path: "/patient/xrays" },
       { label: "Clinic Discovery", path: "/patient/clinics" },
     ],
+
     Dentist: [
       { label: "Dashboard", path: "/dentist/dashboard" },
       { label: "My Profile", path: "/dentist/profile" },
@@ -40,6 +41,7 @@ function Sidebar({ role }) {
       { label: "Dental Records", path: "/dentist/dental-records" },
       { label: "X-rays", path: "/dentist/xrays" },
     ],
+
     Assistant: [
       { label: "Dashboard", path: "/assistant/dashboard" },
       { label: "My Profile", path: "/assistant/profile" },
@@ -47,6 +49,15 @@ function Sidebar({ role }) {
       { label: "Dental Records", path: "/assistant/records" },
       { label: "X-rays", path: "/assistant/xrays" },
     ],
+
+    "Dental Assistant": [
+      { label: "Dashboard", path: "/assistant/dashboard" },
+      { label: "My Profile", path: "/assistant/profile" },
+      { label: "Appointments", path: "/assistant/appointments" },
+      { label: "Dental Records", path: "/assistant/records" },
+      { label: "X-rays", path: "/assistant/xrays" },
+    ],
+
     Admin: [
       { label: "Dashboard", path: "/admin/dashboard" },
       { label: "Users", path: "/admin/users" },
@@ -55,6 +66,13 @@ function Sidebar({ role }) {
       { label: "Reports", path: "/admin/reports" },
       { label: "Audit Logs", path: "/admin/audit-logs" },
       { label: "Dental Records", path: "/admin/dental-records" },
+    ],
+
+    "Clinic Owner": [
+      { label: "Dashboard", path: "/clinic-owner/dashboard" },
+      { label: "Staff Management", path: "/clinic-owner/staff" },
+      { label: "Subscription", path: "/clinic-owner/subscription" },
+      { label: "Clinic Profile", path: "/clinic-owner/profile" },
     ],
   };
 

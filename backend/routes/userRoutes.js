@@ -117,6 +117,61 @@ const checkClinicSubscriptionLimit = async (
   };
 };
 
+const getClinicOwnedByUser = async (client, ownerUserId) => {
+  const clinicResult = await client.query(
+    `SELECT 
+        c.clinic_id,
+        c.clinic_name,
+        c.subscription_plan_id,
+        sp.plan_name,
+        sp.max_dentists,
+        sp.max_assistants
+     FROM public.clinics c
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
+     WHERE c.owner_user_id = $1
+     AND c.status = 'Active'
+     LIMIT 1`,
+    [ownerUserId],
+  );
+
+  return clinicResult.rows[0] || null;
+};
+
+const getStaffRoleByName = async (client, requestedRole) => {
+  const normalizedRole = String(requestedRole || "").trim();
+
+  if (normalizedRole === "Dentist") {
+    const result = await client.query(
+      `SELECT role_id, role_name
+       FROM public.roles
+       WHERE role_name = 'Dentist'
+       LIMIT 1`,
+    );
+
+    return result.rows[0] || null;
+  }
+
+  if (normalizedRole === "Assistant" || normalizedRole === "Dental Assistant") {
+    const result = await client.query(
+      `SELECT role_id, role_name
+       FROM public.roles
+       WHERE role_name IN ('Assistant', 'Dental Assistant')
+       ORDER BY 
+         CASE 
+           WHEN role_name = 'Assistant' THEN 1
+           WHEN role_name = 'Dental Assistant' THEN 2
+           ELSE 3
+         END
+       LIMIT 1`,
+    );
+
+    return result.rows[0] || null;
+  }
+
+  return null;
+};
+
 // ===============================
 // GET ALL ROLES
 // ===============================
@@ -769,6 +824,258 @@ router.put(
       }
 
       res.status(500).json({ error: "Error updating user role" });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: GET OWN STAFF
+// ===============================
+
+router.get(
+  "/clinic-owner/staff",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    try {
+      const clinic = await getClinicOwnedByUser(pool, req.user.user_id);
+
+      if (!clinic) {
+        return res.status(404).json({
+          error: "No active clinic is linked to this clinic owner account.",
+        });
+      }
+
+      const staff = await pool.query(
+        `SELECT 
+            u.user_id,
+            u.name,
+            u.email,
+            u.status,
+            u.created_at,
+
+            r.role_id,
+            r.role_name,
+
+            d.dentist_id,
+            d.license_number AS dentist_license_number,
+            d.specialization,
+            d.availability AS dentist_availability,
+
+            a.assistant_id,
+            a.license_number AS assistant_license_number,
+            a.availability AS assistant_availability
+
+         FROM public.users u
+         JOIN public.user_roles ur ON u.user_id = ur.user_id
+         JOIN public.roles r ON ur.role_id = r.role_id
+
+         LEFT JOIN public.dentists d ON u.user_id = d.user_id
+         LEFT JOIN public.assistants a ON u.user_id = a.user_id
+
+         WHERE 
+           (
+             d.clinic_id = $1
+             OR a.clinic_id = $1
+           )
+         AND r.role_name IN ('Dentist', 'Assistant', 'Dental Assistant')
+         ORDER BY u.created_at DESC`,
+        [clinic.clinic_id],
+      );
+
+      res.status(200).json({
+        message: "Clinic staff retrieved successfully",
+        clinic,
+        staff: staff.rows,
+      });
+    } catch (err) {
+      console.error("Get clinic owner staff error:", err.message);
+      res.status(500).json({
+        error: err.message || "Error retrieving clinic staff",
+      });
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: CREATE OWN STAFF
+// ===============================
+
+router.post(
+  "/clinic-owner/staff",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const {
+      name,
+      email,
+      password,
+      staff_role,
+      license_number,
+      specialization,
+      availability,
+    } = req.body || {};
+
+    if (!name || !email || !password || !staff_role) {
+      return res.status(400).json({
+        error: "Name, email, password, and staff role are required.",
+      });
+    }
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        error: "Password must be at least 6 characters long.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const clinic = await getClinicOwnedByUser(client, req.user.user_id);
+
+      if (!clinic) {
+        await client.query("ROLLBACK");
+
+        return res.status(404).json({
+          error: "No active clinic is linked to this clinic owner account.",
+        });
+      }
+
+      const role = await getStaffRoleByName(client, staff_role);
+
+      if (!role) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          error: "Invalid staff role. Use Dentist or Assistant.",
+        });
+      }
+
+      const emailCheck = await client.query(
+        `SELECT user_id
+         FROM public.users
+         WHERE LOWER(email) = LOWER($1)
+         LIMIT 1`,
+        [email],
+      );
+
+      if (emailCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          error: "Email already exists. Please use another email address.",
+        });
+      }
+
+      const limitType = role.role_name === "Dentist" ? "Dentist" : "Assistant";
+
+      const limitCheck = await checkClinicSubscriptionLimit(
+        client,
+        clinic.clinic_id,
+        limitType,
+      );
+
+      if (!limitCheck.allowed) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          error: limitCheck.message,
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const newUser = await client.query(
+        `INSERT INTO public.users
+         (name, email, password, status)
+         VALUES ($1, $2, $3, 'Active')
+         RETURNING user_id, name, email, status, created_at`,
+        [name, email, hashedPassword],
+      );
+
+      const newUserId = newUser.rows[0].user_id;
+
+      await client.query(
+        `INSERT INTO public.user_roles
+         (user_id, role_id)
+         VALUES ($1, $2)`,
+        [newUserId, role.role_id],
+      );
+
+      if (role.role_name === "Dentist") {
+        await client.query(
+          `INSERT INTO public.dentists
+           (
+             user_id,
+             license_number,
+             specialization,
+             availability,
+             status,
+             clinic_id
+           )
+           VALUES ($1, $2, $3, $4, 'Active', $5)`,
+          [
+            newUserId,
+            license_number || `DEN-${newUserId}`,
+            specialization || "General Dentistry",
+            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            clinic.clinic_id,
+          ],
+        );
+      } else {
+        await client.query(
+          `INSERT INTO public.assistants
+           (
+             user_id,
+             license_number,
+             availability,
+             status,
+             clinic_id
+           )
+           VALUES ($1, $2, $3, 'Active', $4)`,
+          [
+            newUserId,
+            license_number || `AST-${newUserId}`,
+            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            clinic.clinic_id,
+          ],
+        );
+      }
+
+      await client.query("COMMIT");
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "CREATE_CLINIC_STAFF",
+        module: "Clinic Owner Staff Management",
+        description: `Clinic owner created ${role.role_name} account ${name} under ${clinic.clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      res.status(201).json({
+        message: `${role.role_name} account created successfully under ${clinic.clinic_name}.`,
+        user: newUser.rows[0],
+        role: role.role_name,
+        clinic,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+
+      console.error("Create clinic owner staff error:", err.message);
+
+      if (err.code === "23505") {
+        return res.status(400).json({
+          error: "A duplicate record already exists.",
+        });
+      }
+
+      res.status(500).json({
+        error: err.message || "Error creating clinic staff account.",
+      });
     } finally {
       client.release();
     }
