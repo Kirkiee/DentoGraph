@@ -4,6 +4,7 @@ import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
+import ThemeToggle from "../components/ThemeToggle";
 
 function ClinicRegister() {
   const navigate = useNavigate();
@@ -90,6 +91,8 @@ function ClinicRegister() {
       subtitle="Create a clinic owner account and start with the Free plan"
       wide
     >
+      <ThemeToggle />
+
       <Link to="/" className="auth-back-link">
         ← Back to Landing Page
       </Link>

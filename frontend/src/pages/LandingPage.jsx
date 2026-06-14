@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import "../styles/landing.css";
+import ThemeToggle from "../components/ThemeToggle";
 
 function LandingPage() {
   const features = [
@@ -77,6 +78,8 @@ function LandingPage() {
 
   return (
     <div className="landing-page">
+      <ThemeToggle />
+
       <nav className="landing-nav">
         <Link to="/" className="landing-logo">
           <span className="landing-logo-mark">D</span>
