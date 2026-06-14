@@ -3,6 +3,21 @@ import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
 
+const formatSubscriptionError = (errorMessage, fallbackMessage) => {
+  const backendError = errorMessage || fallbackMessage;
+  const lowerError = backendError.toLowerCase();
+
+  if (
+    lowerError.includes("limit") ||
+    lowerError.includes("subscription") ||
+    lowerError.includes("storage")
+  ) {
+    return `${backendError} Please ask the Clinic Owner to upgrade the clinic subscription.`;
+  }
+
+  return backendError;
+};
+
 function DentistXrays() {
   const navigate = useNavigate();
 
@@ -148,7 +163,12 @@ function DentistXrays() {
 
       fetchXraysByRecord(selectedRecordId);
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to upload X-ray.");
+      setError(
+        formatSubscriptionError(
+          err.response?.data?.error,
+          "Unable to upload X-ray.",
+        ),
+      );
     } finally {
       setUploading(false);
     }
@@ -203,6 +223,14 @@ function DentistXrays() {
             Upload dental X-rays for a selected patient record. You may attach
             the X-ray to a specific tooth if tooth records are available.
           </p>
+
+          <div className="info-message" style={{ marginBottom: "16px" }}>
+            <strong>Subscription Reminder:</strong>
+            <br />
+            X-ray uploads are limited by the clinic subscription plan. If the
+            clinic reaches its X-ray count or storage limit, ask the Clinic
+            Owner to upgrade the subscription.
+          </div>
 
           {message && <div className="success-message">{message}</div>}
           {error && <div className="error-message">{error}</div>}
