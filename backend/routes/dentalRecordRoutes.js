@@ -284,6 +284,8 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
         c.clinic_id,
         c.clinic_name,
         c.subscription_plan_id,
+        c.subscription_end_date,
+        c.subscription_status,
         sp.plan_name,
         sp.max_patients,
         sp.max_records
@@ -302,6 +304,18 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
   }
 
   const clinic = clinicPlanResult.rows[0];
+
+  const isExpiredByDate =
+    clinic.subscription_end_date &&
+    new Date(clinic.subscription_end_date) < new Date();
+
+  if (clinic.subscription_status === "Expired" || isExpiredByDate) {
+    return {
+      allowed: false,
+      error:
+        "Your clinic subscription has expired. Please ask the Clinic Owner to renew or change the subscription plan.",
+    };
+  }
 
   if (!clinic.subscription_plan_id) {
     return {
