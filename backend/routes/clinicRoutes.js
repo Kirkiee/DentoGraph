@@ -59,6 +59,21 @@ const getClinicOwnerRole = async (client) => {
   return result.rows[0] || null;
 };
 
+const markExpiredSubscriptionIfNeeded = async (clinicId) => {
+  const result = await pool.query(
+    `UPDATE public.clinics
+     SET subscription_status = 'Expired'
+     WHERE clinic_id = $1
+     AND subscription_end_date IS NOT NULL
+     AND subscription_end_date < CURRENT_TIMESTAMP
+     AND COALESCE(subscription_status, 'Active') <> 'Expired'
+     RETURNING clinic_id, subscription_status`,
+    [clinicId],
+  );
+
+  return result.rows[0] || null;
+};
+
 // PUBLIC: REGISTER CLINIC OWNER + CLINIC WITH FREE PLAN
 router.post("/register", async (req, res) => {
   const {
@@ -548,8 +563,18 @@ router.get(
         });
       }
 
-      const clinic = clinicResult.rows[0];
+      let clinic = clinicResult.rows[0];
       const clinicId = clinic.clinic_id;
+
+      const expiredSubscription =
+        await markExpiredSubscriptionIfNeeded(clinicId);
+
+      if (expiredSubscription) {
+        clinic = {
+          ...clinic,
+          subscription_status: expiredSubscription.subscription_status,
+        };
+      }
 
       const dentistCount = await pool.query(
         `SELECT COUNT(*)::int AS count

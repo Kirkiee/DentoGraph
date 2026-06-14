@@ -81,6 +81,48 @@ function ClinicOwnerSubscription() {
     return `${days} day${days === 1 ? "" : "s"} remaining`;
   };
 
+  const getExpirationWarning = (endDateValue, status) => {
+    if (!endDateValue) return null;
+
+    const endDate = new Date(endDateValue);
+    const today = new Date();
+
+    if (Number.isNaN(endDate.getTime())) return null;
+
+    const differenceMs = endDate.getTime() - today.getTime();
+    const days = Math.ceil(differenceMs / (1000 * 60 * 60 * 24));
+
+    if (status === "Expired" || days < 0) {
+      return {
+        type: "expired",
+        title: "Subscription Expired",
+        message:
+          "Your clinic subscription has expired. Please change or renew your subscription plan to continue full access.",
+      };
+    }
+
+    if (days === 0) {
+      return {
+        type: "warning",
+        title: "Subscription Expires Today",
+        message:
+          "Your clinic subscription expires today. Please renew or change your plan soon to avoid service interruption.",
+      };
+    }
+
+    if (days <= 7) {
+      return {
+        type: "warning",
+        title: "Subscription Expiring Soon",
+        message: `Your clinic subscription will expire in ${days} day${
+          days === 1 ? "" : "s"
+        }. Please renew or change your plan soon.`,
+      };
+    }
+
+    return null;
+  };
+
   const getSubscriptionStatusClass = (status, endDateValue) => {
     const endDate = endDateValue ? new Date(endDateValue) : null;
     const today = new Date();
@@ -281,6 +323,11 @@ function ClinicOwnerSubscription() {
     );
   };
 
+  const expirationWarning = getExpirationWarning(
+    clinic?.subscription_end_date,
+    clinic?.subscription_status,
+  );
+
   return (
     <DashboardLayout role="Clinic Owner">
       <div className="appointments-list-card">
@@ -312,6 +359,20 @@ function ClinicOwnerSubscription() {
         </div>
 
         {error && <div className="error-message">{error}</div>}
+
+        {expirationWarning && !loading && clinic && (
+          <div
+            className={
+              expirationWarning.type === "expired"
+                ? "error-message"
+                : "info-message"
+            }
+            style={{ marginBottom: "16px" }}
+          >
+            <strong>{expirationWarning.title}:</strong>{" "}
+            {expirationWarning.message}
+          </div>
+        )}
 
         {loading ? (
           <p>Loading subscription details...</p>
@@ -396,8 +457,15 @@ function ClinicOwnerSubscription() {
                   <div className="appointment-title-row">
                     <h3>{clinic.plan_name || "No Subscription Plan"}</h3>
 
-                    <span className="status-badge status-completed">
-                      {clinic.plan_tier || "Active"}
+                    <span
+                      className={getSubscriptionStatusClass(
+                        clinic.subscription_status,
+                        clinic.subscription_end_date,
+                      )}
+                    >
+                      {clinic.subscription_status === "Expired"
+                        ? "Expired"
+                        : clinic.plan_tier || "Active"}
                     </span>
                   </div>
 
