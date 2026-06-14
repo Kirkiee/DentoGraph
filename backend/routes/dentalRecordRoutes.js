@@ -270,7 +270,7 @@ const getAccessibleRecord = async (req, record_id) => {
   };
 };
 
-const checkClinicRecordLimit = async (clinic_id) => {
+const checkClinicRecordLimit = async (clinic_id, patient_id) => {
   if (!clinic_id) {
     return {
       allowed: false,
@@ -285,6 +285,7 @@ const checkClinicRecordLimit = async (clinic_id) => {
         c.clinic_name,
         c.subscription_plan_id,
         sp.plan_name,
+        sp.max_patients,
         sp.max_records
      FROM public.clinics c
      LEFT JOIN public.subscription_plans sp
@@ -327,6 +328,40 @@ const checkClinicRecordLimit = async (clinic_id) => {
       allowed: false,
       error: `${clinic.clinic_name} has reached the dental record limit for the ${clinic.plan_name} plan. Limit: ${maxRecords}.`,
     };
+  }
+
+  const patientAlreadyCountedResult = await pool.query(
+    `SELECT dr.record_id
+     FROM public.dental_records dr
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     WHERE d.clinic_id = $1
+     AND dr.patient_id = $2
+     AND COALESCE(dr.status, 'Active') = 'Active'
+     LIMIT 1`,
+    [clinic_id, patient_id],
+  );
+
+  const patientAlreadyCounted = patientAlreadyCountedResult.rows.length > 0;
+
+  if (!patientAlreadyCounted) {
+    const patientCountResult = await pool.query(
+      `SELECT COUNT(DISTINCT dr.patient_id)::int AS count
+       FROM public.dental_records dr
+       JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+       WHERE d.clinic_id = $1
+       AND COALESCE(dr.status, 'Active') = 'Active'`,
+      [clinic_id],
+    );
+
+    const currentPatients = patientCountResult.rows[0].count;
+    const maxPatients = clinic.max_patients;
+
+    if (maxPatients !== null && currentPatients >= maxPatients) {
+      return {
+        allowed: false,
+        error: `${clinic.clinic_name} has reached the patient limit for the ${clinic.plan_name} plan. Limit: ${maxPatients}.`,
+      };
+    }
   }
 
   return {
@@ -500,7 +535,10 @@ router.post(
         return res.status(policyCheck.statusCode).json(responseBody);
       }
 
-      const limitCheck = await checkClinicRecordLimit(dentist.clinic_id);
+      const limitCheck = await checkClinicRecordLimit(
+        dentist.clinic_id,
+        patient_id,
+      );
 
       if (!limitCheck.allowed) {
         return res.status(400).json({
@@ -532,7 +570,7 @@ router.post(
         policy_applied: {
           name: "Dental Record Creation Policy",
           summary:
-            "Patient profile, dentition type, appointment assignment, clinic assignment, active record uniqueness, and subscription record limits were validated.",
+            "Patient profile, dentition type, appointment assignment, clinic assignment, active record uniqueness, subscription patient limit and subscription record limits were validated.",
         },
       });
     } catch (err) {

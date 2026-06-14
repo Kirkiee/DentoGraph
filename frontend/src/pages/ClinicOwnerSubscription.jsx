@@ -8,8 +8,12 @@ function ClinicOwnerSubscription() {
 
   const [clinic, setClinic] = useState(null);
   const [usage, setUsage] = useState(null);
+  const [plans, setPlans] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState(null);
+
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -21,10 +25,12 @@ function ClinicOwnerSubscription() {
       setLoading(true);
       setError("");
 
-      const response = await API.get("/api/clinics/owner/usage");
+      const usageResponse = await API.get("/api/clinics/owner/usage");
+      const plansResponse = await API.get("/api/subscriptions/active-plans");
 
-      setClinic(response.data.clinic || null);
-      setUsage(response.data.usage || null);
+      setClinic(usageResponse.data.clinic || null);
+      setUsage(usageResponse.data.usage || null);
+      setPlans(plansResponse.data.plans || []);
     } catch (err) {
       setError(
         err.response?.data?.error || "Unable to load subscription details.",
@@ -46,6 +52,48 @@ function ClinicOwnerSubscription() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return date.toLocaleString();
+  };
+
+  const getDaysRemaining = (endDateValue) => {
+    if (!endDateValue) return "N/A";
+
+    const endDate = new Date(endDateValue);
+    const today = new Date();
+
+    if (Number.isNaN(endDate.getTime())) return "N/A";
+
+    const differenceMs = endDate.getTime() - today.getTime();
+    const days = Math.ceil(differenceMs / (1000 * 60 * 60 * 24));
+
+    if (days < 0) return "Expired";
+    if (days === 0) return "Expires today";
+
+    return `${days} day${days === 1 ? "" : "s"} remaining`;
+  };
+
+  const getSubscriptionStatusClass = (status, endDateValue) => {
+    const endDate = endDateValue ? new Date(endDateValue) : null;
+    const today = new Date();
+
+    if (endDate && !Number.isNaN(endDate.getTime()) && endDate < today) {
+      return "status-badge status-cancelled";
+    }
+
+    if (status === "Active") return "status-badge status-completed";
+    if (status === "Expired") return "status-badge status-cancelled";
+    if (status === "Pending") return "status-badge status-pending";
+
+    return "status-badge status-scheduled";
   };
 
   const getUsagePercent = (used, limit) => {
@@ -70,6 +118,129 @@ function ClinicOwnerSubscription() {
     if (percent >= 80) return "status-badge status-pending";
 
     return "status-badge status-completed";
+  };
+
+  const parseFeatures = (features) => {
+    if (!features) return [];
+
+    return String(features)
+      .split(",")
+      .map((feature) => feature.trim())
+      .filter(Boolean);
+  };
+
+  const getDefaultFeatures = (plan) => {
+    return [
+      `${formatLimit(plan.max_clinics)} clinic limit`,
+      `${formatLimit(plan.max_dentists)} dentist limit`,
+      `${formatLimit(plan.max_assistants)} assistant limit`,
+      `${formatLimit(plan.max_patients)} patient limit`,
+      `${formatLimit(plan.max_records)} dental record limit`,
+      `${formatLimit(plan.max_xrays)} X-ray limit`,
+      `${formatLimit(plan.storage_limit_mb)} MB storage limit`,
+    ];
+  };
+
+  const getPlanFeatures = (plan) => {
+    const parsed = parseFeatures(plan.features);
+
+    if (parsed.length > 0) {
+      return parsed;
+    }
+
+    return getDefaultFeatures(plan);
+  };
+
+  const isCurrentPlan = (plan) => {
+    return Number(clinic?.subscription_plan_id) === Number(plan.plan_id);
+  };
+
+  const getPlanChangeType = (plan) => {
+    const currentPrice = Number(clinic?.price || 0);
+    const selectedPrice = Number(plan.price || 0);
+
+    if (selectedPrice > currentPrice) return "Upgrade";
+    if (selectedPrice < currentPrice) return "Downgrade";
+
+    return "Change";
+  };
+
+  const formatViolations = (violations) => {
+    if (!Array.isArray(violations) || violations.length === 0) {
+      return "";
+    }
+
+    return `\n\nCurrent usage exceeding selected plan:\n- ${violations.join(
+      "\n- ",
+    )}`;
+  };
+
+  const handleChangePlan = async (plan) => {
+    if (isCurrentPlan(plan)) return;
+
+    if (Number(plan.price || 0) <= 0) {
+      const confirmFreeChange = window.confirm(
+        "This plan does not require checkout. The system will only allow this change if your clinic usage fits the selected plan limits. Continue?",
+      );
+
+      if (!confirmFreeChange) return;
+
+      try {
+        setCheckoutLoading(true);
+        setSelectedPlan(plan.plan_name);
+        setError("");
+
+        const response = await API.put("/api/payments/change-free-plan", {
+          plan_id: plan.plan_id,
+        });
+
+        alert(
+          response.data.message || "Subscription plan changed successfully.",
+        );
+        fetchSubscriptionData();
+      } catch (err) {
+        const backendError =
+          err.response?.data?.error || "Unable to change subscription plan.";
+
+        const violationsText = formatViolations(err.response?.data?.violations);
+
+        alert(`${backendError}${violationsText}`);
+      } finally {
+        setCheckoutLoading(false);
+        setSelectedPlan(null);
+      }
+
+      return;
+    }
+
+    try {
+      setCheckoutLoading(true);
+      setSelectedPlan(plan.plan_name);
+      setError("");
+
+      const response = await API.post("/api/payments/create-checkout", {
+        plan_id: plan.plan_id,
+      });
+
+      const checkoutUrl = response.data.checkout_url;
+
+      if (!checkoutUrl) {
+        alert("Checkout URL was not returned.");
+        return;
+      }
+
+      window.location.href = checkoutUrl;
+    } catch (err) {
+      const backendError =
+        err.response?.data?.error || "Unable to prepare plan change checkout.";
+
+      const violationsText = formatViolations(err.response?.data?.violations);
+
+      alert(`${backendError}${violationsText}`);
+    } finally {
+      setCheckoutLoading(false);
+      setSelectedPlan(null);
+    }
   };
 
   const renderLimitRow = (label, used, limit) => {
@@ -110,45 +281,6 @@ function ClinicOwnerSubscription() {
     );
   };
 
-  const plannedPlans = [
-    {
-      name: "Free",
-      price: "₱0.00",
-      description: "Default plan for newly registered clinics.",
-      features: [
-        "1 clinic",
-        "1 dentist",
-        "1 dental assistant",
-        "Limited patients, records, X-rays, and storage",
-      ],
-      current: clinic?.plan_name === "Free",
-    },
-    {
-      name: "Standard",
-      price: "Monthly",
-      description: "For clinics that need more staff and record capacity.",
-      features: [
-        "More dentists",
-        "More assistants",
-        "Higher record limit",
-        "Higher X-ray and storage limit",
-      ],
-      current: clinic?.plan_name === "Standard",
-    },
-    {
-      name: "Premium",
-      price: "Custom",
-      description: "For larger or growing dental clinic operations.",
-      features: [
-        "Expanded clinic capacity",
-        "Advanced reporting",
-        "Higher storage allocation",
-        "Better multi-clinic scalability",
-      ],
-      current: clinic?.plan_name === "Premium",
-    },
-  ];
-
   return (
     <DashboardLayout role="Clinic Owner">
       <div className="appointments-list-card">
@@ -156,8 +288,8 @@ function ClinicOwnerSubscription() {
           <div>
             <h2>Subscription</h2>
             <p>
-              View your current clinic plan, usage limits, and future upgrade
-              options.
+              View your current clinic plan, usage limits, subscription period,
+              and available plan change options.
             </p>
           </div>
 
@@ -199,6 +331,56 @@ function ClinicOwnerSubscription() {
               <strong>Current Plan:</strong> {clinic.plan_name || "No Plan"}
               <br />
               <strong>Billing Cycle:</strong> {clinic.billing_cycle || "N/A"}
+              <br />
+              <strong>Subscription Status:</strong>{" "}
+              {clinic.subscription_status || "Active"}
+              <br />
+              <strong>Subscription Ends:</strong>{" "}
+              {formatDate(clinic.subscription_end_date)}
+            </div>
+
+            <div className="report-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Subscription Period</h2>
+                  <p>
+                    These dates show when the current subscription started and
+                    when it is expected to end.
+                  </p>
+                </div>
+              </div>
+
+              <div className="appointment-item">
+                <div className="appointment-info">
+                  <div className="appointment-title-row">
+                    <h3>Subscription Status</h3>
+
+                    <span
+                      className={getSubscriptionStatusClass(
+                        clinic.subscription_status,
+                        clinic.subscription_end_date,
+                      )}
+                    >
+                      {clinic.subscription_status || "Active"}
+                    </span>
+                  </div>
+
+                  <p>
+                    <strong>Start Date:</strong>{" "}
+                    {formatDate(clinic.subscription_start_date)}
+                  </p>
+
+                  <p>
+                    <strong>End Date:</strong>{" "}
+                    {formatDate(clinic.subscription_end_date)}
+                  </p>
+
+                  <p>
+                    <strong>Time Remaining:</strong>{" "}
+                    {getDaysRemaining(clinic.subscription_end_date)}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="report-section">
@@ -226,6 +408,11 @@ function ClinicOwnerSubscription() {
                   <p>
                     <strong>Billing Cycle:</strong>{" "}
                     {clinic.billing_cycle || "N/A"}
+                  </p>
+
+                  <p>
+                    <strong>Max Clinics:</strong>{" "}
+                    {formatLimit(clinic.max_clinics)}
                   </p>
 
                   <p>
@@ -309,63 +496,87 @@ function ClinicOwnerSubscription() {
             <div className="report-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Available Plans</h2>
+                  <h2>Available Subscription Plans</h2>
                   <p>
-                    Upgrade buttons are placeholders for now. The next step will
-                    connect them to PayMongo checkout.
+                    Choose a subscription plan to change your clinic plan.
+                    Checkout is blocked if the selected plan cannot support the
+                    clinic's current usage.
                   </p>
                 </div>
               </div>
 
-              <div className="appointments-list">
-                {plannedPlans.map((plan) => (
-                  <div className="appointment-item" key={plan.name}>
-                    <div className="appointment-info">
-                      <div className="appointment-title-row">
-                        <h3>{plan.name}</h3>
+              {plans.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No active plans</h3>
+                  <p>No active subscription plans are available right now.</p>
+                </div>
+              ) : (
+                <div className="appointments-list">
+                  {plans.map((plan) => {
+                    const current = isCurrentPlan(plan);
+                    const features = getPlanFeatures(plan);
+                    const changeType = getPlanChangeType(plan);
 
-                        <span
-                          className={
-                            plan.current
-                              ? "status-badge status-completed"
-                              : "status-badge status-scheduled"
-                          }
-                        >
-                          {plan.current ? "Current Plan" : "Available"}
-                        </span>
+                    return (
+                      <div className="appointment-item" key={plan.plan_id}>
+                        <div className="appointment-info">
+                          <div className="appointment-title-row">
+                            <h3>{plan.plan_name}</h3>
+
+                            <span
+                              className={
+                                current
+                                  ? "status-badge status-completed"
+                                  : "status-badge status-scheduled"
+                              }
+                            >
+                              {current ? "Current Plan" : `${changeType} Plan`}
+                            </span>
+                          </div>
+
+                          <p>
+                            <strong>Price:</strong> {formatPrice(plan.price)}
+                          </p>
+
+                          <p>
+                            <strong>Billing Cycle:</strong>{" "}
+                            {plan.billing_cycle || "N/A"}
+                          </p>
+
+                          <p>
+                            <strong>Storage:</strong>{" "}
+                            {plan.storage_limit ||
+                              `${formatLimit(plan.storage_limit_mb)} MB`}
+                          </p>
+
+                          <ul>
+                            {features.map((feature) => (
+                              <li key={feature}>{feature}</li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="appointment-actions">
+                          <button
+                            className={
+                              current ? "secondary-button" : "primary-button"
+                            }
+                            disabled={current || checkoutLoading}
+                            onClick={() => handleChangePlan(plan)}
+                          >
+                            {current
+                              ? "Current"
+                              : checkoutLoading &&
+                                  selectedPlan === plan.plan_name
+                                ? "Preparing Checkout..."
+                                : "Change Plan"}
+                          </button>
+                        </div>
                       </div>
-
-                      <p>
-                        <strong>Price:</strong> {plan.price}
-                      </p>
-
-                      <p>{plan.description}</p>
-
-                      <ul>
-                        {plan.features.map((feature) => (
-                          <li key={feature}>{feature}</li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    <div className="appointment-actions">
-                      <button
-                        className={
-                          plan.current ? "secondary-button" : "primary-button"
-                        }
-                        disabled={plan.current}
-                        onClick={() =>
-                          alert(
-                            `PayMongo checkout for ${plan.name} plan will be added next.`,
-                          )
-                        }
-                      >
-                        {plan.current ? "Current" : "Upgrade"}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </>
         )}

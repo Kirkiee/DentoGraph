@@ -59,6 +59,44 @@ const validatePlanInput = ({
   return null;
 };
 
+// GET ACTIVE SUBSCRIPTION PLANS
+router.get("/active-plans", async (req, res) => {
+  try {
+    const plans = await pool.query(
+      `SELECT 
+          plan_id,
+          plan_name,
+          plan_tier,
+          price,
+          billing_cycle,
+          storage_limit,
+          max_clinics,
+          max_dentists,
+          max_assistants,
+          max_patients,
+          max_records,
+          max_xrays,
+          storage_limit_mb,
+          features,
+          status,
+          created_at
+       FROM public.subscription_plans
+       WHERE status = 'Active'
+       ORDER BY price ASC, plan_id ASC`,
+    );
+
+    res.status(200).json({
+      message: "Active subscription plans retrieved successfully.",
+      plans: plans.rows,
+    });
+  } catch (err) {
+    console.error("Get active subscription plans error:", err.message);
+    res.status(500).json({
+      error: err.message || "Error retrieving active subscription plans.",
+    });
+  }
+});
+
 // ADMIN: CREATE SUBSCRIPTION PLAN
 router.post(
   "/",
