@@ -162,6 +162,8 @@ const getRecordContext = async (record_id) => {
         d.clinic_id,
         c.clinic_name,
         c.subscription_plan_id,
+        c.subscription_end_date,
+        c.subscription_status,
         sp.plan_name,
         sp.max_xrays,
         sp.storage_limit_mb
@@ -363,6 +365,37 @@ const getAccessibleXray = async (req, xray_id) => {
   };
 };
 
+const checkClinicSubscriptionActiveForXray = async (record_id) => {
+  const record = await getRecordContext(record_id);
+
+  if (!record) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: "Dental record not found. Cannot validate subscription status.",
+    };
+  }
+
+  const isExpiredByDate =
+    record.subscription_end_date &&
+    new Date(record.subscription_end_date) < new Date();
+
+  if (record.subscription_status === "Expired" || isExpiredByDate) {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error:
+        "Your clinic subscription has expired. Please ask the Clinic Owner to renew or change the subscription plan before using X-ray analysis and annotations.",
+    };
+  }
+
+  return {
+    allowed: true,
+    statusCode: 200,
+    error: null,
+  };
+};
+
 const checkClinicXrayLimit = async (record_id, newFileSizeBytes) => {
   const record = await getRecordContext(record_id);
 
@@ -378,6 +411,18 @@ const checkClinicXrayLimit = async (record_id, newFileSizeBytes) => {
       allowed: false,
       error:
         "This dental record is not connected to a clinic. Cannot validate subscription limits.",
+    };
+  }
+
+  const isExpiredByDate =
+    record.subscription_end_date &&
+    new Date(record.subscription_end_date) < new Date();
+
+  if (record.subscription_status === "Expired" || isExpiredByDate) {
+    return {
+      allowed: false,
+      error:
+        "Your clinic subscription has expired. Please ask the Clinic Owner to renew or change the subscription plan before uploading X-rays.",
     };
   }
 
@@ -822,6 +867,16 @@ router.post(
 
       const xray = access.xray;
 
+      const subscriptionCheck = await checkClinicSubscriptionActiveForXray(
+        xray.record_id,
+      );
+
+      if (!subscriptionCheck.allowed) {
+        return res.status(subscriptionCheck.statusCode).json({
+          error: subscriptionCheck.error,
+        });
+      }
+
       if (xray.file_path?.toLowerCase().endsWith(".pdf")) {
         return res.status(400).json({
           error: "AI analysis is only available for image files, not PDFs.",
@@ -1005,6 +1060,16 @@ router.post(
         });
       }
 
+      const subscriptionCheck = await checkClinicSubscriptionActiveForXray(
+        access.xray.record_id,
+      );
+
+      if (!subscriptionCheck.allowed) {
+        return res.status(subscriptionCheck.statusCode).json({
+          error: subscriptionCheck.error,
+        });
+      }
+
       const dentist = await getDentistProfile(req.user.user_id);
 
       const finalNote =
@@ -1103,6 +1168,16 @@ router.put(
       if (!access.allowed) {
         return res.status(access.statusCode).json({
           error: access.error,
+        });
+      }
+
+      const subscriptionCheck = await checkClinicSubscriptionActiveForXray(
+        annotation.record_id,
+      );
+
+      if (!subscriptionCheck.allowed) {
+        return res.status(subscriptionCheck.statusCode).json({
+          error: subscriptionCheck.error,
         });
       }
 
@@ -1210,6 +1285,16 @@ const reviewAnnotationHandler = async (req, res) => {
       return res.status(403).json({
         error:
           "This annotation belongs to a dental record assigned to another dentist.",
+      });
+    }
+
+    const subscriptionCheck = await checkClinicSubscriptionActiveForXray(
+      annotation.record_id,
+    );
+
+    if (!subscriptionCheck.allowed) {
+      return res.status(subscriptionCheck.statusCode).json({
+        error: subscriptionCheck.error,
       });
     }
 
@@ -1321,6 +1406,16 @@ router.delete(
       if (!access.allowed) {
         return res.status(access.statusCode).json({
           error: access.error,
+        });
+      }
+
+      const subscriptionCheck = await checkClinicSubscriptionActiveForXray(
+        annotation.record_id,
+      );
+
+      if (!subscriptionCheck.allowed) {
+        return res.status(subscriptionCheck.statusCode).json({
+          error: subscriptionCheck.error,
         });
       }
 
