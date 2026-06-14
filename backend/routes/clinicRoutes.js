@@ -651,6 +651,92 @@ router.get(
   },
 );
 
+// ADMIN: MONITOR CLINIC SUBSCRIPTIONS
+router.get(
+  "/admin/subscriptions",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    try {
+      await pool.query(
+        `UPDATE public.clinics
+         SET subscription_status = 'Expired'
+         WHERE subscription_end_date IS NOT NULL
+         AND subscription_end_date < CURRENT_TIMESTAMP
+         AND COALESCE(subscription_status, 'Active') <> 'Expired'`,
+      );
+
+      const subscriptions = await pool.query(
+        `SELECT
+            c.clinic_id,
+            c.clinic_name,
+            c.owner_user_id,
+            owner_user.name AS owner_name,
+            owner_user.email AS owner_email,
+            c.subscription_plan_id,
+            sp.plan_name,
+            sp.plan_tier,
+            sp.price,
+            sp.billing_cycle,
+            c.subscription_start_date,
+            c.subscription_end_date,
+            COALESCE(c.subscription_status, 'Active') AS subscription_status,
+            CASE
+              WHEN c.subscription_plan_id IS NULL THEN 'No Plan'
+              WHEN c.subscription_end_date IS NULL THEN 'No End Date'
+              WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 'Expired'
+              WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 'Expiring Soon'
+              ELSE COALESCE(c.subscription_status, 'Active')
+            END AS monitoring_status,
+            CASE
+              WHEN c.subscription_end_date IS NULL THEN NULL
+              ELSE CEIL(EXTRACT(EPOCH FROM (c.subscription_end_date - CURRENT_TIMESTAMP)) / 86400)::int
+            END AS days_remaining,
+            c.status AS clinic_status,
+            c.created_at
+         FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.subscription_plans sp
+           ON c.subscription_plan_id = sp.plan_id
+         ORDER BY
+           CASE
+             WHEN c.subscription_plan_id IS NULL THEN 1
+             WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 2
+             WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 3
+             ELSE 4
+           END,
+           c.subscription_end_date ASC NULLS LAST,
+           c.clinic_name ASC`,
+      );
+
+      const rows = subscriptions.rows;
+
+      res.status(200).json({
+        message: "Clinic subscription monitoring retrieved successfully",
+        subscriptions: rows,
+        summary: {
+          total: rows.length,
+          active: rows.filter((item) => item.monitoring_status === "Active")
+            .length,
+          expiring_soon: rows.filter(
+            (item) => item.monitoring_status === "Expiring Soon",
+          ).length,
+          expired: rows.filter((item) => item.monitoring_status === "Expired")
+            .length,
+          no_plan: rows.filter((item) => item.monitoring_status === "No Plan")
+            .length,
+        },
+      });
+    } catch (err) {
+      console.error("Admin subscription monitoring error:", err.message);
+      res.status(500).json({
+        error: err.message || "Error retrieving clinic subscription monitoring",
+      });
+    }
+  },
+);
+
 // ADMIN: GET CLINIC SUBSCRIPTION USAGE
 router.get(
   "/:clinic_id/subscription-usage",
