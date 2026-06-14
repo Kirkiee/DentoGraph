@@ -3,6 +3,21 @@ import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
 
+const formatSubscriptionError = (errorMessage, fallbackMessage) => {
+  const backendError = errorMessage || fallbackMessage;
+  const lowerError = backendError.toLowerCase();
+
+  if (
+    lowerError.includes("limit") ||
+    lowerError.includes("subscription") ||
+    lowerError.includes("storage")
+  ) {
+    return `${backendError} Please ask the Clinic Owner to upgrade the clinic subscription.`;
+  }
+
+  return backendError;
+};
+
 function DentistDentalRecords() {
   const navigate = useNavigate();
 
@@ -123,18 +138,20 @@ function DentistDentalRecords() {
       fetchRecords();
     } catch (err) {
       const responseData = err.response?.data;
+      const formattedError = formatSubscriptionError(
+        responseData?.error,
+        "Unable to create dental record.",
+      );
 
       if (responseData?.policy || responseData?.existing_record) {
         setPolicyError({
-          message:
-            responseData.error ||
-            "Dental record creation was blocked by policy.",
+          message: formattedError,
           policy: responseData.policy || null,
           existingRecord: responseData.existing_record || null,
         });
         setError("");
       } else {
-        setError(responseData?.error || "Unable to create dental record.");
+        setError(formattedError);
         setPolicyError(null);
       }
     } finally {

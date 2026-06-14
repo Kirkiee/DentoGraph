@@ -16,11 +16,18 @@ const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
+const paymongoRoutes = require("./routes/paymongoRoutes");
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(
+  express.json({
+    verify: (req, res, buf) => {
+      req.rawBody = buf.toString();
+    },
+  }),
+);
 
 app.use("/uploads", express.static("uploads"));
 
@@ -52,6 +59,7 @@ app.use("/api/subscriptions", subscriptionRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
+app.use("/api/payments", paymongoRoutes);
 
 const PORT = process.env.PORT || 5000;
 

@@ -12,6 +12,12 @@ import Register from "./pages/Register";
 
 import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
+import ClinicOwnerStaff from "./pages/ClinicOwnerStaff";
+import ClinicOwnerProfile from "./pages/ClinicOwnerProfile";
+import ClinicOwnerSubscription from "./pages/ClinicOwnerSubscription";
+import ClinicOwnerPaymentSuccess from "./pages/ClinicOwnerPaymentSuccess";
+import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
+import ClinicOwnerPaymentCancel from "./pages/ClinicOwnerPaymentCancel";
 
 import AdminDashboard from "./pages/AdminDashboard";
 import DentistDashboard from "./pages/DentistDashboard";
@@ -27,6 +33,7 @@ import AdminDentalRecordDetails from "./pages/AdminDentalRecordDetails";
 import AdminDental3DViewer from "./pages/AdminDental3DViewer";
 import AdminXrayAnnotationView from "./pages/AdminXrayAnnotationView";
 import AdminAuditLogs from "./pages/AdminAuditLogs";
+import AdminPayments from "./pages/AdminPayments";
 
 import PatientProfile from "./pages/PatientProfile";
 import PatientAppointments from "./pages/PatientAppointments";
@@ -159,10 +166,73 @@ function App() {
         />
 
         <Route
+          path="/admin/payments"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminPayments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/clinic-owner/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/staff"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerStaff />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/subscription"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerSubscription />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/payment-success"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerPaymentSuccess />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/payments"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerPayments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/payment-cancel"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerPaymentCancel />
             </ProtectedRoute>
           }
         />
