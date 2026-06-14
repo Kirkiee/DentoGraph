@@ -529,3 +529,98 @@
     padding: 54px 0;
   }
 }
+
+/* LANDING DARK MODE */
+
+body.dark-mode .landing-page {
+  background:
+    radial-gradient(
+      circle at 20% 10%,
+      rgba(37, 99, 235, 0.22) 0%,
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 85% 20%,
+      rgba(14, 165, 233, 0.16) 0%,
+      transparent 34%
+    ),
+    linear-gradient(135deg, #020617 0%, #0f172a 52%, #111827 100%);
+  color: #f8fafc;
+}
+
+body.dark-mode .landing-nav,
+body.dark-mode .landing-feature-card,
+body.dark-mode .landing-plan-card,
+body.dark-mode .workflow-steps div,
+body.dark-mode .landing-dashboard-preview {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: #334155;
+  color: #f8fafc;
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.32);
+}
+
+body.dark-mode .landing-logo,
+body.dark-mode .landing-nav-links a,
+body.dark-mode .landing-hero h1,
+body.dark-mode .landing-section-heading h2,
+body.dark-mode .landing-feature-card h3,
+body.dark-mode .workflow-steps h3,
+body.dark-mode .landing-plan-card h3,
+body.dark-mode .preview-box h4 {
+  color: #f8fafc;
+}
+
+body.dark-mode .landing-hero p,
+body.dark-mode .landing-section-heading p,
+body.dark-mode .landing-feature-card p,
+body.dark-mode .workflow-steps p,
+body.dark-mode .landing-plan-card p,
+body.dark-mode .landing-plan-card li,
+body.dark-mode .preview-box p,
+body.dark-mode .preview-box small,
+body.dark-mode .landing-footer {
+  color: #cbd5e1;
+}
+
+body.dark-mode .landing-pill,
+body.dark-mode .feature-number {
+  background: rgba(37, 99, 235, 0.24);
+  color: #bfdbfe;
+  border-color: rgba(96, 165, 250, 0.35);
+}
+
+body.dark-mode .landing-hero-stats div,
+body.dark-mode .preview-box {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+body.dark-mode .landing-secondary-button {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+}
+
+body.dark-mode .landing-secondary-button:hover {
+  background: #334155;
+}
+
+body.dark-mode .landing-footer {
+  border-top-color: #334155;
+}
+
+body.dark-mode .landing-cta {
+  background: linear-gradient(135deg, #1d4ed8, #2563eb);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+}
+
+body.dark-mode .landing-cta .landing-primary-button {
+  background: #f8fafc;
+  color: #1d4ed8;
+}
+
+body.dark-mode .landing-cta .landing-secondary-button {
+  background: rgba(15, 23, 42, 0.28);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.36);
+}
