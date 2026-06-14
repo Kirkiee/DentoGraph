@@ -4,6 +4,7 @@ import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
+import ThemeToggle from "../components/ThemeToggle";
 
 function Login() {
   const navigate = useNavigate();
@@ -74,6 +75,8 @@ function Login() {
       title="Welcome to DentoGraph"
       subtitle="Sign in to manage your dental records and clinic workflows"
     >
+      <ThemeToggle />
+
       <Link to="/" className="auth-back-link">
         ← Back to Landing Page
       </Link>

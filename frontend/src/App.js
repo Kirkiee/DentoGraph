@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -61,6 +61,28 @@ import AssistantXrays from "./pages/AssistantXrays";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("dentograph-theme") || "light";
+  });
+
+  useEffect(() => {
+    document.body.classList.remove("light-mode", "dark-mode");
+    document.body.classList.add(theme === "dark" ? "dark-mode" : "light-mode");
+    localStorage.setItem("dentograph-theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const handleThemeChange = () => {
+      setTheme(localStorage.getItem("dentograph-theme") || "light");
+    };
+
+    window.addEventListener("dentograph-theme-change", handleThemeChange);
+
+    return () => {
+      window.removeEventListener("dentograph-theme-change", handleThemeChange);
+    };
+  }, []);
+
   return (
     <Router>
       <Routes>

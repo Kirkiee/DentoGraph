@@ -4,6 +4,7 @@ import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
+import ThemeToggle from "../components/ThemeToggle";
 
 function Register() {
   const navigate = useNavigate();
@@ -78,6 +79,8 @@ function Register() {
       subtitle="Register as a patient to access DentoGraph"
       wide
     >
+      <ThemeToggle />
+
       <Link to="/" className="auth-back-link">
         ← Back to Landing Page
       </Link>

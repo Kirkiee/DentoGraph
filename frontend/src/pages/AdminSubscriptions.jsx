@@ -6,10 +6,25 @@ function AdminSubscriptions() {
   const [plans, setPlans] = useState([]);
   const [filteredPlans, setFilteredPlans] = useState([]);
 
+  const [clinicSubscriptions, setClinicSubscriptions] = useState([]);
+  const [filteredClinicSubscriptions, setFilteredClinicSubscriptions] =
+    useState([]);
+  const [subscriptionSummary, setSubscriptionSummary] = useState({
+    total: 0,
+    active: 0,
+    expiring_soon: 0,
+    expired: 0,
+    no_plan: 0,
+  });
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
+  const [clinicSearchTerm, setClinicSearchTerm] = useState("");
+  const [clinicStatusFilter, setClinicStatusFilter] = useState("All");
+
   const [loading, setLoading] = useState(true);
+  const [clinicLoading, setClinicLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
@@ -46,6 +61,7 @@ function AdminSubscriptions() {
 
   useEffect(() => {
     fetchPlans();
+    fetchClinicSubscriptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -53,6 +69,11 @@ function AdminSubscriptions() {
     filterPlans();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plans, searchTerm, statusFilter]);
+
+  useEffect(() => {
+    filterClinicSubscriptions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinicSubscriptions, clinicSearchTerm, clinicStatusFilter]);
 
   useEffect(() => {
     const isAnyModalOpen = showPlanModal || showStatusModal;
@@ -99,6 +120,36 @@ function AdminSubscriptions() {
     }
   };
 
+  const fetchClinicSubscriptions = async () => {
+    try {
+      setClinicLoading(true);
+      setError("");
+
+      const response = await API.get(
+        "/api/clinics/admin/subscriptions",
+        authHeaders,
+      );
+
+      setClinicSubscriptions(response.data.subscriptions || []);
+      setSubscriptionSummary(
+        response.data.summary || {
+          total: 0,
+          active: 0,
+          expiring_soon: 0,
+          expired: 0,
+          no_plan: 0,
+        },
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          "Unable to load clinic subscription monitoring.",
+      );
+    } finally {
+      setClinicLoading(false);
+    }
+  };
+
   const filterPlans = () => {
     let filtered = [...plans];
 
@@ -124,6 +175,32 @@ function AdminSubscriptions() {
     }
 
     setFilteredPlans(filtered);
+  };
+
+  const filterClinicSubscriptions = () => {
+    let filtered = [...clinicSubscriptions];
+
+    if (clinicStatusFilter !== "All") {
+      filtered = filtered.filter(
+        (subscription) => subscription.monitoring_status === clinicStatusFilter,
+      );
+    }
+
+    if (clinicSearchTerm.trim() !== "") {
+      const term = clinicSearchTerm.toLowerCase();
+
+      filtered = filtered.filter(
+        (subscription) =>
+          subscription.clinic_name?.toLowerCase().includes(term) ||
+          subscription.owner_name?.toLowerCase().includes(term) ||
+          subscription.owner_email?.toLowerCase().includes(term) ||
+          subscription.plan_name?.toLowerCase().includes(term) ||
+          subscription.monitoring_status?.toLowerCase().includes(term) ||
+          subscription.subscription_status?.toLowerCase().includes(term),
+      );
+    }
+
+    setFilteredClinicSubscriptions(filtered);
   };
 
   const openCreateModal = () => {
@@ -244,6 +321,7 @@ function AdminSubscriptions() {
 
       closePlanModal();
       fetchPlans();
+      fetchClinicSubscriptions();
     } catch (err) {
       setModalError(
         err.response?.data?.error || "Unable to save subscription plan.",
@@ -292,6 +370,7 @@ function AdminSubscriptions() {
       setMessage(`Subscription plan marked as ${selectedStatus}.`);
       closeStatusModal();
       fetchPlans();
+      fetchClinicSubscriptions();
     } catch (err) {
       setModalError(
         err.response?.data?.error ||
@@ -310,6 +389,23 @@ function AdminSubscriptions() {
         return "status-badge status-cancelled";
       default:
         return "status-badge status-pending";
+    }
+  };
+
+  const getMonitoringStatusClass = (status) => {
+    switch (status) {
+      case "Active":
+        return "status-badge status-completed";
+      case "Expiring Soon":
+        return "status-badge status-pending";
+      case "Expired":
+        return "status-badge status-cancelled";
+      case "No Plan":
+        return "status-badge status-scheduled";
+      case "No End Date":
+        return "status-badge status-pending";
+      default:
+        return "status-badge status-scheduled";
     }
   };
 
@@ -332,6 +428,27 @@ function AdminSubscriptions() {
     return `${storage} MB`;
   };
 
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return date.toLocaleString();
+  };
+
+  const formatDaysRemaining = (days) => {
+    if (days === null || days === undefined) return "N/A";
+
+    const numberDays = Number(days);
+
+    if (numberDays < 0) return "Expired";
+    if (numberDays === 0) return "Expires today";
+
+    return `${numberDays} day${numberDays === 1 ? "" : "s"} remaining`;
+  };
+
   const totalPlans = plans.length;
   const activePlans = plans.filter((plan) => plan.status === "Active").length;
   const inactivePlans = plans.filter(
@@ -350,8 +467,8 @@ function AdminSubscriptions() {
           <div>
             <h2>Subscription Management</h2>
             <p>
-              Manage subscription plans and the actual limits used by clinics,
-              dentists, records, X-rays, and storage enforcement.
+              Manage subscription plans, monitor clinic subscription status, and
+              review expiration dates.
             </p>
           </div>
 
@@ -362,10 +479,13 @@ function AdminSubscriptions() {
 
             <button
               className="secondary-button"
-              onClick={fetchPlans}
-              disabled={loading}
+              onClick={() => {
+                fetchPlans();
+                fetchClinicSubscriptions();
+              }}
+              disabled={loading || clinicLoading}
             >
-              {loading ? "Refreshing..." : "Refresh"}
+              {loading || clinicLoading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
         </div>
@@ -379,146 +499,303 @@ function AdminSubscriptions() {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
-          <div className="dashboard-card">
-            <h3>Total Plans</h3>
-            <strong>{totalPlans}</strong>
+        <div className="report-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Clinic Subscription Monitoring</h2>
+              <p>
+                Monitor clinic subscription status, expiration dates, days
+                remaining, and subscribed plans.
+              </p>
+            </div>
           </div>
 
-          <div className="dashboard-card">
-            <h3>Active Plans</h3>
-            <strong>{activePlans}</strong>
+          <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
+            <div className="dashboard-card">
+              <h3>Total Clinics</h3>
+              <strong>{subscriptionSummary.total}</strong>
+            </div>
+
+            <div className="dashboard-card">
+              <h3>Active</h3>
+              <strong>{subscriptionSummary.active}</strong>
+            </div>
+
+            <div className="dashboard-card">
+              <h3>Expiring Soon</h3>
+              <strong>{subscriptionSummary.expiring_soon}</strong>
+            </div>
+
+            <div className="dashboard-card">
+              <h3>Expired</h3>
+              <strong>{subscriptionSummary.expired}</strong>
+            </div>
+
+            <div className="dashboard-card">
+              <h3>No Plan</h3>
+              <strong>{subscriptionSummary.no_plan}</strong>
+            </div>
           </div>
 
-          <div className="dashboard-card">
-            <h3>Inactive Plans</h3>
-            <strong>{inactivePlans}</strong>
+          <div className="appointment-filters">
+            <div className="form-group">
+              <label>Search Clinics</label>
+              <input
+                type="text"
+                value={clinicSearchTerm}
+                onChange={(e) => setClinicSearchTerm(e.target.value)}
+                placeholder="Search clinic, owner, email, plan, or status"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Subscription Status</label>
+              <select
+                value={clinicStatusFilter}
+                onChange={(e) => setClinicStatusFilter(e.target.value)}
+              >
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Expiring Soon">Expiring Soon</option>
+                <option value="Expired">Expired</option>
+                <option value="No Plan">No Plan</option>
+                <option value="No End Date">No End Date</option>
+              </select>
+            </div>
           </div>
 
-          <div className="dashboard-card">
-            <h3>Record Capacity</h3>
-            <strong>{totalRecordCapacity}</strong>
-          </div>
+          {clinicLoading ? (
+            <p>Loading clinic subscriptions...</p>
+          ) : filteredClinicSubscriptions.length === 0 ? (
+            <div className="empty-state">
+              <h3>No clinic subscriptions found</h3>
+              <p>No clinics match the current subscription filter.</p>
+            </div>
+          ) : (
+            <div className="appointments-list">
+              {filteredClinicSubscriptions.map((subscription) => (
+                <div className="appointment-item" key={subscription.clinic_id}>
+                  <div className="appointment-info">
+                    <div className="appointment-title-row">
+                      <h3>{subscription.clinic_name}</h3>
+
+                      <span
+                        className={getMonitoringStatusClass(
+                          subscription.monitoring_status,
+                        )}
+                      >
+                        {subscription.monitoring_status}
+                      </span>
+                    </div>
+
+                    <p>
+                      <strong>Owner:</strong>{" "}
+                      {subscription.owner_name || "No owner assigned"}
+                    </p>
+
+                    <p>
+                      <strong>Owner Email:</strong>{" "}
+                      {subscription.owner_email || "N/A"}
+                    </p>
+
+                    <p>
+                      <strong>Current Plan:</strong>{" "}
+                      {subscription.plan_name || "No Plan"}
+                    </p>
+
+                    <p>
+                      <strong>Price:</strong>{" "}
+                      {subscription.price !== null &&
+                      subscription.price !== undefined
+                        ? `${formatPrice(subscription.price)} / ${
+                            subscription.billing_cycle || "Monthly"
+                          }`
+                        : "N/A"}
+                    </p>
+
+                    <p>
+                      <strong>Subscription Status:</strong>{" "}
+                      {subscription.subscription_status || "Active"}
+                    </p>
+
+                    <p>
+                      <strong>Start Date:</strong>{" "}
+                      {formatDate(subscription.subscription_start_date)}
+                    </p>
+
+                    <p>
+                      <strong>End Date:</strong>{" "}
+                      {formatDate(subscription.subscription_end_date)}
+                    </p>
+
+                    <p>
+                      <strong>Time Remaining:</strong>{" "}
+                      {formatDaysRemaining(subscription.days_remaining)}
+                    </p>
+
+                    <p>
+                      <strong>Clinic Status:</strong>{" "}
+                      {subscription.clinic_status || "Active"}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="appointment-filters">
-          <div className="form-group">
-            <label>Search</label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search plan name, billing cycle, limits, or storage"
-            />
+        <div className="report-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Subscription Plan Management</h2>
+              <p>
+                Create, edit, activate, or deactivate subscription plans and
+                their enforceable limits.
+              </p>
+            </div>
           </div>
 
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
+          <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
+            <div className="dashboard-card">
+              <h3>Total Plans</h3>
+              <strong>{totalPlans}</strong>
+            </div>
 
-        {loading ? (
-          <p>Loading subscription plans...</p>
-        ) : filteredPlans.length === 0 ? (
-          <div className="empty-state">
-            <h3>No subscription plans found</h3>
-            <p>Add a subscription plan to start managing plan limits.</p>
-          </div>
-        ) : (
-          <div className="appointments-list">
-            {filteredPlans.map((plan) => (
-              <div className="appointment-item" key={plan.plan_id}>
-                <div className="appointment-info">
-                  <div className="appointment-title-row">
-                    <h3>{plan.plan_name}</h3>
+            <div className="dashboard-card">
+              <h3>Active Plans</h3>
+              <strong>{activePlans}</strong>
+            </div>
 
-                    <span className={getStatusClass(plan.status)}>
-                      {plan.status || "Active"}
-                    </span>
+            <div className="dashboard-card">
+              <h3>Inactive Plans</h3>
+              <strong>{inactivePlans}</strong>
+            </div>
+
+            <div className="dashboard-card">
+              <h3>Record Capacity</h3>
+              <strong>{totalRecordCapacity}</strong>
+            </div>
+          </div>
+
+          <div className="appointment-filters">
+            <div className="form-group">
+              <label>Search Plans</label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search plan name, billing cycle, limits, or storage"
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Plan Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+              >
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+          </div>
+
+          {loading ? (
+            <p>Loading subscription plans...</p>
+          ) : filteredPlans.length === 0 ? (
+            <div className="empty-state">
+              <h3>No subscription plans found</h3>
+              <p>Add a subscription plan to start managing plan limits.</p>
+            </div>
+          ) : (
+            <div className="appointments-list">
+              {filteredPlans.map((plan) => (
+                <div className="appointment-item" key={plan.plan_id}>
+                  <div className="appointment-info">
+                    <div className="appointment-title-row">
+                      <h3>{plan.plan_name}</h3>
+
+                      <span className={getStatusClass(plan.status)}>
+                        {plan.status || "Active"}
+                      </span>
+                    </div>
+
+                    <p>
+                      <strong>Plan ID:</strong> {plan.plan_id}
+                    </p>
+
+                    <p>
+                      <strong>Price:</strong> {formatPrice(plan.price)} /{" "}
+                      {plan.billing_cycle || "Monthly"}
+                    </p>
+
+                    <p>
+                      <strong>Staff Limits:</strong> {plan.max_dentists ?? 0}{" "}
+                      dentist
+                      {(plan.max_dentists ?? 0) === 1 ? "" : "s"},{" "}
+                      {plan.max_assistants ?? 0} assistant
+                      {(plan.max_assistants ?? 0) === 1 ? "" : "s"}
+                    </p>
+
+                    <p>
+                      <strong>Patient Limit:</strong> {plan.max_patients ?? 0}{" "}
+                      patients
+                    </p>
+
+                    <p>
+                      <strong>Dental Record Limit:</strong>{" "}
+                      {plan.max_records ?? 0} records
+                    </p>
+
+                    <p>
+                      <strong>X-ray Limit:</strong> {plan.max_xrays ?? 0} X-rays
+                    </p>
+
+                    <p>
+                      <strong>Storage Limit:</strong>{" "}
+                      {formatStorage(plan.storage_limit_mb)}
+                    </p>
+
+                    <p>
+                      <strong>Created:</strong>{" "}
+                      {plan.created_at
+                        ? new Date(plan.created_at).toLocaleString()
+                        : "N/A"}
+                    </p>
                   </div>
 
-                  <p>
-                    <strong>Plan ID:</strong> {plan.plan_id}
-                  </p>
-
-                  <p>
-                    <strong>Price:</strong> {formatPrice(plan.price)} /{" "}
-                    {plan.billing_cycle || "Monthly"}
-                  </p>
-
-                  <p>
-                    <strong>Staff Limits:</strong> {plan.max_dentists ?? 0}{" "}
-                    dentist
-                    {(plan.max_dentists ?? 0) === 1 ? "" : "s"},{" "}
-                    {plan.max_assistants ?? 0} assistant
-                    {(plan.max_assistants ?? 0) === 1 ? "" : "s"}
-                  </p>
-
-                  <p>
-                    <strong>Patient Limit:</strong> {plan.max_patients ?? 0}{" "}
-                    patients
-                  </p>
-
-                  <p>
-                    <strong>Dental Record Limit:</strong>{" "}
-                    {plan.max_records ?? 0} records
-                  </p>
-
-                  <p>
-                    <strong>X-ray Limit:</strong> {plan.max_xrays ?? 0} X-rays
-                  </p>
-
-                  <p>
-                    <strong>Storage Limit:</strong>{" "}
-                    {formatStorage(plan.storage_limit_mb)}
-                  </p>
-
-                  <p>
-                    <strong>Created:</strong>{" "}
-                    {plan.created_at
-                      ? new Date(plan.created_at).toLocaleString()
-                      : "N/A"}
-                  </p>
-                </div>
-
-                <div className="appointment-actions">
-                  <button
-                    className="secondary-button"
-                    onClick={() => openEditModal(plan)}
-                  >
-                    Edit
-                  </button>
-
-                  {plan.status === "Active" ? (
-                    <button
-                      className="danger-button"
-                      disabled={updatingStatus}
-                      onClick={() => openStatusModal(plan, "Inactive")}
-                    >
-                      Deactivate
-                    </button>
-                  ) : (
+                  <div className="appointment-actions">
                     <button
                       className="secondary-button"
-                      disabled={updatingStatus}
-                      onClick={() => openStatusModal(plan, "Active")}
+                      onClick={() => openEditModal(plan)}
                     >
-                      Activate
+                      Edit
                     </button>
-                  )}
+
+                    {plan.status === "Active" ? (
+                      <button
+                        className="danger-button"
+                        disabled={updatingStatus}
+                        onClick={() => openStatusModal(plan, "Inactive")}
+                      >
+                        Deactivate
+                      </button>
+                    ) : (
+                      <button
+                        className="secondary-button"
+                        disabled={updatingStatus}
+                        onClick={() => openStatusModal(plan, "Active")}
+                      >
+                        Activate
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {showPlanModal && (
