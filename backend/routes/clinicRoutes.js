@@ -517,7 +517,6 @@ router.get(
             c.clinic_name,
             c.subscription_plan_id,
             c.subscription_start_date,
-            c.subscription_start_date,
             c.subscription_end_date,
             c.subscription_status,
             c.owner_user_id,
