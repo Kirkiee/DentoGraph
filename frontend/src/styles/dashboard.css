@@ -2314,6 +2314,46 @@ body.dark-mode textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body.dark-mode input::placeholder,
 body.dark-mode textarea::placeholder {
   color: #94a3b8;
@@ -2457,5 +2497,122 @@ body.dark-mode .leaflet-popup-content {
     bottom: 18px;
     padding: 10px 13px;
     font-size: 13px;
+  }
+}
+
+@media print {
+  .theme-toggle,
+  .theme-toggle-button,
+  .global-theme-toggle,
+  .dark-mode-toggle,
+  .light-mode-toggle,
+  .theme-switch,
+  .theme-switcher {
+    display: none !important;
+    visibility: hidden !important;
+  }
+}
+
+/* FINAL PRINT FIX - SHOW ONLY THE DENTAL RECORD REPORT */
+
+@media print {
+  html,
+  body {
+    width: 100% !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    overflow: visible !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .dental-record-print-report,
+  .dental-record-print-report * {
+    visibility: visible !important;
+  }
+
+  .dental-record-print-report {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    padding: 20px !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-family: Arial, sans-serif !important;
+  }
+
+  .theme-toggle-button,
+  .dashboard-sidebar,
+  .dashboard-navbar,
+  .no-print,
+  .modal-overlay,
+  .success-message,
+  .error-message {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  .dashboard-layout,
+  .dashboard-main,
+  .dashboard-content,
+  .appointments-list-card {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  .print-report-header {
+    border-bottom: 2px solid #0f172a !important;
+    padding-bottom: 14px !important;
+    margin-bottom: 18px !important;
+  }
+
+  .print-report-header h1 {
+    margin: 0 !important;
+    font-size: 24px !important;
+    color: #0f172a !important;
+  }
+
+  .print-report-header p,
+  .print-grid p,
+  .print-section p {
+    color: #0f172a !important;
+  }
+
+  .print-section {
+    page-break-inside: avoid !important;
+    -moz-column-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .print-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .print-table th,
+  .print-table td {
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  .print-table th {
+    background: #f1f5f9 !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 14mm;
   }
 }

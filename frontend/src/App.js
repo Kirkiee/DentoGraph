@@ -43,6 +43,7 @@ import PatientXrays from "./pages/PatientXrays";
 import PatientDental3DViewer from "./pages/PatientDental3DViewer";
 import PatientXrayAnnotationView from "./pages/PatientXrayAnnotationView";
 import PatientClinicDiscovery from "./pages/PatientClinicDiscovery";
+import PatientARBracesSimulation from "./pages/PatientARBracesSimulation";
 
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
@@ -51,6 +52,7 @@ import DentistDentalRecordDetails from "./pages/DentistDentalRecordDetails";
 import DentistXrays from "./pages/DentistXrays";
 import DentistXrayAnnotation from "./pages/DentistXrayAnnotation";
 import DentistDental3DViewer from "./pages/DentistDental3DViewer";
+import DentistARSimulations from "./pages/DentistARSimulations";
 
 import AssistantProfile from "./pages/AssistantProfile";
 import AssistantAppointments from "./pages/AssistantAppointments";
@@ -332,6 +334,15 @@ function App() {
         />
 
         <Route
+          path="/dentist/dental-records/:recordId/ar-simulations"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist", "dentist"]}>
+              <DentistARSimulations />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/patient/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
@@ -408,6 +419,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientClinicDiscovery />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/ar-braces"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientARBracesSimulation />
             </ProtectedRoute>
           }
         />
