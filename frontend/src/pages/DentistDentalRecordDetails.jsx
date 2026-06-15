@@ -33,10 +33,12 @@ function DentistDentalRecordDetails() {
   const [treatments, setTreatments] = useState([]);
   const [xrays, setXrays] = useState([]);
   const [pdaForm, setPdaForm] = useState(null);
+  const [arSummary, setArSummary] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [loadingXrays, setLoadingXrays] = useState(true);
   const [loadingPdaForm, setLoadingPdaForm] = useState(false);
+  const [loadingArSummary, setLoadingArSummary] = useState(false);
   const [updatingTooth, setUpdatingTooth] = useState(false);
   const [addingTooth, setAddingTooth] = useState(false);
   const [savingTreatment, setSavingTreatment] = useState(false);
@@ -75,6 +77,7 @@ function DentistDentalRecordDetails() {
   useEffect(() => {
     fetchRecordDetails();
     fetchXrays();
+    fetchArSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [record_id]);
 
@@ -135,6 +138,24 @@ function DentistDentalRecordDetails() {
       console.error("Fetch X-rays error:", err);
     } finally {
       setLoadingXrays(false);
+    }
+  };
+
+  const fetchArSummary = async () => {
+    try {
+      setLoadingArSummary(true);
+
+      const response = await API.get(
+        `/api/ar-simulations/dentist/record/${record_id}/summary`,
+        authHeaders,
+      );
+
+      setArSummary(response.data.summary || null);
+    } catch (err) {
+      console.error("Fetch AR summary error:", err);
+      setArSummary(null);
+    } finally {
+      setLoadingArSummary(false);
     }
   };
 
@@ -269,6 +290,18 @@ function DentistDentalRecordDetails() {
       case "Active":
       default:
         return "status-badge status-scheduled";
+    }
+  };
+
+  const getReviewStatusClass = (status) => {
+    switch (status) {
+      case "Reviewed":
+        return "status-badge status-completed";
+      case "For Consultation":
+        return "status-badge status-scheduled";
+      case "Pending Review":
+      default:
+        return "status-badge status-pending";
     }
   };
 
@@ -537,8 +570,8 @@ function DentistDentalRecordDetails() {
           <div>
             <h2>Dental Record Details</h2>
             <p>
-              View and manage teeth, treatments, X-rays, and uploaded patient
-              forms connected to this dental record.
+              View and manage teeth, treatments, X-rays, AR simulations, and
+              uploaded patient forms connected to this dental record.
             </p>
           </div>
 
@@ -563,8 +596,19 @@ function DentistDentalRecordDetails() {
               onClick={() =>
                 navigate(`/dentist/dental-records/${record_id}/3d-view`)
               }
+              disabled={loading || !record}
             >
               3D View
+            </button>
+
+            <button
+              className="secondary-button"
+              onClick={() =>
+                navigate(`/dentist/dental-records/${record_id}/ar-simulations`)
+              }
+              disabled={loading || !record}
+            >
+              AR Braces Simulations
             </button>
 
             <button
@@ -572,6 +616,8 @@ function DentistDentalRecordDetails() {
               onClick={() => {
                 fetchRecordDetails();
                 fetchXrays();
+                fetchArSummary();
+
                 if (record?.patient_id) {
                   fetchPdaForm(record.patient_id);
                 }
@@ -773,11 +819,42 @@ function DentistDentalRecordDetails() {
               </div>
 
               <div className="print-section">
+                <h2>AR Braces Simulation Summary</h2>
+
+                {!arSummary || Number(arSummary.total_previews) === 0 ? (
+                  <p>No AR braces simulation previews submitted.</p>
+                ) : (
+                  <div className="print-grid">
+                    <p>
+                      <strong>Total Previews:</strong>{" "}
+                      {arSummary.total_previews}
+                    </p>
+
+                    <p>
+                      <strong>Latest Review Status:</strong>{" "}
+                      {arSummary.latest_status || "Pending Review"}
+                    </p>
+
+                    <p>
+                      <strong>Latest Submitted:</strong>{" "}
+                      {formatDate(arSummary.latest_created_at)}
+                    </p>
+
+                    <p>
+                      <strong>Latest Reviewed:</strong>{" "}
+                      {formatDate(arSummary.latest_reviewed_at)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="print-section">
                 <h2>Clinical Reminder</h2>
                 <p>
                   This printed report summarizes recorded dental information in
-                  the system. Final diagnosis, treatment planning, and clinical
-                  interpretation must be completed by a licensed dentist.
+                  the system. Final diagnosis, treatment planning, X-ray
+                  interpretation, and AR braces simulation interpretation must
+                  be completed by a licensed dentist.
                 </p>
               </div>
 
@@ -901,6 +978,92 @@ function DentistDentalRecordDetails() {
                     This patient has not uploaded a PDA Dental Chart / Patient
                     Information Record yet.
                   </p>
+                </div>
+              )}
+            </div>
+
+            <div className="report-section no-print">
+              <div className="appointments-header">
+                <div>
+                  <h2>AR Braces Simulations</h2>
+                  <p>
+                    View patient-generated AR braces previews connected to this
+                    dental record.
+                  </p>
+                </div>
+
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    navigate(
+                      `/dentist/dental-records/${record_id}/ar-simulations`,
+                    )
+                  }
+                  disabled={loading || !record}
+                >
+                  View AR Braces Simulations
+                </button>
+              </div>
+
+              {loadingArSummary ? (
+                <p>Loading AR simulation summary...</p>
+              ) : !arSummary || Number(arSummary.total_previews) === 0 ? (
+                <div className="empty-state">
+                  <h3>No AR previews yet</h3>
+                  <p>
+                    Patient AR braces previews linked to this record will appear
+                    here once captured.
+                  </p>
+                </div>
+              ) : (
+                <div className="appointment-item">
+                  <div className="appointment-info">
+                    <div className="appointment-title-row">
+                      <h3>{arSummary.total_previews} AR Preview(s)</h3>
+
+                      <span
+                        className={getReviewStatusClass(
+                          arSummary.latest_status || "Pending Review",
+                        )}
+                      >
+                        {arSummary.latest_status || "Pending Review"}
+                      </span>
+                    </div>
+
+                    <p>
+                      <strong>Total Previews:</strong>{" "}
+                      {arSummary.total_previews}
+                    </p>
+
+                    <p>
+                      <strong>Latest Submitted:</strong>{" "}
+                      {formatDate(arSummary.latest_created_at)}
+                    </p>
+
+                    <p>
+                      <strong>Latest Reviewed:</strong>{" "}
+                      {formatDate(arSummary.latest_reviewed_at)}
+                    </p>
+
+                    <p>
+                      <strong>Latest Review Status:</strong>{" "}
+                      {arSummary.latest_status || "Pending Review"}
+                    </p>
+                  </div>
+
+                  <div className="appointment-actions">
+                    <button
+                      type="button"
+                      className="primary-button"
+                      onClick={() =>
+                        navigate(
+                          `/dentist/dental-records/${record_id}/ar-simulations`,
+                        )
+                      }
+                    >
+                      Open AR Reviews
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

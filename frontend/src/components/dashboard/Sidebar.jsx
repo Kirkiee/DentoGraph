@@ -31,6 +31,7 @@ function Sidebar({ role }) {
       { label: "Appointments", path: "/patient/appointments" },
       { label: "Dental Records", path: "/patient/records" },
       { label: "X-rays", path: "/patient/xrays" },
+      { label: "AR Braces Simulation", path: "/patient/ar-braces" },
       { label: "Clinic Discovery", path: "/patient/clinics" },
     ],
 
