@@ -1,0 +1,669 @@
+/* AR BRACES SIMULATION - X-RAY ANNOTATION STYLE */
+
+.ar-simulation-page {
+  width: 100%;
+}
+
+.ar-annotation-layout {
+  margin-top: 24px;
+}
+
+.ar-viewer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.ar-viewer-header h3,
+.xray-annotation-panel h3 {
+  margin: 0 0 6px;
+  color: var(--dg-text);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.ar-viewer-header p,
+.ar-panel-description {
+  margin: 0;
+  color: var(--dg-muted);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.ar-xray-style-frame {
+  min-height: 420px;
+  border-radius: 18px;
+  background: #020617;
+}
+
+.ar-camera-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--dg-border);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ar-camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 34px;
+  color: #ffffff;
+}
+
+.ar-placeholder-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--dg-primary), #4299e1);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgba(43, 108, 176, 0.32);
+}
+
+.ar-camera-placeholder h3 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.ar-camera-placeholder p {
+  max-width: 380px;
+  margin: 0 auto;
+  color: #cbd5e1;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.ar-camera-video {
+  width: 100%;
+  height: 100%;
+  -o-object-fit: cover;
+  object-fit: cover;
+  display: none;
+  transform: scaleX(-1);
+}
+
+.ar-camera-video.active {
+  display: block;
+}
+
+.ar-braces-overlay {
+  position: absolute;
+  width: 210px;
+  height: 54px;
+  pointer-events: none;
+  transform-origin: center;
+  -webkit-filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.38));
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.38));
+  z-index: 5;
+}
+
+.ar-braces-wire {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 24px;
+  height: 4px;
+  background: #d7dde5;
+  border-radius: 999px;
+}
+
+.ar-braces-bracket {
+  position: absolute;
+  top: 14px;
+  width: 20px;
+  height: 20px;
+  background: #f8fafc;
+  border: 2px solid #9aa4b2;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.25);
+}
+
+.ar-braces-bracket:nth-child(2) {
+  left: 8px;
+}
+
+.ar-braces-bracket:nth-child(3) {
+  left: 34px;
+}
+
+.ar-braces-bracket:nth-child(4) {
+  left: 60px;
+}
+
+.ar-braces-bracket:nth-child(5) {
+  left: 86px;
+}
+
+.ar-braces-bracket:nth-child(6) {
+  left: 112px;
+}
+
+.ar-braces-bracket:nth-child(7) {
+  left: 138px;
+}
+
+.ar-braces-bracket:nth-child(8) {
+  left: 164px;
+}
+
+.ar-braces-bracket:nth-child(9) {
+  left: 190px;
+}
+
+.ar-action-row {
+  flex-direction: row;
+  margin-top: 16px;
+}
+
+.ar-action-row .primary-button,
+.ar-action-row .secondary-button,
+.ar-action-row a {
+  width: auto;
+  min-width: 140px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.ar-control-card {
+  background: #f8fafc;
+}
+
+.ar-control-group {
+  margin-top: 14px;
+}
+
+.ar-control-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ar-control-group input[type="range"] {
+  width: 100%;
+  accent-color: var(--dg-primary);
+}
+
+.hidden-canvas {
+  display: none;
+}
+
+.ar-capture-card {
+  margin-top: 24px;
+}
+
+.ar-captured-image {
+  width: 100%;
+  max-height: 680px;
+  -o-object-fit: contain;
+  object-fit: contain;
+  display: block;
+  border-radius: 18px;
+  background: #020617;
+  border: 1px solid var(--dg-border);
+}
+
+/* DARK MODE */
+
+body.dark-mode .ar-camera-frame,
+body.dark-mode .ar-xray-style-frame {
+  background: #000000;
+  border-color: var(--dg-border);
+}
+
+body.dark-mode .ar-control-card {
+  background: #1e293b;
+  border-color: var(--dg-border);
+}
+
+body.dark-mode .ar-control-group label {
+  color: #e2e8f0;
+}
+
+body.dark-mode .ar-captured-image {
+  background: #000000;
+  border-color: var(--dg-border);
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1100px) {
+  .ar-action-row {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 760px) {
+  .ar-viewer-header {
+    flex-direction: column;
+  }
+
+  .ar-action-row {
+    flex-direction: column;
+  }
+
+  .ar-action-row .primary-button,
+  .ar-action-row .secondary-button,
+  .ar-action-row a {
+    width: 100%;
+  }
+
+  .ar-xray-style-frame {
+    min-height: 320px;
+  }
+}
+
+/* AR BRACES SIMULATION - PATIENT X-RAY PAGE STYLE */
+
+.ar-viewer-card {
+  margin-bottom: 24px;
+}
+
+.ar-camera-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--dg-border);
+  border-radius: 18px;
+  background: #020617;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ar-xray-style-frame {
+  min-height: 420px;
+}
+
+.ar-camera-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  padding: 34px;
+  color: #ffffff;
+}
+
+.ar-placeholder-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--dg-primary), #4299e1);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  box-shadow: 0 12px 24px rgba(43, 108, 176, 0.32);
+}
+
+.ar-camera-placeholder h3 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.ar-camera-placeholder p {
+  max-width: 380px;
+  margin: 0 auto;
+  color: #cbd5e1;
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+.ar-camera-video {
+  width: 100%;
+  height: 100%;
+  -o-object-fit: cover;
+  object-fit: cover;
+  display: none;
+  transform: scaleX(-1);
+}
+
+.ar-camera-video.active {
+  display: block;
+}
+
+.ar-braces-overlay {
+  position: absolute;
+  width: 210px;
+  height: 54px;
+  pointer-events: none;
+  transform-origin: center;
+  -webkit-filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.38));
+  filter: drop-shadow(0 8px 14px rgba(15, 23, 42, 0.38));
+  z-index: 5;
+}
+
+.ar-braces-wire {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 24px;
+  height: 4px;
+  background: #d7dde5;
+  border-radius: 999px;
+}
+
+.ar-braces-bracket {
+  position: absolute;
+  top: 14px;
+  width: 20px;
+  height: 20px;
+  background: #f8fafc;
+  border: 2px solid #9aa4b2;
+  border-radius: 5px;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, 0.25);
+}
+
+.ar-braces-bracket:nth-child(2) {
+  left: 8px;
+}
+
+.ar-braces-bracket:nth-child(3) {
+  left: 34px;
+}
+
+.ar-braces-bracket:nth-child(4) {
+  left: 60px;
+}
+
+.ar-braces-bracket:nth-child(5) {
+  left: 86px;
+}
+
+.ar-braces-bracket:nth-child(6) {
+  left: 112px;
+}
+
+.ar-braces-bracket:nth-child(7) {
+  left: 138px;
+}
+
+.ar-braces-bracket:nth-child(8) {
+  left: 164px;
+}
+
+.ar-braces-bracket:nth-child(9) {
+  left: 190px;
+}
+
+.hidden-canvas {
+  display: none;
+}
+
+.ar-saved-preview {
+  margin: 14px 0;
+  width: 100%;
+  max-width: 360px;
+  border: 1px solid var(--dg-border);
+  border-radius: 16px;
+  background: #020617;
+  overflow: hidden;
+}
+
+.ar-saved-preview img {
+  width: 100%;
+  display: block;
+  -o-object-fit: contain;
+  object-fit: contain;
+}
+
+.appointment-form input[type="range"] {
+  accent-color: var(--dg-primary);
+}
+
+body.dark-mode .ar-camera-frame,
+body.dark-mode .ar-xray-style-frame,
+body.dark-mode .ar-saved-preview {
+  background: #000000;
+  border-color: var(--dg-border);
+}
+
+@media (max-width: 760px) {
+  .ar-xray-style-frame {
+    min-height: 320px;
+  }
+
+  .ar-saved-preview {
+    max-width: 100%;
+  }
+}
+
+/* AR DENTIST REVIEW */
+
+.ar-review-form {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--dg-border);
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.ar-review-form .form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+}
+
+.ar-review-form label {
+  margin-bottom: 8px;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.ar-review-form select,
+.ar-review-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--dg-border);
+  border-radius: 15px;
+  padding: 14px 15px;
+  background: #ffffff;
+  color: var(--dg-text);
+  font-size: 14px;
+  outline: none;
+  font-family: Arial, sans-serif;
+  transition: 0.2s ease;
+}
+
+.ar-review-form textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.ar-review-form select:focus,
+.ar-review-form textarea:focus {
+  border-color: var(--dg-primary);
+  box-shadow: 0 0 0 3px rgba(43, 108, 176, 0.14);
+}
+
+body.dark-mode .ar-review-form {
+  background: #1e293b;
+  border-color: var(--dg-border);
+}
+
+body.dark-mode .ar-review-form label {
+  color: #e2e8f0;
+}
+
+body.dark-mode .ar-review-form select,
+body.dark-mode .ar-review-form textarea {
+  background: #0f172a;
+  border-color: var(--dg-border);
+  color: var(--dg-text);
+}
+
+/* AR ACTIVITY HISTORY */
+
+.ar-log-section {
+  margin-top: 18px;
+  padding: 18px;
+  border: 1px solid var(--dg-border);
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.ar-log-section .appointments-header {
+  margin-bottom: 14px;
+}
+
+.ar-log-section h3 {
+  margin: 0;
+  color: var(--dg-text);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.ar-log-section p {
+  margin: 6px 0;
+  color: var(--dg-muted);
+  font-size: 14px;
+}
+
+body.dark-mode .ar-log-section {
+  background: #1e293b;
+  border-color: var(--dg-border);
+}
+
+.ar-tracking-warning {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+}
+
+/* REALISTIC AR BRACES OVERLAY */
+
+.ar-braces-overlay {
+  position: absolute;
+  width: 250px;
+  height: 74px;
+  pointer-events: none;
+  transform-origin: center;
+  -webkit-filter: drop-shadow(0 8px 12px rgba(15, 23, 42, 0.35));
+  filter: drop-shadow(0 8px 12px rgba(15, 23, 42, 0.35));
+  z-index: 5;
+}
+
+.ar-braces-arch-wire {
+  position: absolute;
+  left: 5%;
+  right: 5%;
+  top: 45%;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    #dbe2ea 35%,
+    #8f9ba8 70%,
+    #f8fafc 100%
+  );
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 1px 3px rgba(15, 23, 42, 0.35);
+}
+
+.ar-real-bracket {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  transform: translate(-50%, -50%);
+  border-radius: 5px;
+  background: linear-gradient(145deg, #ffffff 0%, #d7dee7 45%, #9ca7b5 100%);
+  border: 1px solid rgba(71, 85, 105, 0.8);
+  box-shadow:
+    inset 1px 1px 2px rgba(255, 255, 255, 0.9),
+    inset -1px -1px 2px rgba(71, 85, 105, 0.35),
+    0 2px 4px rgba(15, 23, 42, 0.35);
+}
+
+.ar-bracket-slot {
+  position: absolute;
+  left: 3px;
+  right: 3px;
+  top: 9px;
+  height: 4px;
+  border-radius: 999px;
+  background: #6b7280;
+  box-shadow: inset 0 1px 1px rgba(15, 23, 42, 0.45);
+}
+
+.ar-bracket-tie {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  transform: translate(-50%, -50%);
+  border: 2px solid rgba(191, 219, 254, 0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(147, 197, 253, 0.7);
+}
+
+/* ADAPTIVE AR BRACES */
+
+.ar-braces-overlay.adaptive {
+  position: absolute;
+  pointer-events: none;
+  z-index: 6;
+  transform-origin: center;
+  -webkit-filter: drop-shadow(0 6px 14px rgba(15, 23, 42, 0.22));
+  filter: drop-shadow(0 6px 14px rgba(15, 23, 42, 0.22));
+}
+
+.ar-braces-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  display: block;
+}
+
+.ar-tracking-warning {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  z-index: 8;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  pointer-events: none;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+}

@@ -17,6 +17,7 @@ const dashboardRoutes = require("./routes/dashboardRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
 const paymongoRoutes = require("./routes/paymongoRoutes");
+const arSimulationRoutes = require("./routes/arSimulationRoutes");
 
 const app = express();
 
@@ -60,6 +61,7 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/payments", paymongoRoutes);
+app.use("/api/ar-simulations", arSimulationRoutes);
 
 const PORT = process.env.PORT || 5000;
 
