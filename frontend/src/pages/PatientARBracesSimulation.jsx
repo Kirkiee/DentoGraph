@@ -5,22 +5,63 @@ import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
 import "../styles/arBracesSimulation.css";
 
+const BRACE_STYLE_OPTIONS = [
+  {
+    value: "metal",
+    label: "Metal",
+    description: "Classic silver braces",
+    color: "#94a3b8",
+  },
+  {
+    value: "ceramic",
+    label: "Ceramic",
+    description: "Subtle tooth-colored look",
+    color: "#f8ead3",
+  },
+  {
+    value: "blue",
+    label: "Blue",
+    description: "Blue colored ligatures",
+    color: "#38bdf8",
+  },
+  {
+    value: "pink",
+    label: "Pink",
+    description: "Pink colored ligatures",
+    color: "#f472b6",
+  },
+  {
+    value: "green",
+    label: "Green",
+    description: "Green colored ligatures",
+    color: "#4ade80",
+  },
+  {
+    value: "purple",
+    label: "Purple",
+    description: "Purple colored ligatures",
+    color: "#a78bfa",
+  },
+];
+
 function PatientARBracesSimulation() {
   const navigate = useNavigate();
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const overlayCanvasRef = useRef(null);
   const streamRef = useRef(null);
   const faceLandmarkerRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const latestLandmarksRef = useRef(null);
   const lastVideoTimeRef = useRef(-1);
+  const braceStyleRef = useRef("metal");
 
   const [records, setRecords] = useState([]);
   const [selectedRecordId, setSelectedRecordId] = useState("");
 
   const [cameraOn, setCameraOn] = useState(false);
   const [trackingReady, setTrackingReady] = useState(false);
-  const [trackingMode, setTrackingMode] = useState("auto");
   const [faceDetected, setFaceDetected] = useState(false);
 
   const [savedPreviews, setSavedPreviews] = useState([]);
@@ -35,25 +76,26 @@ function PatientARBracesSimulation() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  const [manualOverlay, setManualOverlay] = useState({
-    x: 50,
-    y: 58,
-    width: 28,
-    height: 10,
-    rotation: 0,
-    curveDepth: 3,
-    openness: 0.12,
-  });
+  const [braceStyle, setBraceStyle] = useState("metal");
 
-  const [trackedOverlay, setTrackedOverlay] = useState({
-    x: 50,
-    y: 58,
-    width: 28,
-    height: 10,
-    rotation: 0,
-    curveDepth: 3,
-    openness: 0.12,
-  });
+  const AUTO_FIT = {
+    yOffset: -2,
+    widthScale: 0.84,
+    lowerWidthScale: 0.78,
+    heightScale: 1,
+    bracketScale: 1.05,
+
+    closedUpperRowFactor: -0.18,
+    closedLowerRowFactor: 0.23,
+
+    openUpperRowFactor: -0.46,
+    openLowerRowFactor: 0.48,
+
+    upperCurveFactor: 0.055,
+    lowerCurveFactor: 0.05,
+    upperBracketCount: 8,
+    lowerBracketCount: 8,
+  };
 
   const token = localStorage.getItem("token");
 
@@ -89,21 +131,33 @@ function PatientARBracesSimulation() {
   }, [selectedRecordId]);
 
   useEffect(() => {
-    if (cameraOn && trackingMode === "auto" && trackingReady) {
+    if (cameraOn && trackingReady) {
       startTrackingLoop();
     } else {
       stopTrackingLoop();
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraOn, trackingMode, trackingReady]);
+  }, [cameraOn, trackingReady]);
+
+  useEffect(() => {
+    braceStyleRef.current = braceStyle;
+
+    if (cameraOn && latestLandmarksRef.current && overlayCanvasRef.current) {
+      const canvas = overlayCanvasRef.current;
+      const ctx = canvas.getContext("2d");
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBracesOnCanvas(ctx, canvas, latestLandmarksRef.current);
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [braceStyle]);
 
   const initializeFaceLandmarker = async () => {
     try {
       setLoadingTracker(true);
       setError("");
-
-      console.log("Loading MediaPipe Face Landmarker...");
 
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
@@ -124,19 +178,15 @@ function PatientARBracesSimulation() {
 
       faceLandmarkerRef.current = faceLandmarker;
       setTrackingReady(true);
-      setTrackingMode("auto");
-
-      console.log("MediaPipe Face Landmarker loaded successfully.");
     } catch (err) {
       console.error("Face tracker initialization error:", err);
 
       setError(
         `Unable to load AR face tracking: ${
           err?.message || "Unknown MediaPipe loading error"
-        }. Manual mode is still available.`,
+        }. Please refresh and try again.`,
       );
 
-      setTrackingMode("manual");
       setTrackingReady(false);
     } finally {
       setLoadingTracker(false);
@@ -215,7 +265,13 @@ function PatientARBracesSimulation() {
 
     const baseURL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-    return `${baseURL}/${filePath}`;
+    if (filePath.startsWith("http")) {
+      return filePath;
+    }
+
+    const cleanPath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+
+    return `${baseURL}/${cleanPath}`;
   };
 
   const formatDate = (dateValue) => {
@@ -246,73 +302,428 @@ function PatientARBracesSimulation() {
     }
   };
 
-  const getActiveOverlay = () => {
-    return trackingMode === "auto" && faceDetected
-      ? trackedOverlay
-      : manualOverlay;
+  const getBraceStyleLabel = () => {
+    const currentStyle = braceStyleRef.current || braceStyle;
+
+    switch (currentStyle) {
+      case "ceramic":
+        return "Ceramic Braces";
+      case "blue":
+        return "Blue Ligatures";
+      case "pink":
+        return "Pink Ligatures";
+      case "green":
+        return "Green Ligatures";
+      case "purple":
+        return "Purple Ligatures";
+      case "metal":
+      default:
+        return "Metal Braces";
+    }
   };
 
-  const calculateTrackedOverlay = (landmarks) => {
-    const leftCorner = landmarks[61];
-    const rightCorner = landmarks[291];
+  const getBraceStyleLabelFromValue = (styleValue) => {
+    switch (styleValue) {
+      case "ceramic":
+        return "Ceramic Braces";
+      case "blue":
+        return "Blue Ligatures";
+      case "pink":
+        return "Pink Ligatures";
+      case "green":
+        return "Green Ligatures";
+      case "purple":
+        return "Purple Ligatures";
+      case "metal":
+      default:
+        return "Metal Braces";
+    }
+  };
 
-    const upperInnerMid = landmarks[13];
-    const lowerInnerMid = landmarks[14];
+  const getBraceStyleConfig = () => {
+    const currentStyle = braceStyleRef.current || braceStyle;
 
-    const upperInnerLeft = landmarks[78];
-    const upperInnerRight = landmarks[308];
+    switch (currentStyle) {
+      case "ceramic":
+        return {
+          bracketLight: "#fffaf0",
+          bracketMid: "#f8ead3",
+          bracketDark: "#d6b98c",
+          border: "rgba(120, 86, 45, 0.75)",
+          slot: "#8b7355",
+          ring: "rgba(255, 248, 220, 0.95)",
+          wireLight: "#ffffff",
+          wireMid: "#e5e7eb",
+          wireDark: "#9ca3af",
+        };
 
-    const lowerInnerLeft = landmarks[95];
-    const lowerInnerRight = landmarks[324];
+      case "blue":
+        return {
+          bracketLight: "#ffffff",
+          bracketMid: "#dbeafe",
+          bracketDark: "#64748b",
+          border: "rgba(30, 41, 59, 0.9)",
+          slot: "#1e3a8a",
+          ring: "#38bdf8",
+          wireLight: "#ffffff",
+          wireMid: "#dbeafe",
+          wireDark: "#64748b",
+        };
 
-    if (
-      !leftCorner ||
-      !rightCorner ||
-      !upperInnerMid ||
-      !lowerInnerMid ||
-      !upperInnerLeft ||
-      !upperInnerRight ||
-      !lowerInnerLeft ||
-      !lowerInnerRight
-    ) {
-      return null;
+      case "pink":
+        return {
+          bracketLight: "#ffffff",
+          bracketMid: "#fce7f3",
+          bracketDark: "#94a3b8",
+          border: "rgba(30, 41, 59, 0.9)",
+          slot: "#831843",
+          ring: "#f472b6",
+          wireLight: "#ffffff",
+          wireMid: "#fce7f3",
+          wireDark: "#94a3b8",
+        };
+
+      case "green":
+        return {
+          bracketLight: "#ffffff",
+          bracketMid: "#dcfce7",
+          bracketDark: "#94a3b8",
+          border: "rgba(30, 41, 59, 0.9)",
+          slot: "#14532d",
+          ring: "#4ade80",
+          wireLight: "#ffffff",
+          wireMid: "#dcfce7",
+          wireDark: "#94a3b8",
+        };
+
+      case "purple":
+        return {
+          bracketLight: "#ffffff",
+          bracketMid: "#ede9fe",
+          bracketDark: "#94a3b8",
+          border: "rgba(30, 41, 59, 0.9)",
+          slot: "#4c1d95",
+          ring: "#a78bfa",
+          wireLight: "#ffffff",
+          wireMid: "#ede9fe",
+          wireDark: "#94a3b8",
+        };
+
+      case "metal":
+      default:
+        return {
+          bracketLight: "#ffffff",
+          bracketMid: "#cbd5e1",
+          bracketDark: "#64748b",
+          border: "rgba(30, 41, 59, 0.88)",
+          slot: "#334155",
+          ring: "rgba(219, 234, 254, 0.95)",
+          wireLight: "#ffffff",
+          wireMid: "#e5e7eb",
+          wireDark: "#94a3b8",
+        };
+    }
+  };
+
+  const getCanvasPoint = (landmark, canvas) => {
+    return {
+      x: (1 - landmark.x) * canvas.width,
+      y: landmark.y * canvas.height,
+    };
+  };
+
+  const drawRoundedRect = (ctx, x, y, width, height, radius) => {
+    ctx.beginPath();
+
+    if (ctx.roundRect) {
+      ctx.roundRect(x, y, width, height, radius);
+    } else {
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(
+        x + width,
+        y + height,
+        x + width - radius,
+        y + height,
+      );
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+    }
+  };
+
+  const drawRealisticBracket = (ctx, x, y, size, rotation = 0) => {
+    const style = getBraceStyleConfig();
+
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+
+    const bracketWidth = size;
+    const bracketHeight = size * 0.78;
+
+    const gradient = ctx.createLinearGradient(
+      -bracketWidth / 2,
+      -bracketHeight / 2,
+      bracketWidth / 2,
+      bracketHeight / 2,
+    );
+
+    gradient.addColorStop(0, style.bracketLight);
+    gradient.addColorStop(0.32, "#f8fafc");
+    gradient.addColorStop(0.68, style.bracketMid);
+    gradient.addColorStop(1, style.bracketDark);
+
+    ctx.shadowColor = "rgba(15, 23, 42, 0.24)";
+    ctx.shadowBlur = size * 0.12;
+    ctx.shadowOffsetY = size * 0.06;
+
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = style.border;
+    ctx.lineWidth = Math.max(0.8, size * 0.055);
+
+    drawRoundedRect(
+      ctx,
+      -bracketWidth / 2,
+      -bracketHeight / 2,
+      bracketWidth,
+      bracketHeight,
+      size * 0.16,
+    );
+
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    ctx.fillStyle = style.slot;
+    ctx.fillRect(
+      -bracketWidth * 0.3,
+      -bracketHeight * 0.08,
+      bracketWidth * 0.6,
+      bracketHeight * 0.16,
+    );
+
+    ctx.strokeStyle = style.ring;
+    ctx.lineWidth = Math.max(0.8, size * 0.055);
+    ctx.beginPath();
+    ctx.arc(0, 0, size * 0.23, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "rgba(255, 255, 255, 0.75)";
+    ctx.beginPath();
+    ctx.arc(-size * 0.16, -size * 0.14, size * 0.08, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  };
+
+  const getBracketPositions = (rowWidth, count) => {
+    const startX = -rowWidth / 2;
+    const step = rowWidth / (count - 1);
+
+    return Array.from({ length: count }, (_, index) => startX + step * index);
+  };
+
+  const drawBracesRow = ({
+    ctx,
+    rowY,
+    rowWidth,
+    bracketCount,
+    bracketSize,
+    curve,
+    isUpper,
+    wireGradient,
+  }) => {
+    const xs = getBracketPositions(rowWidth, bracketCount);
+
+    ctx.strokeStyle = wireGradient;
+    ctx.lineWidth = Math.max(1.5, bracketSize * 0.17);
+    ctx.lineCap = "round";
+    ctx.shadowColor = "rgba(15, 23, 42, 0.2)";
+    ctx.shadowBlur = 2;
+    ctx.shadowOffsetY = 1;
+
+    ctx.beginPath();
+
+    if (isUpper) {
+      ctx.moveTo(xs[0], rowY);
+      ctx.quadraticCurveTo(0, rowY + curve, xs[xs.length - 1], rowY);
+    } else {
+      ctx.moveTo(xs[0], rowY);
+      ctx.quadraticCurveTo(0, rowY - curve, xs[xs.length - 1], rowY);
     }
 
-    const mouthCenterX = (leftCorner.x + rightCorner.x) / 2;
-    const mouthCenterY = (upperInnerMid.y + lowerInnerMid.y) / 2;
+    ctx.stroke();
 
-    const dx = rightCorner.x - leftCorner.x;
-    const dy = rightCorner.y - leftCorner.y;
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
-    const mouthWidth = Math.sqrt(dx * dx + dy * dy);
-    const mouthHeight = Math.abs(lowerInnerMid.y - upperInnerMid.y);
+    xs.forEach((x, index) => {
+      const t = index / (xs.length - 1);
+      const curveY = Math.sin(t * Math.PI) * curve;
+      const y = isUpper ? rowY + curveY : rowY - curveY;
 
-    const angle = Math.atan2(dy, dx) * (180 / Math.PI);
+      drawRealisticBracket(ctx, x, y, bracketSize, 0);
+    });
+  };
 
-    const upperArcLeft = upperInnerLeft.y;
-    const upperArcRight = upperInnerRight.y;
-    const upperArcMid = upperInnerMid.y;
+  const drawBracesOnCanvas = (ctx, canvas, landmarks) => {
+    if (!landmarks) return;
 
-    const smileCurve = ((upperArcLeft + upperArcRight) / 2 - upperArcMid) * 100;
+    const requiredLandmarks = [61, 291, 13, 14, 78, 308, 95, 324];
 
-    return {
-      x: (1 - mouthCenterX) * 100,
-      y: mouthCenterY * 100 + 1.5,
-      width: Math.max(18, Math.min(42, mouthWidth * 115)),
-      height: Math.max(8, Math.min(18, mouthHeight * 140)),
-      rotation: -angle,
-      curveDepth: Math.max(1.5, Math.min(6, smileCurve * 3.2 + 2.2)),
-      openness: mouthHeight / mouthWidth,
-    };
+    const hasRequiredLandmarks = requiredLandmarks.every(
+      (index) => landmarks[index],
+    );
+
+    if (!hasRequiredLandmarks) return;
+
+    const leftCorner = getCanvasPoint(landmarks[61], canvas);
+    const rightCorner = getCanvasPoint(landmarks[291], canvas);
+
+    const upperLip = getCanvasPoint(landmarks[13], canvas);
+    const lowerLip = getCanvasPoint(landmarks[14], canvas);
+
+    const upperLeft = getCanvasPoint(landmarks[78], canvas);
+    const upperRight = getCanvasPoint(landmarks[308], canvas);
+
+    const lowerLeft = getCanvasPoint(landmarks[95], canvas);
+    const lowerRight = getCanvasPoint(landmarks[324], canvas);
+
+    const mouthWidth = Math.hypot(
+      rightCorner.x - leftCorner.x,
+      rightCorner.y - leftCorner.y,
+    );
+
+    const mouthHeight = Math.abs(lowerLip.y - upperLip.y);
+
+    if (mouthWidth < 42 || mouthHeight < 5) return;
+
+    const centerX = (leftCorner.x + rightCorner.x) / 2;
+    const centerY = (upperLip.y + lowerLip.y) / 2 + AUTO_FIT.yOffset;
+
+    const angle = Math.atan2(
+      rightCorner.y - leftCorner.y,
+      rightCorner.x - leftCorner.x,
+    );
+
+    const rowWidth = mouthWidth * AUTO_FIT.widthScale;
+    const upperRowWidth = rowWidth;
+    const lowerRowWidth = rowWidth * AUTO_FIT.lowerWidthScale;
+
+    const upperBracketSize =
+      Math.max(6.8, Math.min(13.8, mouthWidth * 0.058)) * AUTO_FIT.bracketScale;
+
+    const lowerBracketSize =
+      Math.max(6.3, Math.min(13.2, mouthWidth * 0.054)) * AUTO_FIT.bracketScale;
+
+    const mouthOpenRatio = mouthHeight / mouthWidth;
+
+    const openness = Math.min(Math.max((mouthOpenRatio - 0.28) / 0.28, 0), 1);
+
+    const upperFactor =
+      AUTO_FIT.closedUpperRowFactor +
+      (AUTO_FIT.openUpperRowFactor - AUTO_FIT.closedUpperRowFactor) * openness;
+
+    const lowerFactor =
+      AUTO_FIT.closedLowerRowFactor +
+      (AUTO_FIT.openLowerRowFactor - AUTO_FIT.closedLowerRowFactor) * openness;
+
+    const scaledHeight = mouthHeight * AUTO_FIT.heightScale;
+
+    const upperRowY = scaledHeight * upperFactor;
+    const lowerRowY = scaledHeight * lowerFactor;
+
+    const upperCurve = Math.max(1.4, mouthHeight * AUTO_FIT.upperCurveFactor);
+    const lowerCurve = Math.max(1.2, mouthHeight * AUTO_FIT.lowerCurveFactor);
+
+    const style = getBraceStyleConfig();
+
+    const wireGradient = ctx.createLinearGradient(0, -5, 0, 5);
+    wireGradient.addColorStop(0, style.wireLight);
+    wireGradient.addColorStop(0.36, style.wireMid);
+    wireGradient.addColorStop(0.75, style.wireDark);
+    wireGradient.addColorStop(1, "#f8fafc");
+
+    ctx.save();
+
+    ctx.beginPath();
+    ctx.moveTo(
+      upperLeft.x - mouthWidth * 0.035,
+      upperLeft.y - mouthHeight * 0.12,
+    );
+    ctx.quadraticCurveTo(
+      upperLip.x,
+      upperLip.y - mouthHeight * 0.28,
+      upperRight.x + mouthWidth * 0.035,
+      upperRight.y - mouthHeight * 0.12,
+    );
+    ctx.lineTo(
+      lowerRight.x + mouthWidth * 0.035,
+      lowerRight.y + mouthHeight * 0.12,
+    );
+    ctx.quadraticCurveTo(
+      lowerLip.x,
+      lowerLip.y + mouthHeight * 0.28,
+      lowerLeft.x - mouthWidth * 0.035,
+      lowerLeft.y + mouthHeight * 0.12,
+    );
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.translate(centerX, centerY);
+    ctx.rotate(angle);
+
+    if (AUTO_FIT.upperBracketCount > 0) {
+      drawBracesRow({
+        ctx,
+        rowY: upperRowY,
+        rowWidth: upperRowWidth,
+        bracketCount: AUTO_FIT.upperBracketCount,
+        bracketSize: upperBracketSize,
+        curve: upperCurve,
+        isUpper: true,
+        wireGradient,
+      });
+    }
+
+    if (AUTO_FIT.lowerBracketCount > 0) {
+      drawBracesRow({
+        ctx,
+        rowY: lowerRowY,
+        rowWidth: lowerRowWidth,
+        bracketCount: AUTO_FIT.lowerBracketCount,
+        bracketSize: lowerBracketSize,
+        curve: lowerCurve,
+        isUpper: false,
+        wireGradient,
+      });
+    }
+
+    ctx.restore();
   };
 
   const runFaceTracking = () => {
     const video = videoRef.current;
     const faceLandmarker = faceLandmarkerRef.current;
+    const overlayCanvas = overlayCanvasRef.current;
 
-    if (!video || !faceLandmarker) {
+    if (!video || !faceLandmarker || !overlayCanvas) {
       return;
     }
+
+    const rect = video.getBoundingClientRect();
+
+    overlayCanvas.width = rect.width;
+    overlayCanvas.height = rect.height;
+
+    const ctx = overlayCanvas.getContext("2d");
+    ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
 
     if (
       video.readyState >= 2 &&
@@ -325,19 +736,20 @@ function PatientARBracesSimulation() {
         const landmarks = results.faceLandmarks?.[0];
 
         if (landmarks) {
-          const nextOverlay = calculateTrackedOverlay(landmarks);
-
-          if (nextOverlay) {
-            setTrackedOverlay(nextOverlay);
-            setFaceDetected(true);
-          }
+          latestLandmarksRef.current = landmarks;
+          setFaceDetected(true);
+          drawBracesOnCanvas(ctx, overlayCanvas, landmarks);
         } else {
+          latestLandmarksRef.current = null;
           setFaceDetected(false);
         }
       } catch (err) {
         console.error("Face tracking error:", err);
+        latestLandmarksRef.current = null;
         setFaceDetected(false);
       }
+    } else if (latestLandmarksRef.current) {
+      drawBracesOnCanvas(ctx, overlayCanvas, latestLandmarksRef.current);
     }
 
     animationFrameRef.current = requestAnimationFrame(runFaceTracking);
@@ -354,7 +766,15 @@ function PatientARBracesSimulation() {
       animationFrameRef.current = null;
     }
 
+    latestLandmarksRef.current = null;
     setFaceDetected(false);
+
+    const overlayCanvas = overlayCanvasRef.current;
+
+    if (overlayCanvas) {
+      const ctx = overlayCanvas.getContext("2d");
+      ctx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    }
   };
 
   const startCamera = async () => {
@@ -401,49 +821,7 @@ function PatientARBracesSimulation() {
     setFaceDetected(false);
   };
 
-  const switchTrackingMode = (mode) => {
-    setTrackingMode(mode);
-    setMessage("");
-    setError("");
-
-    if (mode === "auto" && !trackingReady) {
-      setError(
-        "Auto AR tracking is still loading or unavailable. Please use manual mode for now.",
-      );
-    }
-
-    if (mode === "manual") {
-      setFaceDetected(false);
-    }
-  };
-
-  const resetOverlay = () => {
-    setManualOverlay({
-      x: 50,
-      y: 58,
-      width: 28,
-      height: 10,
-      rotation: 0,
-      curveDepth: 3,
-      openness: 0.12,
-    });
-
-    setTrackedOverlay({
-      x: 50,
-      y: 58,
-      width: 28,
-      height: 10,
-      rotation: 0,
-      curveDepth: 3,
-      openness: 0.12,
-    });
-
-    setMessage("Overlay controls have been reset.");
-    setError("");
-  };
-
-  const refreshSimulation = () => {
-    resetOverlay();
+  const resetSimulation = () => {
     fetchRecords();
 
     if (selectedRecordId) {
@@ -452,102 +830,6 @@ function PatientARBracesSimulation() {
 
     setMessage("Simulation view has been refreshed.");
     setError("");
-  };
-
-  const drawBraces = (ctx, width, height, curveDepth = 3) => {
-    const bracketCount = 8;
-    const startX = -width / 2;
-    const endX = width / 2;
-    const usableWidth = endX - startX;
-
-    const wireGradient = ctx.createLinearGradient(0, -4, 0, 4);
-    wireGradient.addColorStop(0, "#ffffff");
-    wireGradient.addColorStop(0.4, "#dbe2ea");
-    wireGradient.addColorStop(0.75, "#8f9ba8");
-    wireGradient.addColorStop(1, "#f8fafc");
-
-    ctx.lineWidth = Math.max(3, height * 0.12);
-    ctx.strokeStyle = wireGradient;
-    ctx.lineCap = "round";
-
-    ctx.shadowColor = "rgba(15, 23, 42, 0.28)";
-    ctx.shadowBlur = 4;
-    ctx.shadowOffsetY = 2;
-
-    ctx.beginPath();
-    ctx.moveTo(startX + width * 0.08, 0);
-    ctx.quadraticCurveTo(0, curveDepth, endX - width * 0.08, 0);
-    ctx.stroke();
-
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetY = 0;
-
-    for (let i = 0; i < bracketCount; i++) {
-      const t = i / (bracketCount - 1);
-      const bracketX = startX + width * 0.1 + t * (usableWidth * 0.8);
-      const bracketY = Math.sin(t * Math.PI) * (curveDepth * 0.65);
-
-      const bracketWidth = width * 0.075;
-      const bracketHeight = height * 0.42;
-      const radius = Math.min(bracketWidth, bracketHeight) * 0.22;
-
-      const gradient = ctx.createLinearGradient(
-        bracketX - bracketWidth / 2,
-        bracketY - bracketHeight / 2,
-        bracketX + bracketWidth / 2,
-        bracketY + bracketHeight / 2,
-      );
-
-      gradient.addColorStop(0, "#ffffff");
-      gradient.addColorStop(0.45, "#d7dee7");
-      gradient.addColorStop(1, "#9ca7b5");
-
-      ctx.fillStyle = gradient;
-      ctx.strokeStyle = "#64748b";
-      ctx.lineWidth = 1;
-
-      ctx.beginPath();
-
-      if (ctx.roundRect) {
-        ctx.roundRect(
-          bracketX - bracketWidth / 2,
-          bracketY - bracketHeight / 2,
-          bracketWidth,
-          bracketHeight,
-          radius,
-        );
-      } else {
-        ctx.rect(
-          bracketX - bracketWidth / 2,
-          bracketY - bracketHeight / 2,
-          bracketWidth,
-          bracketHeight,
-        );
-      }
-
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = "#6b7280";
-      ctx.fillRect(
-        bracketX - bracketWidth * 0.3,
-        bracketY - bracketHeight * 0.08,
-        bracketWidth * 0.6,
-        bracketHeight * 0.16,
-      );
-
-      ctx.strokeStyle = "rgba(191, 219, 254, 0.95)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(
-        bracketX,
-        bracketY,
-        Math.min(bracketWidth, bracketHeight) * 0.33,
-        0,
-        Math.PI * 2,
-      );
-      ctx.stroke();
-    }
   };
 
   const dataUrlToFile = async (dataUrl, filename) => {
@@ -576,15 +858,14 @@ function PatientARBracesSimulation() {
       );
 
       const formData = new FormData();
+
       formData.append("simulation", file);
       formData.append("record_id", selectedRecordId);
+      formData.append("brace_style", braceStyleRef.current || braceStyle);
       formData.append(
         "notes",
-        trackingMode === "auto"
-          ? "Adaptive face-tracked AR braces simulation preview"
-          : "Manual AR braces simulation preview",
+        "Auto-fitted face-tracked AR braces simulation preview",
       );
-
       await API.post("/api/ar-simulations", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -623,10 +904,8 @@ function PatientARBracesSimulation() {
       return;
     }
 
-    if (trackingMode === "auto" && !faceDetected) {
-      setError(
-        "No face detected. Please center your full face in the frame or switch to manual mode.",
-      );
+    if (!latestLandmarksRef.current) {
+      setError("No face detected. Please center your full face in the frame.");
       return;
     }
 
@@ -634,8 +913,6 @@ function PatientARBracesSimulation() {
       setError("Camera is not ready yet. Please try again.");
       return;
     }
-
-    const activeOverlay = getActiveOverlay();
 
     const width = video.videoWidth;
     const height = video.videoHeight;
@@ -651,17 +928,7 @@ function PatientARBracesSimulation() {
     ctx.drawImage(video, 0, 0, width, height);
     ctx.restore();
 
-    const bracesWidth = (activeOverlay.width / 100) * width;
-    const bracesHeight = (activeOverlay.height / 100) * height;
-
-    const x = (activeOverlay.x / 100) * width;
-    const y = (activeOverlay.y / 100) * height;
-
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate((activeOverlay.rotation * Math.PI) / 180);
-    drawBraces(ctx, bracesWidth, bracesHeight, activeOverlay.curveDepth || 3);
-    ctx.restore();
+    drawBracesOnCanvas(ctx, canvas, latestLandmarksRef.current);
 
     const imageData = canvas.toDataURL("image/png");
 
@@ -723,16 +990,14 @@ function PatientARBracesSimulation() {
     }
   };
 
-  const activeOverlay = getActiveOverlay();
-
   return (
     <DashboardLayout role="Patient">
       <div className="appointments-layout">
         <div className="appointment-form-card">
           <h2>AR Braces Simulation</h2>
           <p>
-            Use real-time face tracking to preview adaptive braces that follow
-            the visible mouth and teeth area.
+            Use real-time face tracking to preview braces fitted to the visible
+            teeth area.
           </p>
 
           {message && <div className="success-message">{message}</div>}
@@ -741,12 +1006,14 @@ function PatientARBracesSimulation() {
           <div className="appointment-form">
             <div className="form-group">
               <label>Dental Record</label>
+
               <select
                 value={selectedRecordId}
                 onChange={(e) => setSelectedRecordId(e.target.value)}
                 disabled={loadingRecords || savingPreview}
               >
                 <option value="">Select Dental Record</option>
+
                 {records.map((record) => (
                   <option key={record.record_id} value={record.record_id}>
                     Record #{record.record_id} -{" "}
@@ -757,131 +1024,55 @@ function PatientARBracesSimulation() {
             </div>
 
             <div className="form-group">
-              <label>AR Mode</label>
-              <select
-                value={trackingMode}
-                onChange={(e) => switchTrackingMode(e.target.value)}
-                disabled={savingPreview}
-              >
-                <option value="auto">
-                  Auto AR Tracking {loadingTracker ? "(Loading...)" : ""}
-                </option>
-                <option value="manual">Manual Fine-Tuning</option>
-              </select>
+              <label>Braces Style</label>
+
+              <div className="brace-style-grid">
+                {BRACE_STYLE_OPTIONS.map((style) => {
+                  const isSelected = braceStyle === style.value;
+
+                  return (
+                    <button
+                      key={style.value}
+                      type="button"
+                      className={
+                        isSelected
+                          ? "brace-style-card selected"
+                          : "brace-style-card"
+                      }
+                      onClick={() => {
+                        braceStyleRef.current = style.value;
+                        setBraceStyle(style.value);
+                      }}
+                      disabled={savingPreview}
+                    >
+                      <span
+                        className="brace-style-color"
+                        style={{ backgroundColor: style.color }}
+                      />
+
+                      <span className="brace-style-text">
+                        <strong>{style.label}</strong>
+                        <small>{style.description}</small>
+                      </span>
+
+                      {isSelected && (
+                        <span className="brace-style-check">✓</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-
-            {trackingMode === "manual" && (
-              <>
-                <div className="form-group">
-                  <label>Horizontal Position</label>
-                  <input
-                    type="range"
-                    min="20"
-                    max="80"
-                    value={manualOverlay.x}
-                    onChange={(e) =>
-                      setManualOverlay({
-                        ...manualOverlay,
-                        x: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Vertical Position</label>
-                  <input
-                    type="range"
-                    min="35"
-                    max="80"
-                    value={manualOverlay.y}
-                    onChange={(e) =>
-                      setManualOverlay({
-                        ...manualOverlay,
-                        y: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Overlay Width</label>
-                  <input
-                    type="range"
-                    min="18"
-                    max="45"
-                    step="1"
-                    value={manualOverlay.width}
-                    onChange={(e) =>
-                      setManualOverlay({
-                        ...manualOverlay,
-                        width: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Overlay Height</label>
-                  <input
-                    type="range"
-                    min="8"
-                    max="20"
-                    step="1"
-                    value={manualOverlay.height}
-                    onChange={(e) =>
-                      setManualOverlay({
-                        ...manualOverlay,
-                        height: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Smile Curve</label>
-                  <input
-                    type="range"
-                    min="1"
-                    max="8"
-                    step="0.2"
-                    value={manualOverlay.curveDepth}
-                    onChange={(e) =>
-                      setManualOverlay({
-                        ...manualOverlay,
-                        curveDepth: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Rotation</label>
-                  <input
-                    type="range"
-                    min="-20"
-                    max="20"
-                    value={manualOverlay.rotation}
-                    onChange={(e) =>
-                      setManualOverlay({
-                        ...manualOverlay,
-                        rotation: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-              </>
-            )}
 
             <button
               type="button"
               className="secondary-button"
-              onClick={refreshSimulation}
+              onClick={resetSimulation}
               disabled={loadingRecords || loadingPreviews || savingPreview}
             >
               {loadingRecords || loadingPreviews
                 ? "Refreshing..."
-                : "Reset Simulation"}
+                : "Refresh Simulation"}
             </button>
 
             <button
@@ -892,12 +1083,6 @@ function PatientARBracesSimulation() {
               Back to Dashboard
             </button>
           </div>
-
-          <div className="info-message" style={{ marginTop: "18px" }}>
-            Auto AR Tracking uses lip and mouth landmarks to estimate the
-            visible teeth area. This is for visualization only and not a final
-            orthodontic diagnosis.
-          </div>
         </div>
 
         <div className="appointments-list-card">
@@ -905,14 +1090,14 @@ function PatientARBracesSimulation() {
             <div>
               <h2>Live AR Filter Preview</h2>
               <p>
-                Start the camera. In auto mode, the braces adapt to the mouth
-                area and follow your face in real time.
+                Start the camera. The braces will automatically follow the mouth
+                and sit across the visible teeth area.
               </p>
             </div>
 
             <button
               className="secondary-button"
-              onClick={refreshSimulation}
+              onClick={resetSimulation}
               type="button"
               disabled={loadingRecords || loadingPreviews || savingPreview}
             >
@@ -941,6 +1126,10 @@ function PatientARBracesSimulation() {
                   <strong>Clinic:</strong>{" "}
                   {selectedRecord.clinic_name || "No assigned clinic"}
                 </p>
+
+                <p>
+                  <strong>Selected Style:</strong> {getBraceStyleLabel()}
+                </p>
               </div>
             </div>
           )}
@@ -960,24 +1149,19 @@ function PatientARBracesSimulation() {
                   {cameraOn ? "Camera Active" : "Camera Off"}
                 </span>
 
-                {trackingMode === "auto" && (
-                  <span
-                    className={
-                      faceDetected
-                        ? "status-badge status-completed"
-                        : "status-badge status-pending"
-                    }
-                  >
-                    {faceDetected ? "Face Tracking" : "No Face Detected"}
-                  </span>
-                )}
+                <span
+                  className={
+                    faceDetected
+                      ? "status-badge status-completed"
+                      : "status-badge status-pending"
+                  }
+                >
+                  {faceDetected ? "Face Tracking" : "No Face Detected"}
+                </span>
               </div>
 
               <p>
-                <strong>Mode:</strong>{" "}
-                {trackingMode === "auto"
-                  ? "Auto AR Tracking"
-                  : "Manual Fine-Tuning"}
+                <strong>Mode:</strong> Auto AR Tracking
               </p>
 
               <p>
@@ -1029,7 +1213,8 @@ function PatientARBracesSimulation() {
                   <div className="ar-placeholder-icon">DG</div>
                   <h3>Camera Preview</h3>
                   <p>
-                    Start the camera to display the adaptive AR braces filter.
+                    Start the camera to display the auto-fitted AR braces
+                    filter.
                   </p>
                 </div>
               )}
@@ -1045,109 +1230,17 @@ function PatientARBracesSimulation() {
               />
 
               {cameraOn && (
-                <div
-                  className="ar-braces-overlay adaptive"
-                  style={{
-                    left: `${activeOverlay.x}%`,
-                    top: `${activeOverlay.y}%`,
-                    width: `${activeOverlay.width}%`,
-                    height: `${activeOverlay.height}%`,
-                    transform: `translate(-50%, -50%) rotate(${activeOverlay.rotation}deg)`,
-                    opacity:
-                      trackingMode === "manual" || faceDetected ? 1 : 0.35,
-                  }}
-                >
-                  <svg
-                    className="ar-braces-svg"
-                    viewBox="0 0 100 40"
-                    preserveAspectRatio="none"
-                  >
-                    <defs>
-                      <linearGradient id="wireGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#ffffff" />
-                        <stop offset="40%" stopColor="#dbe2ea" />
-                        <stop offset="75%" stopColor="#8f9ba8" />
-                        <stop offset="100%" stopColor="#f8fafc" />
-                      </linearGradient>
-
-                      <linearGradient
-                        id="bracketGrad"
-                        x1="0"
-                        y1="0"
-                        x2="1"
-                        y2="1"
-                      >
-                        <stop offset="0%" stopColor="#ffffff" />
-                        <stop offset="45%" stopColor="#d7dee7" />
-                        <stop offset="100%" stopColor="#9ca7b5" />
-                      </linearGradient>
-                    </defs>
-
-                    <path
-                      d={`M 8 22 Q 50 ${22 + activeOverlay.curveDepth} 92 22`}
-                      stroke="url(#wireGrad)"
-                      strokeWidth="2.8"
-                      fill="none"
-                      strokeLinecap="round"
-                    />
-
-                    {Array.from({ length: 8 }).map((_, index) => {
-                      const t = index / 7;
-                      const x = 10 + t * 80;
-                      const y =
-                        22 +
-                        Math.sin(t * Math.PI) * activeOverlay.curveDepth * 0.65;
-
-                      return (
-                        <g key={index} transform={`translate(${x}, ${y})`}>
-                          <rect
-                            x="-4.2"
-                            y="-4.2"
-                            width="8.4"
-                            height="8.4"
-                            rx="1.5"
-                            fill="url(#bracketGrad)"
-                            stroke="#64748b"
-                            strokeWidth="0.6"
-                          />
-
-                          <rect
-                            x="-2.6"
-                            y="-0.7"
-                            width="5.2"
-                            height="1.4"
-                            rx="0.7"
-                            fill="#6b7280"
-                          />
-
-                          <circle
-                            cx="0"
-                            cy="0"
-                            r="3.2"
-                            fill="none"
-                            stroke="rgba(191,219,254,0.95)"
-                            strokeWidth="0.7"
-                          />
-                        </g>
-                      );
-                    })}
-                  </svg>
-                </div>
+                <canvas ref={overlayCanvasRef} className="ar-overlay-canvas" />
               )}
 
-              {cameraOn && trackingMode === "auto" && !faceDetected && (
+              {cameraOn && !faceDetected && (
                 <div className="ar-tracking-warning">
-                  Center your full face in the frame
+                  Center your face and smile slightly
                 </div>
               )}
             </div>
 
             <canvas ref={canvasRef} className="hidden-canvas" />
-
-            <p className="xray-helper-text">
-              Tip: Smile slightly and keep your full face visible. The braces
-              will fit better when the mouth area is clearly visible.
-            </p>
           </div>
 
           <div className="appointments-header" style={{ marginTop: "28px" }}>
@@ -1228,6 +1321,11 @@ function PatientARBracesSimulation() {
 
                       <p>
                         <strong>Type:</strong> AR Braces Simulation
+                      </p>
+
+                      <p>
+                        <strong>Braces Style:</strong>{" "}
+                        {getBraceStyleLabelFromValue(preview.brace_style)}
                       </p>
 
                       <p>
