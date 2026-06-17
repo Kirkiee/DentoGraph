@@ -213,10 +213,7 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
         }
       >
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={onBack}>
-            <Text style={styles.backButtonText}>Back</Text>
-          </Pressable>
-
+          
           <Text style={styles.title}>Dental Records</Text>
 
           <Text style={styles.subtitle}>
@@ -456,7 +453,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    marginTop: 12,
+    marginTop: 22,
     marginBottom: 22,
   },
   backButton: {
