@@ -95,6 +95,16 @@ const createARSimulationLog = async (
   );
 };
 
+const cleanBraceStyleValue = (braceStyle) => {
+  const allowedStyles = ["metal", "ceramic", "blue", "pink", "green", "purple"];
+
+  if (!braceStyle || !allowedStyles.includes(braceStyle)) {
+    return "metal";
+  }
+
+  return braceStyle;
+};
+
 /* PATIENT: SAVE AR PREVIEW */
 
 router.post(
@@ -143,6 +153,7 @@ router.post(
 
       const imagePath = `uploads/ar-simulations/${req.file.filename}`;
       const notes = req.body.notes || "AR braces simulation preview";
+      const braceStyle = cleanBraceStyleValue(req.body.brace_style);
 
       const result = await pool.query(
         `
@@ -151,19 +162,20 @@ router.post(
           record_id,
           image_path,
           notes,
+          brace_style,
           review_status
         )
-        VALUES ($1, $2, $3, $4, $5)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING *
         `,
-        [patientId, recordId, imagePath, notes, "Pending Review"],
+        [patientId, recordId, imagePath, notes, braceStyle, "Pending Review"],
       );
 
       await createARSimulationLog(
         result.rows[0].simulation_id,
         userId,
         "Preview Captured",
-        "Patient captured and saved an AR braces simulation preview.",
+        `Patient captured and saved an AR braces simulation preview using ${braceStyle} style.`,
       );
 
       return res.status(201).json({
@@ -204,6 +216,7 @@ router.get("/my-previews", authenticateToken, async (req, res) => {
       `
       SELECT
         ar.*,
+        COALESCE(ar.brace_style, 'metal') AS brace_style,
         dr.dentist_id,
         u.name AS dentist_name,
         c.clinic_name
@@ -264,6 +277,7 @@ router.get("/record/:recordId", authenticateToken, async (req, res) => {
       `
       SELECT
         ar.*,
+        COALESCE(ar.brace_style, 'metal') AS brace_style,
         dr.dentist_id,
         u.name AS dentist_name,
         c.clinic_name
@@ -342,6 +356,7 @@ router.get("/dentist/record/:recordId", authenticateToken, async (req, res) => {
       `
       SELECT
         ar.*,
+        COALESCE(ar.brace_style, 'metal') AS brace_style,
         pu.name AS patient_name,
         du.name AS dentist_name,
         c.clinic_name
@@ -423,6 +438,13 @@ router.get(
             LIMIT 1
           ) AS latest_status,
           (
+            SELECT COALESCE(brace_style, 'metal')
+            FROM ar_simulations
+            WHERE record_id = $1
+            ORDER BY created_at DESC
+            LIMIT 1
+          ) AS latest_brace_style,
+          (
             SELECT created_at
             FROM ar_simulations
             WHERE record_id = $1
@@ -498,6 +520,7 @@ router.put(
         SELECT
           ar.simulation_id,
           ar.record_id,
+          ar.brace_style,
           dr.dentist_id
         FROM ar_simulations ar
         JOIN dental_records dr ON ar.record_id = dr.record_id
@@ -606,21 +629,21 @@ router.get("/:simulationId/logs", authenticateToken, async (req, res) => {
 
     const logsResult = await pool.query(
       `
-  SELECT
-    logs.*,
-    u.name AS user_name,
-    CASE
-      WHEN p.patient_id IS NOT NULL THEN 'Patient'
-      WHEN d.dentist_id IS NOT NULL THEN 'Dentist'
-      ELSE 'User'
-    END AS user_role
-  FROM ar_simulation_logs logs
-  LEFT JOIN users u ON logs.user_id = u.user_id
-  LEFT JOIN patients p ON u.user_id = p.user_id
-  LEFT JOIN dentists d ON u.user_id = d.user_id
-  WHERE logs.simulation_id = $1
-  ORDER BY logs.created_at ASC
-  `,
+      SELECT
+        logs.*,
+        u.name AS user_name,
+        CASE
+          WHEN p.patient_id IS NOT NULL THEN 'Patient'
+          WHEN d.dentist_id IS NOT NULL THEN 'Dentist'
+          ELSE 'User'
+        END AS user_role
+      FROM ar_simulation_logs logs
+      LEFT JOIN users u ON logs.user_id = u.user_id
+      LEFT JOIN patients p ON u.user_id = p.user_id
+      LEFT JOIN dentists d ON u.user_id = d.user_id
+      WHERE logs.simulation_id = $1
+      ORDER BY logs.created_at ASC
+      `,
       [simulationId],
     );
 

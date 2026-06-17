@@ -305,6 +305,24 @@ function DentistDentalRecordDetails() {
     }
   };
 
+  const getBraceStyleLabelFromValue = (styleValue) => {
+    switch (styleValue) {
+      case "ceramic":
+        return "Ceramic Braces";
+      case "blue":
+        return "Blue Ligatures";
+      case "pink":
+        return "Pink Ligatures";
+      case "green":
+        return "Green Ligatures";
+      case "purple":
+        return "Purple Ligatures";
+      case "metal":
+      default:
+        return "Metal Braces";
+    }
+  };
+
   const getToothStatusClass = (status) => {
     switch (status) {
       case "Caries":
@@ -836,6 +854,13 @@ function DentistDentalRecordDetails() {
                     </p>
 
                     <p>
+                      <strong>Latest Braces Style:</strong>{" "}
+                      {getBraceStyleLabelFromValue(
+                        arSummary.latest_brace_style,
+                      )}
+                    </p>
+
+                    <p>
                       <strong>Latest Submitted:</strong>{" "}
                       {formatDate(arSummary.latest_created_at)}
                     </p>
@@ -1048,6 +1073,13 @@ function DentistDentalRecordDetails() {
                     <p>
                       <strong>Latest Review Status:</strong>{" "}
                       {arSummary.latest_status || "Pending Review"}
+                    </p>
+
+                    <p>
+                      <strong>Latest Braces Style:</strong>{" "}
+                      {getBraceStyleLabelFromValue(
+                        arSummary.latest_brace_style,
+                      )}
                     </p>
                   </div>
 

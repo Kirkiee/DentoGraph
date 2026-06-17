@@ -97,7 +97,13 @@ function DentistARSimulations() {
 
     const baseURL = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-    return `${baseURL}/${filePath}`;
+    if (filePath.startsWith("http")) {
+      return filePath;
+    }
+
+    const cleanPath = filePath.startsWith("/") ? filePath.slice(1) : filePath;
+
+    return `${baseURL}/${cleanPath}`;
   };
 
   const formatDate = (dateValue) => {
@@ -121,6 +127,24 @@ function DentistARSimulations() {
       case "Pending Review":
       default:
         return "status-badge status-pending";
+    }
+  };
+
+  const getBraceStyleLabelFromValue = (styleValue) => {
+    switch (styleValue) {
+      case "ceramic":
+        return "Ceramic Braces";
+      case "blue":
+        return "Blue Ligatures";
+      case "pink":
+        return "Pink Ligatures";
+      case "green":
+        return "Green Ligatures";
+      case "purple":
+        return "Purple Ligatures";
+      case "metal":
+      default:
+        return "Metal Braces";
     }
   };
 
@@ -334,6 +358,11 @@ function DentistARSimulations() {
 
                         <p>
                           <strong>Type:</strong> AR Braces Simulation
+                        </p>
+
+                        <p>
+                          <strong>Braces Style:</strong>{" "}
+                          {getBraceStyleLabelFromValue(simulation.brace_style)}
                         </p>
 
                         {simulation.notes && (

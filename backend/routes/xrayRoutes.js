@@ -663,10 +663,22 @@ router.post(
     const filePath = `uploads/xrays/${req.file.filename}`;
     const fileSizeBytes = req.file.size || 0;
 
+    let dbInsertSucceeded = false;
+    let insertedXray = null;
+
+    console.log("XRAY UPLOAD START:", {
+      originalname: req.file.originalname,
+      filename: req.file.filename,
+      multerPath: req.file.path,
+      savedDbPath: filePath,
+      fileExistsAtStart: fs.existsSync(req.file.path),
+    });
+
     try {
       const access = await getAccessibleRecordForXray(req, record_id);
 
       if (!access.allowed) {
+        console.log("XRAY UPLOAD BLOCKED BY ACCESS CHECK:", access.error);
         deleteUploadedFile(filePath);
 
         return res.status(access.statusCode).json({
@@ -677,6 +689,7 @@ router.post(
       const limitCheck = await checkClinicXrayLimit(record_id, fileSizeBytes);
 
       if (!limitCheck.allowed) {
+        console.log("XRAY UPLOAD BLOCKED BY LIMIT CHECK:", limitCheck.error);
         deleteUploadedFile(filePath);
 
         return res.status(400).json({
@@ -692,23 +705,57 @@ router.post(
         [record_id, tooth_number || null, filePath, fileSizeBytes],
       );
 
-      await createAuditLog({
-        user_id: req.user.user_id,
-        action: "UPLOAD_XRAY",
-        module: "X-rays",
-        description: `Uploaded X-ray #${newXray.rows[0].xray_id} for dental record #${record_id}.`,
-        ip_address: req.ip,
+      dbInsertSucceeded = true;
+      insertedXray = newXray.rows[0];
+
+      console.log("XRAY DB INSERT SUCCESS:", {
+        xray_id: insertedXray.xray_id,
+        file_path: insertedXray.file_path,
+        physicalFileStillExists: fs.existsSync(req.file.path),
       });
 
-      res.status(201).json({
+      try {
+        await createAuditLog({
+          user_id: req.user.user_id,
+          action: "UPLOAD_XRAY",
+          module: "X-rays",
+          description: `Uploaded X-ray #${insertedXray.xray_id} for dental record #${record_id}.`,
+          ip_address: req.ip,
+        });
+      } catch (auditErr) {
+        console.error(
+          "UPLOAD_XRAY audit log failed, but upload will continue:",
+          auditErr,
+        );
+      }
+
+      console.log("XRAY UPLOAD FINISHED:", {
+        xray_id: insertedXray.xray_id,
+        url: `/uploads/xrays/${req.file.filename}`,
+        physicalFileStillExists: fs.existsSync(req.file.path),
+      });
+
+      return res.status(201).json({
         message: "X-ray uploaded successfully",
-        xray: newXray.rows[0],
+        xray: insertedXray,
       });
     } catch (err) {
-      deleteUploadedFile(filePath);
-
       console.error("Upload X-ray error:", err);
-      res.status(500).json({
+
+      if (!dbInsertSucceeded) {
+        console.log(
+          "Deleting uploaded file because DB insert did not succeed:",
+          filePath,
+        );
+        deleteUploadedFile(filePath);
+      } else {
+        console.log(
+          "DB insert already succeeded. File will NOT be deleted:",
+          filePath,
+        );
+      }
+
+      return res.status(500).json({
         error: err.message || "Error uploading X-ray",
       });
     }

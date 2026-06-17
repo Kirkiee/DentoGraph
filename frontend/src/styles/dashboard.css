@@ -2354,6 +2354,46 @@ body.dark-mode textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body.dark-mode input::placeholder,
 body.dark-mode textarea::placeholder {
   color: #94a3b8;
@@ -2615,4 +2655,164 @@ body.dark-mode .leaflet-popup-content {
     size: A4;
     margin: 14mm;
   }
+}
+
+/* FINAL DARK MODE FORM FIELD FIX */
+
+body.dark-mode input,
+body.dark-mode select,
+body.dark-mode textarea,
+body.dark-mode .modal-form input,
+body.dark-mode .modal-form select,
+body.dark-mode .modal-form textarea,
+body.dark-mode .appointment-form input,
+body.dark-mode .appointment-form select,
+body.dark-mode .appointment-form textarea,
+body.dark-mode .profile-field input,
+body.dark-mode .profile-field select,
+body.dark-mode .profile-field textarea,
+body.dark-mode .appointment-actions select,
+body.dark-mode .appointment-filters input,
+body.dark-mode .appointment-filters select {
+  background: #111827 !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+  caret-color: #ffffff !important;
+}
+
+/* Make focused fields readable in dark mode */
+body.dark-mode input:focus,
+body.dark-mode select:focus,
+body.dark-mode textarea:focus,
+body.dark-mode .modal-form input:focus,
+body.dark-mode .modal-form select:focus,
+body.dark-mode .modal-form textarea:focus,
+body.dark-mode .appointment-form input:focus,
+body.dark-mode .appointment-form select:focus,
+body.dark-mode .appointment-form textarea:focus,
+body.dark-mode .profile-field input:focus,
+body.dark-mode .profile-field select:focus,
+body.dark-mode .profile-field textarea:focus,
+body.dark-mode .appointment-actions select:focus,
+body.dark-mode .appointment-filters input:focus,
+body.dark-mode .appointment-filters select:focus {
+  background: #0f172a !important;
+  color: #ffffff !important;
+  border-color: #60a5fa !important;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.28) !important;
+  outline: none !important;
+  caret-color: #ffffff !important;
+}
+
+/* Placeholder text */
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder,
+body.dark-mode .modal-form input::-webkit-input-placeholder,
+body.dark-mode .modal-form textarea::-webkit-input-placeholder,
+body.dark-mode .appointment-form input::-webkit-input-placeholder,
+body.dark-mode .appointment-form textarea::-webkit-input-placeholder,
+body.dark-mode .profile-field input::-webkit-input-placeholder,
+body.dark-mode .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder,
+body.dark-mode .modal-form input::-moz-placeholder,
+body.dark-mode .modal-form textarea::-moz-placeholder,
+body.dark-mode .appointment-form input::-moz-placeholder,
+body.dark-mode .appointment-form textarea::-moz-placeholder,
+body.dark-mode .profile-field input::-moz-placeholder,
+body.dark-mode .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder,
+body.dark-mode .modal-form input:-ms-input-placeholder,
+body.dark-mode .modal-form textarea:-ms-input-placeholder,
+body.dark-mode .appointment-form input:-ms-input-placeholder,
+body.dark-mode .appointment-form textarea:-ms-input-placeholder,
+body.dark-mode .profile-field input:-ms-input-placeholder,
+body.dark-mode .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder,
+body.dark-mode .modal-form input::-ms-input-placeholder,
+body.dark-mode .modal-form textarea::-ms-input-placeholder,
+body.dark-mode .appointment-form input::-ms-input-placeholder,
+body.dark-mode .appointment-form textarea::-ms-input-placeholder,
+body.dark-mode .profile-field input::-ms-input-placeholder,
+body.dark-mode .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::placeholder,
+body.dark-mode textarea::placeholder,
+body.dark-mode .modal-form input::placeholder,
+body.dark-mode .modal-form textarea::placeholder,
+body.dark-mode .appointment-form input::placeholder,
+body.dark-mode .appointment-form textarea::placeholder,
+body.dark-mode .profile-field input::placeholder,
+body.dark-mode .profile-field textarea::placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+
+/* Disabled and read-only fields */
+body.dark-mode input:disabled,
+body.dark-mode select:disabled,
+body.dark-mode textarea:disabled,
+body.dark-mode input[readonly],
+body.dark-mode textarea[readonly],
+body.dark-mode .modal-form input:disabled,
+body.dark-mode .modal-form select:disabled,
+body.dark-mode .modal-form textarea:disabled,
+body.dark-mode .modal-form input[readonly],
+body.dark-mode .modal-form textarea[readonly] {
+  background: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #cbd5e1 !important;
+}
+
+/* Extra fix for Chrome autofill */
+body.dark-mode input:-webkit-autofill,
+body.dark-mode input:-webkit-autofill:hover,
+body.dark-mode input:-webkit-autofill:focus,
+body.dark-mode textarea:-webkit-autofill,
+body.dark-mode textarea:-webkit-autofill:hover,
+body.dark-mode textarea:-webkit-autofill:focus,
+body.dark-mode select:-webkit-autofill,
+body.dark-mode select:-webkit-autofill:hover,
+body.dark-mode select:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #ffffff !important;
+  box-shadow: 0 0 0 1000px #111827 inset !important;
+  border-color: #334155 !important;
+}
+
+/* Modal dark mode hard override */
+body.dark-mode .modal-card {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode .modal-header,
+body.dark-mode .modal-actions {
+  background: #0f172a !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode .modal-header h3,
+body.dark-mode .modal-form label {
+  color: #f8fafc !important;
+}
+
+body.dark-mode .modal-header p {
+  color: #cbd5e1 !important;
 }

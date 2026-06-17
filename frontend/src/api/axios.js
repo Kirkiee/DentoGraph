@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://api.dentograph.site/",
+  baseURL: process.env.REACT_APP_API_URL || "http://localhost:5000",
 });
 
 API.interceptors.request.use(
@@ -14,7 +14,7 @@ API.interceptors.request.use(
 
     return config;
   },
-  (error) => Promise.reject(error)
+  (error) => Promise.reject(error),
 );
 
 export default API;
