@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const rateLimit = require("express-rate-limit");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
 const {
@@ -10,12 +11,95 @@ const {
 } = require("../middleware/authMiddleware");
 
 // ===============================
+// SECURITY LIMITERS
+// ===============================
+
+const registerLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many registration attempts. Please try again later.",
+  },
+});
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many login attempts. Please try again after 15 minutes.",
+  },
+});
+
+// ===============================
 // HELPER FUNCTIONS
 // ===============================
+
+const AUTH_ERROR_MESSAGE = "Invalid email or password.";
 
 const normalizeNullable = (value) => {
   if (value === undefined || value === null || value === "") return null;
   return value;
+};
+
+const normalizeEmail = (email) => {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+};
+
+const cleanText = (value) => {
+  return String(value || "").trim();
+};
+
+const isValidEmail = (email) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+};
+
+const validatePasswordStrength = (password) => {
+  const value = String(password || "");
+
+  if (value.length < 8) {
+    return "Password must be at least 8 characters long.";
+  }
+
+  if (!/[A-Z]/.test(value)) {
+    return "Password must contain at least one uppercase letter.";
+  }
+
+  if (!/[a-z]/.test(value)) {
+    return "Password must contain at least one lowercase letter.";
+  }
+
+  if (!/[0-9]/.test(value)) {
+    return "Password must contain at least one number.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(value)) {
+    return "Password must contain at least one special character.";
+  }
+
+  return null;
+};
+
+const optionalAuthenticateToken = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return next();
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (!err && user) {
+      req.user = user;
+    }
+
+    next();
+  });
 };
 
 const isAssistantRole = (role) => {
@@ -193,164 +277,243 @@ router.get("/roles", async (req, res) => {
 // REGISTER USER WITH ROLE + CREATE ROLE PROFILE
 // ===============================
 
-router.post("/register", async (req, res) => {
-  const {
-    name,
-    email,
-    password,
-    role_id,
-    license_number,
-    specialization,
-    availability,
-    clinic_id,
-  } = req.body || {};
+router.post(
+  "/register",
+  registerLimiter,
+  optionalAuthenticateToken,
+  async (req, res) => {
+    const {
+      name,
+      email,
+      password,
+      role_id,
+      license_number,
+      specialization,
+      availability,
+      clinic_id,
+    } = req.body || {};
 
-  if (!name || !email || !password || !role_id) {
-    return res.status(400).json({
-      error: "Name, email, password, and role_id are required",
-    });
-  }
+    const cleanName = cleanText(name);
+    const cleanEmail = normalizeEmail(email);
+    const passwordError = validatePasswordStrength(password);
 
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const roleCheck = await client.query(
-      "SELECT role_id, role_name FROM public.roles WHERE role_id = $1",
-      [role_id],
-    );
-
-    if (roleCheck.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Invalid role_id" });
+    if (!cleanName || !cleanEmail || !password || !role_id) {
+      return res.status(400).json({
+        error: "Name, email, password, and role_id are required.",
+      });
     }
 
-    const roleName = roleCheck.rows[0].role_name;
-    const normalizedClinicId = normalizeNullable(clinic_id);
+    if (!isValidEmail(cleanEmail)) {
+      return res.status(400).json({
+        error: "Please enter a valid email address.",
+      });
+    }
 
-    if (roleName === "Dentist" && normalizedClinicId) {
-      const limitCheck = await checkClinicSubscriptionLimit(
-        client,
-        normalizedClinicId,
+    if (passwordError) {
+      return res.status(400).json({
+        error: passwordError,
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const roleCheck = await client.query(
+        "SELECT role_id, role_name FROM public.roles WHERE role_id = $1",
+        [role_id],
+      );
+
+      if (roleCheck.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Invalid role_id" });
+      }
+
+      const roleName = roleCheck.rows[0].role_name;
+      const normalizedClinicId = normalizeNullable(clinic_id);
+
+      const allowedRoles = [
+        "Admin",
+        "Clinic Owner",
         "Dentist",
-      );
-
-      if (!limitCheck.allowed) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: limitCheck.message });
-      }
-    }
-
-    if (isAssistantRole(roleName) && normalizedClinicId) {
-      const limitCheck = await checkClinicSubscriptionLimit(
-        client,
-        normalizedClinicId,
+        "Patient",
         "Assistant",
-      );
+        "Dental Assistant",
+      ];
 
-      if (!limitCheck.allowed) {
+      if (!allowedRoles.includes(roleName)) {
         await client.query("ROLLBACK");
-        return res.status(400).json({ error: limitCheck.message });
+        return res.status(400).json({
+          error: "Invalid role.",
+        });
       }
-    }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+      /*
+        Security rule:
+        - Public signup can only create Patient accounts.
+        - Admin can create other roles.
+        - Clinic Owner should create staff through /clinic-owner/staff.
+      */
+      if (!req.user && roleName !== "Patient") {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          error: "Public registration is only allowed for patient accounts.",
+        });
+      }
 
-    const newUser = await client.query(
-      `INSERT INTO public.users (name, email, password, status)
-       VALUES ($1, $2, $3, $4)
-       RETURNING user_id, name, email, status, created_at`,
-      [name, email, hashedPassword, "Active"],
-    );
+      if (req.user && req.user.role !== "Admin" && roleName !== "Patient") {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          error: "You are not allowed to create this type of account.",
+        });
+      }
 
-    const userId = newUser.rows[0].user_id;
+      const emailCheck = await client.query(
+        `SELECT user_id
+         FROM public.users
+         WHERE LOWER(email) = LOWER($1)
+         LIMIT 1`,
+        [cleanEmail],
+      );
 
-    await client.query(
-      `INSERT INTO public.user_roles (user_id, role_id)
-       VALUES ($1, $2)`,
-      [userId, role_id],
-    );
+      if (emailCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: "Email already exists.",
+        });
+      }
 
-    if (roleName === "Dentist") {
-      await client.query(
-        `INSERT INTO public.dentists
-         (user_id, license_number, specialization, availability, status, clinic_id)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          userId,
-          license_number || `DEN-${userId}`,
-          specialization || "General Dentistry",
-          availability || "Monday to Friday, 9:00 AM - 5:00 PM",
-          "Active",
+      if (roleName === "Dentist" && normalizedClinicId) {
+        const limitCheck = await checkClinicSubscriptionLimit(
+          client,
           normalizedClinicId,
-        ],
-      );
-    }
+          "Dentist",
+        );
 
-    if (isAssistantRole(roleName)) {
-      await client.query(
-        `INSERT INTO public.assistants
-         (user_id, license_number, availability, status, clinic_id)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [
-          userId,
-          license_number || `AST-${userId}`,
-          availability || "Monday to Friday, 9:00 AM - 5:00 PM",
-          "Active",
+        if (!limitCheck.allowed) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: limitCheck.message });
+        }
+      }
+
+      if (isAssistantRole(roleName) && normalizedClinicId) {
+        const limitCheck = await checkClinicSubscriptionLimit(
+          client,
           normalizedClinicId,
-        ],
-      );
-    }
+          "Assistant",
+        );
 
-    if (roleName === "Patient") {
+        if (!limitCheck.allowed) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: limitCheck.message });
+        }
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+
+      const newUser = await client.query(
+        `INSERT INTO public.users (name, email, password, status)
+         VALUES ($1, $2, $3, $4)
+         RETURNING user_id, name, email, status, created_at`,
+        [cleanName, cleanEmail, hashedPassword, "Active"],
+      );
+
+      const userId = newUser.rows[0].user_id;
+
       await client.query(
-        `INSERT INTO public.patients (user_id)
-         VALUES ($1)`,
-        [userId],
+        `INSERT INTO public.user_roles (user_id, role_id)
+         VALUES ($1, $2)`,
+        [userId, role_id],
       );
+
+      if (roleName === "Dentist") {
+        await client.query(
+          `INSERT INTO public.dentists
+           (user_id, license_number, specialization, availability, status, clinic_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            userId,
+            license_number || `DEN-${userId}`,
+            specialization || "General Dentistry",
+            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            "Active",
+            normalizedClinicId,
+          ],
+        );
+      }
+
+      if (isAssistantRole(roleName)) {
+        await client.query(
+          `INSERT INTO public.assistants
+           (user_id, license_number, availability, status, clinic_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            userId,
+            license_number || `AST-${userId}`,
+            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            "Active",
+            normalizedClinicId,
+          ],
+        );
+      }
+
+      if (roleName === "Patient") {
+        await client.query(
+          `INSERT INTO public.patients (user_id)
+           VALUES ($1)`,
+          [userId],
+        );
+      }
+
+      await client.query("COMMIT");
+
+      await createAuditLog({
+        user_id: req.user?.user_id || null,
+        action: "CREATE_USER",
+        module: "User Management",
+        description: `Created user account for ${newUser.rows[0].name} as ${roleName}.`,
+        ip_address: req.ip,
+      });
+
+      res.status(201).json({
+        message: "User registered successfully with role profile",
+        user: newUser.rows[0],
+        role: roleName,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+
+      console.error("Registration error:", err.message);
+
+      if (err.code === "23505") {
+        return res.status(400).json({ error: "Email already exists" });
+      }
+
+      res.status(500).json({ error: "Error registering user" });
+    } finally {
+      client.release();
     }
-
-    await client.query("COMMIT");
-
-    await createAuditLog({
-      user_id: req.user?.user_id || null,
-      action: "CREATE_USER",
-      module: "User Management",
-      description: `Created user account for ${newUser.rows[0].name} as ${roleName}.`,
-      ip_address: req.ip,
-    });
-
-    res.status(201).json({
-      message: "User registered successfully with role profile",
-      user: newUser.rows[0],
-      role: roleName,
-    });
-  } catch (err) {
-    await client.query("ROLLBACK");
-
-    console.error("Registration error:", err.message);
-
-    if (err.code === "23505") {
-      return res.status(400).json({ error: "Email already exists" });
-    }
-
-    res.status(500).json({ error: "Error registering user" });
-  } finally {
-    client.release();
-  }
-});
+  },
+);
 
 // ===============================
 // LOGIN USER WITH ROLE
 // ===============================
 
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body || {};
+router.post("/login", loginLimiter, async (req, res) => {
+  const { email, password, rememberMe } = req.body || {};
+  const cleanEmail = normalizeEmail(email);
 
-  if (!email || !password) {
+  if (!cleanEmail || !password) {
     return res.status(400).json({
-      error: "Email and password are required",
+      error: "Email and password are required.",
+    });
+  }
+
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({
+      error: AUTH_ERROR_MESSAGE,
     });
   }
 
@@ -367,26 +530,27 @@ router.post("/login", async (req, res) => {
        FROM public.users u
        JOIN public.user_roles ur ON u.user_id = ur.user_id
        JOIN public.roles r ON ur.role_id = r.role_id
-       WHERE u.email = $1`,
-      [email],
+       WHERE LOWER(u.email) = LOWER($1)
+       LIMIT 1`,
+      [cleanEmail],
     );
 
     if (userResult.rows.length === 0) {
-      return res.status(404).json({ error: "User not found" });
+      return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
     }
 
     const user = userResult.rows[0];
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
+    }
 
     if (user.status === "Inactive") {
       return res.status(403).json({
         error: "This account is inactive. Please contact the administrator.",
       });
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: "Invalid password" });
     }
 
     const token = jwt.sign(
@@ -396,7 +560,9 @@ router.post("/login", async (req, res) => {
         role: user.role_name,
       },
       process.env.JWT_SECRET,
-      { expiresIn: "1h" },
+      {
+        expiresIn: rememberMe ? "7d" : "2h",
+      },
     );
 
     await createAuditLog({
@@ -421,7 +587,9 @@ router.post("/login", async (req, res) => {
     });
   } catch (err) {
     console.error("Login error:", err.message);
-    res.status(500).json({ error: "Server error during login" });
+    res.status(500).json({
+      error: "Server error during login. Please try again later.",
+    });
   }
 });
 
@@ -893,7 +1061,7 @@ router.get(
     } catch (err) {
       console.error("Get clinic owner staff error:", err.message);
       res.status(500).json({
-        error: err.message || "Error retrieving clinic staff",
+        error: "Error retrieving clinic staff",
       });
     }
   },
@@ -905,6 +1073,7 @@ router.get(
 
 router.post(
   "/clinic-owner/staff",
+  registerLimiter,
   authenticateToken,
   authorizeRoles("Clinic Owner"),
   async (req, res) => {
@@ -918,15 +1087,25 @@ router.post(
       availability,
     } = req.body || {};
 
-    if (!name || !email || !password || !staff_role) {
+    const cleanName = cleanText(name);
+    const cleanEmail = normalizeEmail(email);
+    const passwordError = validatePasswordStrength(password);
+
+    if (!cleanName || !cleanEmail || !password || !staff_role) {
       return res.status(400).json({
         error: "Name, email, password, and staff role are required.",
       });
     }
 
-    if (password.length < 6) {
+    if (!isValidEmail(cleanEmail)) {
       return res.status(400).json({
-        error: "Password must be at least 6 characters long.",
+        error: "Please enter a valid email address.",
+      });
+    }
+
+    if (passwordError) {
+      return res.status(400).json({
+        error: passwordError,
       });
     }
 
@@ -960,7 +1139,7 @@ router.post(
          FROM public.users
          WHERE LOWER(email) = LOWER($1)
          LIMIT 1`,
-        [email],
+        [cleanEmail],
       );
 
       if (emailCheck.rows.length > 0) {
@@ -987,14 +1166,14 @@ router.post(
         });
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await bcrypt.hash(password, 12);
 
       const newUser = await client.query(
         `INSERT INTO public.users
          (name, email, password, status)
          VALUES ($1, $2, $3, 'Active')
          RETURNING user_id, name, email, status, created_at`,
-        [name, email, hashedPassword],
+        [cleanName, cleanEmail, hashedPassword],
       );
 
       const newUserId = newUser.rows[0].user_id;
@@ -1052,7 +1231,7 @@ router.post(
         user_id: req.user.user_id,
         action: "CREATE_CLINIC_STAFF",
         module: "Clinic Owner Staff Management",
-        description: `Clinic owner created ${role.role_name} account ${name} under ${clinic.clinic_name}.`,
+        description: `Clinic owner created ${role.role_name} account ${cleanName} under ${clinic.clinic_name}.`,
         ip_address: req.ip,
       });
 
@@ -1074,7 +1253,7 @@ router.post(
       }
 
       res.status(500).json({
-        error: err.message || "Error creating clinic staff account.",
+        error: "Error creating clinic staff account.",
       });
     } finally {
       client.release();
@@ -1174,4 +1353,3 @@ router.get(
 );
 
 module.exports = router;
-  
