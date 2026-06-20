@@ -7,6 +7,9 @@ export default function PatientDashboardScreen({
   onLogout,
   onOpenAppointments,
   onOpenDentalRecords,
+  onOpenXrays,
+  onOpenARBraces,
+  onOpenProfile,
 }) {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -24,8 +27,8 @@ export default function PatientDashboardScreen({
       <View style={styles.heroCard}>
         <Text style={styles.heroTitle}>Your Dental Care Portal</Text>
         <Text style={styles.heroText}>
-          View your appointments, dental records, X-rays, and upcoming treatment
-          updates in one place.
+          View your appointments, dental records, X-rays, AR braces previews,
+          and profile information in one place.
         </Text>
       </View>
 
@@ -47,19 +50,27 @@ export default function PatientDashboardScreen({
         <FeatureCard
           title="X-rays"
           description="View uploaded dental images and annotations."
+          onPress={onOpenXrays}
         />
 
         <FeatureCard
           title="AR Braces"
-          description="Preview braces visualization soon."
+          description="View saved braces simulation previews."
+          onPress={onOpenARBraces}
+        />
+
+        <FeatureCard
+          title="Profile"
+          description="View and update your account information."
+          onPress={onOpenProfile}
         />
       </View>
 
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Mobile App Status</Text>
         <Text style={styles.statusText}>
-          Appointments and dental records are now connected. Next step is adding
-          patient X-rays.
+          Patient dashboard, appointments, records, X-rays, AR previews, and
+          profile management are now connected.
         </Text>
       </View>
     </ScrollView>

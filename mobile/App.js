@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 import {
-  ActivityIndicator,
+  SafeAreaProvider,
   SafeAreaView,
-  StyleSheet,
-  View,
-} from "react-native";
+} from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import LoginScreen from "./src/screens/LoginScreen";
@@ -12,6 +11,10 @@ import PatientDashboardScreen from "./src/screens/PatientDashboardScreen";
 import PatientAppointmentsScreen from "./src/screens/PatientAppointmentsScreen";
 import BookAppointmentScreen from "./src/screens/BookAppointmentScreen";
 import PatientDentalRecordsScreen from "./src/screens/PatientDentalRecordsScreen";
+import PatientXraysScreen from "./src/screens/PatientXraysScreen";
+import PatientARBracesScreen from "./src/screens/PatientARBracesScreen";
+import PatientProfileScreen from "./src/screens/PatientProfileScreen";
+import BottomNav from "./src/components/BottomNav";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -58,6 +61,18 @@ export default function App() {
     setCurrentScreen("dashboard");
   };
 
+  const handleProfileUpdated = async (updatedProfile) => {
+    const updatedUser = {
+      ...currentUser,
+      name: updatedProfile.name,
+      email: updatedProfile.email,
+    };
+
+    await AsyncStorage.setItem("dentograph_user", JSON.stringify(updatedUser));
+
+    setCurrentUser(updatedUser);
+  };
+
   const renderAuthenticatedScreen = () => {
     if (currentScreen === "bookAppointment") {
       return (
@@ -73,17 +88,29 @@ export default function App() {
       return (
         <PatientAppointmentsScreen
           token={token}
-          onBack={() => setCurrentScreen("dashboard")}
           onOpenBookAppointment={() => setCurrentScreen("bookAppointment")}
         />
       );
     }
 
     if (currentScreen === "dentalRecords") {
+      return <PatientDentalRecordsScreen token={token} />;
+    }
+
+    if (currentScreen === "xrays") {
+      return <PatientXraysScreen token={token} />;
+    }
+
+    if (currentScreen === "arBraces") {
+      return <PatientARBracesScreen token={token} />;
+    }
+
+    if (currentScreen === "profile") {
       return (
-        <PatientDentalRecordsScreen
+        <PatientProfileScreen
           token={token}
-          onBack={() => setCurrentScreen("dashboard")}
+          user={currentUser}
+          onProfileUpdated={handleProfileUpdated}
         />
       );
     }
@@ -95,28 +122,57 @@ export default function App() {
         onLogout={handleLogout}
         onOpenAppointments={() => setCurrentScreen("appointments")}
         onOpenDentalRecords={() => setCurrentScreen("dentalRecords")}
+        onOpenXrays={() => setCurrentScreen("xrays")}
+        onOpenARBraces={() => setCurrentScreen("arBraces")}
+        onOpenProfile={() => setCurrentScreen("profile")}
       />
     );
   };
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView
+          style={styles.loadingContainer}
+          edges={["top", "left", "right"]}
+        >
+          <ActivityIndicator size="large" />
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
-  return (
-    <SafeAreaView style={styles.appContainer}>
-      <View style={styles.innerContainer}>
-        {token && currentUser ? (
-          renderAuthenticatedScreen()
-        ) : (
+  if (!token || !currentUser) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView
+          style={styles.appContainer}
+          edges={["top", "left", "right"]}
+        >
           <LoginScreen onLoginSuccess={handleLoginSuccess} />
-        )}
-      </View>
-    </SafeAreaView>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
+
+  const shouldShowBottomNav = currentScreen !== "bookAppointment";
+
+  return (
+    <SafeAreaProvider>
+      <SafeAreaView
+        style={styles.appContainer}
+        edges={["top", "left", "right"]}
+      >
+        <View style={styles.mainContainer}>{renderAuthenticatedScreen()}</View>
+
+        {shouldShowBottomNav ? (
+          <BottomNav
+            currentScreen={currentScreen}
+            onNavigate={(screen) => setCurrentScreen(screen)}
+          />
+        ) : null}
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -125,7 +181,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8fafc",
   },
-  innerContainer: {
+  mainContainer: {
     flex: 1,
   },
   loadingContainer: {
