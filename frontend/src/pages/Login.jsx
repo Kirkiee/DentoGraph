@@ -18,7 +18,13 @@ function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+  };
+
   const handleChange = (e) => {
+    setError("");
+
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
@@ -28,35 +34,58 @@ function Login() {
   const redirectByRole = (role) => {
     switch (role) {
       case "Admin":
-        navigate("/admin/dashboard");
+        navigate("/admin/dashboard", { replace: true });
         break;
       case "Clinic Owner":
-        navigate("/clinic-owner/dashboard");
+        navigate("/clinic-owner/dashboard", { replace: true });
         break;
       case "Dentist":
-        navigate("/dentist/dashboard");
+        navigate("/dentist/dashboard", { replace: true });
         break;
       case "Assistant":
       case "Dental Assistant":
-        navigate("/assistant/dashboard");
+        navigate("/assistant/dashboard", { replace: true });
         break;
       case "Patient":
-        navigate("/patient/dashboard");
+        navigate("/patient/dashboard", { replace: true });
         break;
       default:
-        navigate("/");
+        navigate("/", { replace: true });
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    const cleanEmail = formData.email.trim().toLowerCase();
+    const password = formData.password;
+
+    if (!cleanEmail || !password) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
+    if (!isValidEmail(cleanEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await API.post("/api/users/login", formData);
+      const response = await API.post("/api/users/login", {
+        email: cleanEmail,
+        password,
+        rememberMe,
+      });
 
-      const { token, user } = response.data;
+      const { token, user } = response.data || {};
+
+      if (!token || !user) {
+        setError("Login failed. Please try again.");
+        return;
+      }
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
@@ -64,7 +93,19 @@ function Login() {
 
       redirectByRole(user.role);
     } catch (err) {
-      setError(err.response?.data?.error || "Login failed. Please try again.");
+      const status = err.response?.status;
+      const apiError = err.response?.data?.error;
+
+      if (status === 429) {
+        setError("Too many login attempts. Please try again after 15 minutes.");
+      } else if (
+        status === 403 &&
+        apiError?.toLowerCase().includes("inactive")
+      ) {
+        setError(apiError);
+      } else {
+        setError(apiError || "Invalid email or password.");
+      }
     } finally {
       setLoading(false);
     }
@@ -83,7 +124,7 @@ function Login() {
 
       {error && <div className="auth-error">{error}</div>}
 
-      <form className="auth-form" onSubmit={handleSubmit}>
+      <form className="auth-form" onSubmit={handleSubmit} noValidate>
         <AuthInput
           label="Email Address"
           type="email"
@@ -92,6 +133,7 @@ function Login() {
           value={formData.email}
           onChange={handleChange}
           icon="✉"
+          autoComplete="email"
         />
 
         <AuthInput
@@ -102,6 +144,7 @@ function Login() {
           value={formData.password}
           onChange={handleChange}
           icon="🔒"
+          autoComplete="current-password"
         />
 
         <div className="auth-options">
@@ -110,6 +153,7 @@ function Login() {
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
+              disabled={loading}
             />
             Remember me
           </label>
@@ -118,6 +162,7 @@ function Login() {
             type="button"
             className="auth-link"
             onClick={() => alert("Forgot password will be added later.")}
+            disabled={loading}
           >
             Forgot password?
           </button>
@@ -130,7 +175,12 @@ function Login() {
 
       <p className="auth-footer">
         Don&apos;t have an account?{" "}
-        <button className="auth-link" onClick={() => navigate("/register")}>
+        <button
+          type="button"
+          className="auth-link"
+          onClick={() => navigate("/register")}
+          disabled={loading}
+        >
           Register as Patient
         </button>
       </p>

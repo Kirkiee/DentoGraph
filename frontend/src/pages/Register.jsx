@@ -9,6 +9,8 @@ import ThemeToggle from "../components/ThemeToggle";
 function Register() {
   const navigate = useNavigate();
 
+  // Public registration should only create Patient accounts.
+  // Make sure this matches the Patient role_id in your roles table.
   const PATIENT_ROLE_ID = 3;
 
   const [formData, setFormData] = useState({
@@ -25,7 +27,44 @@ function Register() {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+  };
+
+  const validatePasswordStrength = (password) => {
+    const value = String(password || "");
+
+    if (value.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+
+    if (!/[A-Z]/.test(value)) {
+      return "Password must contain at least one uppercase letter.";
+    }
+
+    if (!/[a-z]/.test(value)) {
+      return "Password must contain at least one lowercase letter.";
+    }
+
+    if (!/[0-9]/.test(value)) {
+      return "Password must contain at least one number.";
+    }
+
+    if (!/[^A-Za-z0-9]/.test(value)) {
+      return "Password must contain at least one special character.";
+    }
+
+    return null;
+  };
+
+  const cleanPhoneNumber = (value) => {
+    return String(value || "").trim();
+  };
+
   const handleChange = (e) => {
+    setError("");
+    setSuccess("");
+
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
@@ -37,7 +76,36 @@ function Register() {
     setError("");
     setSuccess("");
 
-    if (formData.password !== formData.confirmPassword) {
+    const firstName = formData.firstName.trim();
+    const lastName = formData.lastName.trim();
+    const cleanEmail = formData.email.trim().toLowerCase();
+    const contactNumber = cleanPhoneNumber(formData.contact_number);
+    const password = formData.password;
+    const confirmPassword = formData.confirmPassword;
+
+    if (!firstName || !lastName) {
+      setError("First name and last name are required.");
+      return;
+    }
+
+    if (!cleanEmail) {
+      setError("Email address is required.");
+      return;
+    }
+
+    if (!isValidEmail(cleanEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    const passwordError = validatePasswordStrength(password);
+
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
@@ -50,24 +118,37 @@ function Register() {
     setLoading(true);
 
     try {
-      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+      const fullName = `${firstName} ${lastName}`.trim();
 
       await API.post("/api/users/register", {
         name: fullName,
-        email: formData.email,
-        password: formData.password,
+        email: cleanEmail,
+        password,
         role_id: PATIENT_ROLE_ID,
+        contact_number: contactNumber || null,
       });
 
       setSuccess("Patient account created successfully. You may now log in.");
 
       setTimeout(() => {
-        navigate("/auth/login");
+        navigate("/auth/login", { replace: true });
       }, 1200);
     } catch (err) {
-      setError(
-        err.response?.data?.error || "Registration failed. Please try again.",
-      );
+      const status = err.response?.status;
+      const apiError = err.response?.data?.error;
+
+      if (status === 429) {
+        setError("Too many registration attempts. Please try again later.");
+      } else if (status === 403) {
+        setError(
+          apiError ||
+            "Public registration is only allowed for patient accounts.",
+        );
+      } else if (status === 400) {
+        setError(apiError || "Please check your registration details.");
+      } else {
+        setError(apiError || "Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -88,7 +169,7 @@ function Register() {
       {error && <div className="auth-error">{error}</div>}
       {success && <div className="auth-success">{success}</div>}
 
-      <form className="auth-form" onSubmit={handleSubmit}>
+      <form className="auth-form" onSubmit={handleSubmit} noValidate>
         <div className="auth-row">
           <AuthInput
             label="First Name"
@@ -97,6 +178,7 @@ function Register() {
             value={formData.firstName}
             onChange={handleChange}
             icon="👤"
+            autoComplete="given-name"
           />
 
           <AuthInput
@@ -105,6 +187,7 @@ function Register() {
             placeholder="Dela Cruz"
             value={formData.lastName}
             onChange={handleChange}
+            autoComplete="family-name"
           />
         </div>
 
@@ -116,6 +199,7 @@ function Register() {
           value={formData.email}
           onChange={handleChange}
           icon="✉"
+          autoComplete="email"
         />
 
         <AuthInput
@@ -127,6 +211,7 @@ function Register() {
           onChange={handleChange}
           icon="☎"
           required={false}
+          autoComplete="tel"
         />
 
         <div className="auth-row">
@@ -138,6 +223,7 @@ function Register() {
             value={formData.password}
             onChange={handleChange}
             icon="🔒"
+            autoComplete="new-password"
           />
 
           <AuthInput
@@ -147,7 +233,13 @@ function Register() {
             placeholder="Confirm password"
             value={formData.confirmPassword}
             onChange={handleChange}
+            autoComplete="new-password"
           />
+        </div>
+
+        <div className="auth-note">
+          Password must have at least 8 characters, one uppercase letter, one
+          lowercase letter, one number, and one special character.
         </div>
 
         <label className="auth-check">
@@ -155,18 +247,24 @@ function Register() {
             type="checkbox"
             checked={agree}
             onChange={(e) => setAgree(e.target.checked)}
+            disabled={loading}
           />
           <span>I agree to the Terms of Service and Privacy Policy</span>
         </label>
 
-        <AuthButton type="submit" disabled={loading}>
+        <AuthButton type="submit" disabled={loading || success}>
           {loading ? "Creating Account..." : "Create Patient Account"}
         </AuthButton>
       </form>
 
       <p className="auth-footer">
         Already have an account?{" "}
-        <button className="auth-link" onClick={() => navigate("/auth/login")}>
+        <button
+          type="button"
+          className="auth-link"
+          onClick={() => navigate("/auth/login")}
+          disabled={loading}
+        >
           Sign in
         </button>
       </p>

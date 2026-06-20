@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
+const rateLimit = require("express-rate-limit");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
 const {
@@ -8,9 +9,67 @@ const {
   authorizeRoles,
 } = require("../middleware/authMiddleware");
 
+// ===============================
+// RATE LIMITERS
+// ===============================
+
+const clinicRegisterLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many clinic registration attempts. Please try again later.",
+  },
+});
+
+// ===============================
+// HELPER FUNCTIONS
+// ===============================
+
 const normalizeNullable = (value) => {
   if (value === undefined || value === null || value === "") return null;
   return value;
+};
+
+const cleanText = (value) => {
+  return String(value || "").trim();
+};
+
+const normalizeEmail = (email) => {
+  return String(email || "")
+    .trim()
+    .toLowerCase();
+};
+
+const isValidEmail = (email) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+};
+
+const validatePasswordStrength = (password) => {
+  const value = String(password || "");
+
+  if (value.length < 8) {
+    return "Password must be at least 8 characters long.";
+  }
+
+  if (!/[A-Z]/.test(value)) {
+    return "Password must contain at least one uppercase letter.";
+  }
+
+  if (!/[a-z]/.test(value)) {
+    return "Password must contain at least one lowercase letter.";
+  }
+
+  if (!/[0-9]/.test(value)) {
+    return "Password must contain at least one number.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(value)) {
+    return "Password must contain at least one special character.";
+  }
+
+  return null;
 };
 
 const normalizeNumber = (value) => {
@@ -74,8 +133,11 @@ const markExpiredSubscriptionIfNeeded = async (clinicId) => {
   return result.rows[0] || null;
 };
 
+// ===============================
 // PUBLIC: REGISTER CLINIC OWNER + CLINIC WITH FREE PLAN
-router.post("/register", async (req, res) => {
+// ===============================
+
+router.post("/register", clinicRegisterLimiter, async (req, res) => {
   const {
     owner_name,
     owner_email,
@@ -89,16 +151,49 @@ router.post("/register", async (req, res) => {
     opening_hours,
   } = req.body || {};
 
-  if (!owner_name || !owner_email || !password || !clinic_name || !address) {
+  const cleanOwnerName = cleanText(owner_name);
+  const cleanOwnerEmail = normalizeEmail(owner_email);
+  const cleanClinicName = cleanText(clinic_name);
+  const cleanAddress = cleanText(address);
+  const cleanServices = cleanText(services);
+  const cleanContactNumber = cleanText(contact_number);
+  const cleanOpeningHours = cleanText(opening_hours);
+  const passwordError = validatePasswordStrength(password);
+
+  if (
+    !cleanOwnerName ||
+    !cleanOwnerEmail ||
+    !password ||
+    !cleanClinicName ||
+    !cleanAddress
+  ) {
     return res.status(400).json({
       error:
         "Owner name, owner email, password, clinic name, and address are required.",
     });
   }
 
-  if (password.length < 6) {
+  if (!isValidEmail(cleanOwnerEmail)) {
     return res.status(400).json({
-      error: "Password must be at least 6 characters long.",
+      error: "Please enter a valid owner email address.",
+    });
+  }
+
+  if (passwordError) {
+    return res.status(400).json({
+      error: passwordError,
+    });
+  }
+
+  if (!cleanServices) {
+    return res.status(400).json({
+      error: "Please enter at least one clinic service.",
+    });
+  }
+
+  if (!cleanOpeningHours) {
+    return res.status(400).json({
+      error: "Opening hours are required.",
     });
   }
 
@@ -134,7 +229,7 @@ router.post("/register", async (req, res) => {
        FROM public.users
        WHERE LOWER(email) = LOWER($1)
        LIMIT 1`,
-      [owner_email],
+      [cleanOwnerEmail],
     );
 
     if (emailCheck.rows.length > 0) {
@@ -151,7 +246,7 @@ router.post("/register", async (req, res) => {
        WHERE LOWER(clinic_name) = LOWER($1)
        AND LOWER(address) = LOWER($2)
        LIMIT 1`,
-      [clinic_name, address],
+      [cleanClinicName, cleanAddress],
     );
 
     if (duplicateClinicCheck.rows.length > 0) {
@@ -162,14 +257,14 @@ router.post("/register", async (req, res) => {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const newOwner = await client.query(
       `INSERT INTO public.users
        (name, email, password, status)
        VALUES ($1, $2, $3, 'Active')
        RETURNING user_id, name, email, status, created_at`,
-      [owner_name, owner_email, hashedPassword],
+      [cleanOwnerName, cleanOwnerEmail, hashedPassword],
     );
 
     const ownerUserId = newOwner.rows[0].user_id;
@@ -199,13 +294,13 @@ router.post("/register", async (req, res) => {
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Active', CURRENT_TIMESTAMP)
        RETURNING *`,
       [
-        clinic_name,
-        address,
+        cleanClinicName,
+        cleanAddress,
         normalizeNumber(latitude),
         normalizeNumber(longitude),
-        normalizeNullable(services),
-        normalizeNullable(contact_number),
-        normalizeNullable(opening_hours),
+        normalizeNullable(cleanServices),
+        normalizeNullable(cleanContactNumber),
+        normalizeNullable(cleanOpeningHours),
         freePlan.plan_id,
         ownerUserId,
       ],
@@ -217,7 +312,7 @@ router.post("/register", async (req, res) => {
       user_id: ownerUserId,
       action: "REGISTER_CLINIC",
       module: "Clinic Registration",
-      description: `Clinic owner ${owner_name} registered clinic ${clinic_name} with the Free plan.`,
+      description: `Clinic owner ${cleanOwnerName} registered clinic ${cleanClinicName} with the Free plan.`,
       ip_address: req.ip,
     });
 
@@ -241,14 +336,17 @@ router.post("/register", async (req, res) => {
     }
 
     res.status(500).json({
-      error: err.message || "Error registering clinic.",
+      error: "Error registering clinic.",
     });
   } finally {
     client.release();
   }
 });
 
+// ===============================
 // ADMIN / STAFF: GET ALL CLINICS
+// ===============================
+
 router.get(
   "/",
   authenticateToken,
@@ -300,7 +398,10 @@ router.get(
   },
 );
 
+// ===============================
 // PATIENT / ADMIN / DENTIST / ASSISTANT: CLINIC DISCOVERY LIST
+// ===============================
+
 router.get(
   "/discovery/list",
   authenticateToken,
@@ -343,7 +444,10 @@ router.get(
   },
 );
 
+// ===============================
 // CLINIC OWNER: GET OWN CLINIC
+// ===============================
+
 router.get(
   "/owner/my-clinic",
   authenticateToken,
@@ -399,13 +503,16 @@ router.get(
     } catch (err) {
       console.error("Get clinic owner clinic error:", err.message);
       res.status(500).json({
-        error: err.message || "Error retrieving clinic owner clinic",
+        error: "Error retrieving clinic owner clinic",
       });
     }
   },
 );
 
+// ===============================
 // CLINIC OWNER: UPDATE OWN CLINIC PROFILE
+// ===============================
+
 router.put(
   "/owner/my-clinic",
   authenticateToken,
@@ -421,7 +528,10 @@ router.put(
       opening_hours,
     } = req.body || {};
 
-    if (!clinic_name || !address) {
+    const cleanClinicName = cleanText(clinic_name);
+    const cleanAddress = cleanText(address);
+
+    if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
         error: "Clinic name and address are required.",
       });
@@ -451,7 +561,7 @@ router.put(
          AND LOWER(address) = LOWER($2)
          AND clinic_id <> $3
          LIMIT 1`,
-        [clinic_name, address, clinicId],
+        [cleanClinicName, cleanAddress, clinicId],
       );
 
       if (duplicateCheck.rows.length > 0) {
@@ -486,13 +596,13 @@ router.put(
            status,
            created_at`,
         [
-          clinic_name,
-          address,
-          latitude || null,
-          longitude || null,
-          services || null,
-          contact_number || null,
-          opening_hours || null,
+          cleanClinicName,
+          cleanAddress,
+          normalizeNumber(latitude),
+          normalizeNumber(longitude),
+          normalizeNullable(cleanText(services)),
+          normalizeNullable(cleanText(contact_number)),
+          normalizeNullable(cleanText(opening_hours)),
           clinicId,
           req.user.user_id,
         ],
@@ -513,13 +623,16 @@ router.put(
     } catch (err) {
       console.error("Update clinic owner profile error:", err.message);
       res.status(500).json({
-        error: err.message || "Error updating clinic profile.",
+        error: "Error updating clinic profile.",
       });
     }
   },
 );
 
+// ===============================
 // CLINIC OWNER: GET OWN CLINIC SUBSCRIPTION USAGE
+// ===============================
+
 router.get(
   "/owner/usage",
   authenticateToken,
@@ -645,13 +758,16 @@ router.get(
     } catch (err) {
       console.error("Get clinic owner usage error:", err.message);
       res.status(500).json({
-        error: err.message || "Error retrieving clinic owner usage",
+        error: "Error retrieving clinic owner usage",
       });
     }
   },
 );
 
+// ===============================
 // ADMIN: MONITOR CLINIC SUBSCRIPTIONS
+// ===============================
+
 router.get(
   "/admin/subscriptions",
   authenticateToken,
@@ -731,13 +847,16 @@ router.get(
     } catch (err) {
       console.error("Admin subscription monitoring error:", err.message);
       res.status(500).json({
-        error: err.message || "Error retrieving clinic subscription monitoring",
+        error: "Error retrieving clinic subscription monitoring",
       });
     }
   },
 );
 
+// ===============================
 // ADMIN: GET CLINIC SUBSCRIPTION USAGE
+// ===============================
+
 router.get(
   "/:clinic_id/subscription-usage",
   authenticateToken,
@@ -851,7 +970,10 @@ router.get(
   },
 );
 
+// ===============================
 // ADMIN / STAFF: GET SINGLE CLINIC
+// ===============================
+
 router.get(
   "/:clinic_id",
   authenticateToken,
@@ -918,7 +1040,10 @@ router.get(
   },
 );
 
+// ===============================
 // ADMIN: CREATE CLINIC
+// ===============================
+
 router.post(
   "/",
   authenticateToken,
@@ -937,7 +1062,10 @@ router.post(
       owner_user_id,
     } = req.body || {};
 
-    if (!clinic_name || !address) {
+    const cleanClinicName = cleanText(clinic_name);
+    const cleanAddress = cleanText(address);
+
+    if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
         error: "Clinic name and address are required",
       });
@@ -979,7 +1107,7 @@ router.post(
          FROM public.clinics
          WHERE LOWER(clinic_name) = LOWER($1)
          AND LOWER(address) = LOWER($2)`,
-        [clinic_name, address],
+        [cleanClinicName, cleanAddress],
       );
 
       if (duplicateCheck.rows.length > 0) {
@@ -1006,13 +1134,13 @@ router.post(
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'Active'), CURRENT_TIMESTAMP)
          RETURNING *`,
         [
-          clinic_name,
-          address,
+          cleanClinicName,
+          cleanAddress,
           normalizeNumber(latitude),
           normalizeNumber(longitude),
-          normalizeNullable(services),
-          normalizeNullable(contact_number),
-          normalizeNullable(opening_hours),
+          normalizeNullable(cleanText(services)),
+          normalizeNullable(cleanText(contact_number)),
+          normalizeNullable(cleanText(opening_hours)),
           normalizeNumber(subscription_plan_id),
           normalizeNumber(owner_user_id),
           status || "Active",
@@ -1034,13 +1162,16 @@ router.post(
     } catch (err) {
       console.error("Create clinic error:", err.message);
       res.status(500).json({
-        error: err.message || "Error creating clinic",
+        error: "Error creating clinic",
       });
     }
   },
 );
 
+// ===============================
 // ADMIN: UPDATE CLINIC
+// ===============================
+
 router.put(
   "/:clinic_id",
   authenticateToken,
@@ -1122,13 +1253,13 @@ router.put(
          WHERE clinic_id = $11
          RETURNING *`,
         [
-          normalizeNullable(clinic_name),
-          normalizeNullable(address),
+          normalizeNullable(cleanText(clinic_name)),
+          normalizeNullable(cleanText(address)),
           normalizeNumber(latitude),
           normalizeNumber(longitude),
-          normalizeNullable(services),
-          normalizeNullable(contact_number),
-          normalizeNullable(opening_hours),
+          normalizeNullable(cleanText(services)),
+          normalizeNullable(cleanText(contact_number)),
+          normalizeNullable(cleanText(opening_hours)),
           normalizeNumber(subscription_plan_id),
           normalizeNumber(owner_user_id),
           normalizeNullable(status),
@@ -1167,13 +1298,16 @@ router.put(
     } catch (err) {
       console.error("Update clinic error:", err.message);
       res.status(500).json({
-        error: err.message || "Error updating clinic",
+        error: "Error updating clinic",
       });
     }
   },
 );
 
+// ===============================
 // ADMIN: ARCHIVE / DEACTIVATE CLINIC
+// ===============================
+
 router.put(
   "/:clinic_id/archive",
   authenticateToken,
@@ -1218,13 +1352,16 @@ router.put(
     } catch (err) {
       console.error("Archive clinic error:", err.message);
       res.status(500).json({
-        error: err.message || "Error archiving clinic",
+        error: "Error archiving clinic",
       });
     }
   },
 );
 
+// ===============================
 // ADMIN: RESTORE / ACTIVATE CLINIC
+// ===============================
+
 router.put(
   "/:clinic_id/restore",
   authenticateToken,
@@ -1269,13 +1406,16 @@ router.put(
     } catch (err) {
       console.error("Restore clinic error:", err.message);
       res.status(500).json({
-        error: err.message || "Error restoring clinic",
+        error: "Error restoring clinic",
       });
     }
   },
 );
 
+// ===============================
 // ADMIN: DELETE CLINIC PERMANENTLY
+// ===============================
+
 router.delete(
   "/:clinic_id",
   authenticateToken,
@@ -1342,7 +1482,7 @@ router.delete(
     } catch (err) {
       console.error("Delete clinic error:", err.message);
       res.status(500).json({
-        error: err.message || "Error deleting clinic",
+        error: "Error deleting clinic",
       });
     }
   },
