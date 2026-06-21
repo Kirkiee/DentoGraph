@@ -3,12 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 export default function PatientDashboardScreen({
   user,
-  token,
   onLogout,
   onOpenAppointments,
   onOpenDentalRecords,
   onOpenXrays,
   onOpenARBraces,
+  onOpenClinicDiscovery,
   onOpenProfile,
 }) {
   return (
@@ -27,8 +27,8 @@ export default function PatientDashboardScreen({
       <View style={styles.heroCard}>
         <Text style={styles.heroTitle}>Your Dental Care Portal</Text>
         <Text style={styles.heroText}>
-          View your appointments, dental records, X-rays, AR braces previews,
-          and profile information in one place.
+          View your appointments, dental records, X-rays, saved AR braces
+          previews, nearby clinics, and profile information in one place.
         </Text>
       </View>
 
@@ -60,6 +60,12 @@ export default function PatientDashboardScreen({
         />
 
         <FeatureCard
+          title="Clinic Discovery"
+          description="Find nearby dental clinics using GPS and map view."
+          onPress={onOpenClinicDiscovery}
+        />
+
+        <FeatureCard
           title="Profile"
           description="View and update your account information."
           onPress={onOpenProfile}
@@ -69,8 +75,8 @@ export default function PatientDashboardScreen({
       <View style={styles.statusCard}>
         <Text style={styles.statusTitle}>Mobile App Status</Text>
         <Text style={styles.statusText}>
-          Patient dashboard, appointments, records, X-rays, AR previews, and
-          profile management are now connected.
+          Patient dashboard, appointments, records, X-rays, AR previews, clinic
+          discovery, and profile management are now connected.
         </Text>
       </View>
     </ScrollView>

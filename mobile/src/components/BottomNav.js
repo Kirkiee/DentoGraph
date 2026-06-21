@@ -14,7 +14,12 @@ export default function BottomNav({ currentScreen, onNavigate }) {
   const activeScreen = getActiveScreen();
 
   return (
-    <View style={[styles.container, { paddingBottom: Math.max(insets.bottom, 10) }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingBottom: Math.max(insets.bottom, 10) },
+      ]}
+    >
       <NavItem
         label="Home"
         icon="home-outline"
@@ -48,6 +53,14 @@ export default function BottomNav({ currentScreen, onNavigate }) {
       />
 
       <NavItem
+        label="Clinics"
+        icon="location-outline"
+        activeIcon="location"
+        active={activeScreen === "clinicDiscovery"}
+        onPress={() => onNavigate("clinicDiscovery")}
+      />
+
+      <NavItem
         label="AR"
         icon="happy-outline"
         activeIcon="happy"
@@ -74,7 +87,7 @@ function NavItem({ label, icon, activeIcon, active, onPress }) {
     >
       <Ionicons
         name={active ? activeIcon : icon}
-        size={20}
+        size={18}
         color={active ? "#2b6cb0" : "#718096"}
         style={styles.icon}
       />
@@ -92,24 +105,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
-    paddingHorizontal: 6,
-    paddingTop: 8,
+    paddingHorizontal: 4,
+    paddingTop: 7,
   },
   navItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 8,
-    borderRadius: 14,
+    paddingVertical: 7,
+    borderRadius: 12,
   },
   activeNavItem: {
     backgroundColor: "#e3f2fd",
   },
   icon: {
-    marginBottom: 3,
+    marginBottom: 2,
   },
   navText: {
-    fontSize: 10,
+    fontSize: 9,
     color: "#718096",
     fontWeight: "800",
   },
