@@ -235,13 +235,23 @@ function AssistantXrays() {
   const getFileUrl = (filePath) => {
     if (!filePath) return "#";
 
-    const normalizedPath = filePath.replace(/\\/g, "/");
+    const API_HOST =
+      process.env.REACT_APP_API_URL || window.location.origin;
 
-    if (normalizedPath.startsWith("http")) {
+    const normalizedPath = String(filePath).replace(/\\/g, "/");
+
+    if (
+      normalizedPath.startsWith("http://") ||
+      normalizedPath.startsWith("https://")
+    ) {
       return normalizedPath;
     }
 
-    return `http://localhost:5000/${normalizedPath}`;
+    const pathWithSlash = normalizedPath.startsWith("/")
+      ? normalizedPath
+      : `/${normalizedPath}`;
+
+    return `${API_HOST}${pathWithSlash}`;
   };
 
   const isImageFile = (filePath) => {

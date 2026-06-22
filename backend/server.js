@@ -1,4 +1,4 @@
-require("dotenv").config();
+require("dotenv").config({ path: require("path").join(__dirname, ".env") });
 
 const express = require("express");
 const cors = require("cors");
@@ -29,18 +29,18 @@ const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isProduction = NODE_ENV === "production";
 
-// Needed when deployed behind Hostinger/proxy so rate-limit gets correct IP
+// Needed when deployed behind Hostinger/proxy
 app.set("trust proxy", 1);
 
 // ===============================
-// SECURITY HEADERS
+// DEBUG ENV CHECK
+// Remove these logs after confirming everything works.
 // ===============================
 
-app.use(
-  helmet({
-    crossOriginResourcePolicy: false,
-  }),
-);
+console.log("Environment:", NODE_ENV);
+console.log("Backend directory:", __dirname);
+console.log("PAYMONGO SECRET EXISTS:", !!process.env.PAYMONGO_SECRET_KEY);
+console.log("FRONTEND_URL:", process.env.FRONTEND_URL);
 
 // ===============================
 // CORS WHITELIST
@@ -52,26 +52,44 @@ const allowedOrigins = [
   "https://dentograph.site",
   "https://www.dentograph.site",
   "https://app.dentograph.site",
+  "https://api.dentograph.site",
 ];
 
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow Postman, Thunder Client, mobile apps, curl, server-to-server requests
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.log("Blocked by CORS:", origin);
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204,
+};
+
+// CORS must be before routes
+app.use(cors(corsOptions));
+
+// Express 5 safe preflight handler
+app.options(/.*/, cors(corsOptions));
+
+// ===============================
+// SECURITY HEADERS
+// ===============================
+
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests from tools like Postman, Thunder Client, mobile apps, or same-origin requests
-      if (!origin) {
-        return callback(null, true);
-      }
-
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error("Not allowed by CORS"));
-    },
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+  helmet({
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
 );
 
 // ===============================
@@ -84,14 +102,14 @@ app.use(
     verify: (req, res, buf) => {
       req.rawBody = buf.toString();
     },
-  }),
+  })
 );
 
 app.use(
   express.urlencoded({
     extended: true,
     limit: "10mb",
-  }),
+  })
 );
 
 // ===============================
@@ -119,7 +137,7 @@ app.use(
     setHeaders: (res) => {
       res.setHeader("X-Content-Type-Options", "nosniff");
     },
-  }),
+  })
 );
 
 // ===============================
@@ -130,6 +148,8 @@ app.get("/", (req, res) => {
   res.status(200).json({
     message: "DentoGraph API is running",
     environment: NODE_ENV,
+    frontend_url: process.env.FRONTEND_URL || null,
+    paymongo_key_loaded: !!process.env.PAYMONGO_SECRET_KEY,
   });
 });
 
@@ -233,6 +253,7 @@ app.use("/api/ar-simulations", arSimulationRoutes);
 app.use((req, res) => {
   res.status(404).json({
     error: "Route not found",
+    path: req.originalUrl,
   });
 });
 
@@ -243,9 +264,10 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error("Server error:", err.message);
 
-  if (err.message === "Not allowed by CORS") {
+  if (err.message && err.message.includes("Not allowed by CORS")) {
     return res.status(403).json({
       error: "CORS policy does not allow this origin.",
+      origin: req.headers.origin || null,
     });
   }
 

@@ -14,6 +14,7 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   getPatientProfile,
@@ -26,6 +27,7 @@ export default function PatientProfileScreen({
   onProfileUpdated,
 }) {
   const [profile, setProfile] = useState(null);
+
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -64,6 +66,7 @@ export default function PatientProfileScreen({
   const loadProfile = async () => {
     try {
       setLoading(true);
+
       const data = await getPatientProfile(token);
       fillForm(data.patient);
     } catch (error) {
@@ -79,6 +82,7 @@ export default function PatientProfileScreen({
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
+
       const data = await getPatientProfile(token);
       fillForm(data.patient);
     } catch (error) {
@@ -119,10 +123,7 @@ export default function PatientProfileScreen({
       return;
     }
 
-    if (
-      form.dentition_type !== "Adult" &&
-      form.dentition_type !== "Child"
-    ) {
+    if (form.dentition_type !== "Adult" && form.dentition_type !== "Child") {
       Alert.alert("Invalid Dentition", "Dentition type must be Adult or Child.");
       return;
     }
@@ -169,30 +170,30 @@ export default function PatientProfileScreen({
     return value;
   };
 
-  const renderViewRow = (label, value) => {
-    return (
-      <View style={styles.infoRow}>
-        <Text style={styles.infoLabel}>{label}</Text>
-        <Text style={styles.infoValue}>{displayValue(value)}</Text>
-      </View>
-    );
+  const getInitial = () => {
+    return (form.name || user?.name || "P").charAt(0).toUpperCase();
   };
 
   const renderInput = ({
     label,
     field,
     placeholder,
+    icon,
     multiline = false,
     keyboardType = "default",
     autoCapitalize = "sentences",
   }) => {
     return (
       <View style={styles.inputGroup}>
-        <Text style={styles.inputLabel}>{label}</Text>
+        <View style={styles.inputLabelRow}>
+          <Ionicons name={icon} size={15} color="#718096" />
+          <Text style={styles.inputLabel}>{label}</Text>
+        </View>
 
         <TextInput
           style={[styles.input, multiline && styles.multilineInput]}
           placeholder={placeholder}
+          placeholderTextColor="#a0aec0"
           value={form[field]}
           onChangeText={(value) => updateField(field, value)}
           editable={editing && !saving}
@@ -204,6 +205,21 @@ export default function PatientProfileScreen({
       </View>
     );
   };
+
+  function InfoRow({ icon, label, value }) {
+    return (
+      <View style={styles.infoRow}>
+        <View style={styles.infoIconCircle}>
+          <Ionicons name={icon} size={16} color="#2b6cb0" />
+        </View>
+
+        <View style={styles.infoTextBlock}>
+          <Text style={styles.infoLabel}>{label}</Text>
+          <Text style={styles.infoValue}>{displayValue(value)}</Text>
+        </View>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -229,71 +245,140 @@ export default function PatientProfileScreen({
           }
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Profile</Text>
+            <View style={styles.headerTopRow}>
+              <View style={styles.headerIconCircle}>
+                <Ionicons name="person-outline" size={27} color="#2b6cb0" />
+              </View>
 
-            <Text style={styles.subtitle}>
-              View and update your patient account information.
-            </Text>
+              <View style={styles.headerTextBlock}>
+                <Text style={styles.title}>Profile</Text>
+                <Text style={styles.subtitle}>
+                  View and update your patient account information.
+                </Text>
+              </View>
+            </View>
           </View>
 
           <View style={styles.profileCard}>
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>
-                {(form.name || user?.name || "P").charAt(0).toUpperCase()}
-              </Text>
+              <Text style={styles.avatarText}>{getInitial()}</Text>
             </View>
 
-            <Text style={styles.profileName}>
-              {form.name || user?.name || "Patient"}
-            </Text>
-
-            <Text style={styles.profileEmail}>
-              {form.email || user?.email || "No email"}
-            </Text>
-
-            <View style={styles.accountStatusBadge}>
-              <Text style={styles.accountStatusText}>
-                {profile?.account_status || "Active"}
+            <View style={styles.profileTextBlock}>
+              <Text style={styles.profileName} numberOfLines={2}>
+                {form.name || user?.name || "Patient"}
               </Text>
+
+              <Text style={styles.profileEmail} numberOfLines={1}>
+                {form.email || user?.email || "No email"}
+              </Text>
+
+              <View style={styles.profileMetaRow}>
+                <View style={styles.accountStatusBadge}>
+                  <Text style={styles.accountStatusText}>
+                    {profile?.account_status || "Active"}
+                  </Text>
+                </View>
+
+                <View style={styles.dentitionBadge}>
+                  <Text style={styles.dentitionBadgeText}>
+                    {form.dentition_type || "Adult"}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
 
           {!editing ? (
             <View style={styles.infoCard}>
               <View style={styles.cardTopRow}>
-                <Text style={styles.cardTitle}>Patient Information</Text>
+                <View style={styles.cardTitleBlock}>
+                  <Text style={styles.cardTitle}>Patient Information</Text>
+                  <Text style={styles.cardSubtitle}>
+                    Your current personal and dental details
+                  </Text>
+                </View>
 
                 <Pressable
                   style={styles.editButton}
                   onPress={() => setEditing(true)}
                 >
+                  <Ionicons name="create-outline" size={16} color="#2b6cb0" />
                   <Text style={styles.editButtonText}>Edit</Text>
                 </Pressable>
               </View>
 
-              {renderViewRow("Name", profile?.name)}
-              {renderViewRow("Email", profile?.email)}
-              {renderViewRow("Contact Number", profile?.contact_number)}
-              {renderViewRow("Date of Birth", profile?.date_of_birth)}
-              {renderViewRow("Gender", profile?.gender)}
-              {renderViewRow("Dentition Type", profile?.dentition_type)}
-              {renderViewRow("Address", profile?.address)}
-              {renderViewRow("Medical History", profile?.medical_history)}
+              <View style={styles.infoList}>
+                <InfoRow
+                  icon="person-outline"
+                  label="Name"
+                  value={profile?.name}
+                />
+
+                <InfoRow
+                  icon="mail-outline"
+                  label="Email"
+                  value={profile?.email}
+                />
+
+                <InfoRow
+                  icon="call-outline"
+                  label="Contact Number"
+                  value={profile?.contact_number}
+                />
+
+                <InfoRow
+                  icon="calendar-outline"
+                  label="Date of Birth"
+                  value={profile?.date_of_birth}
+                />
+
+                <InfoRow
+                  icon="male-female-outline"
+                  label="Gender"
+                  value={profile?.gender}
+                />
+
+                <InfoRow
+                  icon="medical-outline"
+                  label="Dentition Type"
+                  value={profile?.dentition_type}
+                />
+
+                <InfoRow
+                  icon="location-outline"
+                  label="Address"
+                  value={profile?.address}
+                />
+
+                <InfoRow
+                  icon="heart-outline"
+                  label="Medical History"
+                  value={profile?.medical_history}
+                />
+              </View>
             </View>
           ) : (
             <View style={styles.infoCard}>
-              <Text style={styles.cardTitle}>Edit Patient Information</Text>
+              <View style={styles.editHeader}>
+                <Text style={styles.cardTitle}>Edit Patient Information</Text>
+                <Text style={styles.cardSubtitle}>
+                  Update your details then tap Save Changes
+                </Text>
+              </View>
 
               {renderInput({
                 label: "Name",
                 field: "name",
                 placeholder: "Enter your full name",
+                icon: "person-outline",
               })}
 
               {renderInput({
                 label: "Email",
                 field: "email",
                 placeholder: "Enter your email",
+                icon: "mail-outline",
                 keyboardType: "email-address",
                 autoCapitalize: "none",
               })}
@@ -302,6 +387,7 @@ export default function PatientProfileScreen({
                 label: "Contact Number",
                 field: "contact_number",
                 placeholder: "Enter your contact number",
+                icon: "call-outline",
                 keyboardType: "phone-pad",
               })}
 
@@ -309,6 +395,7 @@ export default function PatientProfileScreen({
                 label: "Date of Birth",
                 field: "date_of_birth",
                 placeholder: "YYYY-MM-DD",
+                icon: "calendar-outline",
                 autoCapitalize: "none",
               })}
 
@@ -316,10 +403,14 @@ export default function PatientProfileScreen({
                 label: "Gender",
                 field: "gender",
                 placeholder: "Enter your gender",
+                icon: "male-female-outline",
               })}
 
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Dentition Type</Text>
+                <View style={styles.inputLabelRow}>
+                  <Ionicons name="medical-outline" size={15} color="#718096" />
+                  <Text style={styles.inputLabel}>Dentition Type</Text>
+                </View>
 
                 <View style={styles.toggleRow}>
                   <Pressable
@@ -331,6 +422,14 @@ export default function PatientProfileScreen({
                     onPress={() => updateField("dentition_type", "Adult")}
                     disabled={saving}
                   >
+                    <Ionicons
+                      name="person-outline"
+                      size={17}
+                      color={
+                        form.dentition_type === "Adult" ? "#2b6cb0" : "#718096"
+                      }
+                    />
+
                     <Text
                       style={[
                         styles.toggleText,
@@ -351,6 +450,14 @@ export default function PatientProfileScreen({
                     onPress={() => updateField("dentition_type", "Child")}
                     disabled={saving}
                   >
+                    <Ionicons
+                      name="happy-outline"
+                      size={17}
+                      color={
+                        form.dentition_type === "Child" ? "#2b6cb0" : "#718096"
+                      }
+                    />
+
                     <Text
                       style={[
                         styles.toggleText,
@@ -368,6 +475,7 @@ export default function PatientProfileScreen({
                 label: "Address",
                 field: "address",
                 placeholder: "Enter your address",
+                icon: "location-outline",
                 multiline: true,
               })}
 
@@ -375,6 +483,7 @@ export default function PatientProfileScreen({
                 label: "Medical History",
                 field: "medical_history",
                 placeholder: "Enter medical history, allergies, or notes",
+                icon: "heart-outline",
                 multiline: true,
               })}
 
@@ -395,7 +504,14 @@ export default function PatientProfileScreen({
                   {saving ? (
                     <ActivityIndicator color="#ffffff" />
                   ) : (
-                    <Text style={styles.saveButtonText}>Save</Text>
+                    <>
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={18}
+                        color="#ffffff"
+                      />
+                      <Text style={styles.saveButtonText}>Save Changes</Text>
+                    </>
                   )}
                 </Pressable>
               </View>
@@ -432,133 +548,219 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    marginTop: 22,
-    marginBottom: 22,
+    marginTop: 18,
+    marginBottom: 20,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  headerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTextBlock: {
+    flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 6,
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#718096",
-    lineHeight: 21,
+    lineHeight: 20,
+    fontWeight: "600",
   },
   profileCard: {
     backgroundColor: "#2b6cb0",
-    borderRadius: 24,
-    padding: 22,
-    alignItems: "center",
+    borderRadius: 26,
+    padding: 18,
     marginBottom: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 15,
+    shadowColor: "#2b6cb0",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 3,
   },
   avatarCircle: {
-    width: 78,
-    height: 78,
-    borderRadius: 39,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 14,
   },
   avatarText: {
     color: "#2b6cb0",
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: "900",
+  },
+  profileTextBlock: {
+    flex: 1,
   },
   profileName: {
     color: "#ffffff",
-    fontSize: 22,
+    fontSize: 21,
     fontWeight: "900",
     marginBottom: 4,
-    textAlign: "center",
   },
   profileEmail: {
     color: "#e3f2fd",
-    fontSize: 14,
-    marginBottom: 12,
-    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  profileMetaRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   accountStatusBadge: {
     backgroundColor: "#c6f6d5",
-    paddingHorizontal: 12,
+    paddingHorizontal: 11,
     paddingVertical: 6,
     borderRadius: 999,
   },
   accountStatusText: {
     color: "#2f855a",
-    fontSize: 12,
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  dentitionBadge: {
+    backgroundColor: "#ffffff",
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  dentitionBadgeText: {
+    color: "#2b6cb0",
+    fontSize: 11,
     fontWeight: "900",
   },
   infoCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 18,
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
   },
   cardTopRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
+    gap: 10,
     marginBottom: 14,
   },
+  cardTitleBlock: {
+    flex: 1,
+  },
   cardTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 14,
+    marginBottom: 3,
+  },
+  cardSubtitle: {
+    fontSize: 13,
+    color: "#718096",
+    fontWeight: "700",
+    lineHeight: 18,
   },
   editButton: {
     backgroundColor: "#e3f2fd",
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    alignSelf: "flex-start",
   },
   editButtonText: {
     color: "#2b6cb0",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
   },
+  infoList: {
+    gap: 10,
+  },
   infoRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#edf2f7",
-    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#f8fafc",
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#edf2f7",
+  },
+  infoIconCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  infoTextBlock: {
+    flex: 1,
   },
   infoLabel: {
     fontSize: 12,
     color: "#718096",
-    fontWeight: "800",
-    marginBottom: 4,
+    fontWeight: "900",
+    marginBottom: 3,
   },
   infoValue: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#1a202c",
     fontWeight: "700",
-    lineHeight: 21,
+    lineHeight: 20,
+  },
+  editHeader: {
+    marginBottom: 16,
   },
   inputGroup: {
     marginBottom: 14,
+  },
+  inputLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 7,
   },
   inputLabel: {
     fontSize: 13,
     color: "#4a5568",
     fontWeight: "900",
-    marginBottom: 7,
   },
   input: {
     backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    borderRadius: 15,
+    borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: "#1a202c",
     fontSize: 14,
   },
   multilineInput: {
-    minHeight: 86,
+    minHeight: 92,
     lineHeight: 20,
   },
   toggleRow: {
@@ -568,11 +770,14 @@ const styles = StyleSheet.create({
   toggleButton: {
     flex: 1,
     backgroundColor: "#edf2f7",
-    borderRadius: 14,
+    borderRadius: 15,
     paddingVertical: 12,
     alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    flexDirection: "row",
+    gap: 7,
   },
   activeToggleButton: {
     backgroundColor: "#e3f2fd",
@@ -595,8 +800,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#edf2f7",
     paddingVertical: 13,
-    borderRadius: 15,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
   },
   cancelButtonText: {
     color: "#2b6cb0",
@@ -604,11 +810,14 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   saveButton: {
-    flex: 1,
+    flex: 1.25,
     backgroundColor: "#2b6cb0",
     paddingVertical: 13,
-    borderRadius: 15,
+    borderRadius: 16,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
   },
   saveButtonText: {
     color: "#ffffff",
