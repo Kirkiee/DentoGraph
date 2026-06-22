@@ -8,6 +8,7 @@ function ClinicOwnerPaymentSuccess() {
 
   const [clinic, setClinic] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     fetchUpdatedClinic();
@@ -16,12 +17,18 @@ function ClinicOwnerPaymentSuccess() {
   const fetchUpdatedClinic = async () => {
     try {
       setLoading(true);
+      setErrorMessage("");
 
       const response = await API.get("/api/clinics/owner/my-clinic");
 
       setClinic(response.data.clinic || null);
     } catch (err) {
       console.error("Payment success clinic fetch error:", err);
+      setErrorMessage(
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Payment was successful, but the updated clinic details could not be loaded."
+      );
     } finally {
       setLoading(false);
     }
@@ -37,13 +44,44 @@ function ClinicOwnerPaymentSuccess() {
           </div>
         </div>
 
-        <div className="success-message">
+        <div
+          className="success-message"
+          style={{
+            marginBottom: "18px",
+            padding: "14px 16px",
+            borderRadius: "14px",
+            background: "rgba(72, 187, 120, 0.14)",
+            border: "1px solid rgba(72, 187, 120, 0.35)",
+            color: "#9ae6b4",
+            fontWeight: "700",
+          }}
+        >
           Your payment was completed successfully. Your subscription upgrade has
           been processed.
         </div>
 
         {loading ? (
-          <p>Loading updated clinic details...</p>
+          <div className="appointment-item">
+            <div className="appointment-info">
+              <p>Loading updated clinic details...</p>
+            </div>
+          </div>
+        ) : errorMessage ? (
+          <div
+            className="appointment-item"
+            style={{
+              borderColor: "rgba(245, 101, 101, 0.4)",
+            }}
+          >
+            <div className="appointment-info">
+              <h3>Unable to load updated clinic details</h3>
+              <p>{errorMessage}</p>
+              <p>
+                You may still go back to the subscription page to check your
+                current plan.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="appointment-item">
             <div className="appointment-info">
@@ -64,7 +102,8 @@ function ClinicOwnerPaymentSuccess() {
               </p>
 
               <p>
-                <strong>Billing Cycle:</strong> {clinic?.billing_cycle || "N/A"}
+                <strong>Billing Cycle:</strong>{" "}
+                {clinic?.billing_cycle || "N/A"}
               </p>
 
               <p>

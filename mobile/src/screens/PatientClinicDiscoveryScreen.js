@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import MapView, { Marker } from "react-native-maps";
 import * as Location from "expo-location";
+import { Ionicons } from "@expo/vector-icons";
 
 import { getClinics } from "../services/clinicService";
 
@@ -94,22 +95,111 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     );
   };
 
+  const getClinicHours = (clinic) => {
+    return (
+      clinic.opening_hours ||
+      clinic.operating_hours ||
+      clinic.hours ||
+      "No opening hours available"
+    );
+  };
+
+  const calculateDistanceKm = (from, to) => {
+    if (!from || !to) return null;
+
+    const earthRadiusKm = 6371;
+
+    const toRadians = (degrees) => {
+      return degrees * (Math.PI / 180);
+    };
+
+    const lat1 = toRadians(from.latitude);
+    const lon1 = toRadians(from.longitude);
+    const lat2 = toRadians(to.latitude);
+    const lon2 = toRadians(to.longitude);
+
+    const deltaLat = lat2 - lat1;
+    const deltaLon = lon2 - lon1;
+
+    const a =
+      Math.sin(deltaLat / 2) * Math.sin(deltaLat / 2) +
+      Math.cos(lat1) *
+        Math.cos(lat2) *
+        Math.sin(deltaLon / 2) *
+        Math.sin(deltaLon / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return earthRadiusKm * c;
+  };
+
+  const formatDistance = (distanceKm) => {
+    if (distanceKm === null || distanceKm === undefined) {
+      return "Distance unavailable";
+    }
+
+    if (distanceKm < 1) {
+      return `${Math.round(distanceKm * 1000)} m away`;
+    }
+
+    return `${distanceKm.toFixed(1)} km away`;
+  };
+
   const clinicsWithLocation = useMemo(() => {
     return clinics
       .map((clinic) => {
         const latitude = getClinicLatitude(clinic);
         const longitude = getClinicLongitude(clinic);
 
+        const hasLocation = latitude !== null && longitude !== null;
+
+        const distanceKm = hasLocation
+          ? calculateDistanceKm(userLocation, { latitude, longitude })
+          : null;
+
         return {
           ...clinic,
           _latitude: latitude,
           _longitude: longitude,
+          _distanceKm: distanceKm,
         };
       })
       .filter(
         (clinic) => clinic._latitude !== null && clinic._longitude !== null
       );
-  }, [clinics]);
+  }, [clinics, userLocation]);
+
+  const sortedClinics = useMemo(() => {
+    return [...clinics]
+      .map((clinic) => {
+        const latitude = getClinicLatitude(clinic);
+        const longitude = getClinicLongitude(clinic);
+
+        const hasLocation = latitude !== null && longitude !== null;
+
+        const distanceKm = hasLocation
+          ? calculateDistanceKm(userLocation, { latitude, longitude })
+          : null;
+
+        return {
+          ...clinic,
+          _latitude: latitude,
+          _longitude: longitude,
+          _distanceKm: distanceKm,
+          _hasLocation: hasLocation,
+        };
+      })
+      .sort((a, b) => {
+        if (a._distanceKm === null && b._distanceKm === null) return 0;
+        if (a._distanceKm === null) return 1;
+        if (b._distanceKm === null) return -1;
+        return a._distanceKm - b._distanceKm;
+      });
+  }, [clinics, userLocation]);
+
+  const nearestClinic = sortedClinics.find(
+    (clinic) => clinic._distanceKm !== null
+  );
 
   const defaultRegion = {
     latitude: userLocation?.latitude || 14.5995,
@@ -249,6 +339,18 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     Linking.openURL(`tel:${cleanedContact}`);
   };
 
+  const focusNearestClinic = () => {
+    if (!nearestClinic) {
+      Alert.alert(
+        "No Nearby Clinic",
+        "No clinic with GPS coordinates is currently available."
+      );
+      return;
+    }
+
+    focusClinicOnMap(nearestClinic);
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -267,11 +369,18 @@ export default function PatientClinicDiscoveryScreen({ token }) {
       }
     >
       <View style={styles.header}>
-        <Text style={styles.title}>Clinic Discovery</Text>
+        <View style={styles.headerTopRow}>
+          <View style={styles.headerIconCircle}>
+            <Ionicons name="location-outline" size={27} color="#2b6cb0" />
+          </View>
 
-        <Text style={styles.subtitle}>
-          Find nearby dental clinics and view them on the map.
-        </Text>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.title}>Clinic Discovery</Text>
+            <Text style={styles.subtitle}>
+              Find nearby dental clinics and view them on the map.
+            </Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.mapCard}>
@@ -290,15 +399,16 @@ export default function PatientClinicDiscoveryScreen({ token }) {
                 longitude: clinic._longitude,
               }}
               title={getClinicName(clinic)}
-              description={getClinicAddress(clinic)}
+              description={formatDistance(clinic._distanceKm)}
               onPress={() => setSelectedClinic(clinic)}
             />
           ))}
         </MapView>
 
         <View style={styles.mapFloatingBadge}>
+          <Ionicons name="map-outline" size={14} color="#ffffff" />
           <Text style={styles.mapFloatingText}>
-            {clinicsWithLocation.length} clinic marker
+            {clinicsWithLocation.length} marker
             {clinicsWithLocation.length === 1 ? "" : "s"}
           </Text>
         </View>
@@ -313,29 +423,74 @@ export default function PatientClinicDiscoveryScreen({ token }) {
           {locationLoading ? (
             <ActivityIndicator color="#ffffff" />
           ) : (
-            <Text style={styles.locationButtonText}>Use My Location</Text>
+            <>
+              <Ionicons name="locate-outline" size={18} color="#ffffff" />
+              <Text style={styles.locationButtonText}>Use My Location</Text>
+            </>
           )}
+        </Pressable>
+
+        <Pressable style={styles.nearestButton} onPress={focusNearestClinic}>
+          <Ionicons name="navigate-outline" size={18} color="#2b6cb0" />
+          <Text style={styles.nearestButtonText}>Nearest</Text>
         </Pressable>
       </View>
 
-      <Text style={styles.sectionTitle}>Available Clinics</Text>
+      {nearestClinic ? (
+        <View style={styles.nearestCard}>
+          <View style={styles.nearestIconCircle}>
+            <Ionicons name="star-outline" size={20} color="#2b6cb0" />
+          </View>
+
+          <View style={styles.nearestTextBlock}>
+            <Text style={styles.nearestLabel}>Nearest Clinic</Text>
+            <Text style={styles.nearestName} numberOfLines={1}>
+              {getClinicName(nearestClinic)}
+            </Text>
+            <Text style={styles.nearestDistance}>
+              {formatDistance(nearestClinic._distanceKm)}
+            </Text>
+          </View>
+
+          <Pressable
+            style={styles.nearestMiniButton}
+            onPress={() => focusClinicOnMap(nearestClinic)}
+          >
+            <Text style={styles.nearestMiniButtonText}>View</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Available Clinics</Text>
+        <Text style={styles.sectionSubtitle}>
+          {clinics.length} clinic{clinics.length === 1 ? "" : "s"} found
+        </Text>
+      </View>
 
       {clinics.length === 0 ? (
         <View style={styles.emptyCard}>
+          <View style={styles.emptyIconCircle}>
+            <Ionicons name="business-outline" size={30} color="#2b6cb0" />
+          </View>
+
           <Text style={styles.emptyTitle}>No clinics found</Text>
           <Text style={styles.emptyText}>
             Clinics added in DentoGraph will appear here for patients.
           </Text>
         </View>
       ) : (
-        clinics.map((clinic, index) => {
-          const latitude = getClinicLatitude(clinic);
-          const longitude = getClinicLongitude(clinic);
-          const hasCoordinates = latitude !== null && longitude !== null;
+        sortedClinics.map((clinic, index) => {
+          const hasCoordinates = clinic._hasLocation;
           const isSelected =
             selectedClinic &&
             (selectedClinic.clinic_id === clinic.clinic_id ||
               selectedClinic === clinic);
+
+          const isNearest =
+            nearestClinic &&
+            nearestClinic.clinic_id === clinic.clinic_id &&
+            clinic._distanceKm !== null;
 
           return (
             <View
@@ -346,10 +501,34 @@ export default function PatientClinicDiscoveryScreen({ token }) {
               ]}
             >
               <View style={styles.clinicTopRow}>
+                <View style={styles.clinicIconCircle}>
+                  <Ionicons name="business-outline" size={22} color="#2b6cb0" />
+                </View>
+
                 <View style={styles.clinicTitleBlock}>
-                  <Text style={styles.clinicName}>{getClinicName(clinic)}</Text>
-                  <Text style={styles.clinicAddress}>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.clinicName} numberOfLines={2}>
+                      {getClinicName(clinic)}
+                    </Text>
+
+                    {isNearest ? (
+                      <View style={styles.nearestBadge}>
+                        <Text style={styles.nearestBadgeText}>Nearest</Text>
+                      </View>
+                    ) : null}
+                  </View>
+
+                  <Text style={styles.clinicAddress} numberOfLines={2}>
                     {getClinicAddress(clinic)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.distanceRow}>
+                <View style={styles.distancePill}>
+                  <Ionicons name="navigate-outline" size={14} color="#2b6cb0" />
+                  <Text style={styles.distanceText}>
+                    {formatDistance(clinic._distanceKm)}
                   </Text>
                 </View>
 
@@ -374,32 +553,42 @@ export default function PatientClinicDiscoveryScreen({ token }) {
                 </View>
               </View>
 
-              <Text style={styles.clinicDetail}>
-                Contact: {getClinicContact(clinic)}
-              </Text>
+              <View style={styles.infoList}>
+                <InfoRow
+                  icon="call-outline"
+                  label="Contact"
+                  value={getClinicContact(clinic)}
+                />
 
-              {clinic.email ? (
-                <Text style={styles.clinicDetail}>Email: {clinic.email}</Text>
-              ) : null}
+                <InfoRow
+                  icon="time-outline"
+                  label="Hours"
+                  value={getClinicHours(clinic)}
+                />
 
-              {clinic.operating_hours ? (
-                <Text style={styles.clinicDetail}>
-                  Hours: {clinic.operating_hours}
-                </Text>
-              ) : null}
+                {clinic.services ? (
+                  <InfoRow
+                    icon="medkit-outline"
+                    label="Services"
+                    value={clinic.services}
+                  />
+                ) : null}
+              </View>
 
               <View style={styles.clinicActions}>
                 <Pressable
                   style={styles.secondaryButton}
                   onPress={() => focusClinicOnMap(clinic)}
                 >
-                  <Text style={styles.secondaryButtonText}>View Map</Text>
+                  <Ionicons name="map-outline" size={16} color="#2b6cb0" />
+                  <Text style={styles.secondaryButtonText}>Map</Text>
                 </Pressable>
 
                 <Pressable
                   style={styles.secondaryButton}
                   onPress={() => callClinic(clinic)}
                 >
+                  <Ionicons name="call-outline" size={16} color="#2b6cb0" />
                   <Text style={styles.secondaryButtonText}>Call</Text>
                 </Pressable>
 
@@ -407,6 +596,7 @@ export default function PatientClinicDiscoveryScreen({ token }) {
                   style={styles.primaryButton}
                   onPress={() => openDirections(clinic)}
                 >
+                  <Ionicons name="navigate-outline" size={16} color="#ffffff" />
                   <Text style={styles.primaryButtonText}>Directions</Text>
                 </Pressable>
               </View>
@@ -415,6 +605,18 @@ export default function PatientClinicDiscoveryScreen({ token }) {
         })
       )}
     </ScrollView>
+  );
+}
+
+function InfoRow({ icon, label, value }) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={16} color="#718096" />
+      <Text style={styles.clinicDetail}>
+        <Text style={styles.detailLabel}>{label}: </Text>
+        {value}
+      </Text>
+    </View>
   );
 }
 
@@ -439,23 +641,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    marginTop: 22,
-    marginBottom: 18,
+    marginTop: 18,
+    marginBottom: 20,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  headerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTextBlock: {
+    flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 6,
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#718096",
-    lineHeight: 21,
+    lineHeight: 20,
+    fontWeight: "600",
   },
   mapCard: {
-    height: 330,
-    borderRadius: 24,
+    height: 315,
+    borderRadius: 26,
     overflow: "hidden",
     backgroundColor: "#edf2f7",
     borderWidth: 1,
@@ -470,10 +689,13 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 14,
     left: 14,
-    backgroundColor: "rgba(26, 32, 44, 0.78)",
+    backgroundColor: "rgba(26, 32, 44, 0.82)",
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
   mapFloatingText: {
     color: "#ffffff",
@@ -481,46 +703,137 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   locationActions: {
-    marginBottom: 20,
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
   },
   locationButton: {
+    flex: 1.4,
     backgroundColor: "#2b6cb0",
     paddingVertical: 14,
-    borderRadius: 16,
+    borderRadius: 17,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
   },
   locationButtonText: {
     color: "#ffffff",
     fontSize: 14,
     fontWeight: "900",
   },
+  nearestButton: {
+    flex: 1,
+    backgroundColor: "#edf2f7",
+    paddingVertical: 14,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 7,
+  },
+  nearestButtonText: {
+    color: "#2b6cb0",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  nearestCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 22,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#bee3f8",
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  nearestIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  nearestTextBlock: {
+    flex: 1,
+  },
+  nearestLabel: {
+    fontSize: 12,
+    color: "#718096",
+    fontWeight: "900",
+    marginBottom: 2,
+  },
+  nearestName: {
+    fontSize: 15,
+    color: "#1a202c",
+    fontWeight: "900",
+    marginBottom: 2,
+  },
+  nearestDistance: {
+    fontSize: 13,
+    color: "#2b6cb0",
+    fontWeight: "900",
+  },
+  nearestMiniButton: {
+    backgroundColor: "#2b6cb0",
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 13,
+  },
+  nearestMiniButtonText: {
+    color: "#ffffff",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  sectionHeader: {
+    marginBottom: 14,
+  },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 14,
+    marginBottom: 3,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: "#718096",
+    fontWeight: "700",
   },
   emptyCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 22,
+    borderRadius: 24,
+    padding: 24,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    alignItems: "center",
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "900",
     color: "#1a202c",
     marginBottom: 8,
+    textAlign: "center",
   },
   emptyText: {
     fontSize: 14,
     color: "#718096",
     lineHeight: 20,
+    textAlign: "center",
   },
   clinicCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
@@ -533,23 +846,70 @@ const styles = StyleSheet.create({
   clinicTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    justifyContent: "space-between",
     gap: 12,
-    marginBottom: 10,
+    marginBottom: 12,
+  },
+  clinicIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
   },
   clinicTitleBlock: {
     flex: 1,
   },
+  nameRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    marginBottom: 5,
+  },
   clinicName: {
+    flex: 1,
     fontSize: 18,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 5,
+    lineHeight: 23,
+  },
+  nearestBadge: {
+    backgroundColor: "#fef3c7",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 999,
+  },
+  nearestBadgeText: {
+    color: "#92400e",
+    fontSize: 10,
+    fontWeight: "900",
   },
   clinicAddress: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#718096",
-    lineHeight: 20,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
+  distanceRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 12,
+  },
+  distancePill: {
+    backgroundColor: "#edf2f7",
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 999,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  distanceText: {
+    fontSize: 13,
+    color: "#2b6cb0",
+    fontWeight: "900",
   },
   coordinateBadge: {
     paddingHorizontal: 10,
@@ -572,38 +932,58 @@ const styles = StyleSheet.create({
   unavailableBadgeText: {
     color: "#c53030",
   },
+  infoList: {
+    gap: 8,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+  },
   clinicDetail: {
+    flex: 1,
     fontSize: 14,
     color: "#4a5568",
-    marginBottom: 5,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  detailLabel: {
+    color: "#2d3748",
+    fontWeight: "900",
   },
   clinicActions: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 12,
+    marginTop: 14,
   },
   primaryButton: {
-    flex: 1,
+    flex: 1.4,
     backgroundColor: "#2b6cb0",
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 15,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
   },
   primaryButtonText: {
     color: "#ffffff",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
   },
   secondaryButton: {
     flex: 1,
     backgroundColor: "#edf2f7",
     paddingVertical: 12,
-    borderRadius: 14,
+    borderRadius: 15,
     alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
   },
   secondaryButtonText: {
     color: "#2b6cb0",
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "900",
   },
 });

@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   buildARSimulationImageUrl,
@@ -88,7 +89,7 @@ export default function PatientARBracesScreen({ token }) {
 
     return `${date.toLocaleDateString(undefined, {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     })} ${date.toLocaleTimeString(undefined, {
       hour: "numeric",
@@ -105,6 +106,7 @@ export default function PatientARBracesScreen({ token }) {
     if (value === "pink") return "Pink Braces";
     if (value === "green") return "Green Braces";
     if (value === "purple") return "Purple Braces";
+    if (value === "colored") return "Colored Braces";
 
     return "Metal Braces";
   };
@@ -152,24 +154,40 @@ export default function PatientARBracesScreen({ token }) {
         }
       >
         <View style={styles.header}>
-          <Text style={styles.title}>AR Braces</Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerIconCircle}>
+              <Ionicons name="happy-outline" size={27} color="#2b6cb0" />
+            </View>
 
-          <Text style={styles.subtitle}>
-            View your saved AR braces simulation previews and review status.
-          </Text>
+            <View style={styles.headerTextBlock}>
+              <Text style={styles.title}>AR Braces</Text>
+              <Text style={styles.subtitle}>
+                View your saved braces simulation previews.
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.infoCard}>
-          <Text style={styles.infoTitle}>Saved Preview Mode</Text>
-          <Text style={styles.infoText}>
-            The mobile app currently displays saved AR braces previews from
-            DentoGraph. A full live camera filter can be developed later using
-            face landmark tracking.
-          </Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryIconCircle}>
+            <Ionicons name="sparkles-outline" size={22} color="#2b6cb0" />
+          </View>
+
+          <View style={styles.summaryTextBlock}>
+            <Text style={styles.summaryTitle}>Saved Preview Gallery</Text>
+            <Text style={styles.summaryText}>
+              {simulations.length} preview
+              {simulations.length === 1 ? "" : "s"} available
+            </Text>
+          </View>
         </View>
 
         {simulations.length === 0 ? (
           <View style={styles.emptyCard}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="images-outline" size={30} color="#2b6cb0" />
+            </View>
+
             <Text style={styles.emptyTitle}>No AR previews found</Text>
             <Text style={styles.emptyText}>
               Your saved braces simulation previews will appear here after one
@@ -194,7 +212,7 @@ export default function PatientARBracesScreen({ token }) {
                     />
                   ) : (
                     <View style={styles.noImageBox}>
-                      <Text style={styles.noImageIcon}>AR</Text>
+                      <Ionicons name="image-outline" size={38} color="#2b6cb0" />
                       <Text style={styles.noImageText}>
                         No preview available
                       </Text>
@@ -224,34 +242,53 @@ export default function PatientARBracesScreen({ token }) {
                         styles.statusText,
                         getStatusTextStyle(simulation.review_status),
                       ]}
+                      numberOfLines={1}
                     >
                       {simulation.review_status || "Pending Review"}
                     </Text>
                   </View>
                 </View>
 
-                <Text style={styles.detailText}>
-                  Record: #{simulation.record_id || "N/A"}
-                </Text>
+                <View style={styles.infoList}>
+                  <InfoRow
+                    icon="document-text-outline"
+                    label="Record"
+                    value={`#${simulation.record_id || "N/A"}`}
+                  />
 
-                {simulation.dentist_name ? (
-                  <Text style={styles.detailText}>
-                    Dentist: {simulation.dentist_name}
-                  </Text>
-                ) : null}
+                  <InfoRow
+                    icon="color-palette-outline"
+                    label="Style"
+                    value={formatBraceStyle(simulation.brace_style)}
+                  />
 
-                {simulation.clinic_name ? (
-                  <Text style={styles.detailText}>
-                    Clinic: {simulation.clinic_name}
-                  </Text>
-                ) : null}
+                  {simulation.dentist_name ? (
+                    <InfoRow
+                      icon="person-outline"
+                      label="Dentist"
+                      value={simulation.dentist_name}
+                    />
+                  ) : null}
 
-                <Text style={styles.detailText}>
-                  Created: {formatDateTime(simulation.created_at)}
-                </Text>
+                  {simulation.clinic_name ? (
+                    <InfoRow
+                      icon="business-outline"
+                      label="Clinic"
+                      value={simulation.clinic_name}
+                    />
+                  ) : null}
+
+                  <InfoRow
+                    icon="time-outline"
+                    label="Created"
+                    value={formatDateTime(simulation.created_at)}
+                  />
+                </View>
 
                 {simulation.notes ? (
-                  <Text style={styles.notesText}>{simulation.notes}</Text>
+                  <View style={styles.notesBox}>
+                    <Text style={styles.notesText}>{simulation.notes}</Text>
+                  </View>
                 ) : null}
 
                 <Pressable
@@ -259,6 +296,7 @@ export default function PatientARBracesScreen({ token }) {
                   onPress={() => openPreviewModal(simulation)}
                 >
                   <Text style={styles.viewButtonText}>Open Preview</Text>
+                  <Ionicons name="chevron-forward" size={18} color="#ffffff" />
                 </Pressable>
               </View>
             );
@@ -278,9 +316,20 @@ export default function PatientARBracesScreen({ token }) {
               style={styles.modalScroll}
               contentContainerStyle={styles.modalScrollContent}
             >
-              <Text style={styles.modalTitle}>
-                Preview #{selectedSimulation?.simulation_id}
-              </Text>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalIconCircle}>
+                  <Ionicons name="happy-outline" size={24} color="#2b6cb0" />
+                </View>
+
+                <View style={styles.modalHeaderTextBlock}>
+                  <Text style={styles.modalTitle}>
+                    Preview #{selectedSimulation?.simulation_id}
+                  </Text>
+                  <Text style={styles.modalSubtitle}>
+                    Saved AR braces simulation
+                  </Text>
+                </View>
+              </View>
 
               {selectedImageUrl ? (
                 <Image
@@ -290,44 +339,53 @@ export default function PatientARBracesScreen({ token }) {
                 />
               ) : (
                 <View style={styles.modalNoImageBox}>
-                  <Text style={styles.noImageIcon}>AR</Text>
+                  <Ionicons name="image-outline" size={42} color="#2b6cb0" />
                   <Text style={styles.noImageText}>No preview available</Text>
                 </View>
               )}
 
               <View style={styles.modalInfoCard}>
-                <Text style={styles.modalInfoText}>
-                  Style: {formatBraceStyle(selectedSimulation?.brace_style)}
-                </Text>
+                <DetailRow
+                  label="Style"
+                  value={formatBraceStyle(selectedSimulation?.brace_style)}
+                />
 
-                <Text style={styles.modalInfoText}>
-                  Status: {selectedSimulation?.review_status || "Pending Review"}
-                </Text>
+                <DetailRow
+                  label="Status"
+                  value={selectedSimulation?.review_status || "Pending Review"}
+                />
 
-                <Text style={styles.modalInfoText}>
-                  Record: #{selectedSimulation?.record_id || "N/A"}
-                </Text>
+                <DetailRow
+                  label="Record"
+                  value={`#${selectedSimulation?.record_id || "N/A"}`}
+                />
 
                 {selectedSimulation?.dentist_name ? (
-                  <Text style={styles.modalInfoText}>
-                    Dentist: {selectedSimulation.dentist_name}
-                  </Text>
+                  <DetailRow
+                    label="Dentist"
+                    value={selectedSimulation.dentist_name}
+                  />
                 ) : null}
 
                 {selectedSimulation?.clinic_name ? (
-                  <Text style={styles.modalInfoText}>
-                    Clinic: {selectedSimulation.clinic_name}
-                  </Text>
+                  <DetailRow
+                    label="Clinic"
+                    value={selectedSimulation.clinic_name}
+                  />
                 ) : null}
 
-                <Text style={styles.modalInfoText}>
-                  Created: {formatDateTime(selectedSimulation?.created_at)}
-                </Text>
+                <DetailRow
+                  label="Created"
+                  value={formatDateTime(selectedSimulation?.created_at)}
+                />
 
                 {selectedSimulation?.notes ? (
-                  <Text style={styles.modalNotes}>
-                    {selectedSimulation.notes}
-                  </Text>
+                  <View style={styles.modalNotesBox}>
+                    <Text style={styles.modalNotesLabel}>Notes</Text>
+                    <Text style={styles.modalNotes}>
+                      {selectedSimulation.notes}
+                    </Text>
+                  </View>
                 ) : null}
               </View>
             </ScrollView>
@@ -339,6 +397,27 @@ export default function PatientARBracesScreen({ token }) {
         </View>
       </Modal>
     </>
+  );
+}
+
+function InfoRow({ icon, label, value }) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={16} color="#718096" />
+      <Text style={styles.detailText}>
+        <Text style={styles.detailLabel}>{label}: </Text>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailRowLabel}>{label}</Text>
+      <Text style={styles.detailRowValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -363,71 +442,114 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    marginTop: 22,
-    marginBottom: 18,
+    marginTop: 18,
+    marginBottom: 20,
+  },
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+  },
+  headerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTextBlock: {
+    flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 6,
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#718096",
-    lineHeight: 21,
+    lineHeight: 20,
+    fontWeight: "600",
   },
-  infoCard: {
-    backgroundColor: "#ebf8ff",
-    borderRadius: 18,
-    padding: 16,
+  summaryCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 22,
+    padding: 14,
     borderWidth: 1,
     borderColor: "#bee3f8",
     marginBottom: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  infoTitle: {
-    fontSize: 16,
+  summaryIconCircle: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  summaryTextBlock: {
+    flex: 1,
+  },
+  summaryTitle: {
+    fontSize: 15,
     fontWeight: "900",
-    color: "#2b6cb0",
-    marginBottom: 6,
+    color: "#1a202c",
+    marginBottom: 2,
   },
-  infoText: {
-    fontSize: 14,
-    color: "#2c5282",
-    lineHeight: 20,
+  summaryText: {
+    fontSize: 13,
+    color: "#2b6cb0",
+    fontWeight: "900",
   },
   emptyCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 22,
+    borderRadius: 24,
+    padding: 24,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    alignItems: "center",
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "900",
     color: "#1a202c",
     marginBottom: 8,
+    textAlign: "center",
   },
   emptyText: {
     fontSize: 14,
     color: "#718096",
     lineHeight: 20,
+    textAlign: "center",
   },
   previewCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
+    borderRadius: 24,
     padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     marginBottom: 14,
   },
   previewImageBox: {
-    height: 210,
-    borderRadius: 18,
+    height: 220,
+    borderRadius: 20,
     backgroundColor: "#edf2f7",
     overflow: "hidden",
-    marginBottom: 14,
+    marginBottom: 15,
   },
   previewImage: {
     width: "100%",
@@ -437,24 +559,19 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-  },
-  noImageIcon: {
-    fontSize: 34,
-    fontWeight: "900",
-    color: "#2b6cb0",
-    marginBottom: 6,
+    gap: 8,
   },
   noImageText: {
     fontSize: 14,
     color: "#718096",
-    fontWeight: "700",
+    fontWeight: "800",
   },
   previewTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    gap: 12,
-    marginBottom: 10,
+    gap: 10,
+    marginBottom: 12,
   },
   previewTitleBlock: {
     flex: 1,
@@ -463,17 +580,18 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 4,
+    marginBottom: 3,
   },
   previewSubtitle: {
     fontSize: 13,
     color: "#718096",
-    fontWeight: "700",
+    fontWeight: "800",
   },
   statusBadge: {
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
+    maxWidth: 125,
   },
   statusText: {
     fontSize: 11,
@@ -497,23 +615,46 @@ const styles = StyleSheet.create({
   rejectedText: {
     color: "#c53030",
   },
+  infoList: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+  },
   detailText: {
+    flex: 1,
     fontSize: 14,
     color: "#4a5568",
-    marginBottom: 5,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  detailLabel: {
+    color: "#2d3748",
+    fontWeight: "900",
+  },
+  notesBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 15,
+    padding: 12,
+    marginBottom: 14,
   },
   notesText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#718096",
-    lineHeight: 20,
-    marginTop: 4,
+    lineHeight: 19,
+    fontWeight: "600",
   },
   viewButton: {
     backgroundColor: "#2b6cb0",
     paddingVertical: 13,
-    borderRadius: 15,
+    borderRadius: 16,
     alignItems: "center",
-    marginTop: 14,
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
   },
   viewButtonText: {
     color: "#ffffff",
@@ -528,7 +669,7 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 24,
+    borderRadius: 26,
     padding: 18,
     maxHeight: "90%",
   },
@@ -538,49 +679,98 @@ const styles = StyleSheet.create({
   modalScrollContent: {
     paddingBottom: 18,
   },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  modalIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalHeaderTextBlock: {
+    flex: 1,
+  },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 23,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 14,
+    marginBottom: 2,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#718096",
+    fontWeight: "700",
   },
   modalImage: {
     width: "100%",
-    height: 360,
+    height: 365,
     backgroundColor: "#edf2f7",
-    borderRadius: 18,
+    borderRadius: 20,
     marginBottom: 14,
   },
   modalNoImageBox: {
-    height: 260,
+    height: 280,
     backgroundColor: "#edf2f7",
-    borderRadius: 18,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 14,
+    gap: 8,
   },
   modalInfoCard: {
     backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 14,
+    borderRadius: 18,
+    padding: 15,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    marginBottom: 18,
   },
-  modalInfoText: {
+  detailRow: {
+    borderTopWidth: 1,
+    borderTopColor: "#edf2f7",
+    paddingTop: 9,
+    marginTop: 9,
+  },
+  detailRowLabel: {
+    fontSize: 12,
+    color: "#718096",
+    fontWeight: "900",
+    marginBottom: 3,
+  },
+  detailRowValue: {
     fontSize: 14,
-    color: "#4a5568",
-    marginBottom: 6,
+    color: "#2d3748",
+    fontWeight: "700",
+    lineHeight: 19,
+  },
+  modalNotesBox: {
+    borderTopWidth: 1,
+    borderTopColor: "#edf2f7",
+    paddingTop: 10,
+    marginTop: 10,
+  },
+  modalNotesLabel: {
+    fontSize: 12,
+    color: "#718096",
+    fontWeight: "900",
+    marginBottom: 4,
   },
   modalNotes: {
     fontSize: 14,
-    color: "#718096",
+    color: "#4a5568",
     lineHeight: 20,
-    marginTop: 6,
+    fontWeight: "600",
   },
   closeButton: {
     backgroundColor: "#2b6cb0",
     paddingVertical: 13,
-    borderRadius: 15,
+    borderRadius: 16,
     alignItems: "center",
     marginTop: 8,
   },
