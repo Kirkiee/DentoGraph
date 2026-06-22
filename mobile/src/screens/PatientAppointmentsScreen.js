@@ -16,6 +16,7 @@ import {
   View,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   cancelPatientAppointment,
@@ -288,34 +289,21 @@ export default function PatientAppointmentsScreen({
 
   const canCancelAppointment = (appointment) => {
     const status = String(appointment.status || "").toLowerCase();
-
     return status !== "cancelled" && status !== "completed";
   };
 
   const canRescheduleAppointment = (appointment) => {
     const status = String(appointment.status || "").toLowerCase();
-
     return status !== "cancelled" && status !== "completed";
   };
 
   const getStatusBadgeStyle = (status) => {
     const normalizedStatus = String(status || "").toLowerCase();
 
-    if (normalizedStatus === "pending") {
-      return styles.pendingBadge;
-    }
-
-    if (normalizedStatus === "scheduled") {
-      return styles.scheduledBadge;
-    }
-
-    if (normalizedStatus === "cancelled") {
-      return styles.cancelledBadge;
-    }
-
-    if (normalizedStatus === "completed") {
-      return styles.completedBadge;
-    }
+    if (normalizedStatus === "pending") return styles.pendingBadge;
+    if (normalizedStatus === "scheduled") return styles.scheduledBadge;
+    if (normalizedStatus === "cancelled") return styles.cancelledBadge;
+    if (normalizedStatus === "completed") return styles.completedBadge;
 
     return styles.defaultBadge;
   };
@@ -323,23 +311,29 @@ export default function PatientAppointmentsScreen({
   const getStatusTextStyle = (status) => {
     const normalizedStatus = String(status || "").toLowerCase();
 
-    if (normalizedStatus === "pending") {
-      return styles.pendingText;
-    }
-
-    if (normalizedStatus === "scheduled") {
-      return styles.scheduledText;
-    }
-
-    if (normalizedStatus === "cancelled") {
-      return styles.cancelledText;
-    }
-
-    if (normalizedStatus === "completed") {
-      return styles.completedText;
-    }
+    if (normalizedStatus === "pending") return styles.pendingText;
+    if (normalizedStatus === "scheduled") return styles.scheduledText;
+    if (normalizedStatus === "cancelled") return styles.cancelledText;
+    if (normalizedStatus === "completed") return styles.completedText;
 
     return styles.defaultStatusText;
+  };
+
+  const getAppointmentType = (appointment) => {
+    return (
+      appointment.appointment_type ||
+      appointment.type ||
+      "Dental Appointment"
+    );
+  };
+
+  const getDentistName = (appointment) => {
+    return (
+      appointment.dentist_name ||
+      appointment.dentist ||
+      appointment.name ||
+      "Not assigned"
+    );
   };
 
   if (loading) {
@@ -361,20 +355,31 @@ export default function PatientAppointmentsScreen({
         }
       >
         <View style={styles.header}>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerIconCircle}>
+              <Ionicons name="calendar-outline" size={26} color="#2b6cb0" />
+            </View>
 
-          <Text style={styles.title}>My Appointments</Text>
-
-          <Text style={styles.subtitle}>
-            View your upcoming and recent dental visits.
-          </Text>
+            <View style={styles.headerTextBlock}>
+              <Text style={styles.title}>Appointments</Text>
+              <Text style={styles.subtitle}>
+                View upcoming and recent dental visits.
+              </Text>
+            </View>
+          </View>
 
           <Pressable style={styles.bookButton} onPress={onOpenBookAppointment}>
+            <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
             <Text style={styles.bookButtonText}>Book New Appointment</Text>
           </Pressable>
         </View>
 
         {appointments.length === 0 ? (
           <View style={styles.emptyCard}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="calendar-clear-outline" size={30} color="#2b6cb0" />
+            </View>
+
             <Text style={styles.emptyTitle}>No appointments found</Text>
             <Text style={styles.emptyText}>
               Your scheduled clinic visits will appear here once available.
@@ -386,77 +391,68 @@ export default function PatientAppointmentsScreen({
               key={appointment.appointment_id || appointment.id || index}
               style={styles.appointmentCard}
             >
-              <View style={styles.cardTopRow}>
-                <Text style={styles.appointmentType}>
-                  {appointment.appointment_type ||
-                    appointment.type ||
-                    "Dental Appointment"}
-                </Text>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardTitleBlock}>
+                  <Text style={styles.appointmentType} numberOfLines={2}>
+                    {getAppointmentType(appointment)}
+                  </Text>
 
-                <View style={styles.actionColumn}>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      getStatusBadgeStyle(appointment.status),
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        getStatusTextStyle(appointment.status),
-                      ]}
-                    >
-                      {appointment.status || "Pending"}
+                  <View style={styles.dateRow}>
+                    <Ionicons name="time-outline" size={15} color="#718096" />
+                    <Text style={styles.dateInlineText}>
+                      {formatDate(appointment.appointment_date || appointment.date)}
                     </Text>
                   </View>
+                </View>
 
-                  {canCancelAppointment(appointment) ? (
-                    <Pressable
-                      style={styles.cancelMiniButton}
-                      onPress={() => openCancelModal(appointment)}
-                    >
-                      <Text style={styles.cancelMiniButtonText}>Cancel</Text>
-                    </Pressable>
-                  ) : null}
-
-                  {canRescheduleAppointment(appointment) ? (
-                    <Pressable
-                      style={styles.rescheduleMiniButton}
-                      onPress={() => openRescheduleModal(appointment)}
-                    >
-                      <Text style={styles.rescheduleMiniButtonText}>
-                        Resched
-                      </Text>
-                    </Pressable>
-                  ) : null}
+                <View
+                  style={[
+                    styles.statusBadge,
+                    getStatusBadgeStyle(appointment.status),
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusText,
+                      getStatusTextStyle(appointment.status),
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {appointment.status || "Pending"}
+                  </Text>
                 </View>
               </View>
 
-              <Text style={styles.dateText}>
-                {formatDate(appointment.appointment_date || appointment.date)}
-              </Text>
-
-              <Text style={styles.timeText}>
-                {formatTime(appointment.appointment_date || appointment.date)}
-              </Text>
-
-              <Text style={styles.detailText}>
-                Dentist:{" "}
-                {appointment.dentist_name ||
-                  appointment.dentist ||
-                  appointment.name ||
-                  "Not assigned"}
-              </Text>
-
-              {appointment.clinic_name ? (
-                <Text style={styles.detailText}>
-                  Clinic: {appointment.clinic_name}
+              <View style={styles.timePill}>
+                <Ionicons name="alarm-outline" size={15} color="#2b6cb0" />
+                <Text style={styles.timePillText}>
+                  {formatTime(appointment.appointment_date || appointment.date)}
                 </Text>
-              ) : null}
+              </View>
 
-              {appointment.notes ? (
-                <Text style={styles.notesText}>{appointment.notes}</Text>
-              ) : null}
+              <View style={styles.infoList}>
+                <View style={styles.infoRow}>
+                  <Ionicons name="person-outline" size={16} color="#718096" />
+                  <Text style={styles.detailText}>
+                    Dentist: {getDentistName(appointment)}
+                  </Text>
+                </View>
+
+                {appointment.clinic_name ? (
+                  <View style={styles.infoRow}>
+                    <Ionicons name="business-outline" size={16} color="#718096" />
+                    <Text style={styles.detailText}>
+                      Clinic: {appointment.clinic_name}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {appointment.notes ? (
+                  <View style={styles.notesBox}>
+                    <Text style={styles.notesText}>{appointment.notes}</Text>
+                  </View>
+                ) : null}
+              </View>
 
               {appointment.reschedule_status &&
               appointment.reschedule_status !== "None" ? (
@@ -483,6 +479,33 @@ export default function PatientAppointmentsScreen({
                   </Text>
                 </View>
               ) : null}
+
+              {(canCancelAppointment(appointment) ||
+                canRescheduleAppointment(appointment)) && (
+                <View style={styles.cardActions}>
+                  {canCancelAppointment(appointment) ? (
+                    <Pressable
+                      style={styles.cancelActionButton}
+                      onPress={() => openCancelModal(appointment)}
+                    >
+                      <Ionicons name="close-circle-outline" size={17} color="#e53e3e" />
+                      <Text style={styles.cancelActionText}>Cancel</Text>
+                    </Pressable>
+                  ) : null}
+
+                  {canRescheduleAppointment(appointment) ? (
+                    <Pressable
+                      style={styles.rescheduleActionButton}
+                      onPress={() => openRescheduleModal(appointment)}
+                    >
+                      <Ionicons name="calendar-number-outline" size={17} color="#2b6cb0" />
+                      <Text style={styles.rescheduleActionText}>
+                        Reschedule
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              )}
             </View>
           ))
         )}
@@ -511,8 +534,7 @@ export default function PatientAppointmentsScreen({
                 {selectedAppointment ? (
                   <View style={styles.modalAppointmentBox}>
                     <Text style={styles.modalAppointmentText}>
-                      {selectedAppointment.appointment_type ||
-                        "Dental Appointment"}
+                      {getAppointmentType(selectedAppointment)}
                     </Text>
 
                     <Text style={styles.modalAppointmentDate}>
@@ -525,6 +547,7 @@ export default function PatientAppointmentsScreen({
                 <TextInput
                   style={styles.reasonInput}
                   placeholder="Example: I am unavailable on this date."
+                  placeholderTextColor="#a0aec0"
                   value={cancellationReason}
                   onChangeText={setCancellationReason}
                   multiline
@@ -595,38 +618,40 @@ export default function PatientAppointmentsScreen({
               </View>
             ) : null}
 
-            <View style={styles.pickerCard}>
-              <Text style={styles.pickerLabel}>New Date</Text>
-              <Text style={styles.pickerValue}>
-                {formatDate(rescheduleDate)}
-              </Text>
+            <View style={styles.pickerRow}>
+              <View style={styles.pickerCard}>
+                <Text style={styles.pickerLabel}>New Date</Text>
+                <Text style={styles.pickerValue}>
+                  {formatDate(rescheduleDate)}
+                </Text>
 
-              <Pressable
-                style={styles.pickerButton}
-                onPress={() => {
-                  setShowRescheduleDatePicker(true);
-                  setShowRescheduleTimePicker(false);
-                }}
-              >
-                <Text style={styles.pickerButtonText}>Choose Date</Text>
-              </Pressable>
-            </View>
+                <Pressable
+                  style={styles.pickerButton}
+                  onPress={() => {
+                    setShowRescheduleDatePicker(true);
+                    setShowRescheduleTimePicker(false);
+                  }}
+                >
+                  <Text style={styles.pickerButtonText}>Choose Date</Text>
+                </Pressable>
+              </View>
 
-            <View style={styles.pickerCard}>
-              <Text style={styles.pickerLabel}>New Time</Text>
-              <Text style={styles.pickerValue}>
-                {formatTime(rescheduleDate)}
-              </Text>
+              <View style={styles.pickerCard}>
+                <Text style={styles.pickerLabel}>New Time</Text>
+                <Text style={styles.pickerValue}>
+                  {formatTime(rescheduleDate)}
+                </Text>
 
-              <Pressable
-                style={styles.pickerButton}
-                onPress={() => {
-                  setShowRescheduleTimePicker(true);
-                  setShowRescheduleDatePicker(false);
-                }}
-              >
-                <Text style={styles.pickerButtonText}>Choose Time</Text>
-              </Pressable>
+                <Pressable
+                  style={styles.pickerButton}
+                  onPress={() => {
+                    setShowRescheduleTimePicker(true);
+                    setShowRescheduleDatePicker(false);
+                  }}
+                >
+                  <Text style={styles.pickerButtonText}>Choose Time</Text>
+                </Pressable>
+              </View>
             </View>
 
             {showRescheduleDatePicker ? (
@@ -720,38 +745,54 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    marginTop: 22,
-    marginBottom: 22,
+    marginTop: 18,
+    marginBottom: 20,
   },
-  backButton: {
-    alignSelf: "flex-start",
-    backgroundColor: "#edf2f7",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
     marginBottom: 18,
   },
-  backButtonText: {
-    color: "#2b6cb0",
-    fontWeight: "800",
+  headerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTextBlock: {
+    flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 6,
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#718096",
-    lineHeight: 21,
+    lineHeight: 20,
+    fontWeight: "600",
   },
   bookButton: {
     backgroundColor: "#2b6cb0",
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingVertical: 15,
+    borderRadius: 18,
     alignItems: "center",
-    marginTop: 18,
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    shadowColor: "#2b6cb0",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.16,
+    shadowRadius: 12,
+    elevation: 3,
   },
   bookButtonText: {
     color: "#ffffff",
@@ -760,53 +801,74 @@ const styles = StyleSheet.create({
   },
   emptyCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 22,
+    borderRadius: 24,
+    padding: 24,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    alignItems: "center",
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "900",
     color: "#1a202c",
     marginBottom: 8,
+    textAlign: "center",
   },
   emptyText: {
     fontSize: 14,
     color: "#718096",
     lineHeight: 20,
+    textAlign: "center",
   },
   appointmentCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 18,
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     marginBottom: 14,
   },
-  cardTopRow: {
-    position: "relative",
-    marginBottom: 8,
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 10,
+  },
+  cardTitleBlock: {
+    flex: 1,
   },
   appointmentType: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "900",
     color: "#1a202c",
-    paddingRight: 128,
     lineHeight: 24,
+    marginBottom: 7,
   },
-  actionColumn: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    alignItems: "flex-end",
-    gap: 6,
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  dateInlineText: {
+    fontSize: 13,
+    color: "#718096",
+    fontWeight: "800",
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
     borderRadius: 999,
-    minWidth: 86,
+    minWidth: 84,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -844,63 +906,91 @@ const styles = StyleSheet.create({
   completedText: {
     color: "#2f855a",
   },
-  cancelMiniButton: {
-    borderWidth: 1,
-    borderColor: "#e53e3e",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  timePill: {
+    alignSelf: "flex-start",
+    backgroundColor: "#edf2f7",
     borderRadius: 999,
-    minWidth: 86,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
+    marginBottom: 13,
   },
-  cancelMiniButtonText: {
-    color: "#e53e3e",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  rescheduleMiniButton: {
-    borderWidth: 1,
-    borderColor: "#2b6cb0",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
-    minWidth: 86,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#ffffff",
-  },
-  rescheduleMiniButtonText: {
+  timePillText: {
     color: "#2b6cb0",
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "900",
   },
-  dateText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#2d3748",
-    marginBottom: 4,
-    marginTop: 0,
+  infoList: {
+    gap: 7,
   },
-  timeText: {
-    fontSize: 14,
-    color: "#718096",
-    marginBottom: 12,
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
   },
   detailText: {
+    flex: 1,
     fontSize: 14,
     color: "#4a5568",
-    marginBottom: 6,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  notesBox: {
+    backgroundColor: "#f8fafc",
+    borderRadius: 14,
+    padding: 11,
+    marginTop: 3,
   },
   notesText: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#718096",
-    lineHeight: 20,
-    marginTop: 6,
+    lineHeight: 19,
+    fontWeight: "600",
+  },
+  cardActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 15,
+  },
+  cancelActionButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#e53e3e",
+    backgroundColor: "#ffffff",
+    paddingVertical: 11,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  cancelActionText: {
+    color: "#e53e3e",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  rescheduleActionButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: "#2b6cb0",
+    backgroundColor: "#f7fbff",
+    paddingVertical: 11,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+  },
+  rescheduleActionText: {
+    color: "#2b6cb0",
+    fontSize: 13,
+    fontWeight: "900",
   },
   cancelInfoBox: {
     backgroundColor: "#fff5f5",
-    borderRadius: 14,
+    borderRadius: 15,
     padding: 12,
     marginTop: 12,
   },
@@ -917,7 +1007,7 @@ const styles = StyleSheet.create({
   },
   rescheduleInfoBox: {
     backgroundColor: "#ebf8ff",
-    borderRadius: 14,
+    borderRadius: 15,
     padding: 12,
     marginTop: 12,
   },
@@ -976,6 +1066,7 @@ const styles = StyleSheet.create({
   modalAppointmentDate: {
     fontSize: 13,
     color: "#718096",
+    fontWeight: "700",
   },
   reasonInput: {
     backgroundColor: "#ffffff",
@@ -991,22 +1082,27 @@ const styles = StyleSheet.create({
     color: "#1a202c",
     marginBottom: 16,
   },
-  pickerCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
+  pickerRow: {
+    flexDirection: "row",
+    gap: 10,
     marginBottom: 12,
   },
+  pickerCard: {
+    flex: 1,
+    backgroundColor: "#ffffff",
+    borderRadius: 16,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
   pickerLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: "#718096",
-    fontWeight: "800",
+    fontWeight: "900",
     marginBottom: 5,
   },
   pickerValue: {
-    fontSize: 16,
+    fontSize: 13,
     color: "#1a202c",
     fontWeight: "900",
     marginBottom: 10,
@@ -1019,6 +1115,7 @@ const styles = StyleSheet.create({
   },
   pickerButtonText: {
     color: "#2b6cb0",
+    fontSize: 12,
     fontWeight: "900",
   },
   donePickerButton: {

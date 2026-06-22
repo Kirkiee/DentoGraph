@@ -5,19 +5,24 @@ const API_HOST_URL = API_BASE_URL.replace(/\/api\/?$/, "");
 export const buildXrayFileUrl = (filePath) => {
   if (!filePath) return null;
 
-  if (String(filePath).startsWith("http://") || String(filePath).startsWith("https://")) {
-    return filePath;
+  const normalizedPath = String(filePath).replace(/\\/g, "/");
+
+  if (
+    normalizedPath.startsWith("http://") ||
+    normalizedPath.startsWith("https://")
+  ) {
+    return normalizedPath;
   }
 
-  const normalizedPath = String(filePath).startsWith("/")
-    ? filePath
-    : `/${filePath}`;
+  const pathWithSlash = normalizedPath.startsWith("/")
+    ? normalizedPath
+    : `/${normalizedPath}`;
 
-  return `${API_HOST_URL}${normalizedPath}`;
+  return `${API_HOST_URL}${pathWithSlash}`;
 };
 
-export const getXraysByRecord = async ({ token, record_id }) => {
-  const response = await fetch(`${API_BASE_URL}/xrays/record/${record_id}`, {
+export const getXraysByRecord = async ({ token, recordId }) => {
+  const response = await fetch(`${API_BASE_URL}/xrays/record/${recordId}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -28,7 +33,7 @@ export const getXraysByRecord = async ({ token, record_id }) => {
   const text = await response.text();
 
   console.log("XRAYS BY RECORD STATUS:", response.status);
-  console.log("XRAYS BY RECORD RAW RESPONSE:", text.slice(0, 500));
+  console.log("XRAYS BY RECORD RAW RESPONSE:", text.slice(0, 1000));
 
   let data;
 
@@ -39,14 +44,14 @@ export const getXraysByRecord = async ({ token, record_id }) => {
   }
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || "Failed to load X-rays");
+    throw new Error(data.message || data.error || "Failed to load X-rays.");
   }
 
   return data;
 };
 
-export const getSingleXray = async ({ token, xray_id }) => {
-  const response = await fetch(`${API_BASE_URL}/xrays/${xray_id}`, {
+export const getXrayById = async ({ token, xrayId }) => {
+  const response = await fetch(`${API_BASE_URL}/xrays/${xrayId}`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -56,26 +61,26 @@ export const getSingleXray = async ({ token, xray_id }) => {
 
   const text = await response.text();
 
-  console.log("SINGLE XRAY STATUS:", response.status);
-  console.log("SINGLE XRAY RAW RESPONSE:", text.slice(0, 500));
+  console.log("XRAY DETAIL STATUS:", response.status);
+  console.log("XRAY DETAIL RAW RESPONSE:", text.slice(0, 1000));
 
   let data;
 
   try {
     data = JSON.parse(text);
   } catch (error) {
-    throw new Error("Server returned non-JSON response for X-ray details.");
+    throw new Error("Server returned non-JSON response for X-ray detail.");
   }
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || "Failed to load X-ray");
+    throw new Error(data.message || data.error || "Failed to load X-ray.");
   }
 
   return data;
 };
 
-export const getXrayAnnotations = async ({ token, xray_id }) => {
-  const response = await fetch(`${API_BASE_URL}/xrays/${xray_id}/annotations`, {
+export const getXrayAnnotations = async ({ token, xrayId }) => {
+  const response = await fetch(`${API_BASE_URL}/xrays/${xrayId}/annotations`, {
     method: "GET",
     headers: {
       Authorization: `Bearer ${token}`,
@@ -86,7 +91,7 @@ export const getXrayAnnotations = async ({ token, xray_id }) => {
   const text = await response.text();
 
   console.log("XRAY ANNOTATIONS STATUS:", response.status);
-  console.log("XRAY ANNOTATIONS RAW RESPONSE:", text.slice(0, 500));
+  console.log("XRAY ANNOTATIONS RAW RESPONSE:", text.slice(0, 1000));
 
   let data;
 
@@ -98,7 +103,7 @@ export const getXrayAnnotations = async ({ token, xray_id }) => {
 
   if (!response.ok) {
     throw new Error(
-      data.message || data.error || "Failed to load X-ray annotations"
+      data.message || data.error || "Failed to load X-ray annotations.",
     );
   }
 

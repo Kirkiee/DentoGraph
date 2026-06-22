@@ -35,8 +35,10 @@ function AssistantDentalRecordDetails() {
   };
 
   const adultTeethNumbers = [
-    18, 17, 16, 15, 14, 13, 12, 11, 21, 22, 23, 24, 25, 26, 27, 28, 48, 47, 46,
-    45, 44, 43, 42, 41, 31, 32, 33, 34, 35, 36, 37, 38,
+    18, 17, 16, 15, 14, 13, 12, 11,
+    21, 22, 23, 24, 25, 26, 27, 28,
+    48, 47, 46, 45, 44, 43, 42, 41,
+    31, 32, 33, 34, 35, 36, 37, 38,
   ];
 
   useEffect(() => {
@@ -94,13 +96,22 @@ function AssistantDentalRecordDetails() {
   const getFileUrl = (filePath) => {
     if (!filePath) return "#";
 
-    const normalizedPath = filePath.replace(/\\/g, "/");
+    const API_HOST = process.env.REACT_APP_API_URL || "http://localhost:5000";
 
-    if (normalizedPath.startsWith("http")) {
+    const normalizedPath = String(filePath).replace(/\\/g, "/");
+
+    if (
+      normalizedPath.startsWith("http://") ||
+      normalizedPath.startsWith("https://")
+    ) {
       return normalizedPath;
     }
 
-    return `http://localhost:5000/${normalizedPath}`;
+    const pathWithSlash = normalizedPath.startsWith("/")
+      ? normalizedPath
+      : `/${normalizedPath}`;
+
+    return `${API_HOST}${pathWithSlash}`;
   };
 
   const isImageFile = (filePath) => {
@@ -137,6 +148,7 @@ function AssistantDentalRecordDetails() {
       );
 
       setMessage("Tooth added successfully.");
+
       setToothForm({
         tooth_number: "",
         tooth_status: "Normal",
@@ -178,15 +190,19 @@ function AssistantDentalRecordDetails() {
       case "Healthy":
       case "Normal":
         return "status-badge status-completed";
+
       case "Cavity":
       case "Needs Treatment":
         return "status-badge status-pending";
+
       case "Extracted":
       case "Missing":
         return "status-badge status-cancelled";
+
       case "Filled":
       case "Treated":
         return "status-badge status-scheduled";
+
       default:
         return "status-badge status-pending";
     }
@@ -203,15 +219,19 @@ function AssistantDentalRecordDetails() {
       case "Healthy":
       case "Normal":
         return `${className} tooth-normal`;
+
       case "Cavity":
       case "Needs Treatment":
         return `${className} tooth-warning`;
+
       case "Extracted":
       case "Missing":
         return `${className} tooth-danger`;
+
       case "Filled":
       case "Treated":
         return `${className} tooth-treated`;
+
       default:
         return `${className} tooth-empty`;
     }
@@ -222,6 +242,7 @@ function AssistantDentalRecordDetails() {
       <div className="appointments-layout">
         <div className="appointment-form-card">
           <h2>Add Tooth</h2>
+
           <p>
             Assist the dentist by adding tooth information to this dental
             record. Treatments remain dentist-managed.
@@ -233,6 +254,7 @@ function AssistantDentalRecordDetails() {
           <form className="appointment-form" onSubmit={handleAddTooth}>
             <div className="form-group">
               <label>Tooth Number</label>
+
               <input
                 type="number"
                 name="tooth_number"
@@ -245,6 +267,7 @@ function AssistantDentalRecordDetails() {
 
             <div className="form-group">
               <label>Tooth Status</label>
+
               <select
                 name="tooth_status"
                 value={toothForm.tooth_status}
@@ -273,9 +296,11 @@ function AssistantDentalRecordDetails() {
           {selectedTooth && (
             <div className="selected-tooth-panel">
               <h3>Selected Tooth #{selectedTooth.tooth_number}</h3>
+
               <p>
                 <strong>Status:</strong> {selectedTooth.tooth_status}
               </p>
+
               <p>
                 <strong>Treatments:</strong>{" "}
                 {getTreatmentsByToothId(selectedTooth.tooth_id).length}
@@ -288,6 +313,7 @@ function AssistantDentalRecordDetails() {
           <div className="appointments-header">
             <div>
               <h2>Dental Record Details</h2>
+
               <p>
                 View dental chart, update tooth status, and review related
                 treatments and X-rays.
@@ -315,6 +341,7 @@ function AssistantDentalRecordDetails() {
                 <div className="appointment-info">
                   <div className="appointment-title-row">
                     <h3>Record #{record.record_id}</h3>
+
                     <span className="status-badge status-scheduled">
                       Active
                     </span>
@@ -365,15 +392,19 @@ function AssistantDentalRecordDetails() {
                   <span>
                     <i className="legend-dot normal"></i> Normal
                   </span>
+
                   <span>
                     <i className="legend-dot warning"></i> Needs Treatment
                   </span>
+
                   <span>
                     <i className="legend-dot treated"></i> Treated
                   </span>
+
                   <span>
                     <i className="legend-dot danger"></i> Missing/Extracted
                   </span>
+
                   <span>
                     <i className="legend-dot empty"></i> Not Recorded
                   </span>
@@ -521,8 +552,8 @@ function AssistantDentalRecordDetails() {
                             <strong>Treatment Date:</strong>{" "}
                             {treatment.treatment_date
                               ? new Date(
-                                  treatment.treatment_date,
-                                ).toLocaleString()
+                                treatment.treatment_date,
+                              ).toLocaleString()
                               : "N/A"}
                           </p>
                         </div>

@@ -10,6 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import {
   getDentalRecordDetails,
@@ -40,6 +41,7 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
   const loadRecords = async () => {
     try {
       setLoading(true);
+
       const data = await getPatientDentalRecords(token);
       setRecords(normalizeRecords(data));
     } catch (error) {
@@ -55,6 +57,7 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
   const handleRefresh = async () => {
     try {
       setRefreshing(true);
+
       const data = await getPatientDentalRecords(token);
       setRecords(normalizeRecords(data));
     } catch (error) {
@@ -85,6 +88,7 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
       setSelectedRecordDetails(data);
     } catch (error) {
       setDetailsModalVisible(false);
+
       Alert.alert(
         "Record Details Error",
         error.message || "Unable to load dental record details."
@@ -110,7 +114,7 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
 
     return date.toLocaleDateString(undefined, {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     });
   };
@@ -126,7 +130,7 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
 
     return `${date.toLocaleDateString(undefined, {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     })} ${date.toLocaleTimeString(undefined, {
       hour: "numeric",
@@ -137,19 +141,32 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
   const getToothBadgeStyle = (status) => {
     const normalized = String(status || "").toLowerCase();
 
-    if (normalized === "sound" || normalized === "normal") {
+    if (
+      normalized === "sound" ||
+      normalized === "normal" ||
+      normalized === "healthy"
+    ) {
       return styles.soundBadge;
     }
 
-    if (normalized === "caries" || normalized === "decayed") {
+    if (
+      normalized === "caries" ||
+      normalized === "decayed" ||
+      normalized === "cavity" ||
+      normalized === "needs treatment"
+    ) {
       return styles.cariesBadge;
     }
 
-    if (normalized === "filled") {
+    if (normalized === "filled" || normalized === "treated") {
       return styles.filledBadge;
     }
 
-    if (normalized === "missing" || normalized === "for extraction") {
+    if (
+      normalized === "missing" ||
+      normalized === "for extraction" ||
+      normalized === "extracted"
+    ) {
       return styles.missingBadge;
     }
 
@@ -163,19 +180,32 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
   const getToothTextStyle = (status) => {
     const normalized = String(status || "").toLowerCase();
 
-    if (normalized === "sound" || normalized === "normal") {
+    if (
+      normalized === "sound" ||
+      normalized === "normal" ||
+      normalized === "healthy"
+    ) {
       return styles.soundText;
     }
 
-    if (normalized === "caries" || normalized === "decayed") {
+    if (
+      normalized === "caries" ||
+      normalized === "decayed" ||
+      normalized === "cavity" ||
+      normalized === "needs treatment"
+    ) {
       return styles.cariesText;
     }
 
-    if (normalized === "filled") {
+    if (normalized === "filled" || normalized === "treated") {
       return styles.filledText;
     }
 
-    if (normalized === "missing" || normalized === "for extraction") {
+    if (
+      normalized === "missing" ||
+      normalized === "for extraction" ||
+      normalized === "extracted"
+    ) {
       return styles.missingText;
     }
 
@@ -187,9 +217,11 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
   };
 
   const detailsRecord = selectedRecordDetails?.dental_record;
+
   const teeth = Array.isArray(selectedRecordDetails?.teeth)
     ? selectedRecordDetails.teeth
     : [];
+
   const treatments = Array.isArray(selectedRecordDetails?.treatments)
     ? selectedRecordDetails.treatments
     : [];
@@ -213,16 +245,30 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
         }
       >
         <View style={styles.header}>
-          
-          <Text style={styles.title}>Dental Records</Text>
+          <View style={styles.headerTopRow}>
+            <View style={styles.headerIconCircle}>
+              <Ionicons
+                name="document-text-outline"
+                size={27}
+                color="#2b6cb0"
+              />
+            </View>
 
-          <Text style={styles.subtitle}>
-            View your dental chart, tooth status, and treatment history.
-          </Text>
+            <View style={styles.headerTextBlock}>
+              <Text style={styles.title}>Dental Records</Text>
+              <Text style={styles.subtitle}>
+                View tooth charts, dental status, and treatment history.
+              </Text>
+            </View>
+          </View>
         </View>
 
         {records.length === 0 ? (
           <View style={styles.emptyCard}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="folder-open-outline" size={30} color="#2b6cb0" />
+            </View>
+
             <Text style={styles.emptyTitle}>No dental records found</Text>
             <Text style={styles.emptyText}>
               Your dental records will appear here once your dentist creates
@@ -231,15 +277,17 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
           </View>
         ) : (
           records.map((record, index) => (
-            <View
-              key={record.record_id || index}
-              style={styles.recordCard}
-            >
+            <View key={record.record_id || index} style={styles.recordCard}>
               <View style={styles.recordTopRow}>
+                <View style={styles.recordIconCircle}>
+                  <Ionicons name="clipboard-outline" size={22} color="#2b6cb0" />
+                </View>
+
                 <View style={styles.recordTitleBlock}>
                   <Text style={styles.recordTitle}>
                     Record #{record.record_id}
                   </Text>
+
                   <Text style={styles.recordSubtitle}>
                     {record.dentition_label ||
                       record.dentition_type ||
@@ -254,29 +302,40 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                 </View>
               </View>
 
-              <Text style={styles.detailText}>
-                Dentist: {record.dentist_name || "Not assigned"}
-              </Text>
+              <View style={styles.infoList}>
+                <InfoRow
+                  icon="person-outline"
+                  label="Dentist"
+                  value={record.dentist_name || "Not assigned"}
+                />
 
-              {record.clinic_name ? (
-                <Text style={styles.detailText}>
-                  Clinic: {record.clinic_name}
-                </Text>
-              ) : null}
+                {record.clinic_name ? (
+                  <InfoRow
+                    icon="business-outline"
+                    label="Clinic"
+                    value={record.clinic_name}
+                  />
+                ) : null}
 
-              <Text style={styles.detailText}>
-                Created: {formatDate(record.date_created)}
-              </Text>
+                <InfoRow
+                  icon="calendar-outline"
+                  label="Created"
+                  value={formatDate(record.date_created)}
+                />
 
-              <Text style={styles.detailText}>
-                Last Updated: {formatDate(record.last_updated)}
-              </Text>
+                <InfoRow
+                  icon="refresh-outline"
+                  label="Updated"
+                  value={formatDate(record.last_updated)}
+                />
+              </View>
 
               <Pressable
                 style={styles.viewButton}
                 onPress={() => openRecordDetails(record)}
               >
                 <Text style={styles.viewButtonText}>View Details</Text>
+                <Ionicons name="chevron-forward" size={18} color="#ffffff" />
               </Pressable>
             </View>
           ))
@@ -302,46 +361,81 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                   style={styles.modalScroll}
                   contentContainerStyle={styles.modalScrollContent}
                 >
-                  <Text style={styles.modalTitle}>Record Details</Text>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalIconCircle}>
+                      <Ionicons
+                        name="document-text-outline"
+                        size={24}
+                        color="#2b6cb0"
+                      />
+                    </View>
+
+                    <View style={styles.modalHeaderTextBlock}>
+                      <Text style={styles.modalTitle}>Record Details</Text>
+                      <Text style={styles.modalSubtitle}>
+                        Tooth chart and treatment summary
+                      </Text>
+                    </View>
+                  </View>
 
                   {detailsRecord ? (
                     <View style={styles.detailsHeaderCard}>
-                      <Text style={styles.detailsRecordTitle}>
-                        Record #{detailsRecord.record_id}
-                      </Text>
+                      <View style={styles.detailsTitleRow}>
+                        <View style={styles.detailsTitleBlock}>
+                          <Text style={styles.detailsRecordTitle}>
+                            Record #{detailsRecord.record_id}
+                          </Text>
 
-                      <Text style={styles.detailsText}>
-                        Patient: {detailsRecord.patient_name || "Patient"}
-                      </Text>
+                          <Text style={styles.detailsDentition}>
+                            {detailsRecord.dentition_label ||
+                              detailsRecord.dentition_type ||
+                              "Not specified"}
+                          </Text>
+                        </View>
 
-                      <Text style={styles.detailsText}>
-                        Dentist: {detailsRecord.dentist_name || "Not assigned"}
-                      </Text>
+                        <View style={styles.statusBadge}>
+                          <Text style={styles.statusText}>
+                            {detailsRecord.status || "Active"}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <DetailRow
+                        label="Patient"
+                        value={detailsRecord.patient_name || "Patient"}
+                      />
+
+                      <DetailRow
+                        label="Dentist"
+                        value={detailsRecord.dentist_name || "Not assigned"}
+                      />
 
                       {detailsRecord.clinic_name ? (
-                        <Text style={styles.detailsText}>
-                          Clinic: {detailsRecord.clinic_name}
-                        </Text>
+                        <DetailRow
+                          label="Clinic"
+                          value={detailsRecord.clinic_name}
+                        />
                       ) : null}
 
-                      <Text style={styles.detailsText}>
-                        Dentition:{" "}
-                        {detailsRecord.dentition_label ||
-                          detailsRecord.dentition_type ||
-                          "Not specified"}
-                      </Text>
+                      <DetailRow
+                        label="Created"
+                        value={formatDateTime(detailsRecord.date_created)}
+                      />
 
-                      <Text style={styles.detailsText}>
-                        Created: {formatDateTime(detailsRecord.date_created)}
-                      </Text>
-
-                      <Text style={styles.detailsText}>
-                        Updated: {formatDateTime(detailsRecord.last_updated)}
-                      </Text>
+                      <DetailRow
+                        label="Updated"
+                        value={formatDateTime(detailsRecord.last_updated)}
+                      />
                     </View>
                   ) : null}
 
-                  <Text style={styles.sectionTitle}>Tooth Chart</Text>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Tooth Chart</Text>
+                    <Text style={styles.sectionSubtitle}>
+                      {teeth.length} recorded tooth
+                      {teeth.length === 1 ? "" : " entries"}
+                    </Text>
+                  </View>
 
                   {teeth.length === 0 ? (
                     <View style={styles.smallEmptyCard}>
@@ -373,6 +467,7 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                               styles.toothStatus,
                               getToothTextStyle(tooth.tooth_status),
                             ]}
+                            numberOfLines={2}
                           >
                             {tooth.tooth_status || "Sound"}
                           </Text>
@@ -381,7 +476,13 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                     </View>
                   )}
 
-                  <Text style={styles.sectionTitle}>Treatment History</Text>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Treatment History</Text>
+                    <Text style={styles.sectionSubtitle}>
+                      {treatments.length} treatment
+                      {treatments.length === 1 ? "" : "s"} found
+                    </Text>
+                  </View>
 
                   {treatments.length === 0 ? (
                     <View style={styles.smallEmptyCard}>
@@ -395,17 +496,26 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                         key={treatment.treatment_id || index}
                         style={styles.treatmentCard}
                       >
-                        <Text style={styles.treatmentTitle}>
-                          {treatment.procedure_type || "Dental Treatment"}
-                        </Text>
+                        <View style={styles.treatmentTopRow}>
+                          <View style={styles.treatmentIconCircle}>
+                            <Ionicons
+                              name="medkit-outline"
+                              size={18}
+                              color="#2b6cb0"
+                            />
+                          </View>
 
-                        <Text style={styles.treatmentText}>
-                          Tooth #{treatment.tooth_number || "N/A"}
-                        </Text>
+                          <View style={styles.treatmentTextBlock}>
+                            <Text style={styles.treatmentTitle}>
+                              {treatment.procedure_type || "Dental Treatment"}
+                            </Text>
 
-                        <Text style={styles.treatmentText}>
-                          Date: {formatDate(treatment.treatment_date)}
-                        </Text>
+                            <Text style={styles.treatmentText}>
+                              Tooth #{treatment.tooth_number || "N/A"} •{" "}
+                              {formatDate(treatment.treatment_date)}
+                            </Text>
+                          </View>
+                        </View>
 
                         {treatment.description ? (
                           <Text style={styles.treatmentDescription}>
@@ -432,6 +542,27 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
   );
 }
 
+function InfoRow({ icon, label, value }) {
+  return (
+    <View style={styles.infoRow}>
+      <Ionicons name={icon} size={16} color="#718096" />
+      <Text style={styles.detailText}>
+        <Text style={styles.detailLabel}>{label}: </Text>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailRowLabel}>{label}</Text>
+      <Text style={styles.detailRowValue}>{value}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -453,54 +584,71 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   header: {
-    marginTop: 22,
-    marginBottom: 22,
+    marginTop: 18,
+    marginBottom: 20,
   },
-  backButton: {
-    alignSelf: "flex-start",
-    backgroundColor: "#edf2f7",
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 999,
-    marginBottom: 18,
+  headerTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
   },
-  backButtonText: {
-    color: "#2b6cb0",
-    fontWeight: "800",
+  headerIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 18,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTextBlock: {
+    flex: 1,
   },
   title: {
-    fontSize: 28,
+    fontSize: 27,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 6,
+    marginBottom: 3,
   },
   subtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#718096",
-    lineHeight: 21,
+    lineHeight: 20,
+    fontWeight: "600",
   },
   emptyCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 22,
+    borderRadius: 24,
+    padding: 24,
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    alignItems: "center",
+  },
+  emptyIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 22,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 14,
   },
   emptyTitle: {
     fontSize: 18,
     fontWeight: "900",
     color: "#1a202c",
     marginBottom: 8,
+    textAlign: "center",
   },
   emptyText: {
     fontSize: 14,
     color: "#718096",
     lineHeight: 20,
+    textAlign: "center",
   },
   recordCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 18,
+    borderRadius: 24,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     marginBottom: 14,
@@ -508,9 +656,16 @@ const styles = StyleSheet.create({
   recordTopRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    justifyContent: "space-between",
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  recordIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 16,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
   },
   recordTitleBlock: {
     flex: 1,
@@ -519,34 +674,53 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 4,
+    marginBottom: 3,
   },
   recordSubtitle: {
     fontSize: 13,
     color: "#718096",
+    fontWeight: "700",
   },
   statusBadge: {
     backgroundColor: "#c6f6d5",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
+    alignSelf: "flex-start",
   },
   statusText: {
     color: "#2f855a",
     fontSize: 12,
     fontWeight: "900",
   },
+  infoList: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+  },
   detailText: {
+    flex: 1,
     fontSize: 14,
     color: "#4a5568",
-    marginBottom: 6,
+    lineHeight: 20,
+    fontWeight: "600",
+  },
+  detailLabel: {
+    color: "#2d3748",
+    fontWeight: "900",
   },
   viewButton: {
     backgroundColor: "#2b6cb0",
     paddingVertical: 13,
-    borderRadius: 15,
+    borderRadius: 16,
     alignItems: "center",
-    marginTop: 12,
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
   },
   viewButtonText: {
     color: "#ffffff",
@@ -561,9 +735,9 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: "#ffffff",
-    borderRadius: 24,
+    borderRadius: 26,
     padding: 18,
-    maxHeight: "88%",
+    maxHeight: "90%",
   },
   modalScroll: {
     maxHeight: "92%",
@@ -571,11 +745,33 @@ const styles = StyleSheet.create({
   modalScrollContent: {
     paddingBottom: 18,
   },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+  },
+  modalIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 17,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalHeaderTextBlock: {
+    flex: 1,
+  },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 23,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 14,
+    marginBottom: 2,
+  },
+  modalSubtitle: {
+    fontSize: 13,
+    color: "#718096",
+    fontWeight: "700",
   },
   detailsLoadingBox: {
     minHeight: 220,
@@ -584,29 +780,64 @@ const styles = StyleSheet.create({
   },
   detailsHeaderCard: {
     backgroundColor: "#f8fafc",
-    borderRadius: 18,
+    borderRadius: 20,
     padding: 15,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    marginBottom: 16,
+    marginBottom: 18,
+  },
+  detailsTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: 10,
+    marginBottom: 12,
+  },
+  detailsTitleBlock: {
+    flex: 1,
   },
   detailsRecordTitle: {
-    fontSize: 18,
+    fontSize: 19,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 10,
+    marginBottom: 3,
   },
-  detailsText: {
+  detailsDentition: {
+    fontSize: 13,
+    color: "#718096",
+    fontWeight: "800",
+  },
+  detailRow: {
+    borderTopWidth: 1,
+    borderTopColor: "#edf2f7",
+    paddingTop: 9,
+    marginTop: 9,
+  },
+  detailRowLabel: {
+    fontSize: 12,
+    color: "#718096",
+    fontWeight: "900",
+    marginBottom: 3,
+  },
+  detailRowValue: {
     fontSize: 14,
-    color: "#4a5568",
-    marginBottom: 6,
+    color: "#2d3748",
+    fontWeight: "700",
+    lineHeight: 19,
+  },
+  sectionHeader: {
+    marginBottom: 12,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 12,
-    marginTop: 4,
+    marginBottom: 3,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    color: "#718096",
+    fontWeight: "700",
   },
   smallEmptyCard: {
     backgroundColor: "#f8fafc",
@@ -620,28 +851,31 @@ const styles = StyleSheet.create({
     color: "#718096",
     fontSize: 14,
     lineHeight: 20,
+    fontWeight: "600",
   },
   teethGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 18,
   },
   toothCard: {
     width: "31%",
+    minHeight: 72,
     borderRadius: 16,
     padding: 10,
     alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
   },
   toothNumber: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "900",
     marginBottom: 4,
   },
   toothStatus: {
-    fontSize: 11,
-    fontWeight: "800",
+    fontSize: 10.5,
+    fontWeight: "900",
     textAlign: "center",
   },
   defaultToothBadge: {
@@ -688,33 +922,50 @@ const styles = StyleSheet.create({
   },
   treatmentCard: {
     backgroundColor: "#f8fafc",
-    borderRadius: 16,
+    borderRadius: 18,
     padding: 14,
     borderWidth: 1,
     borderColor: "#e2e8f0",
     marginBottom: 10,
   },
+  treatmentTopRow: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  treatmentIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 13,
+    backgroundColor: "#e3f2fd",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  treatmentTextBlock: {
+    flex: 1,
+  },
   treatmentTitle: {
     fontSize: 16,
     fontWeight: "900",
     color: "#1a202c",
-    marginBottom: 6,
+    marginBottom: 4,
   },
   treatmentText: {
     fontSize: 13,
     color: "#4a5568",
-    marginBottom: 4,
+    fontWeight: "700",
   },
   treatmentDescription: {
     fontSize: 13,
     color: "#718096",
     lineHeight: 19,
-    marginTop: 4,
+    marginTop: 10,
+    fontWeight: "600",
   },
   closeButton: {
     backgroundColor: "#2b6cb0",
     paddingVertical: 13,
-    borderRadius: 15,
+    borderRadius: 16,
     alignItems: "center",
     marginTop: 8,
   },

@@ -13,6 +13,7 @@ import BookAppointmentScreen from "./src/screens/BookAppointmentScreen";
 import PatientDentalRecordsScreen from "./src/screens/PatientDentalRecordsScreen";
 import PatientXraysScreen from "./src/screens/PatientXraysScreen";
 import PatientARBracesScreen from "./src/screens/PatientARBracesScreen";
+import PatientClinicDiscoveryScreen from "./src/screens/PatientClinicDiscoveryScreen";
 import PatientProfileScreen from "./src/screens/PatientProfileScreen";
 import BottomNav from "./src/components/BottomNav";
 
@@ -69,7 +70,6 @@ export default function App() {
     };
 
     await AsyncStorage.setItem("dentograph_user", JSON.stringify(updatedUser));
-
     setCurrentUser(updatedUser);
   };
 
@@ -105,6 +105,10 @@ export default function App() {
       return <PatientARBracesScreen token={token} />;
     }
 
+    if (currentScreen === "clinicDiscovery") {
+      return <PatientClinicDiscoveryScreen token={token} />;
+    }
+
     if (currentScreen === "profile") {
       return (
         <PatientProfileScreen
@@ -118,12 +122,12 @@ export default function App() {
     return (
       <PatientDashboardScreen
         user={currentUser}
-        token={token}
         onLogout={handleLogout}
         onOpenAppointments={() => setCurrentScreen("appointments")}
         onOpenDentalRecords={() => setCurrentScreen("dentalRecords")}
         onOpenXrays={() => setCurrentScreen("xrays")}
         onOpenARBraces={() => setCurrentScreen("arBraces")}
+        onOpenClinicDiscovery={() => setCurrentScreen("clinicDiscovery")}
         onOpenProfile={() => setCurrentScreen("profile")}
       />
     );

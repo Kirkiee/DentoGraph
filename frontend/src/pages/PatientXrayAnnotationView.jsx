@@ -74,7 +74,7 @@ function PatientXrayAnnotationView() {
 
       setMessage(
         response.data.message ||
-          "AI analysis request submitted. Results are pending dentist review.",
+        "AI analysis request submitted. Results are pending dentist review.",
       );
 
       fetchAnnotations();
@@ -87,12 +87,35 @@ function PatientXrayAnnotationView() {
     }
   };
 
+  const getApiHost = () => {
+    if (process.env.REACT_APP_API_URL) {
+      return process.env.REACT_APP_API_URL.replace(/\/$/, "");
+    }
+
+    const isLocalhost =
+      window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1";
+
+    return isLocalhost ? "http://localhost:5000" : "https://api.dentograph.site";
+  };
+
   const getFileUrl = (filePath) => {
     if (!filePath) return "";
 
-    const baseURL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+    const normalizedPath = String(filePath).replace(/\\/g, "/");
 
-    return `${baseURL}/${filePath}`;
+    if (
+      normalizedPath.startsWith("http://") ||
+      normalizedPath.startsWith("https://")
+    ) {
+      return normalizedPath;
+    }
+
+    const pathWithSlash = normalizedPath.startsWith("/")
+      ? normalizedPath
+      : `/${normalizedPath}`;
+
+    return `${getApiHost()}${pathWithSlash}`;
   };
 
   const getMarkerClass = (annotation) => {
