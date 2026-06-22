@@ -282,8 +282,8 @@ router.post(
 
       const amountInCentavos = Math.round(price * 100);
 
-      const successUrl = `${FRONTEND_URL}/clinic-owner/payment-success`;
-      const cancelUrl = `${FRONTEND_URL}/clinic-owner/payment-cancel`;
+      const successUrl = `${FRONTEND_URL}/clinic-owner/subscription?payment=success`;
+      const cancelUrl = `${FRONTEND_URL}/clinic-owner/subscription?payment=cancelled`;
 
       const checkoutPayload = {
         data: {
@@ -899,7 +899,7 @@ router.get(
       console.error("Get payment history error:", err.message);
 
       res.status(500).json({
-        error: err.message || "Error retrieving payment history.",
+        error: err.message || "Error retrieving payment records.",
       });
     }
   },
