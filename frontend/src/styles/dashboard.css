@@ -2394,6 +2394,86 @@ body.dark-mode textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body.dark-mode input::placeholder,
 body.dark-mode textarea::placeholder {
   color: #94a3b8;
@@ -2749,6 +2829,182 @@ body.dark-mode .profile-field textarea::-ms-input-placeholder {
   color: #94a3b8 !important;
   opacity: 1 !important;
 }
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder,
+body.dark-mode .modal-form input::-webkit-input-placeholder,
+body.dark-mode .modal-form textarea::-webkit-input-placeholder,
+body.dark-mode .appointment-form input::-webkit-input-placeholder,
+body.dark-mode .appointment-form textarea::-webkit-input-placeholder,
+body.dark-mode .profile-field input::-webkit-input-placeholder,
+body.dark-mode .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder,
+body.dark-mode .modal-form input::-moz-placeholder,
+body.dark-mode .modal-form textarea::-moz-placeholder,
+body.dark-mode .appointment-form input::-moz-placeholder,
+body.dark-mode .appointment-form textarea::-moz-placeholder,
+body.dark-mode .profile-field input::-moz-placeholder,
+body.dark-mode .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder,
+body.dark-mode .modal-form input:-ms-input-placeholder,
+body.dark-mode .modal-form textarea:-ms-input-placeholder,
+body.dark-mode .appointment-form input:-ms-input-placeholder,
+body.dark-mode .appointment-form textarea:-ms-input-placeholder,
+body.dark-mode .profile-field input:-ms-input-placeholder,
+body.dark-mode .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder,
+body.dark-mode .modal-form input::-ms-input-placeholder,
+body.dark-mode .modal-form textarea::-ms-input-placeholder,
+body.dark-mode .appointment-form input::-ms-input-placeholder,
+body.dark-mode .appointment-form textarea::-ms-input-placeholder,
+body.dark-mode .profile-field input::-ms-input-placeholder,
+body.dark-mode .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder,
+body.dark-mode .modal-form input::-webkit-input-placeholder,
+body.dark-mode .modal-form textarea::-webkit-input-placeholder,
+body.dark-mode .appointment-form input::-webkit-input-placeholder,
+body.dark-mode .appointment-form textarea::-webkit-input-placeholder,
+body.dark-mode .profile-field input::-webkit-input-placeholder,
+body.dark-mode .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder,
+body.dark-mode .modal-form input::-moz-placeholder,
+body.dark-mode .modal-form textarea::-moz-placeholder,
+body.dark-mode .appointment-form input::-moz-placeholder,
+body.dark-mode .appointment-form textarea::-moz-placeholder,
+body.dark-mode .profile-field input::-moz-placeholder,
+body.dark-mode .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder,
+body.dark-mode .modal-form input:-ms-input-placeholder,
+body.dark-mode .modal-form textarea:-ms-input-placeholder,
+body.dark-mode .appointment-form input:-ms-input-placeholder,
+body.dark-mode .appointment-form textarea:-ms-input-placeholder,
+body.dark-mode .profile-field input:-ms-input-placeholder,
+body.dark-mode .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder,
+body.dark-mode .modal-form input::-ms-input-placeholder,
+body.dark-mode .modal-form textarea::-ms-input-placeholder,
+body.dark-mode .appointment-form input::-ms-input-placeholder,
+body.dark-mode .appointment-form textarea::-ms-input-placeholder,
+body.dark-mode .profile-field input::-ms-input-placeholder,
+body.dark-mode .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder,
+body.dark-mode .modal-form input::-webkit-input-placeholder,
+body.dark-mode .modal-form textarea::-webkit-input-placeholder,
+body.dark-mode .appointment-form input::-webkit-input-placeholder,
+body.dark-mode .appointment-form textarea::-webkit-input-placeholder,
+body.dark-mode .profile-field input::-webkit-input-placeholder,
+body.dark-mode .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder,
+body.dark-mode .modal-form input::-moz-placeholder,
+body.dark-mode .modal-form textarea::-moz-placeholder,
+body.dark-mode .appointment-form input::-moz-placeholder,
+body.dark-mode .appointment-form textarea::-moz-placeholder,
+body.dark-mode .profile-field input::-moz-placeholder,
+body.dark-mode .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder,
+body.dark-mode .modal-form input:-ms-input-placeholder,
+body.dark-mode .modal-form textarea:-ms-input-placeholder,
+body.dark-mode .appointment-form input:-ms-input-placeholder,
+body.dark-mode .appointment-form textarea:-ms-input-placeholder,
+body.dark-mode .profile-field input:-ms-input-placeholder,
+body.dark-mode .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder,
+body.dark-mode .modal-form input::-ms-input-placeholder,
+body.dark-mode .modal-form textarea::-ms-input-placeholder,
+body.dark-mode .appointment-form input::-ms-input-placeholder,
+body.dark-mode .appointment-form textarea::-ms-input-placeholder,
+body.dark-mode .profile-field input::-ms-input-placeholder,
+body.dark-mode .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder,
+body.dark-mode .modal-form input::-webkit-input-placeholder,
+body.dark-mode .modal-form textarea::-webkit-input-placeholder,
+body.dark-mode .appointment-form input::-webkit-input-placeholder,
+body.dark-mode .appointment-form textarea::-webkit-input-placeholder,
+body.dark-mode .profile-field input::-webkit-input-placeholder,
+body.dark-mode .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder,
+body.dark-mode .modal-form input::-moz-placeholder,
+body.dark-mode .modal-form textarea::-moz-placeholder,
+body.dark-mode .appointment-form input::-moz-placeholder,
+body.dark-mode .appointment-form textarea::-moz-placeholder,
+body.dark-mode .profile-field input::-moz-placeholder,
+body.dark-mode .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder,
+body.dark-mode .modal-form input:-ms-input-placeholder,
+body.dark-mode .modal-form textarea:-ms-input-placeholder,
+body.dark-mode .appointment-form input:-ms-input-placeholder,
+body.dark-mode .appointment-form textarea:-ms-input-placeholder,
+body.dark-mode .profile-field input:-ms-input-placeholder,
+body.dark-mode .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder,
+body.dark-mode .modal-form input::-ms-input-placeholder,
+body.dark-mode .modal-form textarea::-ms-input-placeholder,
+body.dark-mode .appointment-form input::-ms-input-placeholder,
+body.dark-mode .appointment-form textarea::-ms-input-placeholder,
+body.dark-mode .profile-field input::-ms-input-placeholder,
+body.dark-mode .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body.dark-mode input::placeholder,
 body.dark-mode textarea::placeholder,
 body.dark-mode .modal-form input::placeholder,
@@ -2815,4 +3071,481 @@ body.dark-mode .modal-form label {
 
 body.dark-mode .modal-header p {
   color: #cbd5e1 !important;
+}
+
+.danger-button {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: #dc2626;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.danger-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.danger-button {
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  background: #dc2626;
+  color: #ffffff;
+  font-weight: 800;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.danger-button:hover:not(:disabled) {
+  background: #b91c1c;
+  transform: translateY(-1px);
+}
+
+.danger-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.tooth-history-preview {
+  margin-top: 6px;
+  font-size: 0.85rem;
+  color: var(--dg-muted);
+}
+
+.tooth-history-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 4px 4px 4px 10px;
+}
+
+.tooth-history-item {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 10px;
+  position: relative;
+}
+
+.tooth-history-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 7px;
+  border-radius: 999px;
+  background: var(--dg-primary);
+}
+
+.tooth-history-content {
+  padding: 12px;
+  border: 1px solid var(--dg-border);
+  border-radius: 12px;
+  background: var(--card-bg, #ffffff);
+}
+
+.tooth-history-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.tooth-history-content p {
+  margin: 4px 0;
+  color: var(--dg-muted);
+  font-size: 0.9rem;
+}
+
+.tooth-history-note {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--dg-input-bg);
+  color: var(--dg-text) !important;
+}
+
+body.dark-mode .tooth-history-content {
+  background: #111827;
+  border-color: #334155;
+}
+
+body.dark-mode .tooth-history-note {
+  background: #1e293b;
+  color: #f8fafc !important;
+}
+
+/* =========================================================
+   FINAL IPAD / TABLET RESPONSIVENESS FIX
+   Covers iPad portrait/landscape, tablets, and small laptops
+   ========================================================= */
+
+/* iPad landscape and medium tablets */
+@media (min-width: 761px) and (max-width: 1180px) {
+  .dashboard-sidebar {
+    width: 190px;
+    padding: 20px 12px;
+  }
+
+  .dashboard-main {
+    margin-left: 190px;
+  }
+
+  .dashboard-navbar {
+    padding: 0 24px;
+  }
+
+  .dashboard-content {
+    padding: 28px 24px 40px;
+  }
+
+  .navbar-title h1 {
+    font-size: 22px;
+  }
+
+  .navbar-title p {
+    font-size: 14px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appointments-layout {
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+
+  .appointment-form-card,
+  .appointments-list-card,
+  .dashboard-section,
+  .profile-card {
+    padding: 22px;
+  }
+
+  .appointments-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appointments-header .appointment-actions {
+    width: 100%;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+  }
+
+  .appointments-header .appointment-actions button,
+  .appointments-header .appointment-actions a {
+    flex: 1 1 180px;
+    text-align: center;
+  }
+
+  .appointment-item {
+    flex-direction: column;
+  }
+
+  .appointment-actions {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .appointment-actions button,
+  .appointment-actions a,
+  .appointment-actions select {
+    flex: 1 1 160px;
+    min-width: 0;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .appointment-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .report-two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-discovery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-map-wrapper {
+    height: 420px;
+  }
+
+  .xray-annotation-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .xray-image-wrapper {
+    min-height: 360px;
+  }
+
+  .dental-3d-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dental-3d-viewer {
+    height: 500px;
+  }
+
+  .dental-3d-panel {
+    padding: 20px;
+  }
+
+  .xray-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tooth-chart-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .modal-card {
+    width: min(680px, 94vw);
+    max-height: 88vh;
+  }
+}
+
+/* iPad portrait and small tablets */
+@media (min-width: 641px) and (max-width: 900px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .dashboard-sidebar {
+    position: static;
+    width: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--dg-border);
+    padding: 16px;
+  }
+
+  .sidebar-brand {
+    margin-bottom: 14px;
+  }
+
+  .sidebar-nav {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .sidebar-link {
+    text-align: center;
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  .sidebar-link:hover {
+    transform: none;
+  }
+
+  .sidebar-footer {
+    position: static;
+    margin-top: 14px;
+  }
+
+  .dashboard-main {
+    margin-left: 0;
+  }
+
+  .dashboard-navbar {
+    position: static;
+    min-height: auto;
+    padding: 20px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .navbar-user {
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .dashboard-content {
+    padding: 22px 18px 34px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .appointments-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-form-card,
+  .appointments-list-card,
+  .dashboard-section,
+  .profile-card {
+    padding: 20px;
+    border-radius: 20px;
+  }
+
+  .appointments-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .appointment-item {
+    flex-direction: column;
+  }
+
+  .appointment-actions {
+    width: 100%;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .appointment-actions button,
+  .appointment-actions a,
+  .appointment-actions select {
+    flex: 1 1 150px;
+  }
+
+  .appointment-form input,
+  .appointment-form select,
+  .appointment-form textarea,
+  .profile-field input,
+  .profile-field select,
+  .profile-field textarea,
+  .modal-form input,
+  .modal-form select,
+  .modal-form textarea {
+    font-size: 16px;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .appointment-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .dental-3d-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dental-3d-viewer {
+    height: 460px;
+  }
+
+  .clinic-map-wrapper {
+    height: 380px;
+  }
+
+  .xray-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .xray-actions {
+    flex-direction: column;
+  }
+
+  .tooth-chart-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .modal-overlay {
+    align-items: flex-start;
+    padding: 14px;
+  }
+
+  .modal-card {
+    max-height: 94vh;
+    border-radius: 20px;
+  }
+}
+
+/* Prevent wide tables/cards from breaking tablet layout */
+@media (max-width: 1180px) {
+  .appointments-list-card,
+  .appointment-form-card,
+  .dashboard-section,
+  .report-panel,
+  .modal-card {
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .appointment-info,
+  .appointment-info p,
+  .appointment-info h3 {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: normal;
+  }
+
+  .print-table,
+  .appointments-list,
+  .xray-grid,
+  .clinic-discovery-grid {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .secondary-button,
+  .primary-button,
+  .danger-button {
+    white-space: normal;
+  }
+}
+
+/* Small tablet / large phone polish */
+@media (max-width: 640px) {
+  .sidebar-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dashboard-card strong {
+    font-size: 26px;
+  }
+
+  .appointment-form-card h2,
+  .appointments-list-card h2 {
+    font-size: 21px;
+  }
+
+  .appointment-actions {
+    flex-direction: column;
+  }
+
+  .appointment-actions button,
+  .appointment-actions a,
+  .appointment-actions select {
+    width: 100%;
+    flex: unset;
+  }
+
+  .xray-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dental-3d-viewer {
+    height: 380px;
+  }
+
+  .clinic-map-wrapper {
+    height: 340px;
+  }
+
+  .tooth-chart-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }

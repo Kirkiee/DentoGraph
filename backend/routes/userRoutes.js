@@ -29,8 +29,13 @@ const loginLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+
+  // Only failed login attempts should count.
+  // Successful logins will not count against the limit.
+  skipSuccessfulRequests: true,
+
   message: {
-    error: "Too many login attempts. Please try again after 15 minutes.",
+    error: "Too many failed login attempts. Please try again after 15 minutes.",
   },
 });
 
