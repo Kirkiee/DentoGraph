@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
+import PasswordInput from "../components/auth/PasswordInput";
 
 function PatientProfile() {
   const [profile, setProfile] = useState({
@@ -15,18 +16,25 @@ function PatientProfile() {
     account_status: "",
   });
 
-  const [pdaForm, setPdaForm] = useState(null);
-  const [selectedPdaFile, setSelectedPdaFile] = useState(null);
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: "",
+    new_password: "",
+    confirm_password: "",
+  });
+
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   const [loading, setLoading] = useState(true);
-  const [loadingPdaForm, setLoadingPdaForm] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingPdaForm, setUploadingPdaForm] = useState(false);
+
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [pdaMessage, setPdaMessage] = useState("");
-  const [pdaError, setPdaError] = useState("");
+
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordRules, setPasswordRules] = useState([]);
 
   const token = localStorage.getItem("token");
 
@@ -38,7 +46,6 @@ function PatientProfile() {
 
   useEffect(() => {
     fetchProfile();
-    fetchPdaForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -66,35 +73,30 @@ function PatientProfile() {
     return `${year}-${month}-${day}`;
   };
 
-  const formatDate = (dateValue) => {
-    if (!dateValue) return "N/A";
+  const validatePasswordStrength = (password) => {
+    const value = String(password || "");
 
-    const date = new Date(dateValue);
-
-    if (Number.isNaN(date.getTime())) {
-      return "N/A";
+    if (value.length < 8) {
+      return "Password must be at least 8 characters long.";
     }
 
-    return date.toLocaleString();
-  };
+    if (!/[A-Z]/.test(value)) {
+      return "Password must contain at least one uppercase letter.";
+    }
 
-  const formatFileSize = (bytes) => {
-    if (!bytes && bytes !== 0) return "N/A";
+    if (!/[a-z]/.test(value)) {
+      return "Password must contain at least one lowercase letter.";
+    }
 
-    const size = Number(bytes);
+    if (!/[0-9]/.test(value)) {
+      return "Password must contain at least one number.";
+    }
 
-    if (size < 1024) return `${size} B`;
-    if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)} KB`;
+    if (!/[^A-Za-z0-9]/.test(value)) {
+      return "Password must contain at least one special character.";
+    }
 
-    return `${(size / (1024 * 1024)).toFixed(2)} MB`;
-  };
-
-  const getFileUrl = (filePath) => {
-    if (!filePath) return "";
-
-    const baseURL = process.env.REACT_APP_API_URL || "http://localhost:5000";
-
-    return `${baseURL}/${filePath}`;
+    return null;
   };
 
   const fetchProfile = async () => {
@@ -123,39 +125,25 @@ function PatientProfile() {
     }
   };
 
-  const fetchPdaForm = async () => {
-    try {
-      setLoadingPdaForm(true);
-      setPdaError("");
-
-      const response = await API.get(
-        "/api/patient-documents/pda-form/me",
-        authHeaders,
-      );
-
-      setPdaForm(response.data.document || null);
-    } catch (err) {
-      setPdaError(
-        err.response?.data?.error || "Unable to load PDA dental chart/form.",
-      );
-    } finally {
-      setLoadingPdaForm(false);
-    }
-  };
-
   const handleChange = (e) => {
+    setMessage("");
+    setError("");
+
     setProfile((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
   };
 
-  const handlePdaFileChange = (e) => {
-    const file = e.target.files?.[0];
+  const handlePasswordChange = (e) => {
+    setPasswordMessage("");
+    setPasswordError("");
+    setPasswordRules([]);
 
-    setSelectedPdaFile(file || null);
-    setPdaMessage("");
-    setPdaError("");
+    setPasswordForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -230,64 +218,77 @@ function PatientProfile() {
     }
   };
 
-  const handleUploadPdaForm = async (e) => {
+  const handleChangePassword = async (e) => {
     e.preventDefault();
 
-    if (!selectedPdaFile) {
-      setPdaError("Please select a PDA dental chart/form file first.");
+    setPasswordMessage("");
+    setPasswordError("");
+    setPasswordRules([]);
+
+    if (
+      !passwordForm.current_password ||
+      !passwordForm.new_password ||
+      !passwordForm.confirm_password
+    ) {
+      setPasswordError("Please complete all password fields.");
       return;
     }
 
-    const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
-
-    if (!allowedTypes.includes(selectedPdaFile.type)) {
-      setPdaError("Only PDF, JPG, JPEG, and PNG files are allowed.");
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      setPasswordError("New password and confirm password do not match.");
       return;
     }
 
-    if (selectedPdaFile.size > 10 * 1024 * 1024) {
-      setPdaError("File is too large. Maximum upload size is 10MB.");
+    if (passwordForm.current_password === passwordForm.new_password) {
+      setPasswordError("New password must be different from current password.");
+      return;
+    }
+
+    const passwordStrengthError = validatePasswordStrength(
+      passwordForm.new_password,
+    );
+
+    if (passwordStrengthError) {
+      setPasswordError(passwordStrengthError);
       return;
     }
 
     try {
-      setUploadingPdaForm(true);
-      setPdaMessage("");
-      setPdaError("");
+      setChangingPassword(true);
 
-      const formData = new FormData();
-      formData.append("pda_form", selectedPdaFile);
-
-      const response = await API.post(
-        "/api/patient-documents/pda-form",
-        formData,
+      const response = await API.put(
+        "/api/users/change-password",
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
+          current_password: passwordForm.current_password,
+          new_password: passwordForm.new_password,
+          confirm_password: passwordForm.confirm_password,
         },
+        authHeaders,
       );
 
-      setPdaForm(response.data.document || null);
-      setSelectedPdaFile(null);
+      setPasswordMessage(
+        response.data?.message || "Password changed successfully.",
+      );
 
-      const fileInput = document.getElementById("pda_form_upload");
-      if (fileInput) {
-        fileInput.value = "";
+      setPasswordForm({
+        current_password: "",
+        new_password: "",
+        confirm_password: "",
+      });
+
+      setShowPasswordForm(false);
+    } catch (err) {
+      const apiRules = err.response?.data?.password_rules;
+
+      if (Array.isArray(apiRules)) {
+        setPasswordRules(apiRules);
       }
 
-      setPdaMessage(
-        response.data.message || "PDA dental chart/form uploaded successfully.",
-      );
-
-      fetchPdaForm();
-    } catch (err) {
-      setPdaError(
-        err.response?.data?.error || "Unable to upload PDA dental chart/form.",
+      setPasswordError(
+        err.response?.data?.error || "Unable to change password.",
       );
     } finally {
-      setUploadingPdaForm(false);
+      setChangingPassword(false);
     }
   };
 
@@ -296,6 +297,7 @@ function PatientProfile() {
       <div className="profile-container">
         <div className="profile-card">
           <h2>My Profile</h2>
+
           <p>
             Manage your patient account details, contact information, medical
             background, and dentition type.
@@ -311,6 +313,7 @@ function PatientProfile() {
               <div className="profile-grid">
                 <div className="profile-field">
                   <label>Name</label>
+
                   <input
                     type="text"
                     name="name"
@@ -322,6 +325,7 @@ function PatientProfile() {
 
                 <div className="profile-field">
                   <label>Email</label>
+
                   <input
                     type="email"
                     name="email"
@@ -333,6 +337,7 @@ function PatientProfile() {
 
                 <div className="profile-field">
                   <label>Contact Number</label>
+
                   <input
                     type="text"
                     name="contact_number"
@@ -344,6 +349,7 @@ function PatientProfile() {
 
                 <div className="profile-field">
                   <label>Date of Birth</label>
+
                   <input
                     type="date"
                     name="date_of_birth"
@@ -354,6 +360,7 @@ function PatientProfile() {
 
                 <div className="profile-field">
                   <label>Gender</label>
+
                   <select
                     name="gender"
                     value={profile.gender}
@@ -369,6 +376,7 @@ function PatientProfile() {
 
                 <div className="profile-field">
                   <label>Dentition Type</label>
+
                   <select
                     name="dentition_type"
                     value={profile.dentition_type}
@@ -382,6 +390,7 @@ function PatientProfile() {
 
                 <div className="profile-field">
                   <label>Account Status</label>
+
                   <input
                     type="text"
                     value={profile.account_status || "Active"}
@@ -399,6 +408,7 @@ function PatientProfile() {
 
               <div className="profile-field">
                 <label>Address</label>
+
                 <textarea
                   name="address"
                   value={profile.address}
@@ -409,6 +419,7 @@ function PatientProfile() {
 
               <div className="profile-field">
                 <label>Medical History</label>
+
                 <textarea
                   name="medical_history"
                   value={profile.medical_history}
@@ -428,112 +439,128 @@ function PatientProfile() {
           )}
         </div>
 
-        <div className="profile-card" style={{ marginTop: "24px" }}>
-          <h2>Philippine Dental Association Form</h2>
+        <div className="profile-card" style={{ marginTop: "20px" }}>
+          <h2>Account Security</h2>
+
           <p>
-            Download the blank PDA Dental Chart / Patient Information Record,
-            fill it out, then upload the completed file so your dentist can
-            review it as part of your dental record.
+            Update your password regularly to keep your DentoGraph account
+            secure.
           </p>
 
-          <a
-            className="secondary-button"
-            href="https://pda.com.ph/wp-content/uploads/2022/10/PDA-Dental-Chart.pdf"
-            target="_blank"
-            rel="noreferrer"
-            style={{
-              display: "inline-block",
-              marginTop: "10px",
-              marginBottom: "16px",
-            }}
-          >
-            Download Blank PDA Dental Chart Form
-          </a>
+          {passwordMessage && (
+            <div className="profile-success">{passwordMessage}</div>
+          )}
 
-          {pdaMessage && <div className="profile-success">{pdaMessage}</div>}
-          {pdaError && <div className="profile-error">{pdaError}</div>}
+          {passwordError && (
+            <div className="profile-error">{passwordError}</div>
+          )}
 
-          {loadingPdaForm ? (
-            <p>Loading uploaded PDA form...</p>
-          ) : pdaForm ? (
-            <div className="info-message" style={{ marginBottom: "16px" }}>
-              <p>
-                <strong>Uploaded File:</strong>{" "}
-                {pdaForm.original_filename || "PDA Dental Chart/Form"}
-              </p>
-
-              <p>
-                <strong>File Type:</strong> {pdaForm.mime_type || "N/A"}
-              </p>
-
-              <p>
-                <strong>File Size:</strong>{" "}
-                {formatFileSize(pdaForm.file_size_bytes)}
-              </p>
-
-              <p>
-                <strong>Uploaded At:</strong> {formatDate(pdaForm.uploaded_at)}
-              </p>
-
-              <a
-                className="secondary-button"
-                href={getFileUrl(pdaForm.file_path)}
-                target="_blank"
-                rel="noreferrer"
-                style={{ display: "inline-block", marginTop: "8px" }}
-              >
-                Open Uploaded PDA Form
-              </a>
-            </div>
-          ) : (
-            <div className="info-message" style={{ marginBottom: "16px" }}>
-              No PDA dental chart/form uploaded yet.
+          {passwordRules.length > 0 && (
+            <div className="profile-error">
+              <strong>Password must follow these rules:</strong>
+              <ul>
+                {passwordRules.map((rule, index) => (
+                  <li key={index}>{rule}</li>
+                ))}
+              </ul>
             </div>
           )}
 
-          <form className="profile-form" onSubmit={handleUploadPdaForm}>
-            <div className="profile-field">
-              <label>
-                {pdaForm ? "Replace PDA Dental Chart/Form" : "Upload PDA Form"}
-              </label>
-
-              <input
-                id="pda_form_upload"
-                type="file"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handlePdaFileChange}
-              />
-            </div>
-
-            {selectedPdaFile && (
-              <div className="info-message">
-                <p>
-                  <strong>Selected File:</strong> {selectedPdaFile.name}
-                </p>
-
-                <p>
-                  <strong>Size:</strong> {formatFileSize(selectedPdaFile.size)}
-                </p>
-              </div>
-            )}
-
-            <div className="info-message">
-              Accepted file types: PDF, JPG, JPEG, and PNG. Maximum file size:
-              10MB.
-            </div>
-
+          {!showPasswordForm ? (
             <button
-              type="submit"
+              type="button"
               className="profile-button"
-              disabled={uploadingPdaForm}
+              onClick={() => {
+                setShowPasswordForm(true);
+                setPasswordMessage("");
+                setPasswordError("");
+                setPasswordRules([]);
+              }}
             >
-              {uploadingPdaForm
-                ? "Uploading..."
-                : pdaForm
-                  ? "Replace PDA Form"
-                  : "Upload PDA Form"}
+              Change Password
             </button>
-          </form>
+          ) : (
+            <form className="profile-form" onSubmit={handleChangePassword}>
+              <div className="profile-grid">
+                <PasswordInput
+                  label="Current Password"
+                  name="current_password"
+                  placeholder="Enter current password"
+                  value={passwordForm.current_password}
+                  onChange={handlePasswordChange}
+                  icon="🔒"
+                  autoComplete="current-password"
+                  disabled={changingPassword}
+                  required
+                />
+
+                <PasswordInput
+                  label="New Password"
+                  name="new_password"
+                  placeholder="Enter new password"
+                  value={passwordForm.new_password}
+                  onChange={handlePasswordChange}
+                  icon="🔒"
+                  autoComplete="new-password"
+                  disabled={changingPassword}
+                  required
+                />
+
+                <PasswordInput
+                  label="Confirm New Password"
+                  name="confirm_password"
+                  placeholder="Confirm new password"
+                  value={passwordForm.confirm_password}
+                  onChange={handlePasswordChange}
+                  icon="🔒"
+                  autoComplete="new-password"
+                  disabled={changingPassword}
+                  required
+                />
+              </div>
+
+              <div className="info-message" style={{ marginTop: "16px" }}>
+                Password must have at least 8 characters, one uppercase letter,
+                one lowercase letter, one number, and one special character.
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  flexWrap: "wrap",
+                  marginTop: "16px",
+                }}
+              >
+                <button
+                  type="submit"
+                  className="profile-button"
+                  disabled={changingPassword}
+                >
+                  {changingPassword ? "Changing..." : "Save New Password"}
+                </button>
+
+                <button
+                  type="button"
+                  className="profile-button secondary"
+                  disabled={changingPassword}
+                  onClick={() => {
+                    setShowPasswordForm(false);
+                    setPasswordForm({
+                      current_password: "",
+                      new_password: "",
+                      confirm_password: "",
+                    });
+                    setPasswordError("");
+                    setPasswordMessage("");
+                    setPasswordRules([]);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     </DashboardLayout>

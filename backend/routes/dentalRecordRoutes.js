@@ -35,6 +35,21 @@ const ALLOWED_TOOTH_STATUSES = [
   "Crowned",
 ];
 
+const ALLOWED_RECORD_SOURCES = [
+  "NEW_SYSTEM_RECORD",
+  "OLD_ENCODED_RECORD",
+  "SCANNED_OLD_RECORD",
+  "PDA_BASED_RECORD",
+];
+
+const normalizeRecordSource = (recordSource) => {
+  if (ALLOWED_RECORD_SOURCES.includes(recordSource)) {
+    return recordSource;
+  }
+
+  return "NEW_SYSTEM_RECORD";
+};
+
 const getValidToothNumbersByDentition = (dentitionType) => {
   return dentitionType === "Child" ? CHILD_TOOTH_NUMBERS : ADULT_TOOTH_NUMBERS;
 };
@@ -96,6 +111,17 @@ const getDentistProfile = async (user_id) => {
   return result.rows[0] || null;
 };
 
+const getDentistProfileByDentistId = async (dentist_id) => {
+  const result = await pool.query(
+    `SELECT dentist_id, clinic_id
+     FROM public.dentists
+     WHERE dentist_id = $1`,
+    [dentist_id],
+  );
+
+  return result.rows[0] || null;
+};
+
 const getAssistantProfile = async (user_id) => {
   const result = await pool.query(
     `SELECT assistant_id, clinic_id
@@ -120,6 +146,67 @@ const getPatientProfile = async (user_id) => {
   return result.rows[0] || null;
 };
 
+const getActorInfo = async (user_id) => {
+  const result = await pool.query(
+    `SELECT 
+        u.user_id,
+        u.name,
+        u.email,
+        r.role_name
+     FROM public.users u
+     LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
+     LEFT JOIN public.roles r ON ur.role_id = r.role_id
+     WHERE u.user_id = $1
+     LIMIT 1`,
+    [user_id],
+  );
+
+  return result.rows[0] || null;
+};
+
+const addToothStatusHistory = async ({
+  record_id,
+  tooth_number,
+  old_status = null,
+  new_status,
+  notes = null,
+  changed_by,
+  change_type = "Status Update",
+}) => {
+  const actor = await getActorInfo(changed_by);
+
+  const result = await pool.query(
+    `INSERT INTO public.tooth_status_history
+     (
+       record_id,
+       tooth_number,
+       old_status,
+       new_status,
+       notes,
+       changed_by,
+       changed_by_name,
+       changed_by_role,
+       change_type,
+       created_at
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP)
+     RETURNING *`,
+    [
+      record_id,
+      String(tooth_number),
+      old_status,
+      new_status,
+      notes,
+      changed_by,
+      actor?.name || null,
+      actor?.role_name || null,
+      change_type,
+    ],
+  );
+
+  return result.rows[0];
+};
+
 const getDentalRecordBaseQuery = () => {
   return `
     SELECT 
@@ -134,7 +221,9 @@ const getDentalRecordBaseQuery = () => {
       c.clinic_name,
       dr.date_created,
       dr.last_updated,
-      COALESCE(dr.status, 'Active') AS status
+      COALESCE(dr.status, 'Active') AS status,
+      COALESCE(dr.record_source, 'NEW_SYSTEM_RECORD') AS record_source,
+      dr.source_notes
     FROM public.dental_records dr
     JOIN public.patients p ON dr.patient_id = p.patient_id
     JOIN public.users patient_user ON p.user_id = patient_user.user_id
@@ -473,7 +562,9 @@ const validateDentalRecordCreationPolicy = async ({ patient_id, dentist }) => {
         dentist_user.name AS dentist_name,
         dr.date_created,
         dr.last_updated,
-        COALESCE(dr.status, 'Active') AS status
+        COALESCE(dr.status, 'Active') AS status,
+        COALESCE(dr.record_source, 'NEW_SYSTEM_RECORD') AS record_source,
+        dr.source_notes
      FROM public.dental_records dr
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
      JOIN public.users dentist_user ON d.user_id = dentist_user.user_id
@@ -505,21 +596,67 @@ const validateDentalRecordCreationPolicy = async ({ patient_id, dentist }) => {
   };
 };
 
-// DENTIST: CREATE DENTAL RECORD FOR A PATIENT
+// DENTIST / ASSISTANT: CREATE DENTAL RECORD FOR A PATIENT
 router.post(
   "/",
   authenticateToken,
-  authorizeRoles("Dentist"),
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   async (req, res) => {
     const user_id = req.user.user_id;
-    const { patient_id } = req.body || {};
+    const role = req.user.role;
+    const { patient_id, dentist_id, record_source, source_notes } =
+      req.body || {};
+
+    const cleanRecordSource = normalizeRecordSource(record_source);
 
     if (!patient_id) {
       return res.status(400).json({ error: "Patient ID is required" });
     }
 
     try {
-      const dentist = await getDentistProfile(user_id);
+      let dentist = null;
+
+      if (role === "Dentist") {
+        dentist = await getDentistProfile(user_id);
+
+        if (!dentist) {
+          return res.status(404).json({ error: "Dentist profile not found" });
+        }
+      }
+
+      if (isAssistantRole(role)) {
+        const assistant = await getAssistantProfile(user_id);
+
+        if (!assistant) {
+          return res.status(404).json({ error: "Assistant profile not found" });
+        }
+
+        if (!assistant.clinic_id) {
+          return res.status(400).json({
+            error: "Assistant is not assigned to a clinic",
+          });
+        }
+
+        if (!dentist_id) {
+          return res.status(400).json({
+            error:
+              "Dentist ID is required when an assistant creates a dental record.",
+          });
+        }
+
+        dentist = await getDentistProfileByDentistId(dentist_id);
+
+        if (!dentist) {
+          return res.status(404).json({ error: "Selected dentist not found" });
+        }
+
+        if (Number(dentist.clinic_id) !== Number(assistant.clinic_id)) {
+          return res.status(403).json({
+            error:
+              "Assistant can only create dental records under dentists from the same assigned clinic.",
+          });
+        }
+      }
 
       const policyCheck = await validateDentalRecordCreationPolicy({
         patient_id,
@@ -534,10 +671,11 @@ router.post(
             rules: [
               "A dental record can only be created for an existing patient profile.",
               "The patient must have dentition type set to Adult or Child.",
-              "The dentist must have an assigned clinic.",
-              "The dentist must have an appointment connection with the patient.",
+              "The selected dentist must have an assigned clinic.",
+              "The selected dentist must have an appointment connection with the patient.",
               "Only one active dental record is allowed per patient per clinic.",
               "Archived records must be restored or a new record can be created only after the previous record is archived.",
+              "Dental assistants may create records only under dentists from their assigned clinic.",
             ],
           },
         };
@@ -562,17 +700,30 @@ router.post(
 
       const newRecord = await pool.query(
         `INSERT INTO public.dental_records
-         (patient_id, dentist_id, date_created, last_updated, status)
-         VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Active')
+         (
+           patient_id,
+           dentist_id,
+           date_created,
+           last_updated,
+           status,
+           record_source,
+           source_notes
+         )
+         VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'Active', $3, $4)
          RETURNING *`,
-        [patient_id, dentist.dentist_id],
+        [
+          patient_id,
+          dentist.dentist_id,
+          cleanRecordSource,
+          source_notes || null,
+        ],
       );
 
       await createAuditLog({
         user_id: req.user.user_id,
         action: "CREATE_DENTAL_RECORD",
         module: "Dental Records",
-        description: `Created dental record #${newRecord.rows[0].record_id} for patient ${policyCheck.patient.patient_name}.`,
+        description: `${role} created dental record #${newRecord.rows[0].record_id} for patient ${policyCheck.patient.patient_name}. Source: ${cleanRecordSource}.`,
         ip_address: req.ip,
       });
 
@@ -585,6 +736,7 @@ router.post(
           name: "Dental Record Creation Policy",
           summary:
             "Patient profile, dentition type, appointment assignment, clinic assignment, active record uniqueness, subscription patient limit and subscription record limits were validated.",
+          record_source: cleanRecordSource,
         },
       });
     } catch (err) {
@@ -757,6 +909,95 @@ router.get(
   },
 );
 
+// DENTIST / ASSISTANT / ADMIN: GET DENTISTS FOR RECORD CREATION
+router.get(
+  "/dentists/list",
+  authenticateToken,
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant", "Admin"),
+  async (req, res) => {
+    const role = req.user.role;
+    const user_id = req.user.user_id;
+
+    try {
+      let dentists;
+
+      if (role === "Admin") {
+        dentists = await pool.query(
+          `SELECT 
+              d.dentist_id,
+              d.user_id,
+              u.name AS dentist_name,
+              u.email,
+              d.clinic_id,
+              c.clinic_name
+           FROM public.dentists d
+           JOIN public.users u ON d.user_id = u.user_id
+           LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+           ORDER BY u.name ASC`,
+        );
+      } else if (role === "Dentist") {
+        const dentist = await getDentistProfile(user_id);
+
+        if (!dentist) {
+          return res.status(404).json({ error: "Dentist profile not found" });
+        }
+
+        dentists = await pool.query(
+          `SELECT 
+              d.dentist_id,
+              d.user_id,
+              u.name AS dentist_name,
+              u.email,
+              d.clinic_id,
+              c.clinic_name
+           FROM public.dentists d
+           JOIN public.users u ON d.user_id = u.user_id
+           LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+           WHERE d.dentist_id = $1
+           ORDER BY u.name ASC`,
+          [dentist.dentist_id],
+        );
+      } else if (isAssistantRole(role)) {
+        const assistant = await getAssistantProfile(user_id);
+
+        if (!assistant) {
+          return res.status(404).json({ error: "Assistant profile not found" });
+        }
+
+        if (!assistant.clinic_id) {
+          return res.status(400).json({
+            error: "Assistant is not assigned to a clinic",
+          });
+        }
+
+        dentists = await pool.query(
+          `SELECT 
+              d.dentist_id,
+              d.user_id,
+              u.name AS dentist_name,
+              u.email,
+              d.clinic_id,
+              c.clinic_name
+           FROM public.dentists d
+           JOIN public.users u ON d.user_id = u.user_id
+           LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+           WHERE d.clinic_id = $1
+           ORDER BY u.name ASC`,
+          [assistant.clinic_id],
+        );
+      }
+
+      res.status(200).json({
+        message: "Dentists retrieved successfully",
+        dentists: dentists.rows,
+      });
+    } catch (err) {
+      console.error("Get dentists list error:", err.message);
+      res.status(500).json({ error: "Error retrieving dentists" });
+    }
+  },
+);
+
 // PATIENT: GET OWN DENTAL RECORDS
 router.get(
   "/patient/my-records/list",
@@ -789,6 +1030,88 @@ router.get(
       res
         .status(500)
         .json({ error: "Error retrieving patient dental records" });
+    }
+  },
+);
+
+// DENTIST / ASSISTANT / PATIENT / ADMIN: GET ALL TOOTH STATUS HISTORY FOR A RECORD
+router.get(
+  "/:record_id/tooth-history",
+  authenticateToken,
+  authorizeRoles(
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+    "Patient",
+    "Admin",
+  ),
+  async (req, res) => {
+    const { record_id } = req.params;
+
+    try {
+      const access = await getAccessibleRecord(req, record_id);
+
+      if (!access.allowed) {
+        return res.status(access.statusCode).json({ error: access.error });
+      }
+
+      const history = await pool.query(
+        `SELECT *
+         FROM public.tooth_status_history
+         WHERE record_id = $1
+         ORDER BY created_at DESC, history_id DESC`,
+        [record_id],
+      );
+
+      res.status(200).json({
+        message: "Tooth status history retrieved successfully",
+        history: history.rows,
+      });
+    } catch (err) {
+      console.error("Get tooth history error:", err.message);
+      res.status(500).json({ error: "Error retrieving tooth status history" });
+    }
+  },
+);
+
+// DENTIST / ASSISTANT / PATIENT / ADMIN: GET HISTORY FOR ONE TOOTH
+router.get(
+  "/:record_id/teeth/:tooth_number/history",
+  authenticateToken,
+  authorizeRoles(
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+    "Patient",
+    "Admin",
+  ),
+  async (req, res) => {
+    const { record_id, tooth_number } = req.params;
+
+    try {
+      const access = await getAccessibleRecord(req, record_id);
+
+      if (!access.allowed) {
+        return res.status(access.statusCode).json({ error: access.error });
+      }
+
+      const history = await pool.query(
+        `SELECT *
+         FROM public.tooth_status_history
+         WHERE record_id = $1
+         AND tooth_number = $2
+         ORDER BY created_at DESC, history_id DESC`,
+        [record_id, String(tooth_number)],
+      );
+
+      res.status(200).json({
+        message: "Tooth history retrieved successfully",
+        tooth_number: String(tooth_number),
+        history: history.rows,
+      });
+    } catch (err) {
+      console.error("Get single tooth history error:", err.message);
+      res.status(500).json({ error: "Error retrieving tooth history" });
     }
   },
 );
@@ -854,6 +1177,14 @@ router.get(
         [record_id],
       );
 
+      const toothHistoryResult = await pool.query(
+        `SELECT *
+         FROM public.tooth_status_history
+         WHERE record_id = $1
+         ORDER BY created_at DESC, history_id DESC`,
+        [record_id],
+      );
+
       res.status(200).json({
         message: "Dental record details retrieved successfully",
         dental_record: {
@@ -864,6 +1195,7 @@ router.get(
         },
         teeth: teethResult.rows,
         treatments: treatmentsResult.rows,
+        tooth_status_history: toothHistoryResult.rows,
         policy: {
           name: "Dental Record Creation Policy",
           applied_rules: [
@@ -871,6 +1203,8 @@ router.get(
             "Archived records cannot be modified.",
             "Adult/Child dentition type controls valid tooth numbers.",
             "Treatments must be attached to existing teeth.",
+            "Tooth status changes are stored in tooth_status_history.",
+            "Record source identifies whether the record is new, old encoded, scanned, or PDA-based.",
           ],
         },
       });
@@ -888,7 +1222,7 @@ router.post(
   authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   async (req, res) => {
     const { record_id } = req.params;
-    const { tooth_number, tooth_status } = req.body || {};
+    const { tooth_number, tooth_status, notes } = req.body || {};
 
     if (!tooth_number) {
       return res.status(400).json({ error: "Tooth number is required" });
@@ -954,6 +1288,16 @@ router.post(
         [record_id, Number(tooth_number), normalizedStatus],
       );
 
+      await addToothStatusHistory({
+        record_id,
+        tooth_number: Number(tooth_number),
+        old_status: null,
+        new_status: normalizedStatus,
+        notes: notes || "Tooth status added.",
+        changed_by: req.user.user_id,
+        change_type: "Status Added",
+      });
+
       await pool.query(
         `UPDATE public.dental_records
          SET last_updated = CURRENT_TIMESTAMP
@@ -965,7 +1309,7 @@ router.post(
         user_id: req.user.user_id,
         action: "ADD_TOOTH",
         module: "Dental Records",
-        description: `Added tooth #${newTooth.rows[0].tooth_number} to ${getDentitionLabel(
+        description: `Added tooth #${newTooth.rows[0].tooth_number} with status ${normalizedStatus} to ${getDentitionLabel(
           dentitionType,
         )} dental record #${record_id}.`,
         ip_address: req.ip,
@@ -989,7 +1333,7 @@ router.put(
   authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   async (req, res) => {
     const { tooth_id } = req.params;
-    const { tooth_status } = req.body || {};
+    const { tooth_status, notes } = req.body || {};
 
     if (!tooth_status) {
       return res.status(400).json({ error: "Tooth status is required" });
@@ -1006,7 +1350,7 @@ router.put(
 
     try {
       const toothResult = await pool.query(
-        `SELECT tooth_id, record_id, tooth_number
+        `SELECT tooth_id, record_id, tooth_number, tooth_status
          FROM public.teeth
          WHERE tooth_id = $1`,
         [tooth_id],
@@ -1016,8 +1360,10 @@ router.put(
         return res.status(404).json({ error: "Tooth not found" });
       }
 
-      const record_id = toothResult.rows[0].record_id;
-      const tooth_number = toothResult.rows[0].tooth_number;
+      const oldTooth = toothResult.rows[0];
+      const record_id = oldTooth.record_id;
+      const tooth_number = oldTooth.tooth_number;
+      const oldStatus = normalizeToothStatus(oldTooth.tooth_status);
 
       const access = await getAccessibleRecord(req, record_id);
 
@@ -1031,6 +1377,13 @@ router.put(
         });
       }
 
+      if (oldStatus === normalizedStatus) {
+        return res.status(200).json({
+          message: "No status change detected.",
+          tooth: oldTooth,
+        });
+      }
+
       const updatedTooth = await pool.query(
         `UPDATE public.teeth
          SET tooth_status = $1
@@ -1038,6 +1391,16 @@ router.put(
          RETURNING *`,
         [normalizedStatus, tooth_id],
       );
+
+      await addToothStatusHistory({
+        record_id,
+        tooth_number,
+        old_status: oldStatus,
+        new_status: normalizedStatus,
+        notes: notes || null,
+        changed_by: req.user.user_id,
+        change_type: "Status Update",
+      });
 
       await pool.query(
         `UPDATE public.dental_records
@@ -1050,7 +1413,7 @@ router.put(
         user_id: req.user.user_id,
         action: "UPDATE_TOOTH",
         module: "Dental Records",
-        description: `Updated tooth #${tooth_number} status to ${normalizedStatus} in dental record #${record_id}.`,
+        description: `Updated tooth #${tooth_number} status from ${oldStatus} to ${normalizedStatus} in dental record #${record_id}.`,
         ip_address: req.ip,
       });
 
@@ -1065,11 +1428,101 @@ router.put(
   },
 );
 
-// DENTIST: ADD TREATMENT TO TOOTH
+// DENTIST / ASSISTANT: REMOVE / RESET TOOTH STATUS
+router.delete(
+  "/teeth/:tooth_id/status",
+  authenticateToken,
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
+  async (req, res) => {
+    const { tooth_id } = req.params;
+    const { notes } = req.body || {};
+
+    try {
+      const toothResult = await pool.query(
+        `SELECT tooth_id, record_id, tooth_number, tooth_status
+         FROM public.teeth
+         WHERE tooth_id = $1`,
+        [tooth_id],
+      );
+
+      if (toothResult.rows.length === 0) {
+        return res.status(404).json({ error: "Tooth not found" });
+      }
+
+      const oldTooth = toothResult.rows[0];
+      const record_id = oldTooth.record_id;
+      const tooth_number = oldTooth.tooth_number;
+      const oldStatus = normalizeToothStatus(oldTooth.tooth_status);
+      const resetStatus = "Sound";
+
+      const access = await getAccessibleRecord(req, record_id);
+
+      if (!access.allowed) {
+        return res.status(access.statusCode).json({ error: access.error });
+      }
+
+      if (access.record.status === "Archived") {
+        return res.status(400).json({
+          error: "Cannot modify an archived dental record.",
+        });
+      }
+
+      if (oldStatus === resetStatus) {
+        return res.status(200).json({
+          message: "Tooth status is already Sound.",
+          tooth: oldTooth,
+        });
+      }
+
+      const updatedTooth = await pool.query(
+        `UPDATE public.teeth
+         SET tooth_status = $1
+         WHERE tooth_id = $2
+         RETURNING *`,
+        [resetStatus, tooth_id],
+      );
+
+      await addToothStatusHistory({
+        record_id,
+        tooth_number,
+        old_status: oldStatus,
+        new_status: resetStatus,
+        notes: notes || "Status removed/reset to Sound.",
+        changed_by: req.user.user_id,
+        change_type: "Status Removed",
+      });
+
+      await pool.query(
+        `UPDATE public.dental_records
+         SET last_updated = CURRENT_TIMESTAMP
+         WHERE record_id = $1`,
+        [record_id],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "REMOVE_TOOTH_STATUS",
+        module: "Dental Records",
+        description: `Removed/reset tooth #${tooth_number} status from ${oldStatus} to ${resetStatus} in dental record #${record_id}.`,
+        ip_address: req.ip,
+      });
+
+      res.status(200).json({
+        message: "Tooth status removed/reset successfully",
+        tooth: updatedTooth.rows[0],
+      });
+    } catch (err) {
+      console.error("Remove tooth status error:", err.message);
+      res.status(500).json({ error: "Error removing tooth status" });
+    }
+  },
+);
+
+// DENTIST / ASSISTANT: ADD TREATMENT TO TOOTH
 router.post(
   "/teeth/:tooth_id/treatments",
   authenticateToken,
-  authorizeRoles("Dentist"),
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   async (req, res) => {
     const { tooth_id } = req.params;
     const { procedure_type, description, treatment_date } = req.body || {};
@@ -1144,11 +1597,11 @@ router.post(
   },
 );
 
-// DENTIST: UPDATE TREATMENT
+// DENTIST / ASSISTANT: UPDATE TREATMENT
 router.put(
   "/treatments/:treatment_id",
   authenticateToken,
-  authorizeRoles("Dentist"),
+  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
   async (req, res) => {
     const { treatment_id } = req.params;
     const { procedure_type, description, treatment_date } = req.body || {};

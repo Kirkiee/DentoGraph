@@ -1,10 +1,14 @@
 {
   "name": "dentograph",
   "version": "1.0.0",
-  "private": true,
+  "description": "DentoGraph application",
+  "main": "backend/server.js",
   "scripts": {
-    "postinstall": "npm install --prefix backend",
-    "start": "npm start --prefix backend",
-    "build": "echo \"No build needed for backend\""
-  }
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "build": "echo \"No backend build step required\"",
+    "postinstall": "npm install --prefix backend"
+  },
+  "dependencies": {},
+  "devDependencies": {}
 }

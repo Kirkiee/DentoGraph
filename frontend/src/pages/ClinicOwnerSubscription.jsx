@@ -15,10 +15,36 @@ function ClinicOwnerSubscription() {
   const [selectedPlan, setSelectedPlan] = useState(null);
 
   const [error, setError] = useState("");
+  const [paymentNotice, setPaymentNotice] = useState(null);
 
   useEffect(() => {
+    handlePaymentReturn();
     fetchSubscriptionData();
   }, []);
+
+  const handlePaymentReturn = () => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get("payment");
+
+    if (paymentStatus === "success") {
+      setPaymentNotice({
+        type: "success",
+        message:
+          "Payment successful. Your subscription is being updated. Please refresh after a few seconds if the new plan does not appear immediately.",
+      });
+
+      window.history.replaceState({}, "", "/clinic-owner/subscription");
+    }
+
+    if (paymentStatus === "cancelled") {
+      setPaymentNotice({
+        type: "cancelled",
+        message: "Payment was cancelled. No subscription changes were applied.",
+      });
+
+      window.history.replaceState({}, "", "/clinic-owner/subscription");
+    }
+  };
 
   const fetchSubscriptionData = async () => {
     try {
@@ -114,9 +140,8 @@ function ClinicOwnerSubscription() {
       return {
         type: "warning",
         title: "Subscription Expiring Soon",
-        message: `Your clinic subscription will expire in ${days} day${
-          days === 1 ? "" : "s"
-        }. Please renew or change your plan soon.`,
+        message: `Your clinic subscription will expire in ${days} day${days === 1 ? "" : "s"
+          }. Please renew or change your plan soon.`,
       };
     }
 
@@ -357,6 +382,19 @@ function ClinicOwnerSubscription() {
             </button>
           </div>
         </div>
+
+        {paymentNotice && (
+          <div
+            className={
+              paymentNotice.type === "success"
+                ? "success-message"
+                : "info-message"
+            }
+            style={{ marginBottom: "16px" }}
+          >
+            {paymentNotice.message}
+          </div>
+        )}
 
         {error && <div className="error-message">{error}</div>}
 
@@ -635,7 +673,7 @@ function ClinicOwnerSubscription() {
                             {current
                               ? "Current"
                               : checkoutLoading &&
-                                  selectedPlan === plan.plan_name
+                                selectedPlan === plan.plan_name
                                 ? "Preparing Checkout..."
                                 : "Change Plan"}
                           </button>

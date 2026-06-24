@@ -4,6 +4,7 @@ import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
+import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
 
 function Login() {
@@ -136,15 +137,16 @@ function Login() {
           autoComplete="email"
         />
 
-        <AuthInput
+        <PasswordInput
           label="Password"
-          type="password"
           name="password"
           placeholder="Enter your password"
           value={formData.password}
           onChange={handleChange}
           icon="🔒"
           autoComplete="current-password"
+          disabled={loading}
+          required
         />
 
         <div className="auth-options">
@@ -161,7 +163,7 @@ function Login() {
           <button
             type="button"
             className="auth-link"
-            onClick={() => alert("Forgot password will be added later.")}
+            onClick={() => navigate("/forgot-password")}
             disabled={loading}
           >
             Forgot password?
