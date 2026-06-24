@@ -61,6 +61,7 @@ function Sidebar({ role }) {
 
     Admin: [
       { label: "Dashboard", path: "/admin/dashboard" },
+      { label: "My Profile", path: "/admin/profile" },
       { label: "Users", path: "/admin/users" },
       { label: "Clinics", path: "/admin/clinics" },
       { label: "Subscriptions", path: "/admin/subscriptions" },

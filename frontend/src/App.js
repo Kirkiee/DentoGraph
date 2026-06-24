@@ -9,6 +9,10 @@ import {
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
+import ResendVerification from "./pages/ResendVerification";
 
 import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
@@ -20,6 +24,7 @@ import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
 import ClinicOwnerPaymentCancel from "./pages/ClinicOwnerPaymentCancel";
 
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminProfile from "./pages/AdminProfile";
 import DentistDashboard from "./pages/DentistDashboard";
 import PatientDashboard from "./pages/PatientDashboard";
 import AssistantDashboard from "./pages/AssistantDashboard";
@@ -96,6 +101,21 @@ function App() {
         <Route path="/login" element={<Navigate to="/auth/login" />} />
         <Route path="/auth/login" element={<Login />} />
 
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/auth/reset-password/:token" element={<ResetPassword />} />
+
+        <Route path="/verify-email/:token" element={<VerifyEmail />} />
+        <Route path="/auth/verify-email/:token" element={<VerifyEmail />} />
+
+        <Route path="/resend-verification" element={<ResendVerification />} />
+        <Route
+          path="/auth/resend-verification"
+          element={<ResendVerification />}
+        />
+
         <Route path="/register" element={<Register />} />
         <Route path="/auth/register" element={<Register />} />
 
@@ -107,6 +127,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminProfile />
             </ProtectedRoute>
           }
         />

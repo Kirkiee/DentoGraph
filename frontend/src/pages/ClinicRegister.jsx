@@ -4,6 +4,7 @@ import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
+import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
 
 function ClinicRegister() {
@@ -23,6 +24,7 @@ function ClinicRegister() {
 
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState("");
+  const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -60,8 +62,25 @@ function ClinicRegister() {
     return String(value || "").trim();
   };
 
+  const resetForm = () => {
+    setFormData({
+      owner_name: "",
+      owner_email: "",
+      password: "",
+      confirmPassword: "",
+      clinic_name: "",
+      address: "",
+      contact_number: "",
+      services: "",
+      opening_hours: "",
+    });
+
+    setAgree(false);
+  };
+
   const handleChange = (e) => {
     setError("");
+    setPasswordRules([]);
     setSuccess("");
 
     setFormData((prev) => ({
@@ -72,7 +91,9 @@ function ClinicRegister() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
+    setPasswordRules([]);
     setSuccess("");
 
     const ownerName = cleanText(formData.owner_name);
@@ -153,15 +174,18 @@ function ClinicRegister() {
 
       setSuccess(
         response.data?.message ||
-          "Clinic registered successfully. You may now log in.",
+          "Clinic registered successfully. Please check the clinic owner email to verify the account.",
       );
 
-      setTimeout(() => {
-        navigate("/auth/login", { replace: true });
-      }, 1500);
+      resetForm();
     } catch (err) {
       const status = err.response?.status;
       const apiError = err.response?.data?.error;
+      const apiPasswordRules = err.response?.data?.password_rules;
+
+      if (Array.isArray(apiPasswordRules)) {
+        setPasswordRules(apiPasswordRules);
+      }
 
       if (status === 429) {
         setError("Too many registration attempts. Please try again later.");
@@ -190,135 +214,175 @@ function ClinicRegister() {
       </Link>
 
       {error && <div className="auth-error">{error}</div>}
+
+      {passwordRules.length > 0 && (
+        <div className="auth-error">
+          <strong>Password must follow these rules:</strong>
+          <ul>
+            {passwordRules.map((rule, index) => (
+              <li key={index}>{rule}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {success && <div className="auth-success">{success}</div>}
 
-      <div className="info-message" style={{ marginBottom: "16px" }}>
-        <strong>Default Plan:</strong> New clinics are automatically assigned
-        the Free plan. You can upgrade later once the payment gateway is added.
-      </div>
+      {!success && (
+        <>
+          <div className="info-message" style={{ marginBottom: "16px" }}>
+            <strong>Default Plan:</strong> New clinics are automatically
+            assigned the Free plan. You can upgrade later once the payment
+            gateway is added.
+          </div>
 
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
-        <div className="auth-row">
-          <AuthInput
-            label="Clinic Owner Name"
-            name="owner_name"
-            placeholder="Dr. Juan Dela Cruz"
-            value={formData.owner_name}
-            onChange={handleChange}
-            icon="👤"
-            autoComplete="name"
-          />
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            <div className="auth-row">
+              <AuthInput
+                label="Clinic Owner Name"
+                name="owner_name"
+                placeholder="Dr. Juan Dela Cruz"
+                value={formData.owner_name}
+                onChange={handleChange}
+                icon="👤"
+                autoComplete="name"
+              />
 
-          <AuthInput
-            label="Owner Email"
-            type="email"
-            name="owner_email"
-            placeholder="owner@clinic.com"
-            value={formData.owner_email}
-            onChange={handleChange}
-            icon="✉"
-            autoComplete="email"
-          />
+              <AuthInput
+                label="Owner Email"
+                type="email"
+                name="owner_email"
+                placeholder="owner@clinic.com"
+                value={formData.owner_email}
+                onChange={handleChange}
+                icon="✉"
+                autoComplete="email"
+              />
+            </div>
+
+            <div className="auth-row">
+              <PasswordInput
+                label="Password"
+                name="password"
+                placeholder="Create password"
+                value={formData.password}
+                onChange={handleChange}
+                icon="🔒"
+                autoComplete="new-password"
+                disabled={loading}
+                required
+              />
+
+              <PasswordInput
+                label="Confirm Password"
+                name="confirmPassword"
+                placeholder="Confirm password"
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                icon="🔒"
+                autoComplete="new-password"
+                disabled={loading}
+                required
+              />
+            </div>
+
+            <div className="auth-note">
+              Password must have at least 8 characters, one uppercase letter,
+              one lowercase letter, one number, and one special character.
+            </div>
+
+            <AuthInput
+              label="Clinic Name"
+              name="clinic_name"
+              placeholder="Dela Cruz Dental Clinic"
+              value={formData.clinic_name}
+              onChange={handleChange}
+              icon="🏥"
+              autoComplete="organization"
+            />
+
+            <AuthInput
+              label="Clinic Address"
+              name="address"
+              placeholder="123 Sample Street, Quezon City"
+              value={formData.address}
+              onChange={handleChange}
+              icon="📍"
+              autoComplete="street-address"
+            />
+
+            <AuthInput
+              label="Clinic Contact Number"
+              type="tel"
+              name="contact_number"
+              placeholder="09123456789"
+              value={formData.contact_number}
+              onChange={handleChange}
+              icon="☎"
+              required={false}
+              autoComplete="tel"
+            />
+
+            <div className="auth-textarea-group">
+              <label>Services Offered</label>
+              <textarea
+                name="services"
+                value={formData.services}
+                onChange={handleChange}
+                placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
+                rows="4"
+                disabled={loading}
+              />
+            </div>
+
+            <div className="auth-textarea-group">
+              <label>Opening Hours</label>
+              <textarea
+                name="opening_hours"
+                value={formData.opening_hours}
+                onChange={handleChange}
+                placeholder="Example: Monday to Saturday, 9:00 AM - 5:00 PM"
+                rows="4"
+                disabled={loading}
+              />
+            </div>
+
+            <label className="auth-check">
+              <input
+                type="checkbox"
+                checked={agree}
+                onChange={(e) => setAgree(e.target.checked)}
+                disabled={loading}
+              />
+              <span>I agree to the Terms of Service and Privacy Policy</span>
+            </label>
+
+            <AuthButton type="submit" disabled={loading}>
+              {loading ? "Registering Clinic..." : "Register Clinic"}
+            </AuthButton>
+          </form>
+        </>
+      )}
+
+      {success && (
+        <div className="auth-form">
+          <AuthButton type="button" onClick={() => navigate("/auth/login")}>
+            Go to Login
+          </AuthButton>
+
+          <button
+            type="button"
+            className="auth-link"
+            onClick={() => {
+              setSuccess("");
+              setError("");
+              setPasswordRules([]);
+            }}
+          >
+            Register another clinic
+          </button>
         </div>
-
-        <div className="auth-row">
-          <AuthInput
-            label="Password"
-            type="password"
-            name="password"
-            placeholder="Create password"
-            value={formData.password}
-            onChange={handleChange}
-            icon="🔒"
-            autoComplete="new-password"
-          />
-
-          <AuthInput
-            label="Confirm Password"
-            type="password"
-            name="confirmPassword"
-            placeholder="Confirm password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            autoComplete="new-password"
-          />
-        </div>
-
-        <div className="auth-note">
-          Password must have at least 8 characters, one uppercase letter, one
-          lowercase letter, one number, and one special character.
-        </div>
-
-        <AuthInput
-          label="Clinic Name"
-          name="clinic_name"
-          placeholder="Dela Cruz Dental Clinic"
-          value={formData.clinic_name}
-          onChange={handleChange}
-          icon="🏥"
-          autoComplete="organization"
-        />
-
-        <AuthInput
-          label="Clinic Address"
-          name="address"
-          placeholder="123 Sample Street, Quezon City"
-          value={formData.address}
-          onChange={handleChange}
-          icon="📍"
-          autoComplete="street-address"
-        />
-
-        <AuthInput
-          label="Clinic Contact Number"
-          type="tel"
-          name="contact_number"
-          placeholder="09123456789"
-          value={formData.contact_number}
-          onChange={handleChange}
-          icon="☎"
-          required={false}
-          autoComplete="tel"
-        />
-
-        <div className="auth-textarea-group">
-          <label>Services Offered</label>
-          <textarea
-            name="services"
-            value={formData.services}
-            onChange={handleChange}
-            placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
-            rows="4"
-            disabled={loading}
-          />
-        </div>
-
-        <div className="auth-textarea-group">
-          <label>Opening Hours</label>
-          <textarea
-            name="opening_hours"
-            value={formData.opening_hours}
-            onChange={handleChange}
-            placeholder="Example: Monday to Saturday, 9:00 AM - 5:00 PM"
-            rows="4"
-            disabled={loading}
-          />
-        </div>
-
-        <label className="auth-check">
-          <input
-            type="checkbox"
-            checked={agree}
-            onChange={(e) => setAgree(e.target.checked)}
-            disabled={loading}
-          />
-          <span>I agree to the Terms of Service and Privacy Policy</span>
-        </label>
-
-        <AuthButton type="submit" disabled={loading || success}>
-          {loading ? "Registering Clinic..." : "Register Clinic"}
-        </AuthButton>
-      </form>
+      )}
 
       <p className="auth-footer">
         Already registered?{" "}

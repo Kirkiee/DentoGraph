@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
+const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
+const { sendVerificationEmail } = require("../utils/emailSender");
 const {
   authenticateToken,
   authorizeRoles,
@@ -70,6 +72,40 @@ const validatePasswordStrength = (password) => {
   }
 
   return null;
+};
+
+const getPasswordRules = () => {
+  return [
+    "At least 8 characters long.",
+    "At least one uppercase letter.",
+    "At least one lowercase letter.",
+    "At least one number.",
+    "At least one special character.",
+  ];
+};
+
+const hashToken = (token) => {
+  return crypto.createHash("sha256").update(token).digest("hex");
+};
+
+const getFrontendBaseUrl = () => {
+  return (
+    process.env.FRONTEND_URL ||
+    process.env.CLIENT_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+};
+
+const generateEmailVerification = () => {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = hashToken(rawToken);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  return {
+    rawToken,
+    hashedToken,
+    expiresAt,
+  };
 };
 
 const normalizeNumber = (value) => {
@@ -182,6 +218,7 @@ router.post("/register", clinicRegisterLimiter, async (req, res) => {
   if (passwordError) {
     return res.status(400).json({
       error: passwordError,
+      password_rules: getPasswordRules(),
     });
   }
 
@@ -258,13 +295,29 @@ router.post("/register", clinicRegisterLimiter, async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(password, 12);
+    const emailVerification = generateEmailVerification();
 
     const newOwner = await client.query(
       `INSERT INTO public.users
-       (name, email, password, status)
-       VALUES ($1, $2, $3, 'Active')
-       RETURNING user_id, name, email, status, created_at`,
-      [cleanOwnerName, cleanOwnerEmail, hashedPassword],
+       (
+         name,
+         email,
+         password,
+         status,
+         email_verified,
+         email_verification_token,
+         email_verification_expires
+       )
+       VALUES ($1, $2, $3, 'Active', $4, $5, $6)
+       RETURNING user_id, name, email, status, email_verified, created_at`,
+      [
+        cleanOwnerName,
+        cleanOwnerEmail,
+        hashedPassword,
+        false,
+        emailVerification.hashedToken,
+        emailVerification.expiresAt,
+      ],
     );
 
     const ownerUserId = newOwner.rows[0].user_id;
@@ -308,6 +361,14 @@ router.post("/register", clinicRegisterLimiter, async (req, res) => {
 
     await client.query("COMMIT");
 
+    const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
+
+    await sendVerificationEmail({
+      to: cleanOwnerEmail,
+      name: cleanOwnerName,
+      verificationUrl,
+    });
+
     await createAuditLog({
       user_id: ownerUserId,
       action: "REGISTER_CLINIC",
@@ -318,14 +379,14 @@ router.post("/register", clinicRegisterLimiter, async (req, res) => {
 
     res.status(201).json({
       message:
-        "Clinic registered successfully. Your clinic has been assigned the Free plan by default. You may now log in.",
+        "Clinic registered successfully. Your clinic has been assigned the Free plan by default. A verification email has been sent to the clinic owner email address. You may now log in.",
       owner: newOwner.rows[0],
       role: role.role_name,
       clinic: newClinic.rows[0],
       subscription_plan: freePlan,
     });
   } catch (err) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => {});
 
     console.error("Clinic registration error:", err.message);
 

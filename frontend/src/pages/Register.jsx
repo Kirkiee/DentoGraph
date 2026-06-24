@@ -4,6 +4,7 @@ import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
+import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
 
 function Register() {
@@ -24,6 +25,7 @@ function Register() {
 
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState("");
+  const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -63,6 +65,7 @@ function Register() {
 
   const handleChange = (e) => {
     setError("");
+    setPasswordRules([]);
     setSuccess("");
 
     setFormData((prev) => ({
@@ -71,9 +74,24 @@ function Register() {
     }));
   };
 
+  const resetForm = () => {
+    setFormData({
+      firstName: "",
+      lastName: "",
+      email: "",
+      contact_number: "",
+      password: "",
+      confirmPassword: "",
+    });
+
+    setAgree(false);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
+    setPasswordRules([]);
     setSuccess("");
 
     const firstName = formData.firstName.trim();
@@ -120,7 +138,7 @@ function Register() {
     try {
       const fullName = `${firstName} ${lastName}`.trim();
 
-      await API.post("/api/users/register", {
+      const response = await API.post("/api/users/register", {
         name: fullName,
         email: cleanEmail,
         password,
@@ -128,14 +146,20 @@ function Register() {
         contact_number: contactNumber || null,
       });
 
-      setSuccess("Patient account created successfully. You may now log in.");
+      setSuccess(
+        response.data?.message ||
+          "Patient account created successfully. Please check your email to verify your account.",
+      );
 
-      setTimeout(() => {
-        navigate("/auth/login", { replace: true });
-      }, 1200);
+      resetForm();
     } catch (err) {
       const status = err.response?.status;
       const apiError = err.response?.data?.error;
+      const apiPasswordRules = err.response?.data?.password_rules;
+
+      if (Array.isArray(apiPasswordRules)) {
+        setPasswordRules(apiPasswordRules);
+      }
 
       if (status === 429) {
         setError("Too many registration attempts. Please try again later.");
@@ -167,95 +191,132 @@ function Register() {
       </Link>
 
       {error && <div className="auth-error">{error}</div>}
+
+      {passwordRules.length > 0 && (
+        <div className="auth-error">
+          <strong>Password must follow these rules:</strong>
+          <ul>
+            {passwordRules.map((rule, index) => (
+              <li key={index}>{rule}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {success && <div className="auth-success">{success}</div>}
 
-      <form className="auth-form" onSubmit={handleSubmit} noValidate>
-        <div className="auth-row">
+      {!success && (
+        <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <div className="auth-row">
+            <AuthInput
+              label="First Name"
+              name="firstName"
+              placeholder="Juan"
+              value={formData.firstName}
+              onChange={handleChange}
+              icon="👤"
+              autoComplete="given-name"
+            />
+
+            <AuthInput
+              label="Last Name"
+              name="lastName"
+              placeholder="Dela Cruz"
+              value={formData.lastName}
+              onChange={handleChange}
+              autoComplete="family-name"
+            />
+          </div>
+
           <AuthInput
-            label="First Name"
-            name="firstName"
-            placeholder="Juan"
-            value={formData.firstName}
+            label="Email Address"
+            type="email"
+            name="email"
+            placeholder="juan@example.com"
+            value={formData.email}
             onChange={handleChange}
-            icon="👤"
-            autoComplete="given-name"
+            icon="✉"
+            autoComplete="email"
           />
 
           <AuthInput
-            label="Last Name"
-            name="lastName"
-            placeholder="Dela Cruz"
-            value={formData.lastName}
+            label="Phone Number"
+            type="tel"
+            name="contact_number"
+            placeholder="09123456789"
+            value={formData.contact_number}
             onChange={handleChange}
-            autoComplete="family-name"
+            icon="☎"
+            required={false}
+            autoComplete="tel"
           />
+
+          <div className="auth-row">
+            <PasswordInput
+              label="Password"
+              name="password"
+              placeholder="Create password"
+              value={formData.password}
+              onChange={handleChange}
+              icon="🔒"
+              autoComplete="new-password"
+              disabled={loading}
+              required
+            />
+
+            <PasswordInput
+              label="Confirm Password"
+              name="confirmPassword"
+              placeholder="Confirm password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              icon="🔒"
+              autoComplete="new-password"
+              disabled={loading}
+              required
+            />
+          </div>
+
+          <div className="auth-note">
+            Password must have at least 8 characters, one uppercase letter, one
+            lowercase letter, one number, and one special character.
+          </div>
+
+          <label className="auth-check">
+            <input
+              type="checkbox"
+              checked={agree}
+              onChange={(e) => setAgree(e.target.checked)}
+              disabled={loading}
+            />
+            <span>I agree to the Terms of Service and Privacy Policy</span>
+          </label>
+
+          <AuthButton type="submit" disabled={loading}>
+            {loading ? "Creating Account..." : "Create Patient Account"}
+          </AuthButton>
+        </form>
+      )}
+
+      {success && (
+        <div className="auth-form">
+          <AuthButton type="button" onClick={() => navigate("/auth/login")}>
+            Go to Login
+          </AuthButton>
+
+          <button
+            type="button"
+            className="auth-link"
+            onClick={() => {
+              setSuccess("");
+              setError("");
+              setPasswordRules([]);
+            }}
+          >
+            Register another patient
+          </button>
         </div>
-
-        <AuthInput
-          label="Email Address"
-          type="email"
-          name="email"
-          placeholder="juan@example.com"
-          value={formData.email}
-          onChange={handleChange}
-          icon="✉"
-          autoComplete="email"
-        />
-
-        <AuthInput
-          label="Phone Number"
-          type="tel"
-          name="contact_number"
-          placeholder="09123456789"
-          value={formData.contact_number}
-          onChange={handleChange}
-          icon="☎"
-          required={false}
-          autoComplete="tel"
-        />
-
-        <div className="auth-row">
-          <AuthInput
-            label="Password"
-            type="password"
-            name="password"
-            placeholder="Create password"
-            value={formData.password}
-            onChange={handleChange}
-            icon="🔒"
-            autoComplete="new-password"
-          />
-
-          <AuthInput
-            label="Confirm Password"
-            type="password"
-            name="confirmPassword"
-            placeholder="Confirm password"
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            autoComplete="new-password"
-          />
-        </div>
-
-        <div className="auth-note">
-          Password must have at least 8 characters, one uppercase letter, one
-          lowercase letter, one number, and one special character.
-        </div>
-
-        <label className="auth-check">
-          <input
-            type="checkbox"
-            checked={agree}
-            onChange={(e) => setAgree(e.target.checked)}
-            disabled={loading}
-          />
-          <span>I agree to the Terms of Service and Privacy Policy</span>
-        </label>
-
-        <AuthButton type="submit" disabled={loading || success}>
-          {loading ? "Creating Account..." : "Create Patient Account"}
-        </AuthButton>
-      </form>
+      )}
 
       <p className="auth-footer">
         Already have an account?{" "}

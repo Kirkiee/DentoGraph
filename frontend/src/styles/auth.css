@@ -612,3 +612,46 @@ body.dark-mode .info-message {
     font-size: 12px;
   }
 }
+
+.password-auth-shell {
+  position: relative;
+  width: 100%;
+}
+
+.password-auth-shell input {
+  padding-right: 88px !important;
+}
+
+.password-visibility-button {
+  position: absolute;
+  right: 18px;
+  bottom: 10px;
+  height: 24px;
+  min-width: 42px;
+  border: none;
+  background: transparent;
+  color: var(--dg-primary, #2b6cb0);
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  z-index: 10;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-visibility-button:hover {
+  text-decoration: underline;
+}
+
+.password-visibility-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+body.dark-mode .password-visibility-button {
+  color: #60a5fa;
+}

@@ -2474,6 +2474,26 @@ body.dark-mode textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body.dark-mode input::placeholder,
 body.dark-mode textarea::placeholder {
   color: #94a3b8;
@@ -2785,6 +2805,50 @@ body.dark-mode .appointment-filters select:focus {
 }
 
 /* Placeholder text */
+body.dark-mode input::-webkit-input-placeholder,
+body.dark-mode textarea::-webkit-input-placeholder,
+body.dark-mode .modal-form input::-webkit-input-placeholder,
+body.dark-mode .modal-form textarea::-webkit-input-placeholder,
+body.dark-mode .appointment-form input::-webkit-input-placeholder,
+body.dark-mode .appointment-form textarea::-webkit-input-placeholder,
+body.dark-mode .profile-field input::-webkit-input-placeholder,
+body.dark-mode .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-moz-placeholder,
+body.dark-mode textarea::-moz-placeholder,
+body.dark-mode .modal-form input::-moz-placeholder,
+body.dark-mode .modal-form textarea::-moz-placeholder,
+body.dark-mode .appointment-form input::-moz-placeholder,
+body.dark-mode .appointment-form textarea::-moz-placeholder,
+body.dark-mode .profile-field input::-moz-placeholder,
+body.dark-mode .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input:-ms-input-placeholder,
+body.dark-mode textarea:-ms-input-placeholder,
+body.dark-mode .modal-form input:-ms-input-placeholder,
+body.dark-mode .modal-form textarea:-ms-input-placeholder,
+body.dark-mode .appointment-form input:-ms-input-placeholder,
+body.dark-mode .appointment-form textarea:-ms-input-placeholder,
+body.dark-mode .profile-field input:-ms-input-placeholder,
+body.dark-mode .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body.dark-mode input::-ms-input-placeholder,
+body.dark-mode textarea::-ms-input-placeholder,
+body.dark-mode .modal-form input::-ms-input-placeholder,
+body.dark-mode .modal-form textarea::-ms-input-placeholder,
+body.dark-mode .appointment-form input::-ms-input-placeholder,
+body.dark-mode .appointment-form textarea::-ms-input-placeholder,
+body.dark-mode .profile-field input::-ms-input-placeholder,
+body.dark-mode .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body.dark-mode input::-webkit-input-placeholder,
 body.dark-mode textarea::-webkit-input-placeholder,
 body.dark-mode .modal-form input::-webkit-input-placeholder,
@@ -3548,4 +3612,46 @@ body.dark-mode .tooth-history-note {
   .tooth-chart-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.password-input-group {
+  width: 100%;
+}
+
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-wrapper input {
+  width: 100%;
+  padding-right: 78px;
+}
+
+.password-toggle-button {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--dg-primary, #2b6cb0);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.password-toggle-button:hover {
+  text-decoration: underline;
+}
+
+.password-toggle-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+body.dark-mode .password-toggle-button,
+.dark-mode .password-toggle-button {
+  color: #90cdf4;
 }
