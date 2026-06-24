@@ -321,7 +321,7 @@ function DentalArch({ teeth, selectedTooth, onSelect, dentitionType }) {
   );
 }
 
-function DentistDental3DViewer() {
+function AssistantDental3DViewer() {
   const { record_id } = useParams();
   const navigate = useNavigate();
 
@@ -725,7 +725,7 @@ function DentistDental3DViewer() {
     : "Sound";
 
   return (
-    <DashboardLayout role="Dentist">
+    <DashboardLayout role="Assistant">
       <div className="appointments-list-card">
         <div className="appointments-header">
           <div>
@@ -738,7 +738,7 @@ function DentistDental3DViewer() {
           <div className="appointment-actions" style={{ flexDirection: "row" }}>
             <button
               className="secondary-button"
-              onClick={() => navigate(`/dentist/dental-records/${record_id}`)}
+              onClick={() => navigate(`/assistant/dental-records/${record_id}`)}
             >
               Back to Record
             </button>
@@ -1106,4 +1106,4 @@ function DentistDental3DViewer() {
   );
 }
 
-export default DentistDental3DViewer;
+export default AssistantDental3DViewer;

@@ -2,9 +2,14 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
+const {
+  sendVerificationEmail,
+  sendPasswordResetEmail,
+} = require("../utils/emailSender");
 const {
   authenticateToken,
   authorizeRoles,
@@ -29,8 +34,39 @@ const loginLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,
   message: {
-    error: "Too many login attempts. Please try again after 15 minutes.",
+    error: "Too many failed login attempts. Please try again after 15 minutes.",
+  },
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many forgot password attempts. Please try again later.",
+  },
+});
+
+const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many reset password attempts. Please try again later.",
+  },
+});
+
+const changePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: "Too many password change attempts. Please try again later.",
   },
 });
 
@@ -56,7 +92,7 @@ const cleanText = (value) => {
 };
 
 const isValidEmail = (email) => {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 };
 
 const validatePasswordStrength = (password) => {
@@ -83,6 +119,52 @@ const validatePasswordStrength = (password) => {
   }
 
   return null;
+};
+
+const getPasswordRules = () => {
+  return [
+    "At least 8 characters long.",
+    "At least one uppercase letter.",
+    "At least one lowercase letter.",
+    "At least one number.",
+    "At least one special character.",
+  ];
+};
+
+const hashToken = (token) => {
+  return crypto.createHash("sha256").update(token).digest("hex");
+};
+
+const getFrontendBaseUrl = () => {
+  return (
+    process.env.FRONTEND_URL ||
+    process.env.CLIENT_URL ||
+    "http://localhost:3000"
+  ).replace(/\/$/, "");
+};
+
+const generateEmailVerification = () => {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = hashToken(rawToken);
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  return {
+    rawToken,
+    hashedToken,
+    expiresAt,
+  };
+};
+
+const generatePasswordReset = () => {
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const hashedToken = hashToken(rawToken);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  return {
+    rawToken,
+    hashedToken,
+    expiresAt,
+  };
 };
 
 const optionalAuthenticateToken = (req, res, next) => {
@@ -257,6 +339,17 @@ const getStaffRoleByName = async (client, requestedRole) => {
 };
 
 // ===============================
+// PASSWORD RULES
+// ===============================
+
+router.get("/password-rules", (req, res) => {
+  res.status(200).json({
+    message: "Password rules retrieved successfully.",
+    rules: getPasswordRules(),
+  });
+});
+
+// ===============================
 // GET ALL ROLES
 // ===============================
 
@@ -312,6 +405,7 @@ router.post(
     if (passwordError) {
       return res.status(400).json({
         error: passwordError,
+        password_rules: getPasswordRules(),
       });
     }
 
@@ -349,12 +443,6 @@ router.post(
         });
       }
 
-      /*
-        Security rule:
-        - Public signup can only create Patient accounts.
-        - Admin can create other roles.
-        - Clinic Owner should create staff through /clinic-owner/staff.
-      */
       if (!req.user && roleName !== "Patient") {
         await client.query("ROLLBACK");
         return res.status(403).json({
@@ -411,12 +499,30 @@ router.post(
       }
 
       const hashedPassword = await bcrypt.hash(password, 12);
+      const emailVerification = generateEmailVerification();
 
       const newUser = await client.query(
-        `INSERT INTO public.users (name, email, password, status)
-         VALUES ($1, $2, $3, $4)
-         RETURNING user_id, name, email, status, created_at`,
-        [cleanName, cleanEmail, hashedPassword, "Active"],
+        `INSERT INTO public.users 
+         (
+           name,
+           email,
+           password,
+           status,
+           email_verified,
+           email_verification_token,
+           email_verification_expires
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING user_id, name, email, status, email_verified, created_at`,
+        [
+          cleanName,
+          cleanEmail,
+          hashedPassword,
+          "Active",
+          false,
+          emailVerification.hashedToken,
+          emailVerification.expiresAt,
+        ],
       );
 
       const userId = newUser.rows[0].user_id;
@@ -468,6 +574,14 @@ router.post(
 
       await client.query("COMMIT");
 
+      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
+
+      await sendVerificationEmail({
+        to: cleanEmail,
+        name: cleanName,
+        verificationUrl,
+      });
+
       await createAuditLog({
         user_id: req.user?.user_id || null,
         action: "CREATE_USER",
@@ -477,12 +591,13 @@ router.post(
       });
 
       res.status(201).json({
-        message: "User registered successfully with role profile",
+        message:
+          "User registered successfully. Please check your email to verify your account.",
         user: newUser.rows[0],
         role: roleName,
       });
     } catch (err) {
-      await client.query("ROLLBACK");
+      await client.query("ROLLBACK").catch(() => {});
 
       console.error("Registration error:", err.message);
 
@@ -499,6 +614,7 @@ router.post(
 
 // ===============================
 // LOGIN USER WITH ROLE
+// NOTE: Login does NOT block unverified accounts.
 // ===============================
 
 router.post("/login", loginLimiter, async (req, res) => {
@@ -525,6 +641,7 @@ router.post("/login", loginLimiter, async (req, res) => {
           u.email,
           u.password,
           u.status,
+          COALESCE(u.email_verified, false) AS email_verified,
           r.role_id,
           r.role_name
        FROM public.users u
@@ -581,6 +698,7 @@ router.post("/login", loginLimiter, async (req, res) => {
         name: user.name,
         email: user.email,
         status: user.status,
+        email_verified: user.email_verified,
         role_id: user.role_id,
         role: user.role_name,
       },
@@ -592,6 +710,432 @@ router.post("/login", loginLimiter, async (req, res) => {
     });
   }
 });
+
+// ===============================
+// VERIFY EMAIL
+// ===============================
+
+router.get("/verify-email/:token", async (req, res) => {
+  const { token } = req.params;
+
+  if (!token) {
+    return res.status(400).json({
+      error: "Verification token is required.",
+    });
+  }
+
+  try {
+    const hashedToken = hashToken(token);
+
+    const userResult = await pool.query(
+      `SELECT user_id, name, email, COALESCE(email_verified, false) AS email_verified
+       FROM public.users
+       WHERE email_verification_token = $1
+       AND email_verification_expires > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [hashedToken],
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({
+        error: "Email verification link is invalid or expired.",
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    await pool.query(
+      `UPDATE public.users
+       SET email_verified = true,
+           email_verification_token = NULL,
+           email_verification_expires = NULL
+       WHERE user_id = $1`,
+      [user.user_id],
+    );
+
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "VERIFY_EMAIL",
+      module: "Authentication",
+      description: `${user.name} verified their email address.`,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      message:
+        "Email verified successfully. You may continue using your account.",
+    });
+  } catch (err) {
+    console.error("Verify email error:", err.message);
+    res.status(500).json({
+      error: "Unable to verify email.",
+    });
+  }
+});
+
+// ===============================
+// RESEND EMAIL VERIFICATION
+// ===============================
+
+router.post("/resend-verification", registerLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  const cleanEmail = normalizeEmail(email);
+
+  if (!cleanEmail) {
+    return res.status(400).json({
+      error: "Email is required.",
+    });
+  }
+
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({
+      error: "Please enter a valid email address.",
+    });
+  }
+
+  try {
+    const userResult = await pool.query(
+      `SELECT user_id, name, email, status, COALESCE(email_verified, false) AS email_verified
+       FROM public.users
+       WHERE LOWER(email) = LOWER($1)
+       LIMIT 1`,
+      [cleanEmail],
+    );
+
+    const genericMessage =
+      "If the email exists and is not yet verified, a verification email has been sent.";
+
+    if (userResult.rows.length === 0) {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.email_verified) {
+      return res.status(200).json({
+        message: "This email address is already verified.",
+      });
+    }
+
+    if (user.status === "Inactive") {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
+
+    const emailVerification = generateEmailVerification();
+
+    await pool.query(
+      `UPDATE public.users
+       SET email_verification_token = $1,
+           email_verification_expires = $2
+       WHERE user_id = $3`,
+      [
+        emailVerification.hashedToken,
+        emailVerification.expiresAt,
+        user.user_id,
+      ],
+    );
+
+    const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
+
+    await sendVerificationEmail({
+      to: user.email,
+      name: user.name,
+      verificationUrl,
+    });
+
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "RESEND_EMAIL_VERIFICATION",
+      module: "Authentication",
+      description: `${user.name} requested a new email verification link.`,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      message: genericMessage,
+    });
+  } catch (err) {
+    console.error("Resend verification error:", err.message);
+    res.status(500).json({
+      error: "Unable to resend verification email.",
+    });
+  }
+});
+
+// ===============================
+// FORGOT PASSWORD
+// ===============================
+
+router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  const cleanEmail = normalizeEmail(email);
+
+  if (!cleanEmail) {
+    return res.status(400).json({
+      error: "Email is required.",
+    });
+  }
+
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({
+      error: "Please enter a valid email address.",
+    });
+  }
+
+  try {
+    const userResult = await pool.query(
+      `SELECT user_id, name, email, status
+       FROM public.users
+       WHERE LOWER(email) = LOWER($1)
+       LIMIT 1`,
+      [cleanEmail],
+    );
+
+    const genericMessage =
+      "If an account with that email exists, a password reset email has been sent.";
+
+    if (userResult.rows.length === 0) {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.status === "Inactive") {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
+
+    const passwordReset = generatePasswordReset();
+
+    await pool.query(
+      `UPDATE public.users
+       SET password_reset_token = $1,
+           password_reset_expires = $2
+       WHERE user_id = $3`,
+      [passwordReset.hashedToken, passwordReset.expiresAt, user.user_id],
+    );
+
+    const resetUrl = `${getFrontendBaseUrl()}/reset-password/${passwordReset.rawToken}`;
+
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+    });
+
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "FORGOT_PASSWORD_REQUEST",
+      module: "Authentication",
+      description: `${user.name} requested a password reset link.`,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      message: genericMessage,
+    });
+  } catch (err) {
+    console.error("Forgot password error:", err.message);
+    res.status(500).json({
+      error: "Unable to process forgot password request.",
+    });
+  }
+});
+
+// ===============================
+// RESET PASSWORD
+// ===============================
+
+router.post("/reset-password", resetPasswordLimiter, async (req, res) => {
+  const { token, new_password, confirm_password } = req.body || {};
+
+  if (!token || !new_password || !confirm_password) {
+    return res.status(400).json({
+      error: "Reset token, new password, and confirm password are required.",
+    });
+  }
+
+  if (new_password !== confirm_password) {
+    return res.status(400).json({
+      error: "New password and confirm password do not match.",
+    });
+  }
+
+  const passwordError = validatePasswordStrength(new_password);
+
+  if (passwordError) {
+    return res.status(400).json({
+      error: passwordError,
+      password_rules: getPasswordRules(),
+    });
+  }
+
+  try {
+    const hashedToken = hashToken(token);
+
+    const userResult = await pool.query(
+      `SELECT user_id, name, email, status
+       FROM public.users
+       WHERE password_reset_token = $1
+       AND password_reset_expires > CURRENT_TIMESTAMP
+       LIMIT 1`,
+      [hashedToken],
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(400).json({
+        error: "Password reset link is invalid or expired.",
+      });
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.status === "Inactive") {
+      return res.status(403).json({
+        error: "This account is inactive. Please contact the administrator.",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(new_password, 12);
+
+    await pool.query(
+      `UPDATE public.users
+       SET password = $1,
+           password_reset_token = NULL,
+           password_reset_expires = NULL
+       WHERE user_id = $2`,
+      [hashedPassword, user.user_id],
+    );
+
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "RESET_PASSWORD",
+      module: "Authentication",
+      description: `${user.name} reset their password using a reset link.`,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      message: "Password reset successfully. You may now log in.",
+    });
+  } catch (err) {
+    console.error("Reset password error:", err.message);
+    res.status(500).json({
+      error: "Unable to reset password.",
+    });
+  }
+});
+
+// ===============================
+// CHANGE PASSWORD
+// ===============================
+
+router.put(
+  "/change-password",
+  changePasswordLimiter,
+  authenticateToken,
+  async (req, res) => {
+    const { current_password, new_password, confirm_password } = req.body || {};
+
+    if (!current_password || !new_password || !confirm_password) {
+      return res.status(400).json({
+        error:
+          "Current password, new password, and confirm password are required.",
+      });
+    }
+
+    if (new_password !== confirm_password) {
+      return res.status(400).json({
+        error: "New password and confirm password do not match.",
+      });
+    }
+
+    if (current_password === new_password) {
+      return res.status(400).json({
+        error: "New password must be different from your current password.",
+      });
+    }
+
+    const passwordError = validatePasswordStrength(new_password);
+
+    if (passwordError) {
+      return res.status(400).json({
+        error: passwordError,
+        password_rules: getPasswordRules(),
+      });
+    }
+
+    try {
+      const userResult = await pool.query(
+        `SELECT user_id, name, email, password, status
+         FROM public.users
+         WHERE user_id = $1
+         LIMIT 1`,
+        [req.user.user_id],
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "User account not found.",
+        });
+      }
+
+      const user = userResult.rows[0];
+
+      if (user.status === "Inactive") {
+        return res.status(403).json({
+          error: "This account is inactive. Please contact the administrator.",
+        });
+      }
+
+      const isCurrentPasswordValid = await bcrypt.compare(
+        current_password,
+        user.password,
+      );
+
+      if (!isCurrentPasswordValid) {
+        return res.status(400).json({
+          error: "Current password is incorrect.",
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(new_password, 12);
+
+      await pool.query(
+        `UPDATE public.users
+         SET password = $1,
+             password_reset_token = NULL,
+             password_reset_expires = NULL
+         WHERE user_id = $2`,
+        [hashedPassword, user.user_id],
+      );
+
+      await createAuditLog({
+        user_id: user.user_id,
+        action: "CHANGE_PASSWORD",
+        module: "Authentication",
+        description: `${user.name} changed their password from profile settings.`,
+        ip_address: req.ip,
+      });
+
+      res.status(200).json({
+        message: "Password changed successfully.",
+      });
+    } catch (err) {
+      console.error("Change password error:", err.message);
+      res.status(500).json({
+        error: "Unable to change password.",
+      });
+    }
+  },
+);
 
 // ===============================
 // ADMIN: GET ALL USERS
@@ -609,6 +1153,7 @@ router.get(
             u.name,
             u.email,
             u.status,
+            COALESCE(u.email_verified, false) AS email_verified,
             u.created_at,
 
             r.role_id,
@@ -669,6 +1214,7 @@ router.get(
             u.name,
             u.email,
             u.status,
+            COALESCE(u.email_verified, false) AS email_verified,
             u.created_at,
 
             r.role_id,
@@ -981,7 +1527,7 @@ router.put(
         role: newRole,
       });
     } catch (err) {
-      await client.query("ROLLBACK");
+      await client.query("ROLLBACK").catch(() => {});
 
       console.error("Update user role error:", err.message);
 
@@ -1022,6 +1568,7 @@ router.get(
             u.name,
             u.email,
             u.status,
+            COALESCE(u.email_verified, false) AS email_verified,
             u.created_at,
 
             r.role_id,
@@ -1106,6 +1653,7 @@ router.post(
     if (passwordError) {
       return res.status(400).json({
         error: passwordError,
+        password_rules: getPasswordRules(),
       });
     }
 
@@ -1167,13 +1715,29 @@ router.post(
       }
 
       const hashedPassword = await bcrypt.hash(password, 12);
+      const emailVerification = generateEmailVerification();
 
       const newUser = await client.query(
         `INSERT INTO public.users
-         (name, email, password, status)
-         VALUES ($1, $2, $3, 'Active')
-         RETURNING user_id, name, email, status, created_at`,
-        [cleanName, cleanEmail, hashedPassword],
+         (
+           name,
+           email,
+           password,
+           status,
+           email_verified,
+           email_verification_token,
+           email_verification_expires
+         )
+         VALUES ($1, $2, $3, 'Active', $4, $5, $6)
+         RETURNING user_id, name, email, status, email_verified, created_at`,
+        [
+          cleanName,
+          cleanEmail,
+          hashedPassword,
+          false,
+          emailVerification.hashedToken,
+          emailVerification.expiresAt,
+        ],
       );
 
       const newUserId = newUser.rows[0].user_id;
@@ -1227,6 +1791,14 @@ router.post(
 
       await client.query("COMMIT");
 
+      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
+
+      await sendVerificationEmail({
+        to: cleanEmail,
+        name: cleanName,
+        verificationUrl,
+      });
+
       await createAuditLog({
         user_id: req.user.user_id,
         action: "CREATE_CLINIC_STAFF",
@@ -1236,13 +1808,13 @@ router.post(
       });
 
       res.status(201).json({
-        message: `${role.role_name} account created successfully under ${clinic.clinic_name}.`,
+        message: `${role.role_name} account created successfully under ${clinic.clinic_name}. A verification email has been sent to the staff email address.`,
         user: newUser.rows[0],
         role: role.role_name,
         clinic,
       });
     } catch (err) {
-      await client.query("ROLLBACK");
+      await client.query("ROLLBACK").catch(() => {});
 
       console.error("Create clinic owner staff error:", err.message);
 

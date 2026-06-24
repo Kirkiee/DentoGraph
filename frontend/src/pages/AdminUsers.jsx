@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
+import PasswordInput from "../components/auth/PasswordInput";
 
 function AdminUsers() {
   const createFormRef = useRef(null);
@@ -15,6 +16,7 @@ function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [verificationFilter, setVerificationFilter] = useState("All");
 
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -71,7 +73,7 @@ function AdminUsers() {
   useEffect(() => {
     filterUsers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [users, searchTerm, roleFilter, statusFilter]);
+  }, [users, searchTerm, roleFilter, statusFilter, verificationFilter]);
 
   useEffect(() => {
     const isAnyModalOpen = showCreateModal || showStatusModal || showRoleModal;
@@ -146,6 +148,17 @@ function AdminUsers() {
 
     if (statusFilter !== "All") {
       filtered = filtered.filter((user) => user.status === statusFilter);
+    }
+
+    if (verificationFilter !== "All") {
+      filtered = filtered.filter((user) => {
+        const isVerified = Boolean(user.email_verified);
+
+        if (verificationFilter === "Verified") return isVerified;
+        if (verificationFilter === "Unverified") return !isVerified;
+
+        return true;
+      });
     }
 
     if (searchTerm.trim() !== "") {
@@ -530,12 +543,26 @@ function AdminUsers() {
     }
   };
 
+  const getEmailVerificationClass = (isVerified) => {
+    return isVerified
+      ? "status-badge status-completed"
+      : "status-badge status-pending";
+  };
+
   const totalUsers = users.length;
   const activeUsers = users.filter((user) => user.status === "Active").length;
   const inactiveUsers = users.filter(
     (user) => user.status === "Inactive",
   ).length;
   const adminUsers = users.filter((user) => user.role_name === "Admin").length;
+
+  const verifiedUsers = users.filter((user) =>
+    Boolean(user.email_verified),
+  ).length;
+
+  const unverifiedUsers = users.filter(
+    (user) => !Boolean(user.email_verified),
+  ).length;
 
   return (
     <DashboardLayout role="Admin">
@@ -544,8 +571,8 @@ function AdminUsers() {
           <div>
             <h2>User Management</h2>
             <p>
-              View users, create accounts, manage account status, and update
-              user roles.
+              View users, create accounts, manage account status, update user
+              roles, and monitor email verification.
             </p>
           </div>
 
@@ -587,6 +614,16 @@ function AdminUsers() {
             <h3>Admins</h3>
             <strong>{adminUsers}</strong>
           </div>
+
+          <div className="dashboard-card">
+            <h3>Verified Emails</h3>
+            <strong>{verifiedUsers}</strong>
+          </div>
+
+          <div className="dashboard-card">
+            <h3>Unverified Emails</h3>
+            <strong>{unverifiedUsers}</strong>
+          </div>
         </div>
 
         <div className="appointment-filters">
@@ -626,6 +663,18 @@ function AdminUsers() {
               <option value="Inactive">Inactive</option>
             </select>
           </div>
+
+          <div className="form-group">
+            <label>Email Verification</label>
+            <select
+              value={verificationFilter}
+              onChange={(e) => setVerificationFilter(e.target.value)}
+            >
+              <option value="All">All</option>
+              <option value="Verified">Verified</option>
+              <option value="Unverified">Unverified</option>
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -650,6 +699,14 @@ function AdminUsers() {
                     <span className="status-badge status-scheduled">
                       {user.role_name || "No Role"}
                     </span>
+
+                    <span
+                      className={getEmailVerificationClass(user.email_verified)}
+                    >
+                      {user.email_verified
+                        ? "Verified Email"
+                        : "Unverified Email"}
+                    </span>
                   </div>
 
                   <p>
@@ -658,6 +715,11 @@ function AdminUsers() {
 
                   <p>
                     <strong>Email:</strong> {user.email}
+                  </p>
+
+                  <p>
+                    <strong>Email Verification:</strong>{" "}
+                    {user.email_verified ? "Verified" : "Unverified"}
                   </p>
 
                   {user.dentist_clinic_name && (
@@ -769,17 +831,17 @@ function AdminUsers() {
                 />
               </div>
 
-              <div className="form-group">
-                <label>Password</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={createForm.password}
-                  onChange={handleCreateChange}
-                  placeholder="Enter temporary password"
-                  required
-                />
-              </div>
+              <PasswordInput
+                label="Password"
+                name="password"
+                placeholder="Enter temporary password"
+                value={createForm.password}
+                onChange={handleCreateChange}
+                icon="🔒"
+                autoComplete="new-password"
+                disabled={creating}
+                required
+              />
 
               <div className="form-group">
                 <label>Role</label>

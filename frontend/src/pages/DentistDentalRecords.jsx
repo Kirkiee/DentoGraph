@@ -3,6 +3,29 @@ import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
 
+const RECORD_SOURCE_OPTIONS = [
+  {
+    value: "NEW_SYSTEM_RECORD",
+    label: "New System Record",
+    description: "A new dental record created directly in DentoGraph.",
+  },
+  {
+    value: "OLD_ENCODED_RECORD",
+    label: "Old Encoded Record",
+    description: "Old patient record manually encoded into the system.",
+  },
+  {
+    value: "SCANNED_OLD_RECORD",
+    label: "Scanned Old Record",
+    description: "Record based on uploaded or scanned previous clinic records.",
+  },
+  {
+    value: "PDA_BASED_RECORD",
+    label: "PDA-Based Record",
+    description: "Record created using the PDA dental chart/form as basis.",
+  },
+];
+
 const formatSubscriptionError = (errorMessage, fallbackMessage) => {
   const backendError = errorMessage || fallbackMessage;
   const lowerError = backendError.toLowerCase();
@@ -24,6 +47,9 @@ function DentistDentalRecords() {
   const [records, setRecords] = useState([]);
   const [patients, setPatients] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState("");
+
+  const [recordSource, setRecordSource] = useState("NEW_SYSTEM_RECORD");
+  const [sourceNotes, setSourceNotes] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -91,9 +117,45 @@ function DentistDentalRecords() {
     return `${patient.patient_name} - ${patient.email} (${dentitionLabel})`;
   };
 
+  const getRecordSourceLabel = (source) => {
+    const match = RECORD_SOURCE_OPTIONS.find(
+      (option) => option.value === source,
+    );
+
+    return match?.label || "New System Record";
+  };
+
+  const getRecordSourceDescription = (source) => {
+    const match = RECORD_SOURCE_OPTIONS.find(
+      (option) => option.value === source,
+    );
+
+    return match?.description || RECORD_SOURCE_OPTIONS[0].description;
+  };
+
+  const getRecordSourceClass = (source) => {
+    switch (source) {
+      case "OLD_ENCODED_RECORD":
+        return "status-badge status-pending";
+      case "SCANNED_OLD_RECORD":
+        return "status-badge status-scheduled";
+      case "PDA_BASED_RECORD":
+        return "status-badge status-completed";
+      case "NEW_SYSTEM_RECORD":
+      default:
+        return "status-badge status-scheduled";
+    }
+  };
+
   const selectedPatient = patients.find(
     (patient) => Number(patient.patient_id) === Number(selectedPatientId),
   );
+
+  const resetCreateForm = () => {
+    setSelectedPatientId("");
+    setRecordSource("NEW_SYSTEM_RECORD");
+    setSourceNotes("");
+  };
 
   const handleCreateRecord = async (e) => {
     e.preventDefault();
@@ -114,13 +176,15 @@ function DentistDentalRecords() {
         "/api/dental-records",
         {
           patient_id: Number(selectedPatientId),
+          record_source: recordSource,
+          source_notes: sourceNotes.trim() || null,
         },
         authHeaders,
       );
 
       if (response.data.existing) {
         setMessage("Dental record already exists. Opening existing record...");
-        setSelectedPatientId("");
+        resetCreateForm();
 
         const existingRecordId = response.data.dental_record?.record_id;
 
@@ -134,7 +198,7 @@ function DentistDentalRecords() {
       setMessage(
         response.data.message || "Dental record created successfully.",
       );
-      setSelectedPatientId("");
+      resetCreateForm();
       fetchRecords();
     } catch (err) {
       const responseData = err.response?.data;
@@ -231,7 +295,8 @@ function DentistDentalRecords() {
           <h2>Create Dental Record</h2>
           <p>
             Select a patient to create a new dental record. This record can
-            later contain tooth details, treatments, X-rays, and clinical notes.
+            later contain tooth details, treatments, X-rays, old records, PDA
+            forms, and clinical notes.
           </p>
 
           <div className="info-message" style={{ marginBottom: "16px" }}>
@@ -291,6 +356,13 @@ function DentistDentalRecords() {
                     {policyError.existingRecord.status || "Active"}
                   </p>
 
+                  <p>
+                    <strong>Record Source:</strong>{" "}
+                    {getRecordSourceLabel(
+                      policyError.existingRecord.record_source,
+                    )}
+                  </p>
+
                   <button
                     type="button"
                     className="secondary-button"
@@ -340,6 +412,49 @@ function DentistDentalRecords() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            <div className="form-group">
+              <label>Record Source</label>
+              <select
+                value={recordSource}
+                onChange={(e) => {
+                  setRecordSource(e.target.value);
+                  setMessage("");
+                  setError("");
+                  setPolicyError(null);
+                }}
+                required
+              >
+                {RECORD_SOURCE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="info-message">
+              <strong>{getRecordSourceLabel(recordSource)}:</strong>{" "}
+              {getRecordSourceDescription(recordSource)}
+            </div>
+
+            <div className="form-group">
+              <label>Source Notes</label>
+              <textarea
+                value={sourceNotes}
+                onChange={(e) => setSourceNotes(e.target.value)}
+                placeholder={
+                  recordSource === "NEW_SYSTEM_RECORD"
+                    ? "Example: New dental record created after today's consultation."
+                    : recordSource === "OLD_ENCODED_RECORD"
+                      ? "Example: Manually encoded from the patient's previous paper record."
+                      : recordSource === "SCANNED_OLD_RECORD"
+                        ? "Example: Based on scanned old record uploaded by clinic staff."
+                        : "Example: Created using PDA dental chart/form as reference."
+                }
+                rows="4"
+              />
             </div>
 
             <button
@@ -400,6 +515,21 @@ function DentistDentalRecords() {
                       <strong>Patient Type:</strong>{" "}
                       {getPatientDentitionLabel(record.dentition_type)}
                     </p>
+
+                    <p>
+                      <strong>Record Source:</strong>{" "}
+                      <span
+                        className={getRecordSourceClass(record.record_source)}
+                      >
+                        {getRecordSourceLabel(record.record_source)}
+                      </span>
+                    </p>
+
+                    {record.source_notes && (
+                      <p>
+                        <strong>Source Notes:</strong> {record.source_notes}
+                      </p>
+                    )}
 
                     <p>
                       <strong>Dentist:</strong>{" "}
@@ -510,6 +640,22 @@ function DentistDentalRecords() {
                   disabled
                 />
               </div>
+
+              <div className="form-group">
+                <label>Record Source</label>
+                <input
+                  type="text"
+                  value={getRecordSourceLabel(selectedRecord?.record_source)}
+                  disabled
+                />
+              </div>
+
+              {selectedRecord?.source_notes && (
+                <div className="form-group">
+                  <label>Source Notes</label>
+                  <textarea value={selectedRecord.source_notes} disabled />
+                </div>
+              )}
 
               <div className="form-group">
                 <label>Dentist</label>

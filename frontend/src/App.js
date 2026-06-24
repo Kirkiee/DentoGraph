@@ -9,6 +9,10 @@ import {
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
+import ResendVerification from "./pages/ResendVerification";
 
 import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
@@ -20,6 +24,7 @@ import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
 import ClinicOwnerPaymentCancel from "./pages/ClinicOwnerPaymentCancel";
 
 import AdminDashboard from "./pages/AdminDashboard";
+import AdminProfile from "./pages/AdminProfile";
 import DentistDashboard from "./pages/DentistDashboard";
 import PatientDashboard from "./pages/PatientDashboard";
 import AssistantDashboard from "./pages/AssistantDashboard";
@@ -58,6 +63,7 @@ import AssistantProfile from "./pages/AssistantProfile";
 import AssistantAppointments from "./pages/AssistantAppointments";
 import AssistantDentalRecords from "./pages/AssistantDentalRecords";
 import AssistantDentalRecordDetails from "./pages/AssistantDentalRecordDetails";
+import AssistantDental3DViewer from "./pages/AssistantDental3DViewer";
 import AssistantXrays from "./pages/AssistantXrays";
 
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -85,6 +91,8 @@ function App() {
     };
   }, []);
 
+  const assistantRoles = ["Assistant", "Dental Assistant"];
+
   return (
     <Router>
       <Routes>
@@ -92,6 +100,21 @@ function App() {
 
         <Route path="/login" element={<Navigate to="/auth/login" />} />
         <Route path="/auth/login" element={<Login />} />
+
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth/forgot-password" element={<ForgotPassword />} />
+
+        <Route path="/reset-password/:token" element={<ResetPassword />} />
+        <Route path="/auth/reset-password/:token" element={<ResetPassword />} />
+
+        <Route path="/verify-email/:token" element={<VerifyEmail />} />
+        <Route path="/auth/verify-email/:token" element={<VerifyEmail />} />
+
+        <Route path="/resend-verification" element={<ResendVerification />} />
+        <Route
+          path="/auth/resend-verification"
+          element={<ResendVerification />}
+        />
 
         <Route path="/register" element={<Register />} />
         <Route path="/auth/register" element={<Register />} />
@@ -104,6 +127,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/profile"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminProfile />
             </ProtectedRoute>
           }
         />
@@ -307,24 +339,6 @@ function App() {
         />
 
         <Route
-          path="/dentist/xrays"
-          element={
-            <ProtectedRoute allowedRoles={["Dentist"]}>
-              <DentistXrays />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/dentist/xrays/:xray_id/annotate"
-          element={
-            <ProtectedRoute allowedRoles={["Dentist"]}>
-              <DentistXrayAnnotation />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
           path="/dentist/dental-records/:record_id/3d-view"
           element={
             <ProtectedRoute allowedRoles={["Dentist"]}>
@@ -338,6 +352,24 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Dentist", "dentist"]}>
               <DentistARSimulations />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/xrays"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistXrays />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/xrays/:xray_id/annotate"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <DentistXrayAnnotation />
             </ProtectedRoute>
           }
         />
@@ -388,6 +420,15 @@ function App() {
         />
 
         <Route
+          path="/patient/records/:record_id/3d-view"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientDental3DViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/patient/xrays"
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
@@ -401,15 +442,6 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Patient"]}>
               <PatientXrayAnnotationView />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/patient/records/:record_id/3d-view"
-          element={
-            <ProtectedRoute allowedRoles={["Patient"]}>
-              <PatientDental3DViewer />
             </ProtectedRoute>
           }
         />
@@ -435,7 +467,7 @@ function App() {
         <Route
           path="/assistant/dashboard"
           element={
-            <ProtectedRoute allowedRoles={["Assistant"]}>
+            <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantDashboard />
             </ProtectedRoute>
           }
@@ -444,7 +476,7 @@ function App() {
         <Route
           path="/assistant/profile"
           element={
-            <ProtectedRoute allowedRoles={["Assistant"]}>
+            <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantProfile />
             </ProtectedRoute>
           }
@@ -453,34 +485,61 @@ function App() {
         <Route
           path="/assistant/appointments"
           element={
-            <ProtectedRoute allowedRoles={["Assistant"]}>
+            <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantAppointments />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/assistant/records"
+          path="/assistant/dental-records"
           element={
-            <ProtectedRoute allowedRoles={["Assistant"]}>
+            <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantDentalRecords />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/assistant/records/:record_id"
+          path="/assistant/dental-records/:record_id"
           element={
-            <ProtectedRoute allowedRoles={["Assistant"]}>
+            <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantDentalRecordDetails />
             </ProtectedRoute>
           }
         />
 
         <Route
+          path="/assistant/dental-records/:record_id/3d-view"
+          element={
+            <ProtectedRoute allowedRoles={assistantRoles}>
+              <AssistantDental3DViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/records"
+          element={<Navigate to="/assistant/dental-records" />}
+        />
+
+        <Route
+          path="/assistant/records/:record_id"
+          element={
+            <Navigate
+              to={(location) =>
+                `/assistant/dental-records/${
+                  location.pathname.split("/").filter(Boolean)[2]
+                }`
+              }
+            />
+          }
+        />
+
+        <Route
           path="/assistant/xrays"
           element={
-            <ProtectedRoute allowedRoles={["Assistant"]}>
+            <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantXrays />
             </ProtectedRoute>
           }

@@ -47,7 +47,7 @@ function Sidebar({ role }) {
       { label: "Dashboard", path: "/assistant/dashboard" },
       { label: "My Profile", path: "/assistant/profile" },
       { label: "Appointments", path: "/assistant/appointments" },
-      { label: "Dental Records", path: "/assistant/records" },
+      { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
     ],
 
@@ -55,12 +55,13 @@ function Sidebar({ role }) {
       { label: "Dashboard", path: "/assistant/dashboard" },
       { label: "My Profile", path: "/assistant/profile" },
       { label: "Appointments", path: "/assistant/appointments" },
-      { label: "Dental Records", path: "/assistant/records" },
+      { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
     ],
 
     Admin: [
       { label: "Dashboard", path: "/admin/dashboard" },
+      { label: "My Profile", path: "/admin/profile" },
       { label: "Users", path: "/admin/users" },
       { label: "Clinics", path: "/admin/clinics" },
       { label: "Subscriptions", path: "/admin/subscriptions" },
@@ -81,6 +82,12 @@ function Sidebar({ role }) {
 
   const links = linksByRole[role] || [];
 
+  const isActiveLink = (path) => {
+    return (
+      location.pathname === path || location.pathname.startsWith(`${path}/`)
+    );
+  };
+
   return (
     <>
       <aside className="dashboard-sidebar">
@@ -98,9 +105,7 @@ function Sidebar({ role }) {
             <button
               key={link.path}
               className={
-                location.pathname === link.path
-                  ? "sidebar-link active"
-                  : "sidebar-link"
+                isActiveLink(link.path) ? "sidebar-link active" : "sidebar-link"
               }
               onClick={() => navigate(link.path)}
             >
