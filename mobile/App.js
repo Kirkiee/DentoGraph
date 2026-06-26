@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import {
-  SafeAreaProvider,
-  SafeAreaView,
-} from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import LoginScreen from "./src/screens/LoginScreen";
+import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
+import RegisterPatientScreen from "./src/screens/RegisterPatientScreen";
+
 import PatientDashboardScreen from "./src/screens/PatientDashboardScreen";
 import PatientAppointmentsScreen from "./src/screens/PatientAppointmentsScreen";
 import BookAppointmentScreen from "./src/screens/BookAppointmentScreen";
@@ -21,7 +21,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [token, setToken] = useState(null);
+
   const [currentScreen, setCurrentScreen] = useState("dashboard");
+  const [authScreen, setAuthScreen] = useState("login");
+  const [prefilledEmail, setPrefilledEmail] = useState("");
 
   useEffect(() => {
     checkSavedSession();
@@ -51,6 +54,7 @@ export default function App() {
     setToken(token);
     setCurrentUser(user);
     setCurrentScreen("dashboard");
+    setAuthScreen("login");
   };
 
   const handleLogout = async () => {
@@ -60,6 +64,21 @@ export default function App() {
     setToken(null);
     setCurrentUser(null);
     setCurrentScreen("dashboard");
+    setAuthScreen("login");
+    setPrefilledEmail("");
+  };
+
+  const handleOpenForgotPassword = (email = "") => {
+    setPrefilledEmail(email || "");
+    setAuthScreen("forgotPassword");
+  };
+
+  const handleOpenRegister = () => {
+    setAuthScreen("register");
+  };
+
+  const handleBackToLogin = () => {
+    setAuthScreen("login");
   };
 
   const handleProfileUpdated = async (updatedProfile) => {
@@ -71,6 +90,29 @@ export default function App() {
 
     await AsyncStorage.setItem("dentograph_user", JSON.stringify(updatedUser));
     setCurrentUser(updatedUser);
+  };
+
+  const renderAuthScreen = () => {
+    if (authScreen === "forgotPassword") {
+      return (
+        <ForgotPasswordScreen
+          initialEmail={prefilledEmail}
+          onBackToLogin={handleBackToLogin}
+        />
+      );
+    }
+
+    if (authScreen === "register") {
+      return <RegisterPatientScreen onBackToLogin={handleBackToLogin} />;
+    }
+
+    return (
+      <LoginScreen
+        onLoginSuccess={handleLoginSuccess}
+        onForgotPasswordPress={handleOpenForgotPassword}
+        onRegisterPress={handleOpenRegister}
+      />
+    );
   };
 
   const renderAuthenticatedScreen = () => {
@@ -153,7 +195,7 @@ export default function App() {
           style={styles.appContainer}
           edges={["top", "left", "right"]}
         >
-          <LoginScreen onLoginSuccess={handleLoginSuccess} />
+          {renderAuthScreen()}
         </SafeAreaView>
       </SafeAreaProvider>
     );

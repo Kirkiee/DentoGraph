@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -17,7 +18,11 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { loginUser } from "../services/authService";
 
-export default function LoginScreen({ onLoginSuccess }) {
+export default function LoginScreen({
+  onLoginSuccess,
+  onForgotPasswordPress,
+  onRegisterPress,
+}) {
   const scrollViewRef = useRef(null);
 
   const [email, setEmail] = useState("");
@@ -30,6 +35,31 @@ export default function LoginScreen({ onLoginSuccess }) {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 250);
+  };
+
+  const handleForgotPassword = () => {
+    Keyboard.dismiss();
+
+    if (onForgotPasswordPress) {
+      onForgotPasswordPress(email.trim());
+      return;
+    }
+
+    Alert.alert(
+      "Forgot Password",
+      "Forgot password screen is not connected yet."
+    );
+  };
+
+  const handleRegister = () => {
+    Keyboard.dismiss();
+
+    if (onRegisterPress) {
+      onRegisterPress();
+      return;
+    }
+
+    Alert.alert("Register", "Register screen is not connected yet.");
   };
 
   const handleLogin = async () => {
@@ -71,7 +101,23 @@ export default function LoginScreen({ onLoginSuccess }) {
         user,
       });
     } catch (error) {
-      Alert.alert("Login Failed", error.message || "Something went wrong.");
+      const message = error.message || "Something went wrong.";
+
+      const isUnverified =
+        message.toLowerCase().includes("verify") ||
+        message.toLowerCase().includes("verification") ||
+        message.toLowerCase().includes("not verified") ||
+        message.toLowerCase().includes("email is not verified");
+
+      if (isUnverified) {
+        Alert.alert(
+          "Email Not Verified",
+          "Please verify your email before logging in. Check your email inbox for the verification link."
+        );
+        return;
+      }
+
+      Alert.alert("Login Failed", message);
     } finally {
       setLoading(false);
     }
@@ -93,8 +139,12 @@ export default function LoginScreen({ onLoginSuccess }) {
         >
           <View style={styles.topSection}>
             <View style={styles.logoCircle}>
-              <Ionicons name="medical-outline" size={38} color="#ffffff" />
-            </View>
+  <Image
+    source={require("../../assets/dentograph-favicon.png")}
+    style={styles.logoImage}
+    resizeMode="contain"
+  />
+</View>
 
             <Text style={styles.appName}>DentoGraph</Text>
             <Text style={styles.tagline}>Mobile Patient Portal</Text>
@@ -133,7 +183,11 @@ export default function LoginScreen({ onLoginSuccess }) {
               <Text style={styles.label}>Password</Text>
 
               <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color="#718096" />
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={20}
+                  color="#718096"
+                />
 
                 <TextInput
                   style={styles.input}
@@ -162,6 +216,16 @@ export default function LoginScreen({ onLoginSuccess }) {
               </View>
             </View>
 
+            <View style={styles.forgotPasswordRow}>
+              <Pressable
+                onPress={handleForgotPassword}
+                disabled={loading}
+                hitSlop={8}
+              >
+                <Text style={styles.authLinkText}>Forgot Password?</Text>
+              </Pressable>
+            </View>
+
             <Pressable
               style={({ pressed }) => [
                 styles.loginButton,
@@ -184,6 +248,16 @@ export default function LoginScreen({ onLoginSuccess }) {
                 </>
               )}
             </Pressable>
+
+            <View style={styles.registerRow}>
+              <Text style={styles.registerText}>
+                Don't have a patient account?
+              </Text>
+
+              <Pressable onPress={handleRegister} disabled={loading} hitSlop={8}>
+                <Text style={styles.registerLinkText}>Create Account</Text>
+              </Pressable>
+            </View>
 
             <View style={styles.patientOnlyCard}>
               <Ionicons
@@ -228,13 +302,15 @@ const styles = StyleSheet.create({
     marginBottom: 26,
   },
   logoCircle: {
-    width: 86,
-    height: 86,
+    width: 90,
+    height: 90,
     borderRadius: 30,
-    backgroundColor: "#2b6cb0",
+    backgroundColor: "#ffffff",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
     shadowColor: "#2b6cb0",
     shadowOffset: {
       width: 0,
@@ -243,6 +319,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 14,
     elevation: 4,
+},
+
+  logoImage: {
+    width: 62,
+    height: 62,
   },
   appName: {
     fontSize: 32,
@@ -315,13 +396,23 @@ const styles = StyleSheet.create({
   eyeButton: {
     padding: 4,
   },
+  forgotPasswordRow: {
+    alignItems: "flex-end",
+    marginTop: 2,
+    marginBottom: 14,
+  },
+  authLinkText: {
+    color: "#2b6cb0",
+    fontSize: 12.5,
+    fontWeight: "900",
+  },
   loginButton: {
     backgroundColor: "#2b6cb0",
     paddingVertical: 15,
     borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 8,
+    marginTop: 4,
     flexDirection: "row",
     gap: 7,
     shadowColor: "#2b6cb0",
@@ -343,6 +434,24 @@ const styles = StyleSheet.create({
   loginButtonText: {
     color: "#ffffff",
     fontSize: 16,
+    fontWeight: "900",
+  },
+  registerRow: {
+    marginTop: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 5,
+    flexWrap: "wrap",
+  },
+  registerText: {
+    color: "#718096",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  registerLinkText: {
+    color: "#2b6cb0",
+    fontSize: 13,
     fontWeight: "900",
   },
   patientOnlyCard: {

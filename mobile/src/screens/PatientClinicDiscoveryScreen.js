@@ -11,14 +11,14 @@ import {
   Text,
   View,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
 
 import { getClinics } from "../services/clinicService";
 
 export default function PatientClinicDiscoveryScreen({ token }) {
-  const mapRef = useRef(null);
+  const webViewRef = useRef(null);
 
   const [clinics, setClinics] = useState([]);
   const [selectedClinic, setSelectedClinic] = useState(null);
@@ -201,12 +201,142 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     (clinic) => clinic._distanceKm !== null
   );
 
-  const defaultRegion = {
-    latitude: userLocation?.latitude || 14.5995,
-    longitude: userLocation?.longitude || 120.9842,
-    latitudeDelta: 0.08,
-    longitudeDelta: 0.08,
+  const mapCenter = useMemo(() => {
+    if (userLocation) {
+      return {
+        latitude: userLocation.latitude,
+        longitude: userLocation.longitude,
+      };
+    }
+
+    if (clinicsWithLocation.length > 0) {
+      return {
+        latitude: clinicsWithLocation[0]._latitude,
+        longitude: clinicsWithLocation[0]._longitude,
+      };
+    }
+
+    return {
+      latitude: 14.5995,
+      longitude: 120.9842,
+    };
+  }, [userLocation, clinicsWithLocation]);
+
+  const escapeHtml = (value) => {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   };
+
+  const mapHtml = useMemo(() => {
+    const userMarker = userLocation
+      ? `
+        L.circleMarker([${userLocation.latitude}, ${userLocation.longitude}], {
+          radius: 8,
+          color: "#2b6cb0",
+          fillColor: "#2b6cb0",
+          fillOpacity: 0.95
+        })
+          .addTo(map)
+          .bindPopup("<b>Your Location</b>");
+      `
+      : "";
+
+    const clinicMarkers = clinicsWithLocation
+      .map((clinic) => {
+        const clinicName = escapeHtml(getClinicName(clinic));
+        const clinicAddress = escapeHtml(getClinicAddress(clinic));
+        const distance = escapeHtml(formatDistance(clinic._distanceKm));
+
+        return `
+          L.marker([${clinic._latitude}, ${clinic._longitude}], {
+            title: "${clinicName}"
+          })
+            .addTo(map)
+            .bindPopup(
+              "<b>${clinicName}</b><br/>${clinicAddress}<br/><span>${distance}</span>"
+            );
+        `;
+      })
+      .join("\n");
+
+    return `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+          <link
+            rel="stylesheet"
+            href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          />
+          <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+          <style>
+            html, body, #map {
+              height: 100%;
+              width: 100%;
+              margin: 0;
+              padding: 0;
+              background: #edf2f7;
+            }
+
+            .leaflet-popup-content {
+              font-family: Arial, sans-serif;
+              font-size: 13px;
+              line-height: 1.4;
+            }
+
+            .leaflet-control-attribution {
+              font-size: 10px;
+            }
+          </style>
+        </head>
+
+        <body>
+          <div id="map"></div>
+
+          <script>
+            var map = L.map("map", {
+              zoomControl: true,
+              attributionControl: true
+            }).setView([${mapCenter.latitude}, ${mapCenter.longitude}], 13);
+
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+              maxZoom: 19,
+              attribution: "&copy; OpenStreetMap"
+            }).addTo(map);
+
+            ${userMarker}
+            ${clinicMarkers}
+
+            var bounds = [];
+
+            ${
+              userLocation
+                ? `bounds.push([${userLocation.latitude}, ${userLocation.longitude}]);`
+                : ""
+            }
+
+            ${clinicsWithLocation
+              .map(
+                (clinic) =>
+                  `bounds.push([${clinic._latitude}, ${clinic._longitude}]);`
+              )
+              .join("\n")}
+
+            if (bounds.length > 1) {
+              map.fitBounds(bounds, {
+                padding: [35, 35]
+              });
+            }
+          </script>
+        </body>
+      </html>
+    `;
+  }, [userLocation, clinicsWithLocation, mapCenter]);
 
   const getCurrentLocation = async () => {
     try {
@@ -232,17 +362,6 @@ export default function PatientClinicDiscoveryScreen({ token }) {
       };
 
       setUserLocation(currentLocation);
-
-      setTimeout(() => {
-        mapRef.current?.animateToRegion(
-          {
-            ...currentLocation,
-            latitudeDelta: 0.06,
-            longitudeDelta: 0.06,
-          },
-          600
-        );
-      }, 300);
     } catch (error) {
       Alert.alert(
         "Location Error",
@@ -290,20 +409,24 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     if (latitude === null || longitude === null) {
       Alert.alert(
         "No Map Location",
-        "This clinic does not have latitude and longitude yet."
+        "This clinic does not have a map location yet."
       );
       return;
     }
 
-    mapRef.current?.animateToRegion(
-      {
-        latitude,
-        longitude,
-        latitudeDelta: 0.025,
-        longitudeDelta: 0.025,
-      },
-      600
-    );
+    const clinicName = escapeHtml(getClinicName(clinic));
+    const clinicAddress = escapeHtml(getClinicAddress(clinic));
+
+    const focusScript = `
+      map.setView([${latitude}, ${longitude}], 16);
+      L.popup()
+        .setLatLng([${latitude}, ${longitude}])
+        .setContent("<b>${clinicName}</b><br/>${clinicAddress}")
+        .openOn(map);
+      true;
+    `;
+
+    webViewRef.current?.injectJavaScript(focusScript);
   };
 
   const openDirections = (clinic) => {
@@ -314,7 +437,7 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     if (latitude === null || longitude === null) {
       Alert.alert(
         "No Map Location",
-        "Directions are unavailable because this clinic has no map coordinates."
+        "Directions are unavailable because this clinic has no map location yet."
       );
       return;
     }
@@ -322,9 +445,30 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     const url =
       Platform.OS === "ios"
         ? `http://maps.apple.com/?daddr=${latitude},${longitude}&q=${clinicName}`
-        : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&destination_place_id=${clinicName}`;
+        : `geo:${latitude},${longitude}?q=${latitude},${longitude}(${clinicName})`;
 
-    Linking.openURL(url);
+    Linking.openURL(url).catch(() => {
+      Linking.openURL(
+        `https://www.openstreetmap.org/directions?to=${latitude}%2C${longitude}`
+      );
+    });
+  };
+
+  const openInBrowserMap = (clinic) => {
+    const latitude = getClinicLatitude(clinic);
+    const longitude = getClinicLongitude(clinic);
+
+    if (latitude === null || longitude === null) {
+      Alert.alert(
+        "No Map Location",
+        "This clinic does not have a map location yet."
+      );
+      return;
+    }
+
+    Linking.openURL(
+      `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`
+    );
   };
 
   const callClinic = (clinic) => {
@@ -343,7 +487,7 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     if (!nearestClinic) {
       Alert.alert(
         "No Nearby Clinic",
-        "No clinic with GPS coordinates is currently available."
+        "No nearby clinic with a map location is currently available."
       );
       return;
     }
@@ -377,33 +521,35 @@ export default function PatientClinicDiscoveryScreen({ token }) {
           <View style={styles.headerTextBlock}>
             <Text style={styles.title}>Clinic Discovery</Text>
             <Text style={styles.subtitle}>
-              Find nearby dental clinics and view them on the map.
+              Find nearby dental clinics and get directions.
             </Text>
           </View>
         </View>
       </View>
 
       <View style={styles.mapCard}>
-        <MapView
-          ref={mapRef}
+        <WebView
+          ref={webViewRef}
+          originWhitelist={["*"]}
+          source={{ html: mapHtml }}
           style={styles.map}
-          initialRegion={defaultRegion}
-          showsUserLocation
-          showsMyLocationButton
-        >
-          {clinicsWithLocation.map((clinic, index) => (
-            <Marker
-              key={clinic.clinic_id || index}
-              coordinate={{
-                latitude: clinic._latitude,
-                longitude: clinic._longitude,
-              }}
-              title={getClinicName(clinic)}
-              description={formatDistance(clinic._distanceKm)}
-              onPress={() => setSelectedClinic(clinic)}
-            />
-          ))}
-        </MapView>
+          javaScriptEnabled
+          domStorageEnabled
+          mixedContentMode="always"
+          startInLoadingState
+          renderLoading={() => (
+            <View style={styles.mapLoading}>
+              <ActivityIndicator size="small" color="#2b6cb0" />
+              <Text style={styles.mapLoadingText}>Loading map...</Text>
+            </View>
+          )}
+          onError={() => {
+            Alert.alert(
+              "Map Error",
+              "Unable to load the map view. You can still use the clinic list below."
+            );
+          }}
+        />
 
         <View style={styles.mapFloatingBadge}>
           <Ionicons name="map-outline" size={14} color="#ffffff" />
@@ -502,7 +648,11 @@ export default function PatientClinicDiscoveryScreen({ token }) {
             >
               <View style={styles.clinicTopRow}>
                 <View style={styles.clinicIconCircle}>
-                  <Ionicons name="business-outline" size={22} color="#2b6cb0" />
+                  <Ionicons
+                    name="business-outline"
+                    size={22}
+                    color="#2b6cb0"
+                  />
                 </View>
 
                 <View style={styles.clinicTitleBlock}>
@@ -526,7 +676,11 @@ export default function PatientClinicDiscoveryScreen({ token }) {
 
               <View style={styles.distanceRow}>
                 <View style={styles.distancePill}>
-                  <Ionicons name="navigate-outline" size={14} color="#2b6cb0" />
+                  <Ionicons
+                    name="navigate-outline"
+                    size={14}
+                    color="#2b6cb0"
+                  />
                   <Text style={styles.distanceText}>
                     {formatDistance(clinic._distanceKm)}
                   </Text>
@@ -548,7 +702,7 @@ export default function PatientClinicDiscoveryScreen({ token }) {
                         : styles.unavailableBadgeText,
                     ]}
                   >
-                    {hasCoordinates ? "Mapped" : "No GPS"}
+                    {hasCoordinates ? "Mapped" : "No Map"}
                   </Text>
                 </View>
               </View>
@@ -593,10 +747,22 @@ export default function PatientClinicDiscoveryScreen({ token }) {
                 </Pressable>
 
                 <Pressable
+                  style={styles.secondaryButton}
+                  onPress={() => openInBrowserMap(clinic)}
+                >
+                  <Ionicons name="open-outline" size={16} color="#2b6cb0" />
+                  <Text style={styles.secondaryButtonText}>View Map</Text>
+                </Pressable>
+
+                <Pressable
                   style={styles.primaryButton}
                   onPress={() => openDirections(clinic)}
                 >
-                  <Ionicons name="navigate-outline" size={16} color="#ffffff" />
+                  <Ionicons
+                    name="navigate-outline"
+                    size={16}
+                    color="#ffffff"
+                  />
                   <Text style={styles.primaryButtonText}>Directions</Text>
                 </Pressable>
               </View>
@@ -684,6 +850,19 @@ const styles = StyleSheet.create({
   map: {
     width: "100%",
     height: "100%",
+    backgroundColor: "#edf2f7",
+  },
+  mapLoading: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#edf2f7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  mapLoadingText: {
+    marginTop: 8,
+    color: "#718096",
+    fontSize: 12,
+    fontWeight: "700",
   },
   mapFloatingBadge: {
     position: "absolute",
@@ -955,11 +1134,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 8,
     marginTop: 14,
+    flexWrap: "wrap",
   },
   primaryButton: {
-    flex: 1.4,
+    flexGrow: 1.4,
     backgroundColor: "#2b6cb0",
     paddingVertical: 12,
+    paddingHorizontal: 10,
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
@@ -972,9 +1153,10 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   secondaryButton: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: "#edf2f7",
     paddingVertical: 12,
+    paddingHorizontal: 10,
     borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
