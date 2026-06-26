@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import "../styles/landing.css";
 import ThemeToggle from "../components/ThemeToggle";
+import dentoGraphLogo from "../assets/dentograph-logo.png";
 
 function LandingPage() {
   const features = [
@@ -82,7 +83,13 @@ function LandingPage() {
 
       <nav className="landing-nav">
         <Link to="/" className="landing-logo">
-          <span className="landing-logo-mark">D</span>
+          <span className="landing-logo-box">
+            <img
+              src={dentoGraphLogo}
+              alt="DentoGraph Logo"
+              className="landing-logo-image"
+            />
+          </span>
           <span>DentoGraph</span>
         </Link>
 

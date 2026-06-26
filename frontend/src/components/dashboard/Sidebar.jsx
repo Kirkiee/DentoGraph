@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import dentoGraphLogo from "../../assets/dentograph-logo.png";
 
-function Sidebar({ role }) {
+function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -9,6 +10,7 @@ function Sidebar({ role }) {
 
   const openLogoutModal = () => {
     setShowLogoutModal(true);
+    closeMobileMenu?.();
   };
 
   const closeLogoutModal = () => {
@@ -22,6 +24,11 @@ function Sidebar({ role }) {
 
     setShowLogoutModal(false);
     navigate("/");
+  };
+
+  const handleNavigate = (path) => {
+    navigate(path);
+    closeMobileMenu?.();
   };
 
   const linksByRole = {
@@ -90,14 +97,33 @@ function Sidebar({ role }) {
 
   return (
     <>
-      <aside className="dashboard-sidebar">
+      <aside
+        className={
+          mobileMenuOpen ? "dashboard-sidebar mobile-open" : "dashboard-sidebar"
+        }
+      >
         <div className="sidebar-brand">
-          <div className="sidebar-logo">DG</div>
+          <div className="sidebar-logo-box">
+            <img
+              src={dentoGraphLogo}
+              alt="DentoGraph Logo"
+              className="sidebar-logo-image"
+            />
+          </div>
 
           <div className="sidebar-brand-text">
             <h2>DentoGraph</h2>
             <p>{role} Portal</p>
           </div>
+
+          <button
+            type="button"
+            className="sidebar-hamburger"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? "×" : "☰"}
+          </button>
         </div>
 
         <nav className="sidebar-nav">
@@ -107,7 +133,7 @@ function Sidebar({ role }) {
               className={
                 isActiveLink(link.path) ? "sidebar-link active" : "sidebar-link"
               }
-              onClick={() => navigate(link.path)}
+              onClick={() => handleNavigate(link.path)}
             >
               {link.label}
             </button>
