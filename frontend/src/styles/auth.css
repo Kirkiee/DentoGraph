@@ -655,3 +655,109 @@ body.dark-mode .info-message {
 body.dark-mode .password-visibility-button {
   color: #60a5fa;
 }
+
+.auth-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 18px;
+}
+
+.auth-brand-icon {
+  width: 82px;
+  height: 82px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 14px 34px rgba(37, 99, 235, 0.35);
+  overflow: hidden;
+}
+
+.auth-logo-image {
+  width: 56px;
+  height: 56px;
+  -o-object-fit: contain;
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 480px) {
+  .auth-brand-icon {
+    width: 68px;
+    height: 68px;
+    border-radius: 18px;
+  }
+}
+
+.auth-logo {
+  font-size: 0 !important;
+  color: transparent !important;
+  overflow: hidden;
+}
+
+.auth-logo-image {
+  width: 56px;
+  height: 56px;
+  -o-object-fit: contain;
+  object-fit: contain;
+  display: block;
+}
+
+@media (max-width: 480px) {
+  .auth-logo-image {
+    width: 46px;
+    height: 46px;
+  }
+}
+
+/* =========================
+   AUTH LOGO WHITE BACKGROUND
+========================= */
+
+.auth-logo-box {
+  width: 86px !important;
+  height: 86px !important;
+  min-width: 86px !important;
+  margin: 0 auto 18px !important;
+  border-radius: 22px !important;
+  background: #ffffff !important;
+  background-color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16) !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  overflow: hidden !important;
+}
+
+.auth-logo-image {
+  width: 62px !important;
+  height: 62px !important;
+  -o-object-fit: contain !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+
+/* Disable old DG logo container if it still exists */
+.auth-logo {
+  display: none !important;
+}
+
+.auth-logo-text {
+  display: none !important;
+}
+
+@media (max-width: 480px) {
+  .auth-logo-box {
+    width: 72px !important;
+    height: 72px !important;
+    min-width: 72px !important;
+    border-radius: 18px !important;
+  }
+
+  .auth-logo-image {
+    width: 52px !important;
+    height: 52px !important;
+  }
+}

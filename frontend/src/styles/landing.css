@@ -624,3 +624,433 @@ body.dark-mode .landing-cta .landing-secondary-button {
   color: #ffffff;
   border-color: rgba(255, 255, 255, 0.36);
 }
+
+/* =========================
+   LANDING PAGE CTA RESPONSIVE FIX
+========================= */
+
+@media (max-width: 768px) {
+  .cta-section,
+  .landing-cta,
+  .home-cta {
+    width: 100%;
+    max-width: 100%;
+    margin: 32px auto;
+    padding: 36px 18px;
+    border-radius: 18px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  .cta-section h2,
+  .landing-cta h2,
+  .home-cta h2 {
+    font-size: 1.5rem;
+    line-height: 1.25;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .cta-section p,
+  .landing-cta p,
+  .home-cta p {
+    font-size: 0.9rem;
+    line-height: 1.5;
+    text-align: center;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .cta-actions,
+  .cta-buttons,
+  .landing-cta-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+    max-width: 320px;
+    margin: 24px auto 0;
+  }
+
+  .cta-actions a,
+  .cta-actions button,
+  .cta-buttons a,
+  .cta-buttons button,
+  .landing-cta-actions a,
+  .landing-cta-actions button {
+    width: 100%;
+    min-height: 42px;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+  }
+}
+
+@media (max-width: 480px) {
+  .cta-section,
+  .landing-cta,
+  .home-cta {
+    margin: 24px auto;
+    padding: 30px 14px;
+    border-radius: 16px;
+  }
+
+  .cta-section h2,
+  .landing-cta h2,
+  .home-cta h2 {
+    font-size: 1.25rem;
+  }
+
+  .cta-section p,
+  .landing-cta p,
+  .home-cta p {
+    font-size: 0.84rem;
+  }
+
+  .cta-actions,
+  .cta-buttons,
+  .landing-cta-actions {
+    max-width: 100%;
+  }
+}
+
+/* =========================
+   LANDING PAGE NAV BUTTON RESPONSIVE FIX
+========================= */
+
+@media (max-width: 768px) {
+  .landing-navbar,
+  .navbar,
+  .home-navbar {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .landing-nav-actions,
+  .nav-actions,
+  .navbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .landing-nav-actions a,
+  .landing-nav-actions button,
+  .nav-actions a,
+  .nav-actions button,
+  .navbar-actions a,
+  .navbar-actions button {
+    min-height: 36px;
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    border-radius: 10px;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .landing-navbar,
+  .navbar,
+  .home-navbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .landing-brand,
+  .navbar-brand,
+  .home-brand {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .landing-nav-actions,
+  .nav-actions,
+  .navbar-actions {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .landing-nav-actions a,
+  .landing-nav-actions button,
+  .nav-actions a,
+  .nav-actions button,
+  .navbar-actions a,
+  .navbar-actions button {
+    flex: 1;
+    min-width: 120px;
+    max-width: 180px;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .landing-nav-actions,
+  .nav-actions,
+  .navbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .landing-nav-actions a,
+  .landing-nav-actions button,
+  .nav-actions a,
+  .nav-actions button,
+  .navbar-actions a,
+  .navbar-actions button {
+    max-width: 100%;
+    width: 100%;
+  }
+}
+
+/* =========================
+   LANDING LOGO WHITE BACKGROUND
+========================= */
+
+.landing-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.landing-logo-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: #ffffff !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.landing-logo-image {
+  width: 32px;
+  height: 32px;
+  -o-object-fit: contain;
+  object-fit: contain;
+  display: block;
+}
+
+/* Restore landing page background */
+.landing-page {
+  min-height: 100vh;
+  background:
+    radial-gradient(
+      circle at top left,
+      rgba(59, 130, 246, 0.16),
+      transparent 34%
+    ),
+    linear-gradient(180deg, #f8fbff 0%, #eef6ff 48%, #ffffff 100%);
+}
+
+@media (max-width: 768px) {
+  .landing-logo {
+    gap: 8px;
+  }
+
+  .landing-logo-mark {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+  }
+
+  .landing-logo-image {
+    width: 29px;
+    height: 29px;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-logo-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .landing-logo-image {
+    width: 26px;
+    height: 26px;
+  }
+}
+
+/* =========================
+   LANDING LOGO FINAL FIX
+========================= */
+
+.landing-logo {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  text-decoration: none !important;
+}
+
+.landing-logo-box {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+  border-radius: 14px !important;
+  background-color: #ffffff !important;
+  background: #ffffff !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16) !important;
+  border: 1px solid rgba(226, 232, 240, 0.95) !important;
+  overflow: hidden !important;
+  flex-shrink: 0 !important;
+}
+
+.landing-logo-image {
+  width: 32px !important;
+  height: 32px !important;
+  -o-object-fit: contain !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+
+/* Old logo mark should not control the new logo anymore */
+.landing-logo-mark {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .landing-logo-box {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    border-radius: 12px !important;
+  }
+
+  .landing-logo-image {
+    width: 28px !important;
+    height: 28px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-logo-box {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    border-radius: 10px !important;
+  }
+
+  .landing-logo-image {
+    width: 25px !important;
+    height: 25px !important;
+  }
+}
+
+/* =========================
+   LANDING NAVBAR POLISH
+========================= */
+
+.landing-nav {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 18px 28px !important;
+  min-height: 72px;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 24px;
+}
+
+.landing-logo {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  line-height: 1 !important;
+}
+
+.landing-logo span:last-child {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.landing-logo-box {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px !important;
+  border-radius: 12px !important;
+}
+
+.landing-logo-image {
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.landing-nav-links {
+  display: flex !important;
+  align-items: center !important;
+  gap: 22px !important;
+}
+
+.landing-nav-links a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.landing-nav-button {
+  min-height: 42px;
+  padding: 0 20px !important;
+  border-radius: 999px !important;
+}
+
+/* Tablet */
+@media (max-width: 900px) {
+  .landing-nav {
+    padding: 16px 20px !important;
+    min-height: auto;
+  }
+
+  .landing-nav-links {
+    gap: 14px !important;
+  }
+
+  .landing-logo span:last-child {
+    font-size: 20px;
+  }
+}
+
+/* Phone */
+@media (max-width: 720px) {
+  .landing-nav {
+    flex-direction: column;
+    align-items: flex-start !important;
+    padding: 16px !important;
+  }
+
+  .landing-nav-links {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px !important;
+  }
+
+  .landing-nav-links a {
+    width: 100%;
+    min-height: 40px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.08);
+  }
+
+  .landing-nav-button {
+    min-height: 40px;
+  }
+}
