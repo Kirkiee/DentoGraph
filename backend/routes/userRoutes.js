@@ -1834,6 +1834,146 @@ router.post(
 );
 
 // ===============================
+// CLINIC OWNER: UPDATE OWN STAFF STATUS
+// ===============================
+
+router.put(
+  "/clinic-owner/staff/:user_id/status",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const { user_id } = req.params;
+    const { status } = req.body || {};
+
+    const allowedStatuses = ["Active", "Inactive"];
+
+    if (!status || !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        error: "Valid status is required. Use Active or Inactive.",
+      });
+    }
+
+    if (Number(user_id) === Number(req.user.user_id)) {
+      return res.status(400).json({
+        error: "You cannot change your own account status.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const clinic = await getClinicOwnedByUser(client, req.user.user_id);
+
+      if (!clinic) {
+        await client.query("ROLLBACK");
+
+        return res.status(404).json({
+          error: "No active clinic is linked to this clinic owner account.",
+        });
+      }
+
+      const staffCheck = await client.query(
+        `SELECT 
+            u.user_id,
+            u.name,
+            u.email,
+            u.status,
+            r.role_name,
+
+            d.dentist_id,
+            d.clinic_id AS dentist_clinic_id,
+
+            a.assistant_id,
+            a.clinic_id AS assistant_clinic_id
+
+         FROM public.users u
+         JOIN public.user_roles ur ON u.user_id = ur.user_id
+         JOIN public.roles r ON ur.role_id = r.role_id
+
+         LEFT JOIN public.dentists d ON u.user_id = d.user_id
+         LEFT JOIN public.assistants a ON u.user_id = a.user_id
+
+         WHERE u.user_id = $1
+         AND r.role_name IN ('Dentist', 'Assistant', 'Dental Assistant')
+         AND (
+              d.clinic_id = $2
+              OR a.clinic_id = $2
+         )
+         LIMIT 1`,
+        [user_id, clinic.clinic_id],
+      );
+
+      if (staffCheck.rows.length === 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(404).json({
+          error:
+            "Staff member not found or does not belong to your assigned clinic.",
+        });
+      }
+
+      const staffMember = staffCheck.rows[0];
+
+      const updatedUser = await client.query(
+        `UPDATE public.users
+         SET status = $1
+         WHERE user_id = $2
+         RETURNING user_id, name, email, status, created_at`,
+        [status, user_id],
+      );
+
+      if (staffMember.role_name === "Dentist") {
+        await client.query(
+          `UPDATE public.dentists
+           SET status = $1
+           WHERE user_id = $2
+           AND clinic_id = $3`,
+          [status, user_id, clinic.clinic_id],
+        );
+      }
+
+      if (isAssistantRole(staffMember.role_name)) {
+        await client.query(
+          `UPDATE public.assistants
+           SET status = $1
+           WHERE user_id = $2
+           AND clinic_id = $3`,
+          [status, user_id, clinic.clinic_id],
+        );
+      }
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_CLINIC_STAFF_STATUS",
+        module: "Clinic Owner Staff Management",
+        description: `Clinic owner updated ${staffMember.name}'s account status to ${status} under ${clinic.clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      res.status(200).json({
+        message: `${staffMember.name}'s account status updated to ${status}.`,
+        user: updatedUser.rows[0],
+        clinic,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+
+      console.error("Update clinic staff status error:", err.message);
+
+      res.status(500).json({
+        error: "Error updating clinic staff status.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
 // PROTECTED PROFILE ROUTE
 // ===============================
 

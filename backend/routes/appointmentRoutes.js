@@ -15,6 +15,153 @@ const normalizeCancellationReason = (value) => {
   return String(value).trim();
 };
 
+const parseAppointmentDate = (value) => {
+  if (isBlank(value)) return null;
+
+  const parsedDate = new Date(value);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate;
+};
+
+const isPastDate = (dateValue) => {
+  const parsedDate = parseAppointmentDate(dateValue);
+
+  if (!parsedDate) return true;
+
+  const now = new Date();
+
+  return parsedDate.getTime() <= now.getTime();
+};
+
+const formatDateOnly = (dateValue) => {
+  const parsedDate = parseAppointmentDate(dateValue);
+
+  if (!parsedDate) return null;
+
+  const year = parsedDate.getFullYear();
+  const month = String(parsedDate.getMonth() + 1).padStart(2, "0");
+  const day = String(parsedDate.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const getDefaultTimeSlots = () => {
+  return ["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00"];
+};
+
+const combineDateAndTimeToISO = (dateValue, timeValue) => {
+  if (isBlank(dateValue) || isBlank(timeValue)) return null;
+
+  const dateTimeString = `${dateValue}T${timeValue}:00+08:00`;
+  const parsedDate = new Date(dateTimeString);
+
+  if (Number.isNaN(parsedDate.getTime())) {
+    return null;
+  }
+
+  return parsedDate.toISOString();
+};
+
+const getUserClinicOwnerClinicId = async (userId) => {
+  const ownerResult = await pool.query(
+    `SELECT clinic_id
+     FROM public.clinics
+     WHERE owner_user_id = $1
+     LIMIT 1`,
+    [userId],
+  );
+
+  if (ownerResult.rows.length === 0) {
+    return null;
+  }
+
+  return ownerResult.rows[0].clinic_id;
+};
+
+const verifyAssistantClinicAccess = async (userId, dentistId) => {
+  const assistantResult = await pool.query(
+    `SELECT clinic_id
+     FROM public.assistants
+     WHERE user_id = $1`,
+    [userId],
+  );
+
+  if (assistantResult.rows.length === 0) {
+    return {
+      allowed: false,
+      status: 404,
+      error: "Assistant profile not found",
+    };
+  }
+
+  const assistant = assistantResult.rows[0];
+
+  if (!assistant.clinic_id) {
+    return {
+      allowed: false,
+      status: 400,
+      error: "Assistant is not assigned to a clinic",
+    };
+  }
+
+  const clinicCheck = await pool.query(
+    `SELECT clinic_id
+     FROM public.dentists
+     WHERE dentist_id = $1`,
+    [dentistId],
+  );
+
+  if (
+    clinicCheck.rows.length === 0 ||
+    Number(clinicCheck.rows[0].clinic_id) !== Number(assistant.clinic_id)
+  ) {
+    return {
+      allowed: false,
+      status: 403,
+      error: "You can only manage appointments under your assigned clinic",
+    };
+  }
+
+  return {
+    allowed: true,
+    clinic_id: assistant.clinic_id,
+  };
+};
+
+// PATIENT: GET ACTIVE CLINICS FOR APPOINTMENT DROPDOWN
+router.get(
+  "/clinics/list",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    try {
+      const clinics = await pool.query(
+        `SELECT
+            clinic_id,
+            clinic_name,
+            address,
+            contact_number,
+            status
+         FROM public.clinics
+         WHERE status = 'Active'
+         ORDER BY clinic_name ASC`,
+      );
+
+      res.status(200).json({
+        message: "Clinics retrieved successfully",
+        clinics: clinics.rows,
+      });
+    } catch (err) {
+      console.error("Get clinics list error:", err.message);
+      res.status(500).json({ error: "Error retrieving clinics" });
+    }
+  },
+);
+
 // GET ACTIVE DENTISTS FOR PATIENT APPOINTMENT DROPDOWN
 router.get(
   "/dentists/list",
@@ -24,20 +171,20 @@ router.get(
     try {
       const dentists = await pool.query(
         `SELECT
-          d.dentist_id,
-          d.user_id,
-          u.name AS dentist_name,
-          d.license_number,
-          d.specialization,
-          d.availability,
-          d.status,
-          d.clinic_id,
-          c.clinic_name
-       FROM public.dentists d
-       JOIN public.users u ON d.user_id = u.user_id
-       LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
-       WHERE d.status = 'Active'
-       ORDER BY u.name ASC`,
+            d.dentist_id,
+            d.user_id,
+            u.name AS dentist_name,
+            d.license_number,
+            d.specialization,
+            d.availability,
+            d.status,
+            d.clinic_id,
+            c.clinic_name
+         FROM public.dentists d
+         JOIN public.users u ON d.user_id = u.user_id
+         LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+         WHERE d.status = 'Active'
+         ORDER BY u.name ASC`,
       );
 
       res.status(200).json({
@@ -51,6 +198,140 @@ router.get(
   },
 );
 
+// PATIENT: GET ACTIVE DENTISTS BY CLINIC
+router.get(
+  "/dentists/by-clinic/:clinic_id",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const { clinic_id } = req.params;
+
+    if (!clinic_id) {
+      return res.status(400).json({ error: "Clinic ID is required" });
+    }
+
+    try {
+      const clinicCheck = await pool.query(
+        `SELECT clinic_id
+         FROM public.clinics
+         WHERE clinic_id = $1
+         AND status = 'Active'`,
+        [clinic_id],
+      );
+
+      if (clinicCheck.rows.length === 0) {
+        return res.status(404).json({ error: "Clinic not found or inactive" });
+      }
+
+      const dentists = await pool.query(
+        `SELECT
+            d.dentist_id,
+            d.user_id,
+            u.name AS dentist_name,
+            d.license_number,
+            d.specialization,
+            d.availability,
+            d.status,
+            d.clinic_id,
+            c.clinic_name
+         FROM public.dentists d
+         JOIN public.users u ON d.user_id = u.user_id
+         JOIN public.clinics c ON d.clinic_id = c.clinic_id
+         WHERE d.status = 'Active'
+         AND d.clinic_id = $1
+         ORDER BY u.name ASC`,
+        [clinic_id],
+      );
+
+      res.status(200).json({
+        message: "Dentists retrieved successfully",
+        dentists: dentists.rows,
+      });
+    } catch (err) {
+      console.error("Get dentists by clinic error:", err.message);
+      res.status(500).json({ error: "Error retrieving dentists by clinic" });
+    }
+  },
+);
+
+// PATIENT: GET AVAILABLE TIME SLOTS BY DENTIST AND DATE
+router.get(
+  "/available-times",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const { dentist_id, appointment_date } = req.query;
+
+    if (!dentist_id || !appointment_date) {
+      return res.status(400).json({
+        error: "Dentist and appointment date are required",
+      });
+    }
+
+    const dateOnly = formatDateOnly(appointment_date);
+
+    if (!dateOnly) {
+      return res.status(400).json({ error: "Invalid appointment date" });
+    }
+
+    try {
+      const dentistResult = await pool.query(
+        `SELECT dentist_id, status
+         FROM public.dentists
+         WHERE dentist_id = $1
+         AND status = 'Active'`,
+        [dentist_id],
+      );
+
+      if (dentistResult.rows.length === 0) {
+        return res.status(404).json({ error: "Dentist not found or inactive" });
+      }
+
+      const allSlots = getDefaultTimeSlots();
+
+      const bookedResult = await pool.query(
+        `SELECT appointment_date
+         FROM public.appointments
+         WHERE dentist_id = $1
+         AND DATE(appointment_date) = $2
+         AND status IN ('Pending', 'Scheduled')`,
+        [dentist_id, dateOnly],
+      );
+
+      const bookedTimes = bookedResult.rows.map((row) => {
+        const date = new Date(row.appointment_date);
+        const hours = String(date.getHours()).padStart(2, "0");
+        const minutes = String(date.getMinutes()).padStart(2, "0");
+
+        return `${hours}:${minutes}`;
+      });
+
+      const now = new Date();
+      const todayDateOnly = formatDateOnly(now);
+
+      const available_times = allSlots.filter((slot) => {
+        if (bookedTimes.includes(slot)) return false;
+
+        if (dateOnly === todayDateOnly) {
+          const slotDate = new Date(`${dateOnly}T${slot}:00+08:00`);
+          return slotDate.getTime() > now.getTime();
+        }
+
+        return true;
+      });
+
+      res.status(200).json({
+        message: "Available times retrieved successfully",
+        appointment_date: dateOnly,
+        available_times,
+      });
+    } catch (err) {
+      console.error("Get available times error:", err.message);
+      res.status(500).json({ error: "Error retrieving available times" });
+    }
+  },
+);
+
 // PATIENT: BOOK APPOINTMENT
 router.post(
   "/",
@@ -58,11 +339,55 @@ router.post(
   authorizeRoles("Patient"),
   async (req, res) => {
     const user_id = req.user.user_id;
-    const { dentist_id, appointment_date, appointment_type, notes } = req.body;
+    const {
+      clinic_id,
+      dentist_id,
+      appointment_date,
+      appointment_time,
+      appointment_type,
+      notes,
+    } = req.body;
 
-    if (!dentist_id || !appointment_date) {
+    if (!dentist_id) {
       return res.status(400).json({
-        error: "Dentist and appointment date are required",
+        error: "Dentist is required",
+      });
+    }
+
+    let finalAppointmentDate = appointment_date;
+
+    if (!finalAppointmentDate && appointment_time) {
+      const dateOnly = formatDateOnly(req.body.date || req.body.selected_date);
+
+      if (!dateOnly) {
+        return res.status(400).json({
+          error: "Appointment date is required",
+        });
+      }
+
+      finalAppointmentDate = combineDateAndTimeToISO(
+        dateOnly,
+        appointment_time,
+      );
+    }
+
+    if (!finalAppointmentDate) {
+      return res.status(400).json({
+        error: "Appointment date is required",
+      });
+    }
+
+    const parsedAppointmentDate = parseAppointmentDate(finalAppointmentDate);
+
+    if (!parsedAppointmentDate) {
+      return res.status(400).json({
+        error: "Invalid appointment date",
+      });
+    }
+
+    if (isPastDate(finalAppointmentDate)) {
+      return res.status(400).json({
+        error: "You cannot book an appointment in the past.",
       });
     }
 
@@ -82,12 +407,33 @@ router.post(
       const patient_id = patientResult.rows[0].patient_id;
 
       const dentistResult = await pool.query(
-        "SELECT dentist_id FROM public.dentists WHERE dentist_id = $1",
+        `SELECT
+            d.dentist_id,
+            d.clinic_id,
+            d.status,
+            c.clinic_name
+         FROM public.dentists d
+         LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+         WHERE d.dentist_id = $1`,
         [dentist_id],
       );
 
       if (dentistResult.rows.length === 0) {
         return res.status(404).json({ error: "Dentist not found" });
+      }
+
+      const dentist = dentistResult.rows[0];
+
+      if (dentist.status !== "Active") {
+        return res.status(400).json({
+          error: "Selected dentist is not active",
+        });
+      }
+
+      if (clinic_id && Number(dentist.clinic_id) !== Number(clinic_id)) {
+        return res.status(400).json({
+          error: "Selected dentist does not belong to the selected clinic",
+        });
       }
 
       const conflictCheck = await pool.query(
@@ -96,7 +442,7 @@ router.post(
          WHERE dentist_id = $1
          AND appointment_date = $2
          AND status IN ('Pending', 'Scheduled')`,
-        [dentist_id, appointment_date],
+        [dentist_id, parsedAppointmentDate],
       );
 
       if (conflictCheck.rows.length > 0) {
@@ -126,10 +472,10 @@ router.post(
         [
           patient_id,
           dentist_id,
-          appointment_date,
+          parsedAppointmentDate,
           "Pending",
           notes || null,
-          appointment_type || "Consultation",
+          appointment_type || "Dental Consultation",
           false,
           null,
           "None",
@@ -434,35 +780,14 @@ router.put(
         req.user.role === "Assistant" ||
         req.user.role === "Dental Assistant"
       ) {
-        const assistantResult = await pool.query(
-          `SELECT clinic_id
-           FROM public.assistants
-           WHERE user_id = $1`,
-          [req.user.user_id],
+        const accessCheck = await verifyAssistantClinicAccess(
+          req.user.user_id,
+          appointment.dentist_id,
         );
 
-        if (assistantResult.rows.length === 0) {
-          return res.status(404).json({
-            error: "Assistant profile not found",
-          });
-        }
-
-        const assistant = assistantResult.rows[0];
-
-        const clinicCheck = await pool.query(
-          `SELECT d.clinic_id
-           FROM public.dentists d
-           WHERE d.dentist_id = $1`,
-          [appointment.dentist_id],
-        );
-
-        if (
-          clinicCheck.rows.length === 0 ||
-          Number(clinicCheck.rows[0].clinic_id) !== Number(assistant.clinic_id)
-        ) {
-          return res.status(403).json({
-            error:
-              "You can only update appointments under your assigned clinic",
+        if (!accessCheck.allowed) {
+          return res.status(accessCheck.status).json({
+            error: accessCheck.error,
           });
         }
       }
@@ -471,15 +796,15 @@ router.put(
 
       const updatedAppointment = await pool.query(
         `UPDATE public.appointments
-   SET status = $1,
-       cancellation_reason = CASE WHEN $5::boolean THEN $2 ELSE NULL END,
-       cancelled_at = CASE WHEN $5::boolean THEN CURRENT_TIMESTAMP ELSE NULL END,
-       cancelled_by = CASE WHEN $5::boolean THEN $3::integer ELSE NULL END,
-       reschedule_request = CASE WHEN $5::boolean THEN false ELSE reschedule_request END,
-       requested_appointment_date = CASE WHEN $5::boolean THEN NULL ELSE requested_appointment_date END,
-       reschedule_status = CASE WHEN $5::boolean THEN 'None' ELSE reschedule_status END
-   WHERE appointment_id = $4
-   RETURNING *`,
+         SET status = $1,
+             cancellation_reason = CASE WHEN $5::boolean THEN $2 ELSE NULL END,
+             cancelled_at = CASE WHEN $5::boolean THEN CURRENT_TIMESTAMP ELSE NULL END,
+             cancelled_by = CASE WHEN $5::boolean THEN $3::integer ELSE NULL END,
+             reschedule_request = CASE WHEN $5::boolean THEN false ELSE reschedule_request END,
+             requested_appointment_date = CASE WHEN $5::boolean THEN NULL ELSE requested_appointment_date END,
+             reschedule_status = CASE WHEN $5::boolean THEN 'None' ELSE reschedule_status END
+         WHERE appointment_id = $4
+         RETURNING *`,
         [
           status,
           normalizedReason,
@@ -603,6 +928,20 @@ router.put(
       });
     }
 
+    const parsedNewDate = parseAppointmentDate(new_appointment_date);
+
+    if (!parsedNewDate) {
+      return res.status(400).json({
+        error: "Invalid new appointment date",
+      });
+    }
+
+    if (isPastDate(new_appointment_date)) {
+      return res.status(400).json({
+        error: "You cannot request a reschedule to a past date or time.",
+      });
+    }
+
     try {
       const patientResult = await pool.query(
         "SELECT patient_id FROM public.patients WHERE user_id = $1",
@@ -647,7 +986,7 @@ router.put(
          AND appointment_date = $2
          AND appointment_id <> $3
          AND status IN ('Pending', 'Scheduled')`,
-        [appointment.dentist_id, new_appointment_date, appointment_id],
+        [appointment.dentist_id, parsedNewDate, appointment_id],
       );
 
       if (conflictCheck.rows.length > 0) {
@@ -664,7 +1003,7 @@ router.put(
          WHERE appointment_id = $2
          AND patient_id = $3
          RETURNING *`,
-        [new_appointment_date, appointment_id, patient_id],
+        [parsedNewDate, appointment_id, patient_id],
       );
 
       res.status(200).json({
@@ -711,6 +1050,12 @@ router.put(
         });
       }
 
+      if (isPastDate(appointment.requested_appointment_date)) {
+        return res.status(400).json({
+          error: "The requested reschedule date is already in the past.",
+        });
+      }
+
       if (req.user.role === "Dentist") {
         const dentistResult = await pool.query(
           "SELECT dentist_id FROM public.dentists WHERE user_id = $1",
@@ -724,6 +1069,22 @@ router.put(
         ) {
           return res.status(403).json({
             error: "You can only approve reschedule requests assigned to you",
+          });
+        }
+      }
+
+      if (
+        req.user.role === "Assistant" ||
+        req.user.role === "Dental Assistant"
+      ) {
+        const accessCheck = await verifyAssistantClinicAccess(
+          req.user.user_id,
+          appointment.dentist_id,
+        );
+
+        if (!accessCheck.allowed) {
+          return res.status(accessCheck.status).json({
+            error: accessCheck.error,
           });
         }
       }
@@ -815,6 +1176,22 @@ router.put(
         ) {
           return res.status(403).json({
             error: "You can only reject reschedule requests assigned to you",
+          });
+        }
+      }
+
+      if (
+        req.user.role === "Assistant" ||
+        req.user.role === "Dental Assistant"
+      ) {
+        const accessCheck = await verifyAssistantClinicAccess(
+          req.user.user_id,
+          appointment.dentist_id,
+        );
+
+        if (!accessCheck.allowed) {
+          return res.status(accessCheck.status).json({
+            error: accessCheck.error,
           });
         }
       }

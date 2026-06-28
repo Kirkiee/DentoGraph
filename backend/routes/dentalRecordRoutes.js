@@ -596,16 +596,14 @@ const validateDentalRecordCreationPolicy = async ({ patient_id, dentist }) => {
   };
 };
 
-// DENTIST / ASSISTANT: CREATE DENTAL RECORD FOR A PATIENT
+// DENTIST: CREATE DENTAL RECORD FOR A PATIENT
 router.post(
   "/",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
+  authorizeRoles("Dentist"),
   async (req, res) => {
     const user_id = req.user.user_id;
-    const role = req.user.role;
-    const { patient_id, dentist_id, record_source, source_notes } =
-      req.body || {};
+    const { patient_id, record_source, source_notes } = req.body || {};
 
     const cleanRecordSource = normalizeRecordSource(record_source);
 
@@ -614,48 +612,10 @@ router.post(
     }
 
     try {
-      let dentist = null;
+      const dentist = await getDentistProfile(user_id);
 
-      if (role === "Dentist") {
-        dentist = await getDentistProfile(user_id);
-
-        if (!dentist) {
-          return res.status(404).json({ error: "Dentist profile not found" });
-        }
-      }
-
-      if (isAssistantRole(role)) {
-        const assistant = await getAssistantProfile(user_id);
-
-        if (!assistant) {
-          return res.status(404).json({ error: "Assistant profile not found" });
-        }
-
-        if (!assistant.clinic_id) {
-          return res.status(400).json({
-            error: "Assistant is not assigned to a clinic",
-          });
-        }
-
-        if (!dentist_id) {
-          return res.status(400).json({
-            error:
-              "Dentist ID is required when an assistant creates a dental record.",
-          });
-        }
-
-        dentist = await getDentistProfileByDentistId(dentist_id);
-
-        if (!dentist) {
-          return res.status(404).json({ error: "Selected dentist not found" });
-        }
-
-        if (Number(dentist.clinic_id) !== Number(assistant.clinic_id)) {
-          return res.status(403).json({
-            error:
-              "Assistant can only create dental records under dentists from the same assigned clinic.",
-          });
-        }
+      if (!dentist) {
+        return res.status(404).json({ error: "Dentist profile not found" });
       }
 
       const policyCheck = await validateDentalRecordCreationPolicy({
@@ -675,7 +635,6 @@ router.post(
               "The selected dentist must have an appointment connection with the patient.",
               "Only one active dental record is allowed per patient per clinic.",
               "Archived records must be restored or a new record can be created only after the previous record is archived.",
-              "Dental assistants may create records only under dentists from their assigned clinic.",
             ],
           },
         };
@@ -723,7 +682,7 @@ router.post(
         user_id: req.user.user_id,
         action: "CREATE_DENTAL_RECORD",
         module: "Dental Records",
-        description: `${role} created dental record #${newRecord.rows[0].record_id} for patient ${policyCheck.patient.patient_name}. Source: ${cleanRecordSource}.`,
+        description: `Dentist created dental record #${newRecord.rows[0].record_id} for patient ${policyCheck.patient.patient_name}. Source: ${cleanRecordSource}.`,
         ip_address: req.ip,
       });
 
@@ -1215,11 +1174,11 @@ router.get(
   },
 );
 
-// DENTIST / ASSISTANT: ADD TOOTH TO DENTAL RECORD
+// DENTIST: ADD TOOTH TO DENTAL RECORD
 router.post(
   "/:record_id/teeth",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
+  authorizeRoles("Dentist"),
   async (req, res) => {
     const { record_id } = req.params;
     const { tooth_number, tooth_status, notes } = req.body || {};
@@ -1326,11 +1285,11 @@ router.post(
   },
 );
 
-// DENTIST / ASSISTANT: UPDATE TOOTH STATUS
+// DENTIST: UPDATE TOOTH STATUS
 router.put(
   "/teeth/:tooth_id",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
+  authorizeRoles("Dentist"),
   async (req, res) => {
     const { tooth_id } = req.params;
     const { tooth_status, notes } = req.body || {};
@@ -1428,11 +1387,11 @@ router.put(
   },
 );
 
-// DENTIST / ASSISTANT: REMOVE / RESET TOOTH STATUS
+// DENTIST: REMOVE / RESET TOOTH STATUS
 router.delete(
   "/teeth/:tooth_id/status",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
+  authorizeRoles("Dentist"),
   async (req, res) => {
     const { tooth_id } = req.params;
     const { notes } = req.body || {};
@@ -1518,11 +1477,11 @@ router.delete(
   },
 );
 
-// DENTIST / ASSISTANT: ADD TREATMENT TO TOOTH
+// DENTIST: ADD TREATMENT TO TOOTH
 router.post(
   "/teeth/:tooth_id/treatments",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
+  authorizeRoles("Dentist"),
   async (req, res) => {
     const { tooth_id } = req.params;
     const { procedure_type, description, treatment_date } = req.body || {};
@@ -1597,11 +1556,11 @@ router.post(
   },
 );
 
-// DENTIST / ASSISTANT: UPDATE TREATMENT
+// DENTIST: UPDATE TREATMENT
 router.put(
   "/treatments/:treatment_id",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Dental Assistant"),
+  authorizeRoles("Dentist"),
   async (req, res) => {
     const { treatment_id } = req.params;
     const { procedure_type, description, treatment_date } = req.body || {};
