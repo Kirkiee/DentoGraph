@@ -52,10 +52,6 @@ const RECORD_SOURCE_OPTIONS = [
     value: "SCANNED_OLD_RECORD",
     label: "Scanned Old Record",
   },
-  {
-    value: "PDA_BASED_RECORD",
-    label: "PDA-Based Record",
-  },
 ];
 
 function AssistantDentalRecordDetails() {
@@ -327,7 +323,7 @@ function AssistantDentalRecordDetails() {
   const getDocumentTypeLabel = (documentType) => {
     switch (documentType) {
       case "PDA_DENTAL_CHART":
-        return "PDA Dental Chart / Form";
+        return "Dental Chart / Form";
       case "OLD_DENTAL_RECORD":
         return "Old Dental Record";
       case "SCANNED_OLD_RECORD":
@@ -344,7 +340,12 @@ function AssistantDentalRecordDetails() {
       (option) => option.value === source,
     );
 
-    return match?.label || "New System Record";
+    return (
+      match?.label ||
+      (source === "PDA_BASED_RECORD"
+        ? "Imported / Old Record"
+        : "New System Record")
+    );
   };
 
   const getRecordSourceClass = (source) => {
@@ -951,7 +952,7 @@ function AssistantDentalRecordDetails() {
           <div>
             <h2>Dental Record Details</h2>
             <p>
-              View and assist with teeth, treatments, X-rays, documents, and 3D
+              View-only access for teeth, treatments, X-rays, documents, and 3D
               dental visualization connected to this dental record.
             </p>
           </div>
@@ -986,6 +987,15 @@ function AssistantDentalRecordDetails() {
 
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
+
+        {!loading && record && (
+          <div className="info-message">
+            <strong>Read-only mode:</strong> Dental assistants can view tooth
+            details, 3D chart, treatment history, X-rays, and documents. Editing
+            tooth statuses, adding treatments, uploading documents, and deleting
+            documents are disabled.
+          </div>
+        )}
 
         {loading ? (
           <p>Loading dental record details...</p>
@@ -1066,7 +1076,7 @@ function AssistantDentalRecordDetails() {
                 <div>
                   <h2>Teeth Overview</h2>
                   <p>
-                    Add valid FDI tooth numbers, update tooth status, or open
+                    View valid FDI tooth numbers, recorded tooth statuses, and
                     the 3D chart for a visual tooth map.
                   </p>
                 </div>
@@ -1075,14 +1085,6 @@ function AssistantDentalRecordDetails() {
                   className="appointment-actions"
                   style={{ flexDirection: "row" }}
                 >
-                  <button
-                    className="primary-button"
-                    onClick={openToothModal}
-                    disabled={availableToothNumbers.length === 0}
-                  >
-                    Add Tooth
-                  </button>
-
                   <button
                     className="secondary-button"
                     onClick={() =>
@@ -1098,8 +1100,8 @@ function AssistantDentalRecordDetails() {
                 <div className="empty-state">
                   <h3>No teeth added</h3>
                   <p>
-                    Add teeth manually or use the 3D view to select and update a
-                    tooth.
+                    No tooth status data has been added to this dental record
+                    yet.
                   </p>
                 </div>
               ) : (
@@ -1152,10 +1154,8 @@ function AssistantDentalRecordDetails() {
                             value={normalizeToothStatusValue(
                               tooth.tooth_status,
                             )}
-                            onChange={(e) =>
-                              handleUpdateToothStatus(tooth, e.target.value)
-                            }
-                            disabled={updatingTooth}
+                            disabled
+                            title="Read-only for dental assistants"
                           >
                             {TOOTH_STATUS_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
@@ -1171,25 +1171,6 @@ function AssistantDentalRecordDetails() {
                           >
                             View History
                           </button>
-
-                          <button
-                            className="secondary-button"
-                            onClick={() => openAddTreatmentModal(tooth)}
-                          >
-                            Add Treatment
-                          </button>
-
-                          <button
-                            className="danger-button"
-                            onClick={() => handleRemoveToothStatus(tooth)}
-                            disabled={
-                              updatingTooth ||
-                              normalizeToothStatusValue(tooth.tooth_status) ===
-                                "Sound"
-                            }
-                          >
-                            Remove Status
-                          </button>
                         </div>
                       </div>
                     );
@@ -1203,18 +1184,10 @@ function AssistantDentalRecordDetails() {
                 <div>
                   <h2>Treatment History</h2>
                   <p>
-                    View, add, and update procedures recorded under this dental
-                    record.
+                    View procedures recorded under this dental record. Adding
+                    and editing treatments are disabled for dental assistants.
                   </p>
                 </div>
-
-                <button
-                  className="primary-button"
-                  onClick={() => openAddTreatmentModal()}
-                  disabled={teeth.length === 0}
-                >
-                  Add Treatment
-                </button>
               </div>
 
               {treatments.length === 0 ? (
@@ -1253,15 +1226,6 @@ function AssistantDentalRecordDetails() {
                           {formatDate(treatment.treatment_date)}
                         </p>
                       </div>
-
-                      <div className="appointment-actions">
-                        <button
-                          className="secondary-button"
-                          onClick={() => openEditTreatmentModal(treatment)}
-                        >
-                          Edit Treatment
-                        </button>
-                      </div>
                     </div>
                   ))}
                 </div>
@@ -1271,27 +1235,11 @@ function AssistantDentalRecordDetails() {
             <div className="report-section">
               <div className="appointments-header">
                 <div>
-                  <h2>PDA / Old Records</h2>
+                  <h2>Patient Documents</h2>
                   <p>
-                    Upload and view PDA forms, old records, and scanned patient
-                    documents linked to this dental record.
+                    View old records and scanned patient documents linked to
+                    this dental record.
                   </p>
-                </div>
-
-                <div
-                  className="appointment-actions"
-                  style={{ flexDirection: "row" }}
-                >
-                  <button className="primary-button" onClick={openPdaModal}>
-                    Upload PDA Form
-                  </button>
-
-                  <button
-                    className="secondary-button"
-                    onClick={openOldRecordModal}
-                  >
-                    Upload Old Record
-                  </button>
                 </div>
               </div>
 
@@ -1301,7 +1249,7 @@ function AssistantDentalRecordDetails() {
                 <div className="empty-state">
                   <h3>No patient documents uploaded</h3>
                   <p>
-                    Uploaded PDA forms and scanned old records will appear here.
+                    Uploaded old records and scanned documents will appear here.
                   </p>
                 </div>
               ) : (

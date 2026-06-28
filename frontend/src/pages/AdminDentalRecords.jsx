@@ -1,7 +1,22 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
+
+const RECORD_SOURCE_OPTIONS = [
+  {
+    value: "NEW_SYSTEM_RECORD",
+    label: "New System Record",
+  },
+  {
+    value: "OLD_ENCODED_RECORD",
+    label: "Old Encoded Record",
+  },
+  {
+    value: "SCANNED_OLD_RECORD",
+    label: "Scanned Old Record",
+  },
+];
 
 function AdminDentalRecords() {
   const navigate = useNavigate();
@@ -9,6 +24,8 @@ function AdminDentalRecords() {
   const [records, setRecords] = useState([]);
   const [statusFilter, setStatusFilter] = useState("Active");
   const [searchTerm, setSearchTerm] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("newest");
 
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState(false);
@@ -50,19 +67,186 @@ function AdminDentalRecords() {
     }
   };
 
-  const filteredRecords = records.filter((record) => {
-    if (!searchTerm.trim()) return true;
+  const getRecordStatus = (record) => {
+    return record.status || "Active";
+  };
 
-    const term = searchTerm.toLowerCase();
+  const getStatusClass = (status) => {
+    switch (status) {
+      case "Archived":
+        return "status-badge status-cancelled";
+      case "Inactive":
+        return "status-badge status-pending";
+      case "Active":
+      default:
+        return "status-badge status-scheduled";
+    }
+  };
 
-    return (
-      String(record.record_id).includes(term) ||
-      record.patient_name?.toLowerCase().includes(term) ||
-      record.patient_email?.toLowerCase().includes(term) ||
-      record.dentist_name?.toLowerCase().includes(term) ||
-      record.clinic_name?.toLowerCase().includes(term)
+  const getRecordSourceLabel = (source) => {
+    if (source === "PDA_BASED_RECORD") {
+      return "Old / Imported Record";
+    }
+
+    const match = RECORD_SOURCE_OPTIONS.find(
+      (option) => option.value === source,
     );
-  });
+
+    return match?.label || "New System Record";
+  };
+
+  const getRecordSourceClass = (source) => {
+    switch (source) {
+      case "OLD_ENCODED_RECORD":
+        return "status-badge status-pending";
+      case "SCANNED_OLD_RECORD":
+        return "status-badge status-scheduled";
+      case "PDA_BASED_RECORD":
+        return "status-badge status-pending";
+      case "NEW_SYSTEM_RECORD":
+      default:
+        return "status-badge status-scheduled";
+    }
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return "N/A";
+    }
+
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const filteredAndSortedRecords = useMemo(() => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
+
+    let result = [...records];
+
+    if (sourceFilter !== "All") {
+      result = result.filter((record) => {
+        const source = record.record_source || "NEW_SYSTEM_RECORD";
+
+        if (sourceFilter === "OLD_IMPORTED") {
+          return (
+            source === "OLD_ENCODED_RECORD" ||
+            source === "SCANNED_OLD_RECORD" ||
+            source === "PDA_BASED_RECORD"
+          );
+        }
+
+        return source === sourceFilter;
+      });
+    }
+
+    if (cleanSearch) {
+      result = result.filter((record) => {
+        const searchableText = [
+          record.record_id,
+          record.patient_id,
+          record.patient_name,
+          record.patient_email,
+          record.dentist_id,
+          record.dentist_name,
+          record.clinic_name,
+          record.status,
+          record.record_source,
+          getRecordSourceLabel(record.record_source),
+          record.source_notes,
+          record.date_created,
+          record.last_updated,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return searchableText.includes(cleanSearch);
+      });
+    }
+
+    result.sort((a, b) => {
+      const patientA = (a.patient_name || "").toLowerCase();
+      const patientB = (b.patient_name || "").toLowerCase();
+
+      const dentistA = (a.dentist_name || "").toLowerCase();
+      const dentistB = (b.dentist_name || "").toLowerCase();
+
+      const clinicA = (a.clinic_name || "").toLowerCase();
+      const clinicB = (b.clinic_name || "").toLowerCase();
+
+      const createdA = a.date_created ? new Date(a.date_created).getTime() : 0;
+      const createdB = b.date_created ? new Date(b.date_created).getTime() : 0;
+
+      const updatedA = a.last_updated ? new Date(a.last_updated).getTime() : 0;
+      const updatedB = b.last_updated ? new Date(b.last_updated).getTime() : 0;
+
+      switch (sortBy) {
+        case "oldest":
+          return createdA - createdB;
+        case "updated":
+          return updatedB - updatedA;
+        case "patient-az":
+          return patientA.localeCompare(patientB);
+        case "patient-za":
+          return patientB.localeCompare(patientA);
+        case "dentist-az":
+          return dentistA.localeCompare(dentistB);
+        case "dentist-za":
+          return dentistB.localeCompare(dentistA);
+        case "clinic-az":
+          return clinicA.localeCompare(clinicB);
+        case "clinic-za":
+          return clinicB.localeCompare(clinicA);
+        case "newest":
+        default:
+          return createdB - createdA;
+      }
+    });
+
+    return result;
+  }, [records, searchTerm, sourceFilter, sortBy]);
+
+  const activeCount = records.filter(
+    (record) => getRecordStatus(record) === "Active",
+  ).length;
+
+  const archivedCount = records.filter(
+    (record) => getRecordStatus(record) === "Archived",
+  ).length;
+
+  const shownCount = filteredAndSortedRecords.length;
+
+  const recordCountText = () => {
+    if (loading) return "Loading records...";
+
+    if (records.length === 0) {
+      return "No dental records found.";
+    }
+
+    if (shownCount === records.length) {
+      return `${records.length} dental record${
+        records.length === 1 ? "" : "s"
+      } found.`;
+    }
+
+    return `${shownCount} of ${records.length} dental records shown.`;
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSourceFilter("All");
+    setSortBy("newest");
+  };
 
   const openRestoreModal = (record) => {
     setSelectedRecord(record);
@@ -105,23 +289,6 @@ function AdminDentalRecords() {
     }
   };
 
-  const getStatusClass = (status) => {
-    switch (status) {
-      case "Archived":
-        return "status-badge status-cancelled";
-      case "Active":
-      default:
-        return "status-badge status-scheduled";
-    }
-  };
-
-  const activeCount = records.filter(
-    (record) => record.status === "Active",
-  ).length;
-  const archivedCount = records.filter(
-    (record) => record.status === "Archived",
-  ).length;
-
   return (
     <DashboardLayout role="Admin">
       <div className="appointments-list-card">
@@ -129,8 +296,7 @@ function AdminDentalRecords() {
           <div>
             <h2>Dental Records Management</h2>
             <p>
-              View active and archived dental records. Restore archived records
-              when needed.
+              View, search, filter, sort, and restore archived dental records.
             </p>
           </div>
 
@@ -149,7 +315,7 @@ function AdminDentalRecords() {
         <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
           <div className="dashboard-card">
             <h3>Listed Records</h3>
-            <strong>{filteredRecords.length}</strong>
+            <strong>{shownCount}</strong>
           </div>
 
           <div className="dashboard-card">
@@ -175,7 +341,8 @@ function AdminDentalRecords() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search record ID, patient, dentist, clinic, or email"
+              placeholder="Search record ID, patient, dentist, clinic, email, or source"
+              disabled={loading}
             />
           </div>
 
@@ -184,24 +351,81 @@ function AdminDentalRecords() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
+              disabled={loading}
             >
               <option value="Active">Active</option>
               <option value="Archived">Archived</option>
               <option value="All">All</option>
             </select>
           </div>
+
+          <div className="form-group">
+            <label>Record Source</label>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              disabled={loading}
+            >
+              <option value="All">All Sources</option>
+              <option value="NEW_SYSTEM_RECORD">New System Record</option>
+              <option value="OLD_IMPORTED">Old / Imported Records</option>
+              <option value="OLD_ENCODED_RECORD">Old Encoded Record</option>
+              <option value="SCANNED_OLD_RECORD">Scanned Old Record</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Sort By</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              disabled={loading}
+            >
+              <option value="newest">Newest Created</option>
+              <option value="oldest">Oldest Created</option>
+              <option value="updated">Recently Updated</option>
+              <option value="patient-az">Patient A-Z</option>
+              <option value="patient-za">Patient Z-A</option>
+              <option value="dentist-az">Dentist A-Z</option>
+              <option value="dentist-za">Dentist Z-A</option>
+              <option value="clinic-az">Clinic A-Z</option>
+              <option value="clinic-za">Clinic Z-A</option>
+            </select>
+          </div>
         </div>
+
+        <div
+          className="appointment-actions"
+          style={{ flexDirection: "row", marginBottom: "16px" }}
+        >
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={clearFilters}
+            disabled={
+              loading ||
+              (!searchTerm && sourceFilter === "All" && sortBy === "newest")
+            }
+          >
+            Clear Search / Sort
+          </button>
+        </div>
+
+        <div className="info-message">{recordCountText()}</div>
 
         {loading ? (
           <p>Loading dental records...</p>
-        ) : filteredRecords.length === 0 ? (
+        ) : filteredAndSortedRecords.length === 0 ? (
           <div className="empty-state">
             <h3>No dental records found</h3>
-            <p>Dental records matching the selected filter will appear here.</p>
+            <p>
+              Dental records matching the selected search, filter, or sorting
+              options will appear here.
+            </p>
           </div>
         ) : (
           <div className="appointments-list">
-            {filteredRecords.map((record) => (
+            {filteredAndSortedRecords.map((record) => (
               <div className="appointment-item" key={record.record_id}>
                 <div className="appointment-info">
                   <div className="appointment-title-row">
@@ -223,6 +447,21 @@ function AdminDentalRecords() {
                   </p>
 
                   <p>
+                    <strong>Record Source:</strong>{" "}
+                    <span
+                      className={getRecordSourceClass(record.record_source)}
+                    >
+                      {getRecordSourceLabel(record.record_source)}
+                    </span>
+                  </p>
+
+                  {record.source_notes && (
+                    <p>
+                      <strong>Source Notes:</strong> {record.source_notes}
+                    </p>
+                  )}
+
+                  <p>
                     <strong>Dentist:</strong>{" "}
                     {record.dentist_name || `Dentist ID ${record.dentist_id}`}
                   </p>
@@ -234,16 +473,12 @@ function AdminDentalRecords() {
 
                   <p>
                     <strong>Date Created:</strong>{" "}
-                    {record.date_created
-                      ? new Date(record.date_created).toLocaleString()
-                      : "N/A"}
+                    {formatDate(record.date_created)}
                   </p>
 
                   <p>
                     <strong>Last Updated:</strong>{" "}
-                    {record.last_updated
-                      ? new Date(record.last_updated).toLocaleString()
-                      : "N/A"}
+                    {formatDate(record.last_updated)}
                   </p>
                 </div>
 
@@ -326,6 +561,24 @@ function AdminDentalRecords() {
                     selectedRecord?.dentist_name ||
                     `Dentist ID ${selectedRecord?.dentist_id || ""}`
                   }
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Clinic</label>
+                <input
+                  type="text"
+                  value={selectedRecord?.clinic_name || "No assigned clinic"}
+                  disabled
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Record Source</label>
+                <input
+                  type="text"
+                  value={getRecordSourceLabel(selectedRecord?.record_source)}
                   disabled
                 />
               </div>
