@@ -17,17 +17,6 @@ const CHILD_UPPER_NUMBERS = [55, 54, 53, 52, 51, 61, 62, 63, 64, 65];
 
 const CHILD_LOWER_NUMBERS = [85, 84, 83, 82, 81, 71, 72, 73, 74, 75];
 
-const TOOTH_STATUS_OPTIONS = [
-  { value: "Sound", label: "Sound / Normal" },
-  { value: "Caries", label: "Caries / Decayed" },
-  { value: "Filled", label: "Filled / Restored" },
-  { value: "Missing", label: "Missing / Extracted" },
-  { value: "Crown", label: "Crown" },
-  { value: "Impacted", label: "Impacted" },
-  { value: "Root Canal Treated", label: "Root Canal Treated" },
-  { value: "For Extraction", label: "For Extraction" },
-];
-
 function ToothModel({
   tooth,
   position,
@@ -331,18 +320,11 @@ function AssistantDental3DViewer() {
   const [selectedTooth, setSelectedTooth] = useState(null);
 
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
 
-  const [newStatus, setNewStatus] = useState("Sound");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showReasonModal, setShowReasonModal] = useState(false);
-  const [reasonMode, setReasonMode] = useState("update");
-  const [reasonText, setReasonText] = useState("");
-  const [pendingStatus, setPendingStatus] = useState(null);
-  const [reasonError, setReasonError] = useState("");
 
   const token = localStorage.getItem("token");
 
@@ -358,9 +340,7 @@ function AssistantDental3DViewer() {
   }, [record_id]);
 
   useEffect(() => {
-    const isAnyModalOpen = showHistoryModal || showReasonModal;
-
-    if (isAnyModalOpen) {
+    if (showHistoryModal) {
       document.body.classList.add("modal-open");
     } else {
       document.body.classList.remove("modal-open");
@@ -369,7 +349,7 @@ function AssistantDental3DViewer() {
     return () => {
       document.body.classList.remove("modal-open");
     };
-  }, [showHistoryModal, showReasonModal]);
+  }, [showHistoryModal]);
 
   const normalizeToothStatus = (status) => {
     switch (status) {
@@ -414,6 +394,7 @@ function AssistantDental3DViewer() {
     try {
       setLoading(true);
       setError("");
+      setMessage("");
 
       const response = await API.get(
         `/api/dental-records/${record_id}`,
@@ -431,14 +412,11 @@ function AssistantDental3DViewer() {
       setSelectedTooth((prev) => {
         if (!prev) return prev;
 
-        const updatedSelected =
+        return (
           fetchedTeeth.find(
             (tooth) => Number(tooth.tooth_number) === Number(prev.tooth_number),
-          ) || prev;
-
-        setNewStatus(normalizeToothStatus(updatedSelected.tooth_status));
-
-        return updatedSelected;
+          ) || prev
+        );
       });
     } catch (err) {
       setError(
@@ -458,7 +436,14 @@ function AssistantDental3DViewer() {
       return "N/A";
     }
 
-    return date.toLocaleString();
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const getToothHistory = (toothNumber) => {
@@ -493,29 +478,6 @@ function AssistantDental3DViewer() {
     setShowHistoryModal(false);
   };
 
-  const openReasonModal = (mode, statusValue = null) => {
-    if (!selectedTooth) {
-      setError("Please select a tooth first.");
-      return;
-    }
-
-    setReasonMode(mode);
-    setPendingStatus(statusValue);
-    setReasonText("");
-    setReasonError("");
-    setShowReasonModal(true);
-  };
-
-  const closeReasonModal = () => {
-    if (updating) return;
-
-    setShowReasonModal(false);
-    setReasonMode("update");
-    setReasonText("");
-    setPendingStatus(null);
-    setReasonError("");
-  };
-
   const getDentitionType = () => {
     return record?.dentition_type === "Child" ? "Child" : "Adult";
   };
@@ -538,153 +500,8 @@ function AssistantDental3DViewer() {
 
   const handleSelectTooth = (tooth) => {
     setSelectedTooth(tooth);
-    setNewStatus(normalizeToothStatus(tooth.tooth_status));
     setMessage("");
     setError("");
-  };
-
-  const handleUpdateToothStatus = (e) => {
-    e.preventDefault();
-
-    if (!selectedTooth) {
-      setError("Please select a tooth first.");
-      return;
-    }
-
-    const oldStatus = normalizeToothStatus(selectedTooth.tooth_status);
-
-    if (oldStatus === newStatus) {
-      setMessage("No status change detected.");
-      return;
-    }
-
-    openReasonModal("update", newStatus);
-  };
-
-  const handleRemoveToothStatus = () => {
-    if (!selectedTooth) {
-      setError("Please select a tooth first.");
-      return;
-    }
-
-    if (!selectedTooth.tooth_id) {
-      setMessage("This tooth is already Sound / Normal.");
-      return;
-    }
-
-    const currentStatus = normalizeToothStatus(selectedTooth.tooth_status);
-
-    if (currentStatus === "Sound") {
-      setMessage("This tooth is already Sound / Normal.");
-      return;
-    }
-
-    openReasonModal("remove", "Sound");
-  };
-
-  const handleConfirmReasonAction = async (e) => {
-    e.preventDefault();
-
-    if (!selectedTooth) {
-      setReasonError("Please select a tooth first.");
-      return;
-    }
-
-    const cleanReason = reasonText.trim();
-
-    if (!cleanReason) {
-      setReasonError("Please enter a reason or notes for this change.");
-      return;
-    }
-
-    try {
-      setUpdating(true);
-      setMessage("");
-      setError("");
-      setReasonError("");
-
-      let toothId = selectedTooth.tooth_id;
-
-      if (reasonMode === "update") {
-        if (!toothId) {
-          const createResponse = await API.post(
-            `/api/dental-records/${record_id}/teeth`,
-            {
-              tooth_number: selectedTooth.tooth_number,
-              tooth_status: pendingStatus,
-              notes: cleanReason,
-            },
-            authHeaders,
-          );
-
-          toothId = createResponse.data.tooth.tooth_id;
-        } else {
-          await API.put(
-            `/api/dental-records/teeth/${toothId}`,
-            {
-              tooth_status: pendingStatus,
-              notes: cleanReason,
-            },
-            authHeaders,
-          );
-        }
-
-        setMessage(
-          `Tooth #${selectedTooth.tooth_number} updated successfully.`,
-        );
-
-        await fetchRecordDetails();
-
-        setSelectedTooth((prev) => ({
-          ...prev,
-          tooth_id: toothId,
-          tooth_status: pendingStatus,
-        }));
-
-        setNewStatus(pendingStatus);
-      }
-
-      if (reasonMode === "remove") {
-        if (!toothId) {
-          setReasonError("This tooth has no saved status to remove.");
-          return;
-        }
-
-        await API.delete(
-          `/api/dental-records/teeth/${selectedTooth.tooth_id}/status`,
-          {
-            ...authHeaders,
-            data: {
-              notes: cleanReason,
-            },
-          },
-        );
-
-        setMessage(
-          `Tooth #${selectedTooth.tooth_number} status removed/reset.`,
-        );
-
-        await fetchRecordDetails();
-
-        setSelectedTooth((prev) => ({
-          ...prev,
-          tooth_status: "Sound",
-        }));
-
-        setNewStatus("Sound");
-      }
-
-      closeReasonModal();
-    } catch (err) {
-      setReasonError(
-        err.response?.data?.error ||
-          (reasonMode === "remove"
-            ? "Unable to remove tooth status."
-            : "Unable to update tooth status."),
-      );
-    } finally {
-      setUpdating(false);
-    }
   };
 
   const getStatusDescription = (status) => {
@@ -731,7 +548,8 @@ function AssistantDental3DViewer() {
           <div>
             <h2>3D Dental Visualization</h2>
             <p>
-              View and update tooth status using an interactive 3D dental chart.
+              View tooth status using an interactive 3D dental chart. Editing is
+              disabled for dental assistants.
             </p>
           </div>
 
@@ -766,6 +584,10 @@ function AssistantDental3DViewer() {
         ) : (
           <>
             <div className="info-message">
+              <strong>Read-only mode:</strong> Dental assistants can view the 3D
+              tooth chart and treatment information, but cannot change tooth
+              statuses or remove records.
+              <br />
               <strong>Patient Type:</strong> {getDentitionLabel()} <br />
               <strong>Tooth Numbering:</strong> {getToothGuideText()}
             </div>
@@ -839,62 +661,29 @@ function AssistantDental3DViewer() {
                       </div>
                     )}
 
-                    <form
-                      className="appointment-form"
-                      onSubmit={handleUpdateToothStatus}
+                    <div className="info-message">
+                      <strong>Assistant Access:</strong> View only. Tooth status
+                      editing is restricted to dentists and administrators.
+                    </div>
+
+                    <div
+                      className="appointment-actions"
+                      style={{ flexDirection: "row", flexWrap: "wrap" }}
                     >
-                      <div className="form-group">
-                        <label>Update Tooth Status</label>
-                        <select
-                          value={newStatus}
-                          onChange={(e) => setNewStatus(e.target.value)}
-                        >
-                          {TOOTH_STATUS_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div
-                        className="appointment-actions"
-                        style={{ flexDirection: "row", flexWrap: "wrap" }}
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={openHistoryModal}
+                        disabled={selectedToothHistory.length === 0}
                       >
-                        <button
-                          type="submit"
-                          className="primary-button"
-                          disabled={updating}
-                        >
-                          {updating ? "Saving..." : "Save Status"}
-                        </button>
-
-                        <button
-                          type="button"
-                          className="secondary-button"
-                          onClick={openHistoryModal}
-                          disabled={selectedToothHistory.length === 0}
-                        >
-                          View History
-                        </button>
-
-                        <button
-                          type="button"
-                          className="danger-button"
-                          onClick={handleRemoveToothStatus}
-                          disabled={
-                            updating || currentSelectedStatus === "Sound"
-                          }
-                        >
-                          Remove Status
-                        </button>
-                      </div>
-                    </form>
+                        View History
+                      </button>
+                    </div>
                   </>
                 ) : (
                   <div className="empty-state">
                     <h3>No tooth selected</h3>
-                    <p>Click a tooth in the 3D chart to view or update it.</p>
+                    <p>Click a tooth in the 3D chart to view its status.</p>
                   </div>
                 )}
 
@@ -1006,99 +795,6 @@ function AssistantDental3DViewer() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showReasonModal && selectedTooth && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <div className="modal-header">
-              <div>
-                <h3>
-                  {reasonMode === "remove"
-                    ? "Remove Tooth Status"
-                    : "Reason for Tooth Status Change"}
-                </h3>
-                <p>
-                  Add a note so this change is properly documented in the tooth
-                  history.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="modal-close-button"
-                onClick={closeReasonModal}
-                disabled={updating}
-              >
-                ×
-              </button>
-            </div>
-
-            <form className="modal-form" onSubmit={handleConfirmReasonAction}>
-              {reasonError && (
-                <div className="error-message">{reasonError}</div>
-              )}
-
-              <div className="info-message">
-                <strong>Tooth:</strong> #{selectedTooth.tooth_number}
-                <br />
-                <strong>Action:</strong>{" "}
-                {reasonMode === "remove" ? "Status Removed" : "Status Update"}
-                <br />
-                <strong>From:</strong>{" "}
-                {normalizeToothStatusLabel(selectedTooth.tooth_status)}
-                <br />
-                <strong>To:</strong>{" "}
-                {normalizeToothStatusLabel(
-                  reasonMode === "remove" ? "Sound" : pendingStatus,
-                )}
-              </div>
-
-              <div className="form-group">
-                <label>Reason / Notes</label>
-                <textarea
-                  value={reasonText}
-                  onChange={(e) => {
-                    setReasonText(e.target.value);
-                    setReasonError("");
-                  }}
-                  placeholder={
-                    reasonMode === "remove"
-                      ? "Example: Previous status was added incorrectly and verified during examination."
-                      : "Example: Restoration was completed during today's visit."
-                  }
-                  rows="4"
-                  autoFocus
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={closeReasonModal}
-                  disabled={updating}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className={
-                    reasonMode === "remove" ? "danger-button" : "primary-button"
-                  }
-                  disabled={updating}
-                >
-                  {updating
-                    ? "Saving..."
-                    : reasonMode === "remove"
-                      ? "Confirm Remove"
-                      : "Confirm Change"}
-                </button>
-              </div>
-            </form>
           </div>
         </div>
       )}

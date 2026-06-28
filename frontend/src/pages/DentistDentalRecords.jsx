@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
@@ -18,11 +18,6 @@ const RECORD_SOURCE_OPTIONS = [
     value: "SCANNED_OLD_RECORD",
     label: "Scanned Old Record",
     description: "Record based on uploaded or scanned previous clinic records.",
-  },
-  {
-    value: "PDA_BASED_RECORD",
-    label: "PDA-Based Record",
-    description: "Record created using the PDA dental chart/form as basis.",
   },
 ];
 
@@ -61,6 +56,11 @@ function DentistDentalRecords() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [policyError, setPolicyError] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sourceFilter, setSourceFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("newest");
 
   const token = localStorage.getItem("token");
 
@@ -118,6 +118,10 @@ function DentistDentalRecords() {
   };
 
   const getRecordSourceLabel = (source) => {
+    if (source === "PDA_BASED_RECORD") {
+      return "Old / Imported Record";
+    }
+
     const match = RECORD_SOURCE_OPTIONS.find(
       (option) => option.value === source,
     );
@@ -126,6 +130,10 @@ function DentistDentalRecords() {
   };
 
   const getRecordSourceDescription = (source) => {
+    if (source === "PDA_BASED_RECORD") {
+      return "Record imported from a previous clinic document.";
+    }
+
     const match = RECORD_SOURCE_OPTIONS.find(
       (option) => option.value === source,
     );
@@ -140,11 +148,46 @@ function DentistDentalRecords() {
       case "SCANNED_OLD_RECORD":
         return "status-badge status-scheduled";
       case "PDA_BASED_RECORD":
-        return "status-badge status-completed";
+        return "status-badge status-pending";
       case "NEW_SYSTEM_RECORD":
       default:
         return "status-badge status-scheduled";
     }
+  };
+
+  const getRecordStatus = (record) => {
+    return record.status || "Active";
+  };
+
+  const getRecordStatusClass = (status) => {
+    switch (status) {
+      case "Archived":
+        return "status-badge status-cancelled";
+      case "Inactive":
+        return "status-badge status-pending";
+      case "Active":
+      default:
+        return "status-badge status-scheduled";
+    }
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return "N/A";
+    }
+
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const selectedPatient = patients.find(
@@ -266,26 +309,107 @@ function DentistDentalRecords() {
     }
   };
 
-  const getRecordStatusClass = (status) => {
-    switch (status) {
-      case "Archived":
-        return "status-badge status-cancelled";
-      case "Active":
-      default:
-        return "status-badge status-scheduled";
-    }
-  };
+  const filteredAndSortedRecords = useMemo(() => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
 
-  const formatDate = (dateValue) => {
-    if (!dateValue) return "N/A";
+    let result = [...records];
 
-    const date = new Date(dateValue);
-
-    if (Number.isNaN(date.getTime())) {
-      return "N/A";
+    if (statusFilter !== "All") {
+      result = result.filter(
+        (record) => getRecordStatus(record) === statusFilter,
+      );
     }
 
-    return date.toLocaleString();
+    if (sourceFilter !== "All") {
+      result = result.filter((record) => {
+        const source = record.record_source || "NEW_SYSTEM_RECORD";
+
+        if (sourceFilter === "OLD_IMPORTED") {
+          return (
+            source === "OLD_ENCODED_RECORD" ||
+            source === "SCANNED_OLD_RECORD" ||
+            source === "PDA_BASED_RECORD"
+          );
+        }
+
+        return source === sourceFilter;
+      });
+    }
+
+    if (cleanSearch) {
+      result = result.filter((record) => {
+        const searchableText = [
+          record.record_id,
+          record.patient_id,
+          record.patient_name,
+          record.patient_email,
+          record.dentition_type,
+          record.dentist_id,
+          record.dentist_name,
+          record.clinic_name,
+          getRecordSourceLabel(record.record_source),
+          record.source_notes,
+          record.status,
+          record.date_created,
+          record.last_updated,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return searchableText.includes(cleanSearch);
+      });
+    }
+
+    result.sort((a, b) => {
+      const patientA = (a.patient_name || "").toLowerCase();
+      const patientB = (b.patient_name || "").toLowerCase();
+
+      const dentistA = (a.dentist_name || "").toLowerCase();
+      const dentistB = (b.dentist_name || "").toLowerCase();
+
+      const createdA = a.date_created ? new Date(a.date_created).getTime() : 0;
+      const createdB = b.date_created ? new Date(b.date_created).getTime() : 0;
+
+      const updatedA = a.last_updated ? new Date(a.last_updated).getTime() : 0;
+      const updatedB = b.last_updated ? new Date(b.last_updated).getTime() : 0;
+
+      switch (sortBy) {
+        case "oldest":
+          return createdA - createdB;
+        case "updated":
+          return updatedB - updatedA;
+        case "patient-az":
+          return patientA.localeCompare(patientB);
+        case "patient-za":
+          return patientB.localeCompare(patientA);
+        case "dentist-az":
+          return dentistA.localeCompare(dentistB);
+        case "dentist-za":
+          return dentistB.localeCompare(dentistA);
+        case "newest":
+        default:
+          return createdB - createdA;
+      }
+    });
+
+    return result;
+  }, [records, searchTerm, statusFilter, sourceFilter, sortBy]);
+
+  const recordCountText = () => {
+    if (loading) return "Loading records...";
+
+    if (records.length === 0) {
+      return "No dental records found.";
+    }
+
+    if (filteredAndSortedRecords.length === records.length) {
+      return `${records.length} dental record${
+        records.length === 1 ? "" : "s"
+      } found.`;
+    }
+
+    return `${filteredAndSortedRecords.length} of ${records.length} dental records shown.`;
   };
 
   return (
@@ -295,8 +419,8 @@ function DentistDentalRecords() {
           <h2>Create Dental Record</h2>
           <p>
             Select a patient to create a new dental record. This record can
-            later contain tooth details, treatments, X-rays, old records, PDA
-            forms, and clinical notes.
+            later contain tooth details, treatments, X-rays, previous records,
+            uploaded documents, and clinical notes.
           </p>
 
           <div className="info-message" style={{ marginBottom: "16px" }}>
@@ -449,9 +573,7 @@ function DentistDentalRecords() {
                     ? "Example: New dental record created after today's consultation."
                     : recordSource === "OLD_ENCODED_RECORD"
                       ? "Example: Manually encoded from the patient's previous paper record."
-                      : recordSource === "SCANNED_OLD_RECORD"
-                        ? "Example: Based on scanned old record uploaded by clinic staff."
-                        : "Example: Created using PDA dental chart/form as reference."
+                      : "Example: Based on scanned old record uploaded by clinic staff."
                 }
                 rows="4"
               />
@@ -472,8 +594,8 @@ function DentistDentalRecords() {
             <div>
               <h2>Dental Records</h2>
               <p>
-                View dental records created for patients under your assigned
-                dentist account.
+                View, search, filter, and sort dental records created for
+                patients under your assigned dentist account.
               </p>
             </div>
 
@@ -486,6 +608,67 @@ function DentistDentalRecords() {
             </button>
           </div>
 
+          <div className="appointment-filters">
+            <div className="form-group">
+              <label>Search Records</label>
+              <input
+                type="text"
+                placeholder="Search by patient, dentist, clinic, record ID, or notes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                disabled={loading}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Archived">Archived</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Record Source</label>
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                disabled={loading}
+              >
+                <option value="All">All Sources</option>
+                <option value="NEW_SYSTEM_RECORD">New System Record</option>
+                <option value="OLD_IMPORTED">Old / Imported Records</option>
+                <option value="OLD_ENCODED_RECORD">Old Encoded Record</option>
+                <option value="SCANNED_OLD_RECORD">Scanned Old Record</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Sort By</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                disabled={loading}
+              >
+                <option value="newest">Newest Created</option>
+                <option value="oldest">Oldest Created</option>
+                <option value="updated">Recently Updated</option>
+                <option value="patient-az">Patient A-Z</option>
+                <option value="patient-za">Patient Z-A</option>
+                <option value="dentist-az">Dentist A-Z</option>
+                <option value="dentist-za">Dentist Z-A</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="info-message">{recordCountText()}</div>
+
           {loading ? (
             <p>Loading dental records...</p>
           ) : records.length === 0 ? (
@@ -493,9 +676,17 @@ function DentistDentalRecords() {
               <h3>No dental records yet</h3>
               <p>Created patient dental records will appear here.</p>
             </div>
+          ) : filteredAndSortedRecords.length === 0 ? (
+            <div className="empty-state">
+              <h3>No matching dental records</h3>
+              <p>
+                Try changing your search, filter, or sorting options to view
+                more records.
+              </p>
+            </div>
           ) : (
             <div className="appointments-list">
-              {records.map((record) => (
+              {filteredAndSortedRecords.map((record) => (
                 <div className="appointment-item" key={record.record_id}>
                   <div className="appointment-info">
                     <div className="appointment-title-row">
@@ -564,7 +755,9 @@ function DentistDentalRecords() {
 
                     <button
                       className="danger-button"
-                      disabled={archiving}
+                      disabled={
+                        archiving || getRecordStatus(record) === "Archived"
+                      }
                       onClick={() => openArchiveModal(record)}
                     >
                       Archive

@@ -21,6 +21,11 @@ function ClinicOwnerStaff() {
 
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [selectedStaff, setSelectedStaff] = useState(null);
+  const [selectedStatus, setSelectedStatus] = useState("Active");
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -103,6 +108,58 @@ function ClinicOwnerStaff() {
     }
   };
 
+  const openStatusModal = (person) => {
+    setSelectedStaff(person);
+    setSelectedStatus(person.status || "Active");
+    setMessage("");
+    setError("");
+    setShowStatusModal(true);
+  };
+
+  const closeStatusModal = () => {
+    if (updatingStatus) return;
+
+    setShowStatusModal(false);
+    setSelectedStaff(null);
+    setSelectedStatus("Active");
+  };
+
+  const handleUpdateStatus = async (e) => {
+    e.preventDefault();
+
+    if (!selectedStaff) {
+      setError("No staff member selected.");
+      return;
+    }
+
+    try {
+      setUpdatingStatus(true);
+      setMessage("");
+      setError("");
+
+      const response = await API.put(
+        `/api/users/clinic-owner/staff/${selectedStaff.user_id}/status`,
+        {
+          status: selectedStatus,
+        },
+      );
+
+      setMessage(
+        response.data.message ||
+          `${selectedStaff.name}'s account status updated successfully.`,
+      );
+
+      closeStatusModal();
+      fetchStaff();
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Unable to update staff account status.",
+      );
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   const getRoleLabel = (person) => {
     if (person.role_name === "Dentist") return "Dentist";
     return "Dental Assistant";
@@ -120,6 +177,16 @@ function ClinicOwnerStaff() {
     );
   };
 
+  const getStatusClass = (status) => {
+    switch (status) {
+      case "Inactive":
+        return "status-badge status-cancelled";
+      case "Active":
+      default:
+        return "status-badge status-scheduled";
+    }
+  };
+
   const formatDate = (dateValue) => {
     if (!dateValue) return "N/A";
 
@@ -127,7 +194,14 @@ function ClinicOwnerStaff() {
 
     if (Number.isNaN(date.getTime())) return "N/A";
 
-    return date.toLocaleString();
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   return (
@@ -135,6 +209,7 @@ function ClinicOwnerStaff() {
       <div className="appointments-layout">
         <div className="appointment-form-card">
           <h2>Add Clinic Staff</h2>
+
           <p>
             Create dentist or dental assistant accounts under your clinic.
             Account limits follow your current subscription plan.
@@ -257,7 +332,7 @@ function ClinicOwnerStaff() {
               <h2>Clinic Staff</h2>
               <p>
                 Dentists and dental assistants currently assigned to your
-                clinic.
+                clinic. You can activate or deactivate staff accounts.
               </p>
             </div>
 
@@ -307,7 +382,10 @@ function ClinicOwnerStaff() {
                     </p>
 
                     <p>
-                      <strong>Status:</strong> {person.status || "Active"}
+                      <strong>Status:</strong>{" "}
+                      <span className={getStatusClass(person.status)}>
+                        {person.status || "Active"}
+                      </span>
                     </p>
 
                     <p>
@@ -331,12 +409,99 @@ function ClinicOwnerStaff() {
                       {formatDate(person.created_at)}
                     </p>
                   </div>
+
+                  <div className="appointment-actions">
+                    <button
+                      className={
+                        person.status === "Inactive"
+                          ? "primary-button"
+                          : "danger-button"
+                      }
+                      onClick={() => openStatusModal(person)}
+                      disabled={updatingStatus}
+                    >
+                      {person.status === "Inactive" ? "Activate" : "Deactivate"}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {showStatusModal && selectedStaff && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <div>
+                <h3>Update Staff Status</h3>
+                <p>
+                  Change the account status for this staff member. Inactive
+                  users should not be able to access the system.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close-button"
+                onClick={closeStatusModal}
+                disabled={updatingStatus}
+              >
+                ×
+              </button>
+            </div>
+
+            <form className="modal-form" onSubmit={handleUpdateStatus}>
+              <div className="info-message">
+                <strong>Staff:</strong> {selectedStaff.name}
+                <br />
+                <strong>Email:</strong> {selectedStaff.email}
+                <br />
+                <strong>Role:</strong> {getRoleLabel(selectedStaff)}
+                <br />
+                <strong>Current Status:</strong>{" "}
+                {selectedStaff.status || "Active"}
+              </div>
+
+              <div className="form-group">
+                <label>New Status</label>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  required
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={closeStatusModal}
+                  disabled={updatingStatus}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className={
+                    selectedStatus === "Inactive"
+                      ? "danger-button"
+                      : "primary-button"
+                  }
+                  disabled={updatingStatus}
+                >
+                  {updatingStatus ? "Saving..." : "Update Status"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

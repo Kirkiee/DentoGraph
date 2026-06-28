@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate } from "react-router-dom";
@@ -19,47 +19,21 @@ const RECORD_SOURCE_OPTIONS = [
     label: "Scanned Old Record",
     description: "Record based on uploaded or scanned previous clinic records.",
   },
-  {
-    value: "PDA_BASED_RECORD",
-    label: "PDA-Based Record",
-    description: "Record created using the PDA dental chart/form as basis.",
-  },
 ];
-
-const formatSubscriptionError = (errorMessage, fallbackMessage) => {
-  const backendError = errorMessage || fallbackMessage;
-  const lowerError = backendError.toLowerCase();
-
-  if (
-    lowerError.includes("limit") ||
-    lowerError.includes("subscription") ||
-    lowerError.includes("storage")
-  ) {
-    return `${backendError} Please ask the Clinic Owner to upgrade the clinic subscription.`;
-  }
-
-  return backendError;
-};
 
 function AssistantDentalRecords() {
   const navigate = useNavigate();
 
   const [records, setRecords] = useState([]);
-  const [patients, setPatients] = useState([]);
-  const [dentists, setDentists] = useState([]);
-
-  const [selectedPatientId, setSelectedPatientId] = useState("");
-  const [selectedDentistId, setSelectedDentistId] = useState("");
-
-  const [recordSource, setRecordSource] = useState("NEW_SYSTEM_RECORD");
-  const [sourceNotes, setSourceNotes] = useState("");
-
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [policyError, setPolicyError] = useState(null);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sourceFilter, setSourceFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("newest");
 
   const token = localStorage.getItem("token");
 
@@ -71,8 +45,6 @@ function AssistantDentalRecords() {
 
   useEffect(() => {
     fetchRecords();
-    fetchPatients();
-    fetchDentists();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -80,45 +52,15 @@ function AssistantDentalRecords() {
     try {
       setLoading(true);
       setError("");
-      setPolicyError(null);
+      setMessage("");
 
       const response = await API.get("/api/dental-records", authHeaders);
+
       setRecords(response.data.dental_records || []);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load dental records.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const fetchPatients = async () => {
-    try {
-      const response = await API.get(
-        "/api/dental-records/patients/list",
-        authHeaders,
-      );
-
-      setPatients(response.data.patients || []);
-    } catch (err) {
-      console.error("Fetch patients error:", err);
-    }
-  };
-
-  const fetchDentists = async () => {
-    try {
-      const response = await API.get(
-        "/api/dental-records/dentists/list",
-        authHeaders,
-      );
-
-      const fetchedDentists = response.data.dentists || [];
-      setDentists(fetchedDentists);
-
-      if (fetchedDentists.length === 1) {
-        setSelectedDentistId(String(fetchedDentists[0].dentist_id));
-      }
-    } catch (err) {
-      console.error("Fetch dentists error:", err);
     }
   };
 
@@ -129,21 +71,11 @@ function AssistantDentalRecords() {
     return "Dentition type not set";
   };
 
-  const getPatientOptionLabel = (patient) => {
-    const dentitionLabel = getPatientDentitionLabel(patient.dentition_type);
-
-    return `${patient.patient_name} - ${patient.email} (${dentitionLabel})`;
-  };
-
-  const getDentistOptionLabel = (dentist) => {
-    const dentistName =
-      dentist.dentist_name || `Dentist #${dentist.dentist_id}`;
-    const clinicName = dentist.clinic_name || "No clinic name";
-
-    return `${dentistName} - ${clinicName}`;
-  };
-
   const getRecordSourceLabel = (recordSourceValue) => {
+    if (recordSourceValue === "PDA_BASED_RECORD") {
+      return "Old / Imported Record";
+    }
+
     const foundSource = RECORD_SOURCE_OPTIONS.find(
       (option) => option.value === recordSourceValue,
     );
@@ -152,6 +84,10 @@ function AssistantDentalRecords() {
   };
 
   const getRecordSourceDescription = (recordSourceValue) => {
+    if (recordSourceValue === "PDA_BASED_RECORD") {
+      return "Record imported from a previous clinic document.";
+    }
+
     const foundSource = RECORD_SOURCE_OPTIONS.find(
       (option) => option.value === recordSourceValue,
     );
@@ -159,112 +95,16 @@ function AssistantDentalRecords() {
     return foundSource?.description || RECORD_SOURCE_OPTIONS[0].description;
   };
 
-  const selectedPatient = patients.find(
-    (patient) => Number(patient.patient_id) === Number(selectedPatientId),
-  );
-
-  const selectedDentist = dentists.find(
-    (dentist) => Number(dentist.dentist_id) === Number(selectedDentistId),
-  );
-
-  const resetCreateForm = () => {
-    setSelectedPatientId("");
-    setRecordSource("NEW_SYSTEM_RECORD");
-    setSourceNotes("");
-
-    if (dentists.length !== 1) {
-      setSelectedDentistId("");
-    }
-  };
-
-  const handleCreateRecord = async (e) => {
-    e.preventDefault();
-
-    if (!selectedPatientId) {
-      setError("Please select a patient first.");
-      setPolicyError(null);
-      return;
-    }
-
-    if (!selectedDentistId) {
-      setError("Please select an assigned dentist first.");
-      setPolicyError(null);
-      return;
-    }
-
-    try {
-      setCreating(true);
-      setMessage("");
-      setError("");
-      setPolicyError(null);
-
-      const response = await API.post(
-        "/api/dental-records",
-        {
-          patient_id: Number(selectedPatientId),
-          dentist_id: Number(selectedDentistId),
-          record_source: recordSource,
-          source_notes: sourceNotes.trim() || null,
-        },
-        authHeaders,
-      );
-
-      if (response.data.existing) {
-        setMessage("Dental record already exists. Opening existing record...");
-
-        const existingRecordId = response.data.dental_record?.record_id;
-
-        resetCreateForm();
-
-        if (existingRecordId) {
-          navigate(`/assistant/dental-records/${existingRecordId}`);
-        }
-
-        return;
-      }
-
-      setMessage(
-        response.data.message || "Dental record created successfully.",
-      );
-
-      const newRecordId = response.data.dental_record?.record_id;
-
-      resetCreateForm();
-
-      await fetchRecords();
-
-      if (newRecordId) {
-        navigate(`/assistant/dental-records/${newRecordId}`);
-      }
-    } catch (err) {
-      const responseData = err.response?.data;
-
-      const formattedError = formatSubscriptionError(
-        responseData?.error,
-        "Unable to create dental record.",
-      );
-
-      if (responseData?.policy || responseData?.existing_record) {
-        setPolicyError({
-          message: formattedError,
-          policy: responseData.policy || null,
-          existingRecord: responseData.existing_record || null,
-        });
-
-        setError("");
-      } else {
-        setError(formattedError);
-        setPolicyError(null);
-      }
-    } finally {
-      setCreating(false);
-    }
+  const getRecordStatus = (record) => {
+    return record.status || "Active";
   };
 
   const getRecordStatusClass = (status) => {
     switch (status) {
       case "Archived":
         return "status-badge status-cancelled";
+      case "Inactive":
+        return "status-badge status-pending";
       case "Active":
       default:
         return "status-badge status-scheduled";
@@ -278,7 +118,7 @@ function AssistantDentalRecords() {
       case "SCANNED_OLD_RECORD":
         return "status-badge status-scheduled";
       case "PDA_BASED_RECORD":
-        return "status-badge status-completed";
+        return "status-badge status-pending";
       case "NEW_SYSTEM_RECORD":
       default:
         return "status-badge status-scheduled";
@@ -294,370 +134,352 @@ function AssistantDentalRecords() {
       return "N/A";
     }
 
-    return date.toLocaleString();
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const filteredAndSortedRecords = useMemo(() => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
+
+    let result = [...records];
+
+    if (statusFilter !== "All") {
+      result = result.filter(
+        (record) => getRecordStatus(record) === statusFilter,
+      );
+    }
+
+    if (sourceFilter !== "All") {
+      result = result.filter((record) => {
+        const source = record.record_source || "NEW_SYSTEM_RECORD";
+
+        if (sourceFilter === "OLD_IMPORTED") {
+          return (
+            source === "OLD_ENCODED_RECORD" ||
+            source === "SCANNED_OLD_RECORD" ||
+            source === "PDA_BASED_RECORD"
+          );
+        }
+
+        return source === sourceFilter;
+      });
+    }
+
+    if (cleanSearch) {
+      result = result.filter((record) => {
+        const searchableText = [
+          record.record_id,
+          record.patient_id,
+          record.patient_name,
+          record.patient_email,
+          record.dentition_type,
+          record.dentist_id,
+          record.dentist_name,
+          record.clinic_name,
+          getRecordSourceLabel(record.record_source),
+          getRecordSourceDescription(record.record_source),
+          record.source_notes,
+          record.status,
+          record.date_created,
+          record.last_updated,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return searchableText.includes(cleanSearch);
+      });
+    }
+
+    result.sort((a, b) => {
+      const patientA = (a.patient_name || "").toLowerCase();
+      const patientB = (b.patient_name || "").toLowerCase();
+
+      const dentistA = (a.dentist_name || "").toLowerCase();
+      const dentistB = (b.dentist_name || "").toLowerCase();
+
+      const clinicA = (a.clinic_name || "").toLowerCase();
+      const clinicB = (b.clinic_name || "").toLowerCase();
+
+      const createdA = a.date_created ? new Date(a.date_created).getTime() : 0;
+      const createdB = b.date_created ? new Date(b.date_created).getTime() : 0;
+
+      const updatedA = a.last_updated ? new Date(a.last_updated).getTime() : 0;
+      const updatedB = b.last_updated ? new Date(b.last_updated).getTime() : 0;
+
+      switch (sortBy) {
+        case "oldest":
+          return createdA - createdB;
+        case "updated":
+          return updatedB - updatedA;
+        case "patient-az":
+          return patientA.localeCompare(patientB);
+        case "patient-za":
+          return patientB.localeCompare(patientA);
+        case "dentist-az":
+          return dentistA.localeCompare(dentistB);
+        case "dentist-za":
+          return dentistB.localeCompare(dentistA);
+        case "clinic-az":
+          return clinicA.localeCompare(clinicB);
+        case "clinic-za":
+          return clinicB.localeCompare(clinicA);
+        case "newest":
+        default:
+          return createdB - createdA;
+      }
+    });
+
+    return result;
+  }, [records, searchTerm, statusFilter, sourceFilter, sortBy]);
+
+  const recordCountText = () => {
+    if (loading) return "Loading records...";
+
+    if (records.length === 0) {
+      return "No dental records found.";
+    }
+
+    if (filteredAndSortedRecords.length === records.length) {
+      return `${records.length} dental record${
+        records.length === 1 ? "" : "s"
+      } found.`;
+    }
+
+    return `${filteredAndSortedRecords.length} of ${records.length} dental records shown.`;
+  };
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setSourceFilter("All");
+    setSortBy("newest");
   };
 
   return (
     <DashboardLayout role="Assistant">
-      <div className="appointments-layout">
-        <div className="appointment-form-card">
-          <h2>Create Dental Record</h2>
+      <div className="appointments-list-card">
+        <div className="appointments-header">
+          <div>
+            <h2>Dental Records</h2>
 
-          <p>
-            Select a patient and assign the dental record under a dentist from
-            your clinic. This record can later contain tooth details,
-            treatments, X-rays, old records, PDA forms, and clinical notes.
-          </p>
-
-          <div className="info-message" style={{ marginBottom: "16px" }}>
-            <strong>Dental Record Creation Policy:</strong>
-            <br />A dental record can only be created for an existing patient
-            profile with Adult/Child dentition type set. The selected dentist
-            must have an appointment connection with the patient, and only one
-            active dental record is allowed per patient per clinic. Archived
-            records cannot be modified.
+            <p>
+              View dental records for patients under your assigned clinic.
+              Dental assistants have view-only access to record details,
+              treatment history, and 3D dental visualization.
+            </p>
           </div>
 
-          {selectedPatient && (
-            <div className="info-message" style={{ marginBottom: "16px" }}>
-              <strong>Selected Patient:</strong> {selectedPatient.patient_name}
-              <br />
-              <strong>Email:</strong> {selectedPatient.email}
-              <br />
-              <strong>Dentition Type:</strong>{" "}
-              {getPatientDentitionLabel(selectedPatient.dentition_type)}
-              {!selectedPatient.dentition_type && (
-                <>
-                  <br />
-                  <strong>Action Needed:</strong> This patient must update their
-                  profile and select Adult or Child before a dental record can
-                  be created.
-                </>
-              )}
-            </div>
-          )}
+          <button
+            className="secondary-button"
+            onClick={fetchRecords}
+            disabled={loading}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
+        </div>
 
-          {selectedDentist && (
-            <div className="info-message" style={{ marginBottom: "16px" }}>
-              <strong>Assigned Dentist:</strong>{" "}
-              {selectedDentist.dentist_name ||
-                `Dentist #${selectedDentist.dentist_id}`}
-              <br />
-              <strong>Email:</strong> {selectedDentist.email || "N/A"}
-              <br />
-              <strong>Clinic:</strong>{" "}
-              {selectedDentist.clinic_name || "No clinic name"}
-            </div>
-          )}
+        <div className="info-message" style={{ marginBottom: "16px" }}>
+          <strong>Assistant Access:</strong> View-only mode. You can view dental
+          records, treatment history, tooth status history, and the 3D chart.
+          Creating, editing, archiving, or deleting dental record data is
+          restricted to authorized dentist/admin roles.
+        </div>
 
-          {message && <div className="success-message">{message}</div>}
-          {error && <div className="error-message">{error}</div>}
+        {message && <div className="success-message">{message}</div>}
+        {error && <div className="error-message">{error}</div>}
 
-          {policyError && (
-            <div className="error-message">
-              <strong>{policyError.message}</strong>
+        <div className="appointment-filters">
+          <div className="form-group">
+            <label>Search Records</label>
+            <input
+              type="text"
+              placeholder="Search by patient, dentist, clinic, record ID, or notes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              disabled={loading}
+            />
+          </div>
 
-              {policyError.existingRecord && (
-                <div style={{ marginTop: "10px" }}>
+          <div className="form-group">
+            <label>Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              disabled={loading}
+            >
+              <option value="All">All Statuses</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+              <option value="Archived">Archived</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Record Source</label>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              disabled={loading}
+            >
+              <option value="All">All Sources</option>
+              <option value="NEW_SYSTEM_RECORD">New System Record</option>
+              <option value="OLD_IMPORTED">Old / Imported Records</option>
+              <option value="OLD_ENCODED_RECORD">Old Encoded Record</option>
+              <option value="SCANNED_OLD_RECORD">Scanned Old Record</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Sort By</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              disabled={loading}
+            >
+              <option value="newest">Newest Created</option>
+              <option value="oldest">Oldest Created</option>
+              <option value="updated">Recently Updated</option>
+              <option value="patient-az">Patient A-Z</option>
+              <option value="patient-za">Patient Z-A</option>
+              <option value="dentist-az">Dentist A-Z</option>
+              <option value="dentist-za">Dentist Z-A</option>
+              <option value="clinic-az">Clinic A-Z</option>
+              <option value="clinic-za">Clinic Z-A</option>
+            </select>
+          </div>
+        </div>
+
+        <div
+          className="appointment-actions"
+          style={{ flexDirection: "row", marginBottom: "16px" }}
+        >
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={clearFilters}
+            disabled={
+              loading &&
+              !searchTerm &&
+              statusFilter === "All" &&
+              sourceFilter === "All" &&
+              sortBy === "newest"
+            }
+          >
+            Clear Filters
+          </button>
+        </div>
+
+        <div className="info-message">{recordCountText()}</div>
+
+        {loading ? (
+          <p>Loading dental records...</p>
+        ) : records.length === 0 ? (
+          <div className="empty-state">
+            <h3>No dental records yet</h3>
+            <p>
+              Dental records created by dentists in your clinic will appear
+              here.
+            </p>
+          </div>
+        ) : filteredAndSortedRecords.length === 0 ? (
+          <div className="empty-state">
+            <h3>No matching dental records</h3>
+            <p>
+              Try changing your search, filter, or sorting options to view more
+              records.
+            </p>
+          </div>
+        ) : (
+          <div className="appointments-list">
+            {filteredAndSortedRecords.map((record) => (
+              <div className="appointment-item" key={record.record_id}>
+                <div className="appointment-info">
+                  <div className="appointment-title-row">
+                    <h3>Record #{record.record_id}</h3>
+
+                    <span className={getRecordStatusClass(record.status)}>
+                      {record.status || "Active"}
+                    </span>
+                  </div>
+
                   <p>
-                    <strong>Existing Active Record:</strong> Record #
-                    {policyError.existingRecord.record_id}
+                    <strong>Patient:</strong>{" "}
+                    {record.patient_name || `Patient ID ${record.patient_id}`}
                   </p>
 
                   <p>
-                    <strong>Assigned Dentist:</strong>{" "}
-                    {policyError.existingRecord.dentist_name || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Clinic:</strong>{" "}
-                    {policyError.existingRecord.clinic_name || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Status:</strong>{" "}
-                    {policyError.existingRecord.status || "Active"}
+                    <strong>Patient Type:</strong>{" "}
+                    {getPatientDentitionLabel(record.dentition_type)}
                   </p>
 
                   <p>
                     <strong>Record Source:</strong>{" "}
-                    {getRecordSourceLabel(
-                      policyError.existingRecord.record_source,
-                    )}
+                    <span
+                      className={getRecordSourceClass(record.record_source)}
+                    >
+                      {getRecordSourceLabel(record.record_source)}
+                    </span>
                   </p>
 
-                  {policyError.existingRecord.source_notes && (
+                  {record.source_notes && (
                     <p>
-                      <strong>Source Notes:</strong>{" "}
-                      {policyError.existingRecord.source_notes}
+                      <strong>Source Notes:</strong> {record.source_notes}
                     </p>
                   )}
 
+                  <p>
+                    <strong>Dentist:</strong>{" "}
+                    {record.dentist_name || `Dentist ID ${record.dentist_id}`}
+                  </p>
+
+                  <p>
+                    <strong>Clinic:</strong>{" "}
+                    {record.clinic_name || "No assigned clinic"}
+                  </p>
+
+                  <p>
+                    <strong>Date Created:</strong>{" "}
+                    {formatDate(record.date_created)}
+                  </p>
+
+                  <p>
+                    <strong>Last Updated:</strong>{" "}
+                    {formatDate(record.last_updated)}
+                  </p>
+                </div>
+
+                <div className="appointment-actions">
                   <button
-                    type="button"
                     className="secondary-button"
                     onClick={() =>
+                      navigate(`/assistant/dental-records/${record.record_id}`)
+                    }
+                  >
+                    View Details
+                  </button>
+
+                  <button
+                    className="primary-button"
+                    onClick={() =>
                       navigate(
-                        `/assistant/dental-records/${policyError.existingRecord.record_id}`,
+                        `/assistant/dental-records/${record.record_id}/3d-view`,
                       )
                     }
-                    style={{ marginTop: "8px" }}
                   >
-                    Open Existing Record
+                    3D View
                   </button>
                 </div>
-              )}
-
-              {policyError.policy?.rules?.length > 0 && (
-                <div style={{ marginTop: "10px" }}>
-                  <strong>{policyError.policy.name || "Policy Rules"}:</strong>
-
-                  <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
-                    {policyError.policy.rules.map((rule, index) => (
-                      <li key={index}>{rule}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          <form className="appointment-form" onSubmit={handleCreateRecord}>
-            <div className="form-group">
-              <label>Patient</label>
-
-              <select
-                value={selectedPatientId}
-                onChange={(e) => {
-                  setSelectedPatientId(e.target.value);
-                  setMessage("");
-                  setError("");
-                  setPolicyError(null);
-                }}
-                required
-              >
-                <option value="">Select Patient</option>
-
-                {patients.map((patient) => (
-                  <option key={patient.patient_id} value={patient.patient_id}>
-                    {getPatientOptionLabel(patient)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Assigned Dentist</label>
-
-              <select
-                value={selectedDentistId}
-                onChange={(e) => {
-                  setSelectedDentistId(e.target.value);
-                  setMessage("");
-                  setError("");
-                  setPolicyError(null);
-                }}
-                required
-              >
-                <option value="">Select Dentist</option>
-
-                {dentists.map((dentist) => (
-                  <option key={dentist.dentist_id} value={dentist.dentist_id}>
-                    {getDentistOptionLabel(dentist)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Record Source</label>
-
-              <select
-                value={recordSource}
-                onChange={(e) => {
-                  setRecordSource(e.target.value);
-                  setMessage("");
-                  setError("");
-                  setPolicyError(null);
-                }}
-                required
-              >
-                {RECORD_SOURCE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="info-message">
-              <strong>{getRecordSourceLabel(recordSource)}:</strong>{" "}
-              {getRecordSourceDescription(recordSource)}
-            </div>
-
-            <div className="form-group">
-              <label>Source Notes</label>
-
-              <textarea
-                value={sourceNotes}
-                onChange={(e) => setSourceNotes(e.target.value)}
-                placeholder={
-                  recordSource === "NEW_SYSTEM_RECORD"
-                    ? "Example: New dental record created after today's consultation."
-                    : recordSource === "OLD_ENCODED_RECORD"
-                      ? "Example: Manually encoded from the patient's previous paper record."
-                      : recordSource === "SCANNED_OLD_RECORD"
-                        ? "Example: Based on scanned old record uploaded by clinic staff."
-                        : "Example: Created using PDA dental chart/form as reference."
-                }
-                rows="4"
-              />
-            </div>
-
-            {patients.length === 0 && (
-              <div className="info-message">
-                No available patients were found. Only patients with appointment
-                connections in your clinic can be used for dental record
-                creation.
               </div>
-            )}
-
-            {dentists.length === 0 && (
-              <div className="info-message">
-                No available dentists were found. A dentist from your assigned
-                clinic is required before creating a dental record.
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={creating || !selectedPatientId || !selectedDentistId}
-            >
-              {creating ? "Creating..." : "Create Dental Record"}
-            </button>
-          </form>
-        </div>
-
-        <div className="appointments-list-card">
-          <div className="appointments-header">
-            <div>
-              <h2>Dental Records</h2>
-
-              <p>
-                View dental records for patients under your assigned clinic and
-                assist with tooth status updates, treatments, and 3D dental
-                visualization.
-              </p>
-            </div>
-
-            <button
-              className="secondary-button"
-              onClick={() => {
-                fetchRecords();
-                fetchPatients();
-                fetchDentists();
-              }}
-              disabled={loading}
-            >
-              {loading ? "Refreshing..." : "Refresh"}
-            </button>
+            ))}
           </div>
-
-          {loading ? (
-            <p>Loading dental records...</p>
-          ) : records.length === 0 ? (
-            <div className="empty-state">
-              <h3>No dental records yet</h3>
-              <p>Created patient dental records will appear here.</p>
-            </div>
-          ) : (
-            <div className="appointments-list">
-              {records.map((record) => (
-                <div className="appointment-item" key={record.record_id}>
-                  <div className="appointment-info">
-                    <div className="appointment-title-row">
-                      <h3>Record #{record.record_id}</h3>
-
-                      <span className={getRecordStatusClass(record.status)}>
-                        {record.status || "Active"}
-                      </span>
-                    </div>
-
-                    <p>
-                      <strong>Patient:</strong>{" "}
-                      {record.patient_name || `Patient ID ${record.patient_id}`}
-                    </p>
-
-                    <p>
-                      <strong>Patient Type:</strong>{" "}
-                      {getPatientDentitionLabel(record.dentition_type)}
-                    </p>
-
-                    <p>
-                      <strong>Record Source:</strong>{" "}
-                      <span
-                        className={getRecordSourceClass(record.record_source)}
-                      >
-                        {getRecordSourceLabel(record.record_source)}
-                      </span>
-                    </p>
-
-                    {record.source_notes && (
-                      <p>
-                        <strong>Source Notes:</strong> {record.source_notes}
-                      </p>
-                    )}
-
-                    <p>
-                      <strong>Dentist:</strong>{" "}
-                      {record.dentist_name || `Dentist ID ${record.dentist_id}`}
-                    </p>
-
-                    <p>
-                      <strong>Clinic:</strong>{" "}
-                      {record.clinic_name || "No assigned clinic"}
-                    </p>
-
-                    <p>
-                      <strong>Date Created:</strong>{" "}
-                      {formatDate(record.date_created)}
-                    </p>
-
-                    <p>
-                      <strong>Last Updated:</strong>{" "}
-                      {formatDate(record.last_updated)}
-                    </p>
-                  </div>
-
-                  <div className="appointment-actions">
-                    <button
-                      className="secondary-button"
-                      onClick={() =>
-                        navigate(
-                          `/assistant/dental-records/${record.record_id}`,
-                        )
-                      }
-                    >
-                      View Details
-                    </button>
-
-                    <button
-                      className="primary-button"
-                      onClick={() =>
-                        navigate(
-                          `/assistant/dental-records/${record.record_id}/3d-view`,
-                        )
-                      }
-                    >
-                      3D View
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </DashboardLayout>
   );
