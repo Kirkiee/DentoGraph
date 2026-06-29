@@ -614,7 +614,7 @@ router.post(
 
 // ===============================
 // LOGIN USER WITH ROLE
-// NOTE: Login does NOT block unverified accounts.
+// NOTE: Login blocks unverified accounts.
 // ===============================
 
 router.post("/login", loginLimiter, async (req, res) => {
@@ -667,6 +667,14 @@ router.post("/login", loginLimiter, async (req, res) => {
     if (user.status === "Inactive") {
       return res.status(403).json({
         error: "This account is inactive. Please contact the administrator.",
+      });
+    }
+
+    if (!user.email_verified) {
+      return res.status(403).json({
+        error:
+          "Your email address is not verified. Please verify your email before logging in.",
+        email_unverified: true,
       });
     }
 

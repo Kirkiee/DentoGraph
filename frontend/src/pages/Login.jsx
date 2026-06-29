@@ -16,8 +16,14 @@ function Login() {
   });
 
   const [rememberMe, setRememberMe] = useState(false);
+
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+
   const [loading, setLoading] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
+
+  const [unverifiedEmail, setUnverifiedEmail] = useState("");
 
   const isValidEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
@@ -25,6 +31,8 @@ function Login() {
 
   const handleChange = (e) => {
     setError("");
+    setMessage("");
+    setUnverifiedEmail("");
 
     setFormData((prev) => ({
       ...prev,
@@ -55,9 +63,48 @@ function Login() {
     }
   };
 
+  const handleResendVerification = async () => {
+    const emailToVerify =
+      unverifiedEmail || formData.email.trim().toLowerCase();
+
+    if (!emailToVerify) {
+      setError("Please enter your email address first.");
+      return;
+    }
+
+    if (!isValidEmail(emailToVerify)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      setResendingVerification(true);
+      setError("");
+      setMessage("");
+
+      const response = await API.post("/api/users/resend-verification", {
+        email: emailToVerify,
+      });
+
+      setMessage(
+        response.data?.message ||
+          "Verification email sent. Please check your inbox.",
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Unable to resend verification email.",
+      );
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     setError("");
+    setMessage("");
+    setUnverifiedEmail("");
 
     const cleanEmail = formData.email.trim().toLowerCase();
     const password = formData.password;
@@ -95,10 +142,17 @@ function Login() {
       redirectByRole(user.role);
     } catch (err) {
       const status = err.response?.status;
-      const apiError = err.response?.data?.error;
+      const responseData = err.response?.data || {};
+      const apiError = responseData.error;
 
       if (status === 429) {
         setError("Too many login attempts. Please try again after 15 minutes.");
+      } else if (status === 403 && responseData.email_unverified) {
+        setUnverifiedEmail(cleanEmail);
+        setError(
+          apiError ||
+            "Your email address is not verified. Please verify your email before logging in.",
+        );
       } else if (
         status === 403 &&
         apiError?.toLowerCase().includes("inactive")
@@ -123,7 +177,18 @@ function Login() {
         ← Back to Landing Page
       </Link>
 
+      {message && <div className="auth-success">{message}</div>}
       {error && <div className="auth-error">{error}</div>}
+
+      {unverifiedEmail && (
+        <div className="auth-info" style={{ marginBottom: "16px" }}>
+          <strong>Email verification required</strong>
+          <br />
+          Please verify <strong>{unverifiedEmail}</strong> before logging in. If
+          you did not receive the email, you can request another verification
+          link below.
+        </div>
+      )}
 
       <form className="auth-form" onSubmit={handleSubmit} noValidate>
         <AuthInput
@@ -135,6 +200,7 @@ function Login() {
           onChange={handleChange}
           icon="✉"
           autoComplete="email"
+          disabled={loading || resendingVerification}
         />
 
         <PasswordInput
@@ -145,7 +211,7 @@ function Login() {
           onChange={handleChange}
           icon="🔒"
           autoComplete="current-password"
-          disabled={loading}
+          disabled={loading || resendingVerification}
           required
         />
 
@@ -155,7 +221,7 @@ function Login() {
               type="checkbox"
               checked={rememberMe}
               onChange={(e) => setRememberMe(e.target.checked)}
-              disabled={loading}
+              disabled={loading || resendingVerification}
             />
             Remember me
           </label>
@@ -164,15 +230,29 @@ function Login() {
             type="button"
             className="auth-link"
             onClick={() => navigate("/forgot-password")}
-            disabled={loading}
+            disabled={loading || resendingVerification}
           >
             Forgot password?
           </button>
         </div>
 
-        <AuthButton type="submit" disabled={loading}>
+        <AuthButton type="submit" disabled={loading || resendingVerification}>
           {loading ? "Signing in..." : "Sign In"}
         </AuthButton>
+
+        {unverifiedEmail && (
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleResendVerification}
+            disabled={loading || resendingVerification}
+            style={{ width: "100%", marginTop: "12px" }}
+          >
+            {resendingVerification
+              ? "Sending verification email..."
+              : "Resend Verification Email"}
+          </button>
+        )}
       </form>
 
       <p className="auth-footer">
@@ -181,7 +261,7 @@ function Login() {
           type="button"
           className="auth-link"
           onClick={() => navigate("/register")}
-          disabled={loading}
+          disabled={loading || resendingVerification}
         >
           Register as Patient
         </button>
