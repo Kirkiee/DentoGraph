@@ -22,6 +22,7 @@ function ClinicOwnerStaff() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [resendingId, setResendingId] = useState(null);
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState(null);
@@ -73,16 +74,29 @@ function ClinicOwnerStaff() {
     });
   };
 
+  const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+  };
+
   const handleCreateStaff = async (e) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.email || !formData.password) {
+    const cleanName = formData.name.trim();
+    const cleanEmail = formData.email.trim().toLowerCase();
+    const cleanPassword = formData.password;
+
+    if (!cleanName || !cleanEmail || !cleanPassword) {
       setError("Name, email, and password are required.");
       return;
     }
 
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long.");
+    if (!isValidEmail(cleanEmail)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (cleanPassword.length < 8) {
+      setError("Password must be at least 8 characters long.");
       return;
     }
 
@@ -91,14 +105,19 @@ function ClinicOwnerStaff() {
       setMessage("");
       setError("");
 
-      const response = await API.post(
-        "/api/users/clinic-owner/staff",
-        formData,
-      );
+      const payload = {
+        ...formData,
+        name: cleanName,
+        email: cleanEmail,
+      };
+
+      const response = await API.post("/api/users/clinic-owner/staff", payload);
 
       setMessage(
-        response.data.message || "Staff account created successfully.",
+        response.data.message ||
+          "Staff account created successfully. A verification email has been sent.",
       );
+
       resetForm();
       fetchStaff();
     } catch (err) {
@@ -160,6 +179,37 @@ function ClinicOwnerStaff() {
     }
   };
 
+  const handleResendVerification = async (person) => {
+    if (!person?.user_id) {
+      setError("No staff member selected.");
+      return;
+    }
+
+    try {
+      setResendingId(person.user_id);
+      setMessage("");
+      setError("");
+
+      const response = await API.post(
+        `/api/users/clinic-owner/staff/${person.user_id}/resend-verification`,
+      );
+
+      setMessage(
+        response.data?.message ||
+          `Verification email resent to ${person.name}.`,
+      );
+
+      fetchStaff();
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          "Unable to resend staff verification email.",
+      );
+    } finally {
+      setResendingId(null);
+    }
+  };
+
   const getRoleLabel = (person) => {
     if (person.role_name === "Dentist") return "Dentist";
     return "Dental Assistant";
@@ -185,6 +235,16 @@ function ClinicOwnerStaff() {
       default:
         return "status-badge status-scheduled";
     }
+  };
+
+  const getVerificationClass = (emailVerified) => {
+    return emailVerified
+      ? "status-badge status-completed"
+      : "status-badge status-pending";
+  };
+
+  const getVerificationLabel = (emailVerified) => {
+    return emailVerified ? "Verified" : "Unverified";
   };
 
   const formatDate = (dateValue) => {
@@ -239,6 +299,7 @@ function ClinicOwnerStaff() {
                 name="staff_role"
                 value={formData.staff_role}
                 onChange={handleChange}
+                disabled={creating}
               >
                 <option value="Dentist">Dentist</option>
                 <option value="Assistant">Dental Assistant</option>
@@ -253,6 +314,7 @@ function ClinicOwnerStaff() {
                 value={formData.name}
                 onChange={handleChange}
                 placeholder="Enter staff full name"
+                disabled={creating}
                 required
               />
             </div>
@@ -265,6 +327,7 @@ function ClinicOwnerStaff() {
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="staff@clinic.com"
+                disabled={creating}
                 required
               />
             </div>
@@ -276,9 +339,13 @@ function ClinicOwnerStaff() {
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Minimum 6 characters"
+                placeholder="Minimum 8 characters"
+                disabled={creating}
                 required
               />
+              <small>
+                The staff member must verify their email before logging in.
+              </small>
             </div>
 
             <div className="form-group">
@@ -293,6 +360,7 @@ function ClinicOwnerStaff() {
                     ? "Example: DEN-12345"
                     : "Example: AST-12345"
                 }
+                disabled={creating}
               />
             </div>
 
@@ -305,6 +373,7 @@ function ClinicOwnerStaff() {
                   value={formData.specialization}
                   onChange={handleChange}
                   placeholder="Example: General Dentistry"
+                  disabled={creating}
                 />
               </div>
             )}
@@ -317,6 +386,7 @@ function ClinicOwnerStaff() {
                 value={formData.availability}
                 onChange={handleChange}
                 placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
+                disabled={creating}
               />
             </div>
 
@@ -331,8 +401,7 @@ function ClinicOwnerStaff() {
             <div>
               <h2>Clinic Staff</h2>
               <p>
-                Dentists and dental assistants currently assigned to your
-                clinic. You can activate or deactivate staff accounts.
+                Manage dentists and dental assistants assigned to your clinic.
               </p>
             </div>
 
@@ -366,65 +435,92 @@ function ClinicOwnerStaff() {
             </div>
           ) : (
             <div className="appointments-list">
-              {staff.map((person) => (
-                <div className="appointment-item" key={person.user_id}>
-                  <div className="appointment-info">
-                    <div className="appointment-title-row">
-                      <h3>{person.name}</h3>
+              {staff.map((person) => {
+                const isVerified = Boolean(person.email_verified);
+                const isInactive = person.status === "Inactive";
+                const isResending = resendingId === person.user_id;
 
-                      <span className="status-badge status-scheduled">
-                        {getRoleLabel(person)}
-                      </span>
+                return (
+                  <div className="appointment-item" key={person.user_id}>
+                    <div className="appointment-info">
+                      <div className="appointment-title-row">
+                        <h3>{person.name}</h3>
+
+                        <span className="status-badge status-scheduled">
+                          {getRoleLabel(person)}
+                        </span>
+                      </div>
+
+                      <p>
+                        <strong>Email:</strong> {person.email}
+                      </p>
+
+                      <p>
+                        <strong>Account Status:</strong>{" "}
+                        <span className={getStatusClass(person.status)}>
+                          {person.status || "Active"}
+                        </span>
+                      </p>
+
+                      <p>
+                        <strong>Email Verification:</strong>{" "}
+                        <span className={getVerificationClass(isVerified)}>
+                          {getVerificationLabel(isVerified)}
+                        </span>
+                      </p>
+
+                      <p>
+                        <strong>License Number:</strong>{" "}
+                        {getLicenseNumber(person)}
+                      </p>
+
+                      {person.role_name === "Dentist" && (
+                        <p>
+                          <strong>Specialization:</strong>{" "}
+                          {person.specialization || "General Dentistry"}
+                        </p>
+                      )}
+
+                      <p>
+                        <strong>Availability:</strong> {getAvailability(person)}
+                      </p>
+
+                      <p>
+                        <strong>Created At:</strong>{" "}
+                        {formatDate(person.created_at)}
+                      </p>
                     </div>
 
-                    <p>
-                      <strong>Email:</strong> {person.email}
-                    </p>
+                    <div className="clinic-staff-actions">
+                      {!isVerified && !isInactive && (
+                        <button
+                          className="secondary-button clinic-staff-btn"
+                          onClick={() => handleResendVerification(person)}
+                          disabled={
+                            updatingStatus || loading || creating || isResending
+                          }
+                        >
+                          {isResending ? "Sending..." : "Resend Email"}
+                        </button>
+                      )}
 
-                    <p>
-                      <strong>Status:</strong>{" "}
-                      <span className={getStatusClass(person.status)}>
-                        {person.status || "Active"}
-                      </span>
-                    </p>
-
-                    <p>
-                      <strong>License Number:</strong>{" "}
-                      {getLicenseNumber(person)}
-                    </p>
-
-                    {person.role_name === "Dentist" && (
-                      <p>
-                        <strong>Specialization:</strong>{" "}
-                        {person.specialization || "General Dentistry"}
-                      </p>
-                    )}
-
-                    <p>
-                      <strong>Availability:</strong> {getAvailability(person)}
-                    </p>
-
-                    <p>
-                      <strong>Created At:</strong>{" "}
-                      {formatDate(person.created_at)}
-                    </p>
+                      <button
+                        className={
+                          person.status === "Inactive"
+                            ? "primary-button clinic-staff-btn"
+                            : "danger-button clinic-staff-btn"
+                        }
+                        onClick={() => openStatusModal(person)}
+                        disabled={updatingStatus || isResending}
+                      >
+                        {person.status === "Inactive"
+                          ? "Activate"
+                          : "Deactivate"}
+                      </button>
+                    </div>
                   </div>
-
-                  <div className="appointment-actions">
-                    <button
-                      className={
-                        person.status === "Inactive"
-                          ? "primary-button"
-                          : "danger-button"
-                      }
-                      onClick={() => openStatusModal(person)}
-                      disabled={updatingStatus}
-                    >
-                      {person.status === "Inactive" ? "Activate" : "Deactivate"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -462,6 +558,9 @@ function ClinicOwnerStaff() {
                 <br />
                 <strong>Current Status:</strong>{" "}
                 {selectedStaff.status || "Active"}
+                <br />
+                <strong>Email Verification:</strong>{" "}
+                {getVerificationLabel(Boolean(selectedStaff.email_verified))}
               </div>
 
               <div className="form-group">
@@ -470,6 +569,7 @@ function ClinicOwnerStaff() {
                   value={selectedStatus}
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   required
+                  disabled={updatingStatus}
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
