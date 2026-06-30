@@ -11,11 +11,25 @@ const parseResponse = async (response, fallbackMessage) => {
   try {
     data = text ? JSON.parse(text) : {};
   } catch (error) {
-    throw new Error("Server returned a non-JSON response.");
+    const customError = new Error("Server returned a non-JSON response.");
+    customError.status = response.status;
+    customError.data = {};
+    throw customError;
   }
 
   if (!response.ok) {
-    throw new Error(data.message || data.error || fallbackMessage);
+    const customError = new Error(data.message || data.error || fallbackMessage);
+
+    customError.status = response.status;
+    customError.data = data;
+    customError.response = {
+      status: response.status,
+      data,
+    };
+
+    customError.email_unverified = data.email_unverified || false;
+
+    throw customError;
   }
 
   return data;
@@ -119,7 +133,10 @@ export const resetPassword = async ({ token, password, confirmPassword }) => {
   return parseResponse(response, "Unable to reset password. Please try again.");
 };
 
-export const resendVerificationEmail = async ({ email }) => {
+export const resendVerificationEmail = async (payload) => {
+  const email =
+    typeof payload === "string" ? payload : payload?.email;
+
   const resendVerificationUrl = `${API_BASE_URL}/users/resend-verification`;
 
   console.log("RESEND VERIFICATION URL:", resendVerificationUrl);

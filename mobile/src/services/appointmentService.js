@@ -1,5 +1,26 @@
 import { API_BASE_URL } from "../config/api";
 
+const parseJsonResponse = async (response, fallbackMessage) => {
+  const text = await response.text();
+
+  console.log("STATUS:", response.status);
+  console.log("RAW RESPONSE:", text.slice(0, 500));
+
+  let data;
+
+  try {
+    data = JSON.parse(text);
+  } catch (error) {
+    throw new Error("Server returned non-JSON response.");
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || fallbackMessage);
+  }
+
+  return data;
+};
+
 export const getPatientAppointments = async (token) => {
   const response = await fetch(`${API_BASE_URL}/appointments/my-appointments`, {
     method: "GET",
@@ -9,24 +30,19 @@ export const getPatientAppointments = async (token) => {
     },
   });
 
-  const text = await response.text();
+  return parseJsonResponse(response, "Failed to load appointments");
+};
 
-  console.log("APPOINTMENTS STATUS:", response.status);
-  console.log("APPOINTMENTS RAW RESPONSE:", text.slice(0, 500));
+export const getActiveClinics = async (token) => {
+  const response = await fetch(`${API_BASE_URL}/appointments/clinics/list`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+    },
+  });
 
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    throw new Error("Server returned non-JSON response for appointments.");
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || data.error || "Failed to load appointments");
-  }
-
-  return data;
+  return parseJsonResponse(response, "Failed to load clinics");
 };
 
 export const getActiveDentists = async (token) => {
@@ -38,30 +54,54 @@ export const getActiveDentists = async (token) => {
     },
   });
 
-  const text = await response.text();
+  return parseJsonResponse(response, "Failed to load dentists");
+};
 
-  console.log("DENTISTS STATUS:", response.status);
-  console.log("DENTISTS RAW RESPONSE:", text.slice(0, 500));
+export const getDentistsByClinic = async ({ token, clinic_id }) => {
+  const response = await fetch(
+    `${API_BASE_URL}/appointments/dentists/by-clinic/${clinic_id}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    }
+  );
 
-  let data;
+  return parseJsonResponse(response, "Failed to load dentists for clinic");
+};
 
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    throw new Error("Server returned non-JSON response for dentists.");
-  }
+export const getAvailableTimes = async ({
+  token,
+  dentist_id,
+  appointment_date,
+}) => {
+  const query = new URLSearchParams({
+    dentist_id: String(dentist_id),
+    appointment_date: String(appointment_date),
+  });
 
-  if (!response.ok) {
-    throw new Error(data.message || data.error || "Failed to load dentists");
-  }
+  const response = await fetch(
+    `${API_BASE_URL}/appointments/available-times?${query.toString()}`,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+    }
+  );
 
-  return data;
+  return parseJsonResponse(response, "Failed to load available time slots");
 };
 
 export const bookAppointment = async ({
   token,
+  clinic_id,
   dentist_id,
   appointment_date,
+  appointment_time,
   appointment_type,
   notes,
 }) => {
@@ -73,31 +113,16 @@ export const bookAppointment = async ({
       Accept: "application/json",
     },
     body: JSON.stringify({
+      clinic_id,
       dentist_id,
       appointment_date,
+      appointment_time,
       appointment_type,
       notes,
     }),
   });
 
-  const text = await response.text();
-
-  console.log("BOOK APPOINTMENT STATUS:", response.status);
-  console.log("BOOK APPOINTMENT RAW RESPONSE:", text.slice(0, 500));
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    throw new Error("Server returned non-JSON response while booking.");
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || data.error || "Failed to book appointment");
-  }
-
-  return data;
+  return parseJsonResponse(response, "Failed to book appointment");
 };
 
 export const cancelPatientAppointment = async ({
@@ -120,26 +145,7 @@ export const cancelPatientAppointment = async ({
     }
   );
 
-  const text = await response.text();
-
-  console.log("CANCEL APPOINTMENT STATUS:", response.status);
-  console.log("CANCEL APPOINTMENT RAW RESPONSE:", text.slice(0, 500));
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    throw new Error("Server returned non-JSON response while cancelling.");
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data.message || data.error || "Failed to cancel appointment"
-    );
-  }
-
-  return data;
+  return parseJsonResponse(response, "Failed to cancel appointment");
 };
 
 export const requestPatientReschedule = async ({
@@ -162,24 +168,5 @@ export const requestPatientReschedule = async ({
     }
   );
 
-  const text = await response.text();
-
-  console.log("RESCHEDULE STATUS:", response.status);
-  console.log("RESCHEDULE RAW RESPONSE:", text.slice(0, 500));
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    throw new Error("Server returned non-JSON response while rescheduling.");
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data.message || data.error || "Failed to request reschedule"
-    );
-  }
-
-  return data;
+  return parseJsonResponse(response, "Failed to request reschedule");
 };
