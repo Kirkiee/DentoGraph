@@ -76,7 +76,14 @@ function ClinicOwnerPayments() {
 
     if (Number.isNaN(date.getTime())) return "N/A";
 
-    return date.toLocaleString();
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const getStatusClass = (status) => {
@@ -88,19 +95,38 @@ function ClinicOwnerPayments() {
     return "status-badge status-scheduled";
   };
 
+  const countByStatus = (status) => {
+    return payments.filter((payment) => payment.status === status).length;
+  };
+
+  const totalPaidAmount = payments
+    .filter((payment) => payment.status === "Paid")
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+
+  const latestPayment = [...payments].sort((a, b) => {
+    const dateA = new Date(a.created_at || 0).getTime();
+    const dateB = new Date(b.created_at || 0).getTime();
+
+    return dateB - dateA;
+  })[0];
+
   return (
     <DashboardLayout role="Clinic Owner">
       <div className="appointments-list-card">
         <div className="appointments-header">
           <div>
-            <h2>Payment History</h2>
-            <p>View your clinic subscription payment records.</p>
+            <h2>Payments</h2>
+            <p>
+              Review your clinic subscription payments, checkout sessions, and
+              payment status.
+            </p>
           </div>
 
           <div className="appointment-actions" style={{ flexDirection: "row" }}>
             <button
               className="secondary-button"
               onClick={() => navigate("/clinic-owner/subscription")}
+              disabled={loading}
             >
               Back to Subscription
             </button>
@@ -118,86 +144,182 @@ function ClinicOwnerPayments() {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        {loading ? (
-          <p>Loading payment history...</p>
-        ) : payments.length === 0 ? (
-          <div className="empty-state">
-            <h3>No payments yet</h3>
-            <p>Your subscription payments will appear here.</p>
+        <div className="payment-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Payment Summary</h2>
+              <p>Quick overview of your clinic payment activity.</p>
+            </div>
           </div>
-        ) : (
-          <div className="appointments-list">
-            {payments.map((payment) => (
-              <div className="appointment-item" key={payment.payment_id}>
-                <div className="appointment-info">
-                  <div className="appointment-title-row">
-                    <h3>{payment.plan_name || "Subscription Payment"}</h3>
 
-                    <span className={getStatusClass(payment.status)}>
-                      {payment.status || "Pending"}
-                    </span>
-                  </div>
+          <div className="payment-summary-grid">
+            <div className="payment-summary-card">
+              <span>Total Records</span>
+              <strong>{payments.length}</strong>
+              <p>All payment records</p>
+            </div>
 
-                  <p>
-                    <strong>Clinic:</strong> {payment.clinic_name || "N/A"}
-                  </p>
+            <div className="payment-summary-card">
+              <span>Paid Payments</span>
+              <strong>{countByStatus("Paid")}</strong>
+              <p>Successfully completed</p>
+            </div>
 
-                  <p>
-                    <strong>Amount:</strong> {formatPrice(payment.amount)}
-                  </p>
+            <div className="payment-summary-card">
+              <span>Pending Payments</span>
+              <strong>{countByStatus("Pending")}</strong>
+              <p>Awaiting checkout or confirmation</p>
+            </div>
 
-                  <p>
-                    <strong>Currency:</strong> {payment.currency || "PHP"}
-                  </p>
+            <div className="payment-summary-card">
+              <span>Total Paid Amount</span>
+              <strong>{formatPrice(totalPaidAmount)}</strong>
+              <p>Confirmed paid amount</p>
+            </div>
+          </div>
+        </div>
 
-                  <p>
-                    <strong>Billing Cycle:</strong>{" "}
-                    {payment.billing_cycle || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Created At:</strong>{" "}
-                    {formatDate(payment.created_at)}
-                  </p>
-
-                  <p>
-                    <strong>Paid At:</strong> {formatDate(payment.paid_at)}
-                  </p>
-
-                  <p>
-                    <strong>Checkout Session:</strong>{" "}
-                    {payment.checkout_session_id || "N/A"}
-                  </p>
-                </div>
-
-                {payment.status === "Pending" && (
-                  <div className="appointment-actions">
-                    {payment.checkout_url && (
-                      <button
-                        className="primary-button"
-                        onClick={() =>
-                          (window.location.href = payment.checkout_url)
-                        }
-                      >
-                        Continue Payment
-                      </button>
-                    )}
-
-                    <button
-                      className="danger-button"
-                      onClick={() => handleCancelPayment(payment.payment_id)}
-                      disabled={cancellingId === payment.payment_id}
-                    >
-                      {cancellingId === payment.payment_id
-                        ? "Cancelling..."
-                        : "Cancel Payment"}
-                    </button>
-                  </div>
-                )}
+        {latestPayment && (
+          <div className="payment-section">
+            <div className="appointments-header">
+              <div>
+                <h2>Latest Payment</h2>
+                <p>Most recent subscription payment record.</p>
               </div>
-            ))}
+            </div>
+
+            <div className="payment-latest-card">
+              <div>
+                <span>Plan</span>
+                <strong>
+                  {latestPayment.plan_name || "Subscription Plan"}
+                </strong>
+              </div>
+
+              <div>
+                <span>Amount</span>
+                <strong>{formatPrice(latestPayment.amount)}</strong>
+              </div>
+
+              <div>
+                <span>Status</span>
+                <strong>
+                  <span className={getStatusClass(latestPayment.status)}>
+                    {latestPayment.status || "Pending"}
+                  </span>
+                </strong>
+              </div>
+
+              <div>
+                <span>Created</span>
+                <strong>{formatDate(latestPayment.created_at)}</strong>
+              </div>
+            </div>
           </div>
         )}
+
+        <div className="payment-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Payment History</h2>
+              <p>
+                Detailed list of your clinic subscription payment transactions.
+              </p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="payment-loading-card">
+              <p>Loading payment history...</p>
+            </div>
+          ) : payments.length === 0 ? (
+            <div className="empty-state">
+              <h3>No payments yet</h3>
+              <p>Your subscription payments will appear here.</p>
+            </div>
+          ) : (
+            <div className="payment-table-wrapper">
+              <table className="payment-table">
+                <thead>
+                  <tr>
+                    <th>Plan</th>
+                    <th>Clinic</th>
+                    <th>Amount</th>
+                    <th>Billing Cycle</th>
+                    <th>Status</th>
+                    <th>Created At</th>
+                    <th>Paid At</th>
+                    <th>Checkout Session</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {payments.map((payment) => (
+                    <tr key={payment.payment_id}>
+                      <td>
+                        <strong>{payment.plan_name || "Subscription"}</strong>
+                      </td>
+
+                      <td>{payment.clinic_name || "N/A"}</td>
+
+                      <td>{formatPrice(payment.amount)}</td>
+
+                      <td>{payment.billing_cycle || "N/A"}</td>
+
+                      <td>
+                        <span className={getStatusClass(payment.status)}>
+                          {payment.status || "Pending"}
+                        </span>
+                      </td>
+
+                      <td>{formatDate(payment.created_at)}</td>
+
+                      <td>{formatDate(payment.paid_at)}</td>
+
+                      <td>
+                        <span className="payment-session-text">
+                          {payment.checkout_session_id || "N/A"}
+                        </span>
+                      </td>
+
+                      <td>
+                        {payment.status === "Pending" ? (
+                          <div className="payment-table-actions">
+                            {payment.checkout_url && (
+                              <button
+                                className="primary-button"
+                                onClick={() =>
+                                  (window.location.href = payment.checkout_url)
+                                }
+                              >
+                                Continue
+                              </button>
+                            )}
+
+                            <button
+                              className="danger-button"
+                              onClick={() =>
+                                handleCancelPayment(payment.payment_id)
+                              }
+                              disabled={cancellingId === payment.payment_id}
+                            >
+                              {cancellingId === payment.payment_id
+                                ? "Cancelling..."
+                                : "Cancel"}
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="muted-text">No action</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );

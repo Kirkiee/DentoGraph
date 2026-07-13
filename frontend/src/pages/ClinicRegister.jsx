@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Turnstile } from "@marsidev/react-turnstile";
 import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
@@ -9,6 +10,10 @@ import ThemeToggle from "../components/ThemeToggle";
 
 function ClinicRegister() {
   const navigate = useNavigate();
+  const turnstileRef = useRef(null);
+
+  const siteKey =
+    process.env.REACT_APP_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
 
   const [formData, setFormData] = useState({
     owner_name: "",
@@ -23,6 +28,8 @@ function ClinicRegister() {
   });
 
   const [agree, setAgree] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+
   const [error, setError] = useState("");
   const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
@@ -62,6 +69,14 @@ function ClinicRegister() {
     return String(value || "").trim();
   };
 
+  const resetTurnstile = () => {
+    setTurnstileToken("");
+
+    if (turnstileRef.current) {
+      turnstileRef.current.reset();
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       owner_name: "",
@@ -76,6 +91,7 @@ function ClinicRegister() {
     });
 
     setAgree(false);
+    resetTurnstile();
   };
 
   const handleChange = (e) => {
@@ -91,6 +107,8 @@ function ClinicRegister() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
 
     setError("");
     setPasswordRules([]);
@@ -158,6 +176,11 @@ function ClinicRegister() {
       return;
     }
 
+    if (!turnstileToken) {
+      setError("Please complete the CAPTCHA verification.");
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -170,6 +193,7 @@ function ClinicRegister() {
         contact_number: contactNumber || null,
         services,
         opening_hours: openingHours,
+        turnstileToken,
       });
 
       setSuccess(
@@ -189,6 +213,8 @@ function ClinicRegister() {
 
       if (status === 429) {
         setError("Too many registration attempts. Please try again later.");
+      } else if (status === 400 && err.response?.data?.captcha_required) {
+        setError(apiError || "Please complete the CAPTCHA verification.");
       } else if (status === 400) {
         setError(apiError || "Please check your clinic registration details.");
       } else if (status === 403) {
@@ -196,6 +222,8 @@ function ClinicRegister() {
       } else {
         setError(apiError || "Clinic registration failed. Please try again.");
       }
+
+      resetTurnstile();
     } finally {
       setLoading(false);
     }
@@ -237,6 +265,10 @@ function ClinicRegister() {
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            <div className="auth-required-note">
+              Fields marked with <span>*</span> are required.
+            </div>
+
             <div className="auth-row">
               <AuthInput
                 label="Clinic Owner Name"
@@ -246,6 +278,8 @@ function ClinicRegister() {
                 onChange={handleChange}
                 icon="👤"
                 autoComplete="name"
+                disabled={loading}
+                required
               />
 
               <AuthInput
@@ -257,6 +291,8 @@ function ClinicRegister() {
                 onChange={handleChange}
                 icon="✉"
                 autoComplete="email"
+                disabled={loading}
+                required
               />
             </div>
 
@@ -299,6 +335,8 @@ function ClinicRegister() {
               onChange={handleChange}
               icon="🏥"
               autoComplete="organization"
+              disabled={loading}
+              required
             />
 
             <AuthInput
@@ -309,6 +347,8 @@ function ClinicRegister() {
               onChange={handleChange}
               icon="📍"
               autoComplete="street-address"
+              disabled={loading}
+              required
             />
 
             <AuthInput
@@ -321,10 +361,13 @@ function ClinicRegister() {
               icon="☎"
               required={false}
               autoComplete="tel"
+              disabled={loading}
             />
 
             <div className="auth-textarea-group">
-              <label>Services Offered</label>
+              <label>
+                Services Offered <span className="auth-required">*</span>
+              </label>
               <textarea
                 name="services"
                 value={formData.services}
@@ -332,11 +375,14 @@ function ClinicRegister() {
                 placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
                 rows="4"
                 disabled={loading}
+                required
               />
             </div>
 
             <div className="auth-textarea-group">
-              <label>Opening Hours</label>
+              <label>
+                Opening Hours <span className="auth-required">*</span>
+              </label>
               <textarea
                 name="opening_hours"
                 value={formData.opening_hours}
@@ -344,6 +390,7 @@ function ClinicRegister() {
                 placeholder="Example: Monday to Saturday, 9:00 AM - 5:00 PM"
                 rows="4"
                 disabled={loading}
+                required
               />
             </div>
 
@@ -351,13 +398,49 @@ function ClinicRegister() {
               <input
                 type="checkbox"
                 checked={agree}
-                onChange={(e) => setAgree(e.target.checked)}
+                onChange={(e) => {
+                  setAgree(e.target.checked);
+                  setError("");
+                }}
                 disabled={loading}
               />
-              <span>I agree to the Terms of Service and Privacy Policy</span>
+              <span>
+                I agree to the Terms of Service and Privacy Policy{" "}
+                <strong className="auth-required">*</strong>
+              </span>
             </label>
 
-            <AuthButton type="submit" disabled={loading}>
+            {siteKey ? (
+              <div className="turnstile-wrapper">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={siteKey}
+                  onSuccess={(token) => {
+                    setTurnstileToken(token);
+                    setError("");
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken("");
+                  }}
+                  onError={() => {
+                    setTurnstileToken("");
+                    setError(
+                      "CAPTCHA failed to load. Please refresh and try again.",
+                    );
+                  }}
+                  options={{
+                    theme: "auto",
+                    size: "normal",
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="auth-error">
+                Turnstile site key is missing. Please check frontend .env.
+              </div>
+            )}
+
+            <AuthButton type="submit" disabled={loading || !siteKey}>
               {loading ? "Registering Clinic..." : "Register Clinic"}
             </AuthButton>
           </form>
@@ -377,6 +460,7 @@ function ClinicRegister() {
               setSuccess("");
               setError("");
               setPasswordRules([]);
+              resetTurnstile();
             }}
           >
             Register another clinic

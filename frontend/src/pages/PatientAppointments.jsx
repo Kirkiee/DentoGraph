@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 
@@ -23,6 +23,10 @@ function PatientAppointments() {
   const [loadingTimes, setLoadingTimes] = useState(false);
   const [booking, setBooking] = useState(false);
   const [updating, setUpdating] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [showBookingForm, setShowBookingForm] = useState(true);
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
@@ -53,6 +57,15 @@ function PatientAppointments() {
     )}`;
   };
 
+  const getRecommendedAppointmentDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 5);
+
+    return `${date.getFullYear()}-${padNumber(date.getMonth() + 1)}-${padNumber(
+      date.getDate(),
+    )}`;
+  };
+
   const getCurrentDateTimeLocal = () => {
     const now = new Date();
 
@@ -79,6 +92,16 @@ function PatientAppointments() {
     return selectedDate.getTime() < now.getTime();
   };
 
+  const getDaysUntilAppointment = (dateValue) => {
+    if (!dateValue) return null;
+
+    const selectedDate = new Date(`${dateValue}T00:00:00`);
+    const today = new Date(`${getCurrentDateLocal()}T00:00:00`);
+    const diff = selectedDate.getTime() - today.getTime();
+
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
   const combineDateAndTimeToOffsetISO = (dateValue, timeValue) => {
     if (!dateValue || !timeValue) return "";
 
@@ -94,6 +117,20 @@ function PatientAppointments() {
     return `${localDateTime}:00${sign}${offsetHours}:${offsetMinutes}`;
   };
 
+  const combineDateTimeLocalToOffsetISO = (dateTimeValue) => {
+    if (!dateTimeValue) return "";
+
+    const selectedDate = new Date(dateTimeValue);
+    const timezoneOffsetMinutes = -selectedDate.getTimezoneOffset();
+
+    const sign = timezoneOffsetMinutes >= 0 ? "+" : "-";
+    const absoluteOffset = Math.abs(timezoneOffsetMinutes);
+    const offsetHours = padNumber(Math.floor(absoluteOffset / 60));
+    const offsetMinutes = padNumber(absoluteOffset % 60);
+
+    return `${dateTimeValue}:00${sign}${offsetHours}:${offsetMinutes}`;
+  };
+
   const formatAppointmentDateTime = (dateTimeValue) => {
     if (!dateTimeValue) return "N/A";
 
@@ -105,6 +142,19 @@ function PatientAppointments() {
       hour: "2-digit",
       minute: "2-digit",
     });
+  };
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case "Scheduled":
+        return "status-badge status-scheduled";
+      case "Completed":
+        return "status-badge status-completed";
+      case "Cancelled":
+        return "status-badge status-cancelled";
+      default:
+        return "status-badge status-pending";
+    }
   };
 
   useEffect(() => {
@@ -146,9 +196,14 @@ function PatientAppointments() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.dentist_id, formData.appointment_date]);
 
-  const fetchAppointments = async () => {
+  const fetchAppointments = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       setError("");
 
       const response = await API.get(
@@ -161,6 +216,7 @@ function PatientAppointments() {
       setError(err.response?.data?.error || "Unable to load appointments.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -233,6 +289,19 @@ function PatientAppointments() {
       setError(err.response?.data?.error || "Unable to load available times.");
     } finally {
       setLoadingTimes(false);
+    }
+  };
+
+  const refreshAll = () => {
+    fetchAppointments(true);
+    fetchClinics();
+
+    if (formData.clinic_id) {
+      fetchDentistsByClinic(formData.clinic_id);
+    }
+
+    if (formData.dentist_id && formData.appointment_date) {
+      fetchAvailableTimes(formData.dentist_id, formData.appointment_date);
     }
   };
 
@@ -334,7 +403,7 @@ function PatientAppointments() {
         authHeaders,
       );
 
-      setMessage("Appointment booked successfully.");
+      setMessage("Appointment request submitted successfully.");
       setFormData({
         clinic_id: "",
         dentist_id: "",
@@ -345,6 +414,7 @@ function PatientAppointments() {
       });
       setDentists([]);
       setAvailableTimes([]);
+      setShowBookingForm(false);
 
       fetchAppointments();
     } catch (err) {
@@ -467,33 +537,6 @@ function PatientAppointments() {
     }
   };
 
-  const combineDateTimeLocalToOffsetISO = (dateTimeValue) => {
-    if (!dateTimeValue) return "";
-
-    const selectedDate = new Date(dateTimeValue);
-    const timezoneOffsetMinutes = -selectedDate.getTimezoneOffset();
-
-    const sign = timezoneOffsetMinutes >= 0 ? "+" : "-";
-    const absoluteOffset = Math.abs(timezoneOffsetMinutes);
-    const offsetHours = padNumber(Math.floor(absoluteOffset / 60));
-    const offsetMinutes = padNumber(absoluteOffset % 60);
-
-    return `${dateTimeValue}:00${sign}${offsetHours}:${offsetMinutes}`;
-  };
-
-  const getStatusClass = (status) => {
-    switch (status) {
-      case "Scheduled":
-        return "status-badge status-scheduled";
-      case "Completed":
-        return "status-badge status-completed";
-      case "Cancelled":
-        return "status-badge status-cancelled";
-      default:
-        return "status-badge status-pending";
-    }
-  };
-
   const selectedClinic = clinics.find(
     (clinic) => Number(clinic.clinic_id) === Number(formData.clinic_id),
   );
@@ -502,59 +545,438 @@ function PatientAppointments() {
     (dentist) => Number(dentist.dentist_id) === Number(formData.dentist_id),
   );
 
+  const daysUntilAppointment = getDaysUntilAppointment(
+    formData.appointment_date,
+  );
+
+  const appointmentSummary = useMemo(() => {
+    return {
+      total: appointments.length,
+      pending: appointments.filter((item) => item.status === "Pending").length,
+      scheduled: appointments.filter((item) => item.status === "Scheduled")
+        .length,
+      completed: appointments.filter((item) => item.status === "Completed")
+        .length,
+      cancelled: appointments.filter((item) => item.status === "Cancelled")
+        .length,
+      reschedule: appointments.filter((item) => item.reschedule_request).length,
+    };
+  }, [appointments]);
+
+  const filteredAppointments = useMemo(() => {
+    if (statusFilter === "All") return appointments;
+
+    if (statusFilter === "Reschedule") {
+      return appointments.filter((item) => item.reschedule_request);
+    }
+
+    return appointments.filter((item) => item.status === statusFilter);
+  }, [appointments, statusFilter]);
+
+  const filterOptions = [
+    { label: "All", value: "All", count: appointmentSummary.total },
+    { label: "Pending", value: "Pending", count: appointmentSummary.pending },
+    {
+      label: "Scheduled",
+      value: "Scheduled",
+      count: appointmentSummary.scheduled,
+    },
+    {
+      label: "Completed",
+      value: "Completed",
+      count: appointmentSummary.completed,
+    },
+    {
+      label: "Cancelled",
+      value: "Cancelled",
+      count: appointmentSummary.cancelled,
+    },
+    {
+      label: "Reschedule",
+      value: "Reschedule",
+      count: appointmentSummary.reschedule,
+    },
+  ];
+
+  const renderAppointmentSkeletons = () => {
+    return (
+      <div className="appointments-list">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div className="appointment-item loading-card" key={index}>
+            <div className="appointment-info">
+              <div className="loading-line loading-title"></div>
+              <div className="loading-line loading-text"></div>
+              <div className="loading-line loading-text"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout role="Patient">
-      <div className="appointments-layout">
-        <div className="appointments-list-card">
-          <div className="appointments-header">
-            <div>
-              <h2>My Appointments</h2>
-              <p>
-                View your appointment requests, schedules, cancellations, and
-                reschedule updates.
-              </p>
-            </div>
+      <div className="appointments-list-card">
+        <div className="appointments-header">
+          <div>
+            <h2>My Appointments</h2>
+            <p>
+              Book appointments, track requests, and manage reschedules or
+              cancellations in a cleaner view.
+            </p>
+          </div>
+
+          <div className="appointment-actions">
+            <button
+              className="primary-button"
+              onClick={() => setShowBookingForm((prev) => !prev)}
+            >
+              {showBookingForm ? "Hide Booking Form" : "Book Appointment"}
+            </button>
 
             <button
               className="secondary-button"
-              onClick={() => {
-                fetchAppointments();
-                fetchClinics();
-
-                if (formData.clinic_id) {
-                  fetchDentistsByClinic(formData.clinic_id);
-                }
-
-                if (formData.dentist_id && formData.appointment_date) {
-                  fetchAvailableTimes(
-                    formData.dentist_id,
-                    formData.appointment_date,
-                  );
-                }
-              }}
-              disabled={loading || loadingClinics || loadingDentists}
+              onClick={refreshAll}
+              disabled={
+                loading ||
+                refreshing ||
+                loadingClinics ||
+                loadingDentists ||
+                loadingTimes
+              }
             >
-              {loading || loadingClinics || loadingDentists
+              {refreshing || loading || loadingClinics
                 ? "Refreshing..."
                 : "Refresh"}
             </button>
           </div>
+        </div>
 
-          {message && <div className="success-message">{message}</div>}
-          {error && <div className="error-message">{error}</div>}
+        {message && <div className="success-message">{message}</div>}
+
+        {error && (
+          <div className="error-message">
+            <strong>Appointment notice</strong>
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="patient-dashboard-summary-grid">
+          <div className="patient-dashboard-card">
+            <span>Total</span>
+            <strong>{appointmentSummary.total}</strong>
+            <p>All appointment records.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Pending</span>
+            <strong>{appointmentSummary.pending}</strong>
+            <p>Waiting for clinic confirmation.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Scheduled</span>
+            <strong>{appointmentSummary.scheduled}</strong>
+            <p>Confirmed appointments.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Reschedule Requests</span>
+            <strong>{appointmentSummary.reschedule}</strong>
+            <p>Requests waiting for review.</p>
+          </div>
+        </div>
+
+        {showBookingForm && (
+          <div className="patient-dashboard-section">
+            <div className="appointments-header">
+              <div>
+                <h2>Book New Appointment</h2>
+                <p>
+                  Select a clinic, choose an active dentist, then pick an
+                  available schedule.
+                </p>
+              </div>
+            </div>
+
+            <div className="info-message appointment-advisory">
+              Book appointments preferably <strong>5 to 7 days ahead</strong> so
+              the clinic has enough time to review and confirm the schedule.
+              Recommended earliest date:{" "}
+              <strong>{getRecommendedAppointmentDate()}</strong>.
+            </div>
+
+            <form
+              className="appointment-form patient-booking-panel"
+              onSubmit={handleBookAppointment}
+            >
+              <div className="patient-booking-grid">
+                <div className="form-group">
+                  <label>Clinic</label>
+                  <select
+                    name="clinic_id"
+                    value={formData.clinic_id}
+                    onChange={handleChange}
+                    disabled={loadingClinics || booking}
+                    required
+                  >
+                    <option value="">
+                      {loadingClinics ? "Loading clinics..." : "Select Clinic"}
+                    </option>
+
+                    {clinics.map((clinic) => (
+                      <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                        {clinic.clinic_name}
+                        {clinic.address ? ` - ${clinic.address}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Dentist</label>
+                  <select
+                    name="dentist_id"
+                    value={formData.dentist_id}
+                    onChange={handleChange}
+                    disabled={!formData.clinic_id || loadingDentists || booking}
+                    required
+                  >
+                    <option value="">
+                      {!formData.clinic_id
+                        ? "Select a clinic first"
+                        : loadingDentists
+                          ? "Loading dentists..."
+                          : dentists.length === 0
+                            ? "No active dentists in this clinic"
+                            : "Select Dentist"}
+                    </option>
+
+                    {dentists.map((dentist) => (
+                      <option
+                        key={dentist.dentist_id}
+                        value={dentist.dentist_id}
+                      >
+                        {dentist.dentist_name}
+                        {dentist.specialization
+                          ? ` - ${dentist.specialization}`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Appointment Date</label>
+                  <input
+                    type="date"
+                    name="appointment_date"
+                    value={formData.appointment_date}
+                    onChange={handleChange}
+                    min={getCurrentDateLocal()}
+                    disabled={!formData.dentist_id || booking}
+                    required
+                  />
+
+                  {daysUntilAppointment !== null &&
+                    daysUntilAppointment >= 0 &&
+                    daysUntilAppointment < 5 && (
+                      <div className="warning-message appointment-advisory">
+                        This date is less than 5 days away. You may still
+                        request it, but 5 to 7 days advance booking is advised.
+                      </div>
+                    )}
+                </div>
+
+                <div className="form-group">
+                  <label>Available Time</label>
+                  <select
+                    name="appointment_time"
+                    value={formData.appointment_time}
+                    onChange={handleChange}
+                    disabled={
+                      !formData.dentist_id ||
+                      !formData.appointment_date ||
+                      loadingTimes ||
+                      booking
+                    }
+                    required
+                  >
+                    <option value="">
+                      {!formData.dentist_id
+                        ? "Select a dentist first"
+                        : !formData.appointment_date
+                          ? "Select a date first"
+                          : loadingTimes
+                            ? "Loading available times..."
+                            : availableTimes.length === 0
+                              ? "No available times"
+                              : "Select Time"}
+                    </option>
+
+                    {availableTimes.map((time) => (
+                      <option key={time} value={time}>
+                        {time}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Appointment Type</label>
+                  <select
+                    name="appointment_type"
+                    value={formData.appointment_type}
+                    onChange={handleChange}
+                    disabled={booking}
+                  >
+                    <option value="Dental Consultation">
+                      Dental Consultation
+                    </option>
+                    <option value="Dental Cleaning">Dental Cleaning</option>
+                    <option value="Tooth Extraction">Tooth Extraction</option>
+                    <option value="Dental Filling">Dental Filling</option>
+                    <option value="Orthodontic Consultation">
+                      Orthodontic Consultation
+                    </option>
+                    <option value="X-ray Review">X-ray Review</option>
+                    <option value="Follow-up Checkup">Follow-up Checkup</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Notes</label>
+                  <textarea
+                    name="notes"
+                    value={formData.notes}
+                    onChange={handleChange}
+                    placeholder="Add notes or concerns for your appointment..."
+                    rows="4"
+                    disabled={booking}
+                  />
+                </div>
+              </div>
+
+              {(selectedClinic || selectedDentist) && (
+                <div className="patient-selected-context-grid">
+                  {selectedClinic && (
+                    <div className="selected-dentist-card">
+                      <h3>{selectedClinic.clinic_name}</h3>
+
+                      {selectedClinic.address && (
+                        <p>
+                          <strong>Address:</strong> {selectedClinic.address}
+                        </p>
+                      )}
+
+                      {selectedClinic.contact_number && (
+                        <p>
+                          <strong>Contact:</strong>{" "}
+                          {selectedClinic.contact_number}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedDentist && (
+                    <div className="selected-dentist-card">
+                      <h3>{selectedDentist.dentist_name}</h3>
+
+                      <p>
+                        <strong>Specialization:</strong>{" "}
+                        {selectedDentist.specialization || "Not specified"}
+                      </p>
+
+                      <p>
+                        <strong>Clinic:</strong>{" "}
+                        {selectedDentist.clinic_name || "No assigned clinic"}
+                      </p>
+
+                      <p>
+                        <strong>Availability:</strong>{" "}
+                        {selectedDentist.availability || "Not specified"}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div
+                className="appointment-actions"
+                style={{ marginTop: "18px" }}
+              >
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={
+                    booking || loadingClinics || loadingDentists || loadingTimes
+                  }
+                >
+                  {booking ? "Booking..." : "Submit Appointment Request"}
+                </button>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={booking}
+                  onClick={() =>
+                    setFormData({
+                      clinic_id: "",
+                      dentist_id: "",
+                      appointment_date: "",
+                      appointment_time: "",
+                      appointment_type: "Dental Consultation",
+                      notes: "",
+                    })
+                  }
+                >
+                  Clear Form
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Appointment Records</h2>
+              <p>Use filters to reduce clutter and focus on one status.</p>
+            </div>
+          </div>
+
+          <div className="patient-filter-tabs">
+            {filterOptions.map((option) => (
+              <button
+                type="button"
+                key={option.value}
+                className={
+                  statusFilter === option.value
+                    ? "patient-filter-tab active"
+                    : "patient-filter-tab"
+                }
+                onClick={() => setStatusFilter(option.value)}
+              >
+                {option.label}
+                <span>{option.count}</span>
+              </button>
+            ))}
+          </div>
 
           {loading ? (
-            <p>Loading appointments...</p>
-          ) : appointments.length === 0 ? (
+            renderAppointmentSkeletons()
+          ) : filteredAppointments.length === 0 ? (
             <div className="empty-state">
-              <h3>No appointments yet</h3>
+              <h3>No appointments found</h3>
               <p>
-                Book your first appointment using the form on the right side.
+                {statusFilter === "All"
+                  ? "Book your first appointment using the booking form."
+                  : `No ${statusFilter.toLowerCase()} appointment records found.`}
               </p>
             </div>
           ) : (
             <div className="appointments-list">
-              {appointments.map((appointment) => (
+              {filteredAppointments.map((appointment) => (
                 <div
                   className="appointment-item"
                   key={appointment.appointment_id}
@@ -576,66 +998,76 @@ function PatientAppointments() {
                       )}
                     </div>
 
-                    <p>
-                      <strong>Dentist:</strong>{" "}
-                      {appointment.dentist_name ||
-                        `Dentist ID ${appointment.dentist_id}`}
-                    </p>
-
-                    <p>
-                      <strong>Clinic:</strong>{" "}
-                      {appointment.clinic_name || "No assigned clinic"}
-                    </p>
-
-                    <p>
-                      <strong>Current Date:</strong>{" "}
-                      {formatAppointmentDateTime(appointment.appointment_date)}
-                    </p>
-
-                    {appointment.reschedule_request &&
-                      appointment.requested_appointment_date && (
+                    <div className="patient-appointment-detail-grid">
+                      <div className="patient-appointment-left-details">
                         <p>
-                          <strong>Requested New Date:</strong>{" "}
+                          <strong>Dentist:</strong>{" "}
+                          {appointment.dentist_name ||
+                            `Dentist ID ${appointment.dentist_id}`}
+                        </p>
+
+                        <p>
+                          <strong>Current Date:</strong>{" "}
                           {formatAppointmentDateTime(
-                            appointment.requested_appointment_date,
+                            appointment.appointment_date,
                           )}
                         </p>
-                      )}
 
-                    {appointment.reschedule_status &&
-                      appointment.reschedule_status !== "None" && (
+                        {appointment.cancelled_at && (
+                          <p>
+                            <strong>Cancelled At:</strong>{" "}
+                            {formatAppointmentDateTime(
+                              appointment.cancelled_at,
+                            )}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="patient-appointment-right-details">
                         <p>
-                          <strong>Reschedule Status:</strong>{" "}
-                          {appointment.reschedule_status}
+                          <strong>Clinic:</strong>{" "}
+                          {appointment.clinic_name || "No assigned clinic"}
                         </p>
-                      )}
 
-                    {appointment.notes && (
-                      <p>
-                        <strong>Notes:</strong> {appointment.notes}
-                      </p>
-                    )}
+                        {appointment.reschedule_request &&
+                          appointment.requested_appointment_date && (
+                            <p>
+                              <strong>Requested New Date:</strong>{" "}
+                              {formatAppointmentDateTime(
+                                appointment.requested_appointment_date,
+                              )}
+                            </p>
+                          )}
 
-                    {appointment.cancellation_reason && (
-                      <p>
-                        <strong>Cancellation Remarks:</strong>{" "}
-                        {appointment.cancellation_reason}
-                      </p>
-                    )}
+                        {appointment.reschedule_status &&
+                          appointment.reschedule_status !== "None" && (
+                            <p>
+                              <strong>Reschedule Status:</strong>{" "}
+                              {appointment.reschedule_status}
+                            </p>
+                          )}
 
-                    {appointment.cancelled_at && (
-                      <p>
-                        <strong>Cancelled At:</strong>{" "}
-                        {formatAppointmentDateTime(appointment.cancelled_at)}
-                      </p>
-                    )}
+                        {appointment.notes && (
+                          <p>
+                            <strong>Notes:</strong> {appointment.notes}
+                          </p>
+                        )}
 
-                    {appointment.cancelled_by_name && (
-                      <p>
-                        <strong>Cancelled By:</strong>{" "}
-                        {appointment.cancelled_by_name}
-                      </p>
-                    )}
+                        {appointment.cancellation_reason && (
+                          <p>
+                            <strong>Cancellation Remarks:</strong>{" "}
+                            {appointment.cancellation_reason}
+                          </p>
+                        )}
+
+                        {appointment.cancelled_by_name && (
+                          <p>
+                            <strong>Cancelled By:</strong>{" "}
+                            {appointment.cancelled_by_name}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   {appointment.status !== "Cancelled" &&
@@ -662,196 +1094,6 @@ function PatientAppointments() {
               ))}
             </div>
           )}
-        </div>
-
-        <div className="appointment-form-card">
-          <h2>Book New Appointment</h2>
-          <p>
-            Select a clinic first, choose an active dentist from that clinic,
-            then pick an available date and time.
-          </p>
-
-          <form className="appointment-form" onSubmit={handleBookAppointment}>
-            <div className="form-group">
-              <label>Clinic</label>
-              <select
-                name="clinic_id"
-                value={formData.clinic_id}
-                onChange={handleChange}
-                disabled={loadingClinics || booking}
-                required
-              >
-                <option value="">
-                  {loadingClinics ? "Loading clinics..." : "Select Clinic"}
-                </option>
-
-                {clinics.map((clinic) => (
-                  <option key={clinic.clinic_id} value={clinic.clinic_id}>
-                    {clinic.clinic_name}
-                    {clinic.address ? ` - ${clinic.address}` : ""}
-                  </option>
-                ))}
-              </select>
-
-              {selectedClinic && (
-                <div className="selected-dentist-card">
-                  <h3>{selectedClinic.clinic_name}</h3>
-
-                  {selectedClinic.address && (
-                    <p>
-                      <strong>Address:</strong> {selectedClinic.address}
-                    </p>
-                  )}
-
-                  {selectedClinic.contact_number && (
-                    <p>
-                      <strong>Contact:</strong> {selectedClinic.contact_number}
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label>Dentist</label>
-              <select
-                name="dentist_id"
-                value={formData.dentist_id}
-                onChange={handleChange}
-                disabled={!formData.clinic_id || loadingDentists || booking}
-                required
-              >
-                <option value="">
-                  {!formData.clinic_id
-                    ? "Select a clinic first"
-                    : loadingDentists
-                      ? "Loading dentists..."
-                      : dentists.length === 0
-                        ? "No active dentists in this clinic"
-                        : "Select Dentist"}
-                </option>
-
-                {dentists.map((dentist) => (
-                  <option key={dentist.dentist_id} value={dentist.dentist_id}>
-                    {dentist.dentist_name}
-                    {dentist.specialization
-                      ? ` - ${dentist.specialization}`
-                      : ""}
-                  </option>
-                ))}
-              </select>
-
-              {selectedDentist && (
-                <div className="selected-dentist-card">
-                  <h3>{selectedDentist.dentist_name}</h3>
-
-                  <p>
-                    <strong>Specialization:</strong>{" "}
-                    {selectedDentist.specialization || "Not specified"}
-                  </p>
-
-                  <p>
-                    <strong>Clinic:</strong>{" "}
-                    {selectedDentist.clinic_name || "No assigned clinic"}
-                  </p>
-
-                  <p>
-                    <strong>Availability:</strong>{" "}
-                    {selectedDentist.availability || "Not specified"}
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label>Appointment Date</label>
-              <input
-                type="date"
-                name="appointment_date"
-                value={formData.appointment_date}
-                onChange={handleChange}
-                min={getCurrentDateLocal()}
-                disabled={!formData.dentist_id || booking}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Available Time</label>
-              <select
-                name="appointment_time"
-                value={formData.appointment_time}
-                onChange={handleChange}
-                disabled={
-                  !formData.dentist_id ||
-                  !formData.appointment_date ||
-                  loadingTimes ||
-                  booking
-                }
-                required
-              >
-                <option value="">
-                  {!formData.dentist_id
-                    ? "Select a dentist first"
-                    : !formData.appointment_date
-                      ? "Select a date first"
-                      : loadingTimes
-                        ? "Loading available times..."
-                        : availableTimes.length === 0
-                          ? "No available times"
-                          : "Select Time"}
-                </option>
-
-                {availableTimes.map((time) => (
-                  <option key={time} value={time}>
-                    {time}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Appointment Type</label>
-              <select
-                name="appointment_type"
-                value={formData.appointment_type}
-                onChange={handleChange}
-                disabled={booking}
-              >
-                <option value="Dental Consultation">Dental Consultation</option>
-                <option value="Dental Cleaning">Dental Cleaning</option>
-                <option value="Tooth Extraction">Tooth Extraction</option>
-                <option value="Dental Filling">Dental Filling</option>
-                <option value="Orthodontic Consultation">
-                  Orthodontic Consultation
-                </option>
-                <option value="X-ray Review">X-ray Review</option>
-                <option value="Follow-up Checkup">Follow-up Checkup</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Notes</label>
-              <textarea
-                name="notes"
-                value={formData.notes}
-                onChange={handleChange}
-                placeholder="Add notes or concerns for your appointment..."
-                rows="4"
-                disabled={booking}
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={
-                booking || loadingClinics || loadingDentists || loadingTimes
-              }
-            >
-              {booking ? "Booking..." : "Book Appointment"}
-            </button>
-          </form>
         </div>
       </div>
 

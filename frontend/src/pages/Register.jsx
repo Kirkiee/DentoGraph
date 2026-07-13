@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { Turnstile } from "@marsidev/react-turnstile";
 import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
@@ -9,10 +10,14 @@ import ThemeToggle from "../components/ThemeToggle";
 
 function Register() {
   const navigate = useNavigate();
+  const turnstileRef = useRef(null);
 
   // Public registration should only create Patient accounts.
   // Make sure this matches the Patient role_id in your roles table.
   const PATIENT_ROLE_ID = 3;
+
+  const siteKey =
+    process.env.REACT_APP_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -24,6 +29,8 @@ function Register() {
   });
 
   const [agree, setAgree] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+
   const [error, setError] = useState("");
   const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
@@ -63,6 +70,14 @@ function Register() {
     return String(value || "").trim();
   };
 
+  const resetTurnstile = () => {
+    setTurnstileToken("");
+
+    if (turnstileRef.current) {
+      turnstileRef.current.reset();
+    }
+  };
+
   const handleChange = (e) => {
     setError("");
     setPasswordRules([]);
@@ -85,10 +100,13 @@ function Register() {
     });
 
     setAgree(false);
+    resetTurnstile();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
 
     setError("");
     setPasswordRules([]);
@@ -133,6 +151,11 @@ function Register() {
       return;
     }
 
+    if (!turnstileToken) {
+      setError("Please complete the CAPTCHA verification.");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -144,6 +167,7 @@ function Register() {
         password,
         role_id: PATIENT_ROLE_ID,
         contact_number: contactNumber || null,
+        turnstileToken,
       });
 
       setSuccess(
@@ -168,11 +192,15 @@ function Register() {
           apiError ||
             "Public registration is only allowed for patient accounts.",
         );
+      } else if (status === 400 && err.response?.data?.captcha_required) {
+        setError(apiError || "Please complete the CAPTCHA verification.");
       } else if (status === 400) {
         setError(apiError || "Please check your registration details.");
       } else {
         setError(apiError || "Registration failed. Please try again.");
       }
+
+      resetTurnstile();
     } finally {
       setLoading(false);
     }
@@ -207,6 +235,10 @@ function Register() {
 
       {!success && (
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
+          <div className="auth-required-note">
+            Fields marked with <span>*</span> are required.
+          </div>
+
           <div className="auth-row">
             <AuthInput
               label="First Name"
@@ -216,6 +248,8 @@ function Register() {
               onChange={handleChange}
               icon="👤"
               autoComplete="given-name"
+              disabled={loading}
+              required
             />
 
             <AuthInput
@@ -225,6 +259,8 @@ function Register() {
               value={formData.lastName}
               onChange={handleChange}
               autoComplete="family-name"
+              disabled={loading}
+              required
             />
           </div>
 
@@ -237,6 +273,8 @@ function Register() {
             onChange={handleChange}
             icon="✉"
             autoComplete="email"
+            disabled={loading}
+            required
           />
 
           <AuthInput
@@ -249,6 +287,7 @@ function Register() {
             icon="☎"
             required={false}
             autoComplete="tel"
+            disabled={loading}
           />
 
           <div className="auth-row">
@@ -286,13 +325,49 @@ function Register() {
             <input
               type="checkbox"
               checked={agree}
-              onChange={(e) => setAgree(e.target.checked)}
+              onChange={(e) => {
+                setAgree(e.target.checked);
+                setError("");
+              }}
               disabled={loading}
             />
-            <span>I agree to the Terms of Service and Privacy Policy</span>
+            <span>
+              I agree to the Terms of Service and Privacy Policy{" "}
+              <strong className="auth-required">*</strong>
+            </span>
           </label>
 
-          <AuthButton type="submit" disabled={loading}>
+          {siteKey ? (
+            <div className="turnstile-wrapper">
+              <Turnstile
+                ref={turnstileRef}
+                siteKey={siteKey}
+                onSuccess={(token) => {
+                  setTurnstileToken(token);
+                  setError("");
+                }}
+                onExpire={() => {
+                  setTurnstileToken("");
+                }}
+                onError={() => {
+                  setTurnstileToken("");
+                  setError(
+                    "CAPTCHA failed to load. Please refresh and try again.",
+                  );
+                }}
+                options={{
+                  theme: "auto",
+                  size: "normal",
+                }}
+              />
+            </div>
+          ) : (
+            <div className="auth-error">
+              Turnstile site key is missing. Please check frontend .env.
+            </div>
+          )}
+
+          <AuthButton type="submit" disabled={loading || !siteKey}>
             {loading ? "Creating Account..." : "Create Patient Account"}
           </AuthButton>
         </form>
@@ -311,6 +386,7 @@ function Register() {
               setSuccess("");
               setError("");
               setPasswordRules([]);
+              resetTurnstile();
             }}
           >
             Register another patient

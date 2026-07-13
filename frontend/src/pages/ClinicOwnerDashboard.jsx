@@ -10,6 +10,7 @@ function ClinicOwnerDashboard() {
   const [usage, setUsage] = useState(null);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const storedUser = localStorage.getItem("user");
@@ -20,14 +21,20 @@ function ClinicOwnerDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       setError("");
 
-      const clinicResponse = await API.get("/api/clinics/owner/my-clinic");
-
-      const usageResponse = await API.get("/api/clinics/owner/usage");
+      const [clinicResponse, usageResponse] = await Promise.all([
+        API.get("/api/clinics/owner/my-clinic"),
+        API.get("/api/clinics/owner/usage"),
+      ]);
 
       setClinic(clinicResponse.data.clinic || null);
       setUsage(usageResponse.data.usage || null);
@@ -38,6 +45,7 @@ function ClinicOwnerDashboard() {
       );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -79,6 +87,30 @@ function ClinicOwnerDashboard() {
     return "status-badge status-completed";
   };
 
+  const renderLoadingState = () => {
+    return (
+      <>
+        <div className="patient-dashboard-summary-grid">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div className="patient-dashboard-card loading-card" key={index}>
+              <div className="loading-line loading-title"></div>
+              <div className="loading-line loading-number"></div>
+              <div className="loading-line loading-text"></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="patient-dashboard-section">
+          <div className="loading-panel">
+            <div className="loading-line loading-title"></div>
+            <div className="loading-line loading-text"></div>
+            <div className="loading-line loading-text"></div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   const renderUsageCard = (label, used, limit, helperText = "") => {
     const percent = getUsagePercent(used, limit);
 
@@ -95,29 +127,90 @@ function ClinicOwnerDashboard() {
 
           {helperText && <p>{helperText}</p>}
 
-          <div
-            style={{
-              width: "100%",
-              height: "10px",
-              background: "#e2e8f0",
-              borderRadius: "999px",
-              overflow: "hidden",
-              marginTop: "12px",
-            }}
-          >
+          <div className="usage-progress-track">
             <div
-              style={{
-                width: `${percent}%`,
-                height: "100%",
-                background: "#2b6cb0",
-                borderRadius: "999px",
-              }}
+              className="usage-progress-fill"
+              style={{ width: `${percent}%` }}
             ></div>
           </div>
         </div>
       </div>
     );
   };
+
+  const summaryCards = [
+    {
+      label: "Dentists",
+      value: usage?.dentists || 0,
+      description: `Limit: ${formatLimit(clinic?.max_dentists)}`,
+    },
+    {
+      label: "Dental Assistants",
+      value: usage?.assistants || 0,
+      description: `Limit: ${formatLimit(clinic?.max_assistants)}`,
+    },
+    {
+      label: "Patients",
+      value: usage?.patients || 0,
+      description: `Limit: ${formatLimit(clinic?.max_patients)}`,
+    },
+    {
+      label: "Dental Records",
+      value: usage?.records || 0,
+      description: `Limit: ${formatLimit(clinic?.max_records)}`,
+    },
+    {
+      label: "X-rays",
+      value: usage?.xrays || 0,
+      description: `Limit: ${formatLimit(clinic?.max_xrays)}`,
+    },
+    {
+      label: "Storage Used",
+      value: `${usage?.storage_used_mb || 0} MB`,
+      description: `Limit: ${formatLimit(clinic?.storage_limit_mb)} MB`,
+    },
+    {
+      label: "Plan",
+      value: clinic?.plan_name || "No Plan",
+      description: clinic?.billing_cycle || "No billing cycle",
+    },
+    {
+      label: "Clinic Status",
+      value: clinic?.status || "N/A",
+      description: "Current clinic account status.",
+    },
+  ];
+
+  const quickActions = [
+    {
+      title: "Staff Management",
+      description: "Add and manage dentists and dental assistants.",
+      buttonLabel: "Manage Staff",
+      className: "primary-button",
+      path: "/clinic-owner/staff",
+    },
+    {
+      title: "Subscription",
+      description: "View plans, limits, upgrades, and subscription status.",
+      buttonLabel: "View Subscription",
+      className: "secondary-button",
+      path: "/clinic-owner/subscription",
+    },
+    {
+      title: "Payments",
+      description: "Review payment history and pending payment records.",
+      buttonLabel: "View Payments",
+      className: "secondary-button",
+      path: "/clinic-owner/payments",
+    },
+    {
+      title: "Clinic Profile",
+      description: "Update clinic address, services, and opening hours.",
+      buttonLabel: "Edit Clinic",
+      className: "secondary-button",
+      path: "/clinic-owner/profile",
+    },
+  ];
 
   return (
     <DashboardLayout role="Clinic Owner">
@@ -126,24 +219,37 @@ function ClinicOwnerDashboard() {
           <div>
             <h2>Clinic Owner Dashboard</h2>
             <p>
-              Manage your clinic profile, subscription plan, usage limits, and
-              staff access.
+              Welcome back, {user?.name || "Clinic Owner"}. Manage your clinic,
+              subscription plan, usage limits, staff access, and payments.
             </p>
           </div>
 
           <button
             className="secondary-button"
-            onClick={fetchDashboardData}
-            disabled={loading}
+            onClick={() => fetchDashboardData(true)}
+            disabled={loading || refreshing}
           >
-            {loading ? "Refreshing..." : "Refresh"}
+            {refreshing ? "Refreshing..." : "Refresh"}
           </button>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
+        {error && (
+          <div className="error-message">
+            <strong>Unable to load dashboard.</strong>
+            <p>{error}</p>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => fetchDashboardData(true)}
+              disabled={refreshing}
+            >
+              Try Again
+            </button>
+          </div>
+        )}
 
         {loading ? (
-          <p>Loading clinic owner dashboard...</p>
+          renderLoadingState()
         ) : !clinic ? (
           <div className="empty-state">
             <h3>No clinic found</h3>
@@ -155,59 +261,120 @@ function ClinicOwnerDashboard() {
         ) : (
           <>
             <div className="info-message">
-              <strong>Welcome:</strong> {user?.name || "Clinic Owner"}
+              <strong>Current Plan:</strong> {clinic.plan_name || "No Plan"}
               <br />
-              Your clinic is currently using the{" "}
-              <strong>{clinic.plan_name || "No Plan"}</strong> plan.
+              Your clinic status is <strong>{clinic.status || "N/A"}</strong>.
+              Usage below is based on your current subscription limits.
             </div>
 
-            <div className="appointment-item">
-              <div className="appointment-info">
-                <div className="appointment-title-row">
-                  <h3>{clinic.clinic_name}</h3>
+            <div className="patient-dashboard-summary-grid">
+              {summaryCards.map((card) => (
+                <div className="patient-dashboard-card" key={card.label}>
+                  <span>{card.label}</span>
+                  <strong>{card.value}</strong>
+                  <p>{card.description}</p>
+                </div>
+              ))}
+            </div>
 
-                  <span className="status-badge status-scheduled">
-                    {clinic.status || "Active"}
-                  </span>
+            <div className="patient-dashboard-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Clinic Information</h2>
+                  <p>Basic clinic profile details shown to system users.</p>
                 </div>
 
-                <p>
-                  <strong>Owner:</strong> {clinic.owner_name || "N/A"}
-                </p>
+                <button
+                  className="secondary-button"
+                  onClick={() => navigate("/clinic-owner/profile")}
+                >
+                  Edit Clinic Profile
+                </button>
+              </div>
 
-                <p>
-                  <strong>Owner Email:</strong> {clinic.owner_email || "N/A"}
-                </p>
+              <div className="appointment-item">
+                <div className="appointment-info">
+                  <div className="appointment-title-row">
+                    <h3>{clinic.clinic_name}</h3>
 
-                <p>
-                  <strong>Address:</strong> {clinic.address || "N/A"}
-                </p>
+                    <span className="status-badge status-scheduled">
+                      {clinic.status || "Active"}
+                    </span>
+                  </div>
 
-                <p>
-                  <strong>Contact Number:</strong>{" "}
-                  {clinic.contact_number || "N/A"}
-                </p>
+                  <p>
+                    <strong>Owner:</strong> {clinic.owner_name || "N/A"}
+                  </p>
 
-                <p>
-                  <strong>Services:</strong> {clinic.services || "N/A"}
-                </p>
+                  <p>
+                    <strong>Owner Email:</strong> {clinic.owner_email || "N/A"}
+                  </p>
 
-                <p>
-                  <strong>Opening Hours:</strong>{" "}
-                  {clinic.opening_hours || "N/A"}
-                </p>
+                  <p>
+                    <strong>Address:</strong> {clinic.address || "N/A"}
+                  </p>
+
+                  <p>
+                    <strong>Contact Number:</strong>{" "}
+                    {clinic.contact_number || "N/A"}
+                  </p>
+
+                  <p>
+                    <strong>Services:</strong> {clinic.services || "N/A"}
+                  </p>
+
+                  <p>
+                    <strong>Opening Hours:</strong>{" "}
+                    {clinic.opening_hours || "N/A"}
+                  </p>
+                </div>
               </div>
             </div>
 
-            <div className="report-section">
+            <div className="patient-dashboard-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Quick Actions</h2>
+                  <p>
+                    Open the clinic owner modules commonly used during demos.
+                  </p>
+                </div>
+              </div>
+
+              <div className="patient-quick-action-grid">
+                {quickActions.map((action) => (
+                  <div className="patient-quick-action-card" key={action.title}>
+                    <div>
+                      <h3>{action.title}</h3>
+                      <p>{action.description}</p>
+                    </div>
+
+                    <button
+                      className={action.className}
+                      onClick={() => navigate(action.path)}
+                    >
+                      {action.buttonLabel}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
                   <h2>Current Subscription</h2>
                   <p>
-                    Your clinic was assigned the Free plan by default. Upgrade
-                    options will be connected to PayMongo later.
+                    Review the clinic plan currently assigned to this clinic.
                   </p>
                 </div>
+
+                <button
+                  className="primary-button"
+                  onClick={() => navigate("/clinic-owner/subscription")}
+                >
+                  View Plans
+                </button>
               </div>
 
               <div className="appointment-item">
@@ -258,26 +425,15 @@ function ClinicOwnerDashboard() {
                     {formatLimit(clinic.max_xrays)}
                   </p>
                 </div>
-
-                <div className="appointment-actions">
-                  <button
-                    className="primary-button"
-                    onClick={() =>
-                      alert("PayMongo upgrade flow will be added next.")
-                    }
-                  >
-                    Upgrade Plan
-                  </button>
-                </div>
               </div>
             </div>
 
-            <div className="report-section">
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
                   <h2>Usage Limits</h2>
                   <p>
-                    These limits are based on your current subscription plan.
+                    These limits are based on the current subscription plan.
                   </p>
                 </div>
               </div>
@@ -324,61 +480,6 @@ function ClinicOwnerDashboard() {
                   clinic.storage_limit_mb,
                   "Total X-ray file storage used in MB.",
                 )}
-              </div>
-            </div>
-
-            <div className="report-section">
-              <div className="appointments-header">
-                <div>
-                  <h2>Clinic Management</h2>
-                  <p>
-                    Manage staff accounts and prepare your clinic for
-                    subscription upgrades.
-                  </p>
-                </div>
-              </div>
-
-              <div className="appointments-list">
-                <div className="appointment-item">
-                  <div className="appointment-info">
-                    <h3>Staff Management</h3>
-                    <p>
-                      Add dentists and dental assistants under your clinic.
-                      Creation is limited by your current subscription plan.
-                    </p>
-                  </div>
-
-                  <div className="appointment-actions">
-                    <button
-                      className="primary-button"
-                      onClick={() => navigate("/clinic-owner/staff")}
-                    >
-                      Manage Staff
-                    </button>
-                  </div>
-                </div>
-
-                <div className="appointment-item">
-                  <div className="appointment-info">
-                    <h3>Subscription Upgrade</h3>
-                    <p>
-                      Upgrade your plan to increase staff, record, X-ray, and
-                      storage limits. PayMongo integration will handle this
-                      later.
-                    </p>
-                  </div>
-
-                  <div className="appointment-actions">
-                    <button
-                      className="secondary-button"
-                      onClick={() =>
-                        alert("Subscription upgrade page will be added next.")
-                      }
-                    >
-                      View Plans
-                    </button>
-                  </div>
-                </div>
               </div>
             </div>
           </>

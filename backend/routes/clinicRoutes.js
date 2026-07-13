@@ -10,6 +10,7 @@ const {
   authenticateToken,
   authorizeRoles,
 } = require("../middleware/authMiddleware");
+const { verifyTurnstileMiddleware } = require("../utils/verifyTurnstile");
 
 // ===============================
 // RATE LIMITERS
@@ -173,236 +174,241 @@ const markExpiredSubscriptionIfNeeded = async (clinicId) => {
 // PUBLIC: REGISTER CLINIC OWNER + CLINIC WITH FREE PLAN
 // ===============================
 
-router.post("/register", clinicRegisterLimiter, async (req, res) => {
-  const {
-    owner_name,
-    owner_email,
-    password,
-    clinic_name,
-    address,
-    latitude,
-    longitude,
-    services,
-    contact_number,
-    opening_hours,
-  } = req.body || {};
+router.post(
+  "/register",
+  clinicRegisterLimiter,
+  verifyTurnstileMiddleware,
+  async (req, res) => {
+    const {
+      owner_name,
+      owner_email,
+      password,
+      clinic_name,
+      address,
+      latitude,
+      longitude,
+      services,
+      contact_number,
+      opening_hours,
+    } = req.body || {};
 
-  const cleanOwnerName = cleanText(owner_name);
-  const cleanOwnerEmail = normalizeEmail(owner_email);
-  const cleanClinicName = cleanText(clinic_name);
-  const cleanAddress = cleanText(address);
-  const cleanServices = cleanText(services);
-  const cleanContactNumber = cleanText(contact_number);
-  const cleanOpeningHours = cleanText(opening_hours);
-  const passwordError = validatePasswordStrength(password);
+    const cleanOwnerName = cleanText(owner_name);
+    const cleanOwnerEmail = normalizeEmail(owner_email);
+    const cleanClinicName = cleanText(clinic_name);
+    const cleanAddress = cleanText(address);
+    const cleanServices = cleanText(services);
+    const cleanContactNumber = cleanText(contact_number);
+    const cleanOpeningHours = cleanText(opening_hours);
+    const passwordError = validatePasswordStrength(password);
 
-  if (
-    !cleanOwnerName ||
-    !cleanOwnerEmail ||
-    !password ||
-    !cleanClinicName ||
-    !cleanAddress
-  ) {
-    return res.status(400).json({
-      error:
-        "Owner name, owner email, password, clinic name, and address are required.",
-    });
-  }
-
-  if (!isValidEmail(cleanOwnerEmail)) {
-    return res.status(400).json({
-      error: "Please enter a valid owner email address.",
-    });
-  }
-
-  if (passwordError) {
-    return res.status(400).json({
-      error: passwordError,
-      password_rules: getPasswordRules(),
-    });
-  }
-
-  if (!cleanServices) {
-    return res.status(400).json({
-      error: "Please enter at least one clinic service.",
-    });
-  }
-
-  if (!cleanOpeningHours) {
-    return res.status(400).json({
-      error: "Opening hours are required.",
-    });
-  }
-
-  const client = await pool.connect();
-
-  try {
-    await client.query("BEGIN");
-
-    const role = await getClinicOwnerRole(client);
-
-    if (!role) {
-      await client.query("ROLLBACK");
-
+    if (
+      !cleanOwnerName ||
+      !cleanOwnerEmail ||
+      !password ||
+      !cleanClinicName ||
+      !cleanAddress
+    ) {
       return res.status(400).json({
         error:
-          "Clinic Owner role was not found. Please add the Clinic Owner role first.",
+          "Owner name, owner email, password, clinic name, and address are required.",
       });
     }
 
-    const freePlan = await getFreePlan(client);
-
-    if (!freePlan) {
-      await client.query("ROLLBACK");
-
+    if (!isValidEmail(cleanOwnerEmail)) {
       return res.status(400).json({
-        error:
-          "Free subscription plan was not found. Please create an active Free plan first.",
+        error: "Please enter a valid owner email address.",
       });
     }
 
-    const emailCheck = await client.query(
-      `SELECT user_id
-       FROM public.users
-       WHERE LOWER(email) = LOWER($1)
-       LIMIT 1`,
-      [cleanOwnerEmail],
-    );
-
-    if (emailCheck.rows.length > 0) {
-      await client.query("ROLLBACK");
-
+    if (passwordError) {
       return res.status(400).json({
-        error: "Email already exists. Please use another email address.",
+        error: passwordError,
+        password_rules: getPasswordRules(),
       });
     }
 
-    const duplicateClinicCheck = await client.query(
-      `SELECT clinic_id
-       FROM public.clinics
-       WHERE LOWER(clinic_name) = LOWER($1)
-       AND LOWER(address) = LOWER($2)
-       LIMIT 1`,
-      [cleanClinicName, cleanAddress],
-    );
-
-    if (duplicateClinicCheck.rows.length > 0) {
-      await client.query("ROLLBACK");
-
+    if (!cleanServices) {
       return res.status(400).json({
-        error: "A clinic with the same name and address already exists.",
+        error: "Please enter at least one clinic service.",
       });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 12);
-    const emailVerification = generateEmailVerification();
-
-    const newOwner = await client.query(
-      `INSERT INTO public.users
-       (
-         name,
-         email,
-         password,
-         status,
-         email_verified,
-         email_verification_token,
-         email_verification_expires
-       )
-       VALUES ($1, $2, $3, 'Active', $4, $5, $6)
-       RETURNING user_id, name, email, status, email_verified, created_at`,
-      [
-        cleanOwnerName,
-        cleanOwnerEmail,
-        hashedPassword,
-        false,
-        emailVerification.hashedToken,
-        emailVerification.expiresAt,
-      ],
-    );
-
-    const ownerUserId = newOwner.rows[0].user_id;
-
-    await client.query(
-      `INSERT INTO public.user_roles
-       (user_id, role_id)
-       VALUES ($1, $2)`,
-      [ownerUserId, role.role_id],
-    );
-
-    const newClinic = await client.query(
-      `INSERT INTO public.clinics
-       (
-         clinic_name,
-         address,
-         latitude,
-         longitude,
-         services,
-         contact_number,
-         opening_hours,
-         subscription_plan_id,
-         owner_user_id,
-         status,
-         created_at
-       )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Active', CURRENT_TIMESTAMP)
-       RETURNING *`,
-      [
-        cleanClinicName,
-        cleanAddress,
-        normalizeNumber(latitude),
-        normalizeNumber(longitude),
-        normalizeNullable(cleanServices),
-        normalizeNullable(cleanContactNumber),
-        normalizeNullable(cleanOpeningHours),
-        freePlan.plan_id,
-        ownerUserId,
-      ],
-    );
-
-    await client.query("COMMIT");
-
-    const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
-
-    await sendVerificationEmail({
-      to: cleanOwnerEmail,
-      name: cleanOwnerName,
-      verificationUrl,
-    });
-
-    await createAuditLog({
-      user_id: ownerUserId,
-      action: "REGISTER_CLINIC",
-      module: "Clinic Registration",
-      description: `Clinic owner ${cleanOwnerName} registered clinic ${cleanClinicName} with the Free plan.`,
-      ip_address: req.ip,
-    });
-
-    res.status(201).json({
-      message:
-        "Clinic registered successfully. Your clinic has been assigned the Free plan by default. A verification email has been sent to the clinic owner email address. You may now log in.",
-      owner: newOwner.rows[0],
-      role: role.role_name,
-      clinic: newClinic.rows[0],
-      subscription_plan: freePlan,
-    });
-  } catch (err) {
-    await client.query("ROLLBACK").catch(() => {});
-
-    console.error("Clinic registration error:", err.message);
-
-    if (err.code === "23505") {
+    if (!cleanOpeningHours) {
       return res.status(400).json({
-        error: "A duplicate record already exists.",
+        error: "Opening hours are required.",
       });
     }
 
-    res.status(500).json({
-      error: "Error registering clinic.",
-    });
-  } finally {
-    client.release();
-  }
-});
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const role = await getClinicOwnerRole(client);
+
+      if (!role) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          error:
+            "Clinic Owner role was not found. Please add the Clinic Owner role first.",
+        });
+      }
+
+      const freePlan = await getFreePlan(client);
+
+      if (!freePlan) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          error:
+            "Free subscription plan was not found. Please create an active Free plan first.",
+        });
+      }
+
+      const emailCheck = await client.query(
+        `SELECT user_id
+         FROM public.users
+         WHERE LOWER(email) = LOWER($1)
+         LIMIT 1`,
+        [cleanOwnerEmail],
+      );
+
+      if (emailCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          error: "Email already exists. Please use another email address.",
+        });
+      }
+
+      const duplicateClinicCheck = await client.query(
+        `SELECT clinic_id
+         FROM public.clinics
+         WHERE LOWER(clinic_name) = LOWER($1)
+         AND LOWER(address) = LOWER($2)
+         LIMIT 1`,
+        [cleanClinicName, cleanAddress],
+      );
+
+      if (duplicateClinicCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+
+        return res.status(400).json({
+          error: "A clinic with the same name and address already exists.",
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const emailVerification = generateEmailVerification();
+
+      const newOwner = await client.query(
+        `INSERT INTO public.users
+         (
+           name,
+           email,
+           password,
+           status,
+           email_verified,
+           email_verification_token,
+           email_verification_expires
+         )
+         VALUES ($1, $2, $3, 'Active', $4, $5, $6)
+         RETURNING user_id, name, email, status, email_verified, created_at`,
+        [
+          cleanOwnerName,
+          cleanOwnerEmail,
+          hashedPassword,
+          false,
+          emailVerification.hashedToken,
+          emailVerification.expiresAt,
+        ],
+      );
+
+      const ownerUserId = newOwner.rows[0].user_id;
+
+      await client.query(
+        `INSERT INTO public.user_roles
+         (user_id, role_id)
+         VALUES ($1, $2)`,
+        [ownerUserId, role.role_id],
+      );
+
+      const newClinic = await client.query(
+        `INSERT INTO public.clinics
+         (
+           clinic_name,
+           address,
+           latitude,
+           longitude,
+           services,
+           contact_number,
+           opening_hours,
+           subscription_plan_id,
+           owner_user_id,
+           status,
+           created_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Active', CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [
+          cleanClinicName,
+          cleanAddress,
+          normalizeNumber(latitude),
+          normalizeNumber(longitude),
+          normalizeNullable(cleanServices),
+          normalizeNullable(cleanContactNumber),
+          normalizeNullable(cleanOpeningHours),
+          freePlan.plan_id,
+          ownerUserId,
+        ],
+      );
+
+      await client.query("COMMIT");
+
+      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
+
+      await sendVerificationEmail({
+        to: cleanOwnerEmail,
+        name: cleanOwnerName,
+        verificationUrl,
+      });
+
+      await createAuditLog({
+        user_id: ownerUserId,
+        action: "REGISTER_CLINIC",
+        module: "Clinic Registration",
+        description: `Clinic owner ${cleanOwnerName} registered clinic ${cleanClinicName} with the Free plan.`,
+        ip_address: req.ip,
+      });
+
+      res.status(201).json({
+        message:
+          "Clinic registered successfully. Your clinic has been assigned the Free plan by default. A verification email has been sent to the clinic owner email address. You may now log in.",
+        owner: newOwner.rows[0],
+        role: role.role_name,
+        clinic: newClinic.rows[0],
+        subscription_plan: freePlan,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+
+      console.error("Clinic registration error:", err.message);
+
+      if (err.code === "23505") {
+        return res.status(400).json({
+          error: "A duplicate record already exists.",
+        });
+      }
+
+      res.status(500).json({
+        error: "Error registering clinic.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
 
 // ===============================
 // ADMIN / STAFF: GET ALL CLINICS

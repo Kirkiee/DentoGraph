@@ -14,6 +14,7 @@ const {
   authenticateToken,
   authorizeRoles,
 } = require("../middleware/authMiddleware");
+const { verifyTurnstileMiddleware } = require("../utils/verifyTurnstile");
 
 // ===============================
 // SECURITY LIMITERS
@@ -182,6 +183,14 @@ const optionalAuthenticateToken = (req, res, next) => {
 
     next();
   });
+};
+
+const verifyTurnstileForPublicRequest = async (req, res, next) => {
+  if (req.user) {
+    return next();
+  }
+
+  return verifyTurnstileMiddleware(req, res, next);
 };
 
 const isAssistantRole = (role) => {
@@ -374,6 +383,7 @@ router.post(
   "/register",
   registerLimiter,
   optionalAuthenticateToken,
+  verifyTurnstileForPublicRequest,
   async (req, res) => {
     const {
       name,
@@ -617,25 +627,29 @@ router.post(
 // NOTE: Login blocks unverified accounts.
 // ===============================
 
-router.post("/login", loginLimiter, async (req, res) => {
-  const { email, password, rememberMe } = req.body || {};
-  const cleanEmail = normalizeEmail(email);
+router.post(
+  "/login",
+  loginLimiter,
+  verifyTurnstileMiddleware,
+  async (req, res) => {
+    const { email, password, rememberMe } = req.body || {};
+    const cleanEmail = normalizeEmail(email);
 
-  if (!cleanEmail || !password) {
-    return res.status(400).json({
-      error: "Email and password are required.",
-    });
-  }
+    if (!cleanEmail || !password) {
+      return res.status(400).json({
+        error: "Email and password are required.",
+      });
+    }
 
-  if (!isValidEmail(cleanEmail)) {
-    return res.status(400).json({
-      error: AUTH_ERROR_MESSAGE,
-    });
-  }
+    if (!isValidEmail(cleanEmail)) {
+      return res.status(400).json({
+        error: AUTH_ERROR_MESSAGE,
+      });
+    }
 
-  try {
-    const userResult = await pool.query(
-      `SELECT 
+    try {
+      const userResult = await pool.query(
+        `SELECT 
           u.user_id,
           u.name,
           u.email,
@@ -649,75 +663,76 @@ router.post("/login", loginLimiter, async (req, res) => {
        JOIN public.roles r ON ur.role_id = r.role_id
        WHERE LOWER(u.email) = LOWER($1)
        LIMIT 1`,
-      [cleanEmail],
-    );
+        [cleanEmail],
+      );
 
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
-    }
+      if (userResult.rows.length === 0) {
+        return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
+      }
 
-    const user = userResult.rows[0];
+      const user = userResult.rows[0];
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+      const isPasswordValid = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
-    }
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
+      }
 
-    if (user.status === "Inactive") {
-      return res.status(403).json({
-        error: "This account is inactive. Please contact the administrator.",
+      if (user.status === "Inactive") {
+        return res.status(403).json({
+          error: "This account is inactive. Please contact the administrator.",
+        });
+      }
+
+      if (!user.email_verified) {
+        return res.status(403).json({
+          error:
+            "Your email address is not verified. Please verify your email before logging in.",
+          email_unverified: true,
+        });
+      }
+
+      const token = jwt.sign(
+        {
+          user_id: user.user_id,
+          email: user.email,
+          role: user.role_name,
+        },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: rememberMe ? "7d" : "2h",
+        },
+      );
+
+      await createAuditLog({
+        user_id: user.user_id,
+        action: "LOGIN",
+        module: "Authentication",
+        description: `${user.name} logged in as ${user.role_name}.`,
+        ip_address: req.ip,
+      });
+
+      res.status(200).json({
+        message: "Login successful",
+        token,
+        user: {
+          user_id: user.user_id,
+          name: user.name,
+          email: user.email,
+          status: user.status,
+          email_verified: user.email_verified,
+          role_id: user.role_id,
+          role: user.role_name,
+        },
+      });
+    } catch (err) {
+      console.error("Login error:", err.message);
+      res.status(500).json({
+        error: "Server error during login. Please try again later.",
       });
     }
-
-    if (!user.email_verified) {
-      return res.status(403).json({
-        error:
-          "Your email address is not verified. Please verify your email before logging in.",
-        email_unverified: true,
-      });
-    }
-
-    const token = jwt.sign(
-      {
-        user_id: user.user_id,
-        email: user.email,
-        role: user.role_name,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: rememberMe ? "7d" : "2h",
-      },
-    );
-
-    await createAuditLog({
-      user_id: user.user_id,
-      action: "LOGIN",
-      module: "Authentication",
-      description: `${user.name} logged in as ${user.role_name}.`,
-      ip_address: req.ip,
-    });
-
-    res.status(200).json({
-      message: "Login successful",
-      token,
-      user: {
-        user_id: user.user_id,
-        name: user.name,
-        email: user.email,
-        status: user.status,
-        email_verified: user.email_verified,
-        role_id: user.role_id,
-        role: user.role_name,
-      },
-    });
-  } catch (err) {
-    console.error("Login error:", err.message);
-    res.status(500).json({
-      error: "Server error during login. Please try again later.",
-    });
-  }
-});
+  },
+);
 
 // ===============================
 // VERIFY EMAIL
@@ -785,177 +800,187 @@ router.get("/verify-email/:token", async (req, res) => {
 // RESEND EMAIL VERIFICATION
 // ===============================
 
-router.post("/resend-verification", registerLimiter, async (req, res) => {
-  const { email } = req.body || {};
-  const cleanEmail = normalizeEmail(email);
+router.post(
+  "/resend-verification",
+  registerLimiter,
+  verifyTurnstileMiddleware,
+  async (req, res) => {
+    const { email } = req.body || {};
+    const cleanEmail = normalizeEmail(email);
 
-  if (!cleanEmail) {
-    return res.status(400).json({
-      error: "Email is required.",
-    });
-  }
+    if (!cleanEmail) {
+      return res.status(400).json({
+        error: "Email is required.",
+      });
+    }
 
-  if (!isValidEmail(cleanEmail)) {
-    return res.status(400).json({
-      error: "Please enter a valid email address.",
-    });
-  }
+    if (!isValidEmail(cleanEmail)) {
+      return res.status(400).json({
+        error: "Please enter a valid email address.",
+      });
+    }
 
-  try {
-    const userResult = await pool.query(
-      `SELECT user_id, name, email, status, COALESCE(email_verified, false) AS email_verified
+    try {
+      const userResult = await pool.query(
+        `SELECT user_id, name, email, status, COALESCE(email_verified, false) AS email_verified
        FROM public.users
        WHERE LOWER(email) = LOWER($1)
        LIMIT 1`,
-      [cleanEmail],
-    );
+        [cleanEmail],
+      );
 
-    const genericMessage =
-      "If the email exists and is not yet verified, a verification email has been sent.";
+      const genericMessage =
+        "If the email exists and is not yet verified, a verification email has been sent.";
 
-    if (userResult.rows.length === 0) {
-      return res.status(200).json({
-        message: genericMessage,
-      });
-    }
+      if (userResult.rows.length === 0) {
+        return res.status(200).json({
+          message: genericMessage,
+        });
+      }
 
-    const user = userResult.rows[0];
+      const user = userResult.rows[0];
 
-    if (user.email_verified) {
-      return res.status(200).json({
-        message: "This email address is already verified.",
-      });
-    }
+      if (user.email_verified) {
+        return res.status(200).json({
+          message: "This email address is already verified.",
+        });
+      }
 
-    if (user.status === "Inactive") {
-      return res.status(200).json({
-        message: genericMessage,
-      });
-    }
+      if (user.status === "Inactive") {
+        return res.status(200).json({
+          message: genericMessage,
+        });
+      }
 
-    const emailVerification = generateEmailVerification();
+      const emailVerification = generateEmailVerification();
 
-    await pool.query(
-      `UPDATE public.users
+      await pool.query(
+        `UPDATE public.users
        SET email_verification_token = $1,
            email_verification_expires = $2
        WHERE user_id = $3`,
-      [
-        emailVerification.hashedToken,
-        emailVerification.expiresAt,
-        user.user_id,
-      ],
-    );
+        [
+          emailVerification.hashedToken,
+          emailVerification.expiresAt,
+          user.user_id,
+        ],
+      );
 
-    const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
+      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
 
-    await sendVerificationEmail({
-      to: user.email,
-      name: user.name,
-      verificationUrl,
-    });
+      await sendVerificationEmail({
+        to: user.email,
+        name: user.name,
+        verificationUrl,
+      });
 
-    await createAuditLog({
-      user_id: user.user_id,
-      action: "RESEND_EMAIL_VERIFICATION",
-      module: "Authentication",
-      description: `${user.name} requested a new email verification link.`,
-      ip_address: req.ip,
-    });
+      await createAuditLog({
+        user_id: user.user_id,
+        action: "RESEND_EMAIL_VERIFICATION",
+        module: "Authentication",
+        description: `${user.name} requested a new email verification link.`,
+        ip_address: req.ip,
+      });
 
-    res.status(200).json({
-      message: genericMessage,
-    });
-  } catch (err) {
-    console.error("Resend verification error:", err.message);
-    res.status(500).json({
-      error: "Unable to resend verification email.",
-    });
-  }
-});
+      res.status(200).json({
+        message: genericMessage,
+      });
+    } catch (err) {
+      console.error("Resend verification error:", err.message);
+      res.status(500).json({
+        error: "Unable to resend verification email.",
+      });
+    }
+  },
+);
 
 // ===============================
 // FORGOT PASSWORD
 // ===============================
 
-router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
-  const { email } = req.body || {};
-  const cleanEmail = normalizeEmail(email);
+router.post(
+  "/forgot-password",
+  forgotPasswordLimiter,
+  verifyTurnstileMiddleware,
+  async (req, res) => {
+    const { email } = req.body || {};
+    const cleanEmail = normalizeEmail(email);
 
-  if (!cleanEmail) {
-    return res.status(400).json({
-      error: "Email is required.",
-    });
-  }
+    if (!cleanEmail) {
+      return res.status(400).json({
+        error: "Email is required.",
+      });
+    }
 
-  if (!isValidEmail(cleanEmail)) {
-    return res.status(400).json({
-      error: "Please enter a valid email address.",
-    });
-  }
+    if (!isValidEmail(cleanEmail)) {
+      return res.status(400).json({
+        error: "Please enter a valid email address.",
+      });
+    }
 
-  try {
-    const userResult = await pool.query(
-      `SELECT user_id, name, email, status
+    try {
+      const userResult = await pool.query(
+        `SELECT user_id, name, email, status
        FROM public.users
        WHERE LOWER(email) = LOWER($1)
        LIMIT 1`,
-      [cleanEmail],
-    );
+        [cleanEmail],
+      );
 
-    const genericMessage =
-      "If an account with that email exists, a password reset email has been sent.";
+      const genericMessage =
+        "If an account with that email exists, a password reset email has been sent.";
 
-    if (userResult.rows.length === 0) {
-      return res.status(200).json({
-        message: genericMessage,
-      });
-    }
+      if (userResult.rows.length === 0) {
+        return res.status(200).json({
+          message: genericMessage,
+        });
+      }
 
-    const user = userResult.rows[0];
+      const user = userResult.rows[0];
 
-    if (user.status === "Inactive") {
-      return res.status(200).json({
-        message: genericMessage,
-      });
-    }
+      if (user.status === "Inactive") {
+        return res.status(200).json({
+          message: genericMessage,
+        });
+      }
 
-    const passwordReset = generatePasswordReset();
+      const passwordReset = generatePasswordReset();
 
-    await pool.query(
-      `UPDATE public.users
+      await pool.query(
+        `UPDATE public.users
        SET password_reset_token = $1,
            password_reset_expires = $2
        WHERE user_id = $3`,
-      [passwordReset.hashedToken, passwordReset.expiresAt, user.user_id],
-    );
+        [passwordReset.hashedToken, passwordReset.expiresAt, user.user_id],
+      );
 
-    const resetUrl = `${getFrontendBaseUrl()}/reset-password/${passwordReset.rawToken}`;
+      const resetUrl = `${getFrontendBaseUrl()}/reset-password/${passwordReset.rawToken}`;
 
-    await sendPasswordResetEmail({
-      to: user.email,
-      name: user.name,
-      resetUrl,
-    });
+      await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetUrl,
+      });
 
-    await createAuditLog({
-      user_id: user.user_id,
-      action: "FORGOT_PASSWORD_REQUEST",
-      module: "Authentication",
-      description: `${user.name} requested a password reset link.`,
-      ip_address: req.ip,
-    });
+      await createAuditLog({
+        user_id: user.user_id,
+        action: "FORGOT_PASSWORD_REQUEST",
+        module: "Authentication",
+        description: `${user.name} requested a password reset link.`,
+        ip_address: req.ip,
+      });
 
-    res.status(200).json({
-      message: genericMessage,
-    });
-  } catch (err) {
-    console.error("Forgot password error:", err.message);
-    res.status(500).json({
-      error: "Unable to process forgot password request.",
-    });
-  }
-});
+      res.status(200).json({
+        message: genericMessage,
+      });
+    } catch (err) {
+      console.error("Forgot password error:", err.message);
+      res.status(500).json({
+        error: "Unable to process forgot password request.",
+      });
+    }
+  },
+);
 
 // ===============================
 // RESET PASSWORD
