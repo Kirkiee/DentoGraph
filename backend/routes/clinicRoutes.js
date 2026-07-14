@@ -13,6 +13,35 @@ const {
 const { verifyTurnstileMiddleware } = require("../utils/verifyTurnstile");
 
 // ===============================
+// PUBLIC: GET ACTIVE CLINICS FOR PATIENT REGISTRATION
+// ===============================
+router.get("/public/list", async (req, res) => {
+  try {
+    const clinics = await pool.query(
+      `SELECT 
+          clinic_id,
+          clinic_name,
+          address,
+          contact_number,
+          status
+       FROM public.clinics
+       WHERE status = 'Active'
+       ORDER BY clinic_name ASC`,
+    );
+
+    res.status(200).json({
+      message: "Public clinic list retrieved successfully.",
+      clinics: clinics.rows,
+    });
+  } catch (err) {
+    console.error("Get public clinic list error:", err.message);
+    res.status(500).json({
+      error: "Error retrieving public clinic list.",
+    });
+  }
+});
+
+// ===============================
 // RATE LIMITERS
 // ===============================
 
@@ -168,6 +197,272 @@ const markExpiredSubscriptionIfNeeded = async (clinicId) => {
   );
 
   return result.rows[0] || null;
+};
+
+const getOwnerSubscriptionSource = async (client, ownerUserId) => {
+  const result = await client.query(
+    `SELECT
+        c.clinic_id,
+        c.clinic_name,
+        c.subscription_plan_id,
+        c.subscription_start_date,
+        c.subscription_end_date,
+        COALESCE(c.subscription_status, 'Active') AS subscription_status,
+        sp.plan_name,
+        sp.plan_tier,
+        sp.price,
+        sp.billing_cycle,
+        sp.max_dentists,
+        sp.max_assistants,
+        sp.max_patients,
+        sp.max_records,
+        sp.max_xrays,
+        sp.storage_limit_mb
+     FROM public.clinics c
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
+     WHERE c.owner_user_id = $1
+     AND COALESCE(c.status, 'Active') = 'Active'
+     ORDER BY
+       CASE WHEN c.subscription_plan_id IS NULL THEN 1 ELSE 0 END,
+       c.created_at ASC NULLS LAST,
+       c.clinic_id ASC
+     LIMIT 1`,
+    [ownerUserId],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getOwnerLocations = async (client, ownerUserId) => {
+  const result = await client.query(
+    `SELECT
+        c.clinic_id,
+        c.clinic_name,
+        c.address,
+        c.latitude,
+        c.longitude,
+        c.services,
+        c.contact_number,
+        c.opening_hours,
+        c.subscription_plan_id,
+        c.subscription_start_date,
+        c.subscription_end_date,
+        COALESCE(c.subscription_status, 'Active') AS subscription_status,
+        c.owner_user_id,
+        owner_user.name AS owner_name,
+        owner_user.email AS owner_email,
+        sp.plan_name,
+        sp.plan_tier,
+        sp.price,
+        sp.billing_cycle,
+        sp.max_dentists,
+        sp.max_assistants,
+        sp.max_patients,
+        sp.max_records,
+        sp.max_xrays,
+        sp.storage_limit_mb,
+        c.status,
+        c.created_at
+     FROM public.clinics c
+     LEFT JOIN public.users owner_user
+       ON c.owner_user_id = owner_user.user_id
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
+     WHERE c.owner_user_id = $1
+     ORDER BY c.created_at ASC NULLS LAST, c.clinic_id ASC`,
+    [ownerUserId],
+  );
+
+  return result.rows;
+};
+
+const getOwnerLocationById = async (client, ownerUserId, clinicId) => {
+  const result = await client.query(
+    `SELECT
+        c.clinic_id,
+        c.clinic_name,
+        c.address,
+        c.latitude,
+        c.longitude,
+        c.services,
+        c.contact_number,
+        c.opening_hours,
+        c.subscription_plan_id,
+        c.subscription_start_date,
+        c.subscription_end_date,
+        COALESCE(c.subscription_status, 'Active') AS subscription_status,
+        c.owner_user_id,
+        owner_user.name AS owner_name,
+        owner_user.email AS owner_email,
+        sp.plan_name,
+        sp.plan_tier,
+        sp.price,
+        sp.billing_cycle,
+        sp.max_dentists,
+        sp.max_assistants,
+        sp.max_patients,
+        sp.max_records,
+        sp.max_xrays,
+        sp.storage_limit_mb,
+        c.status,
+        c.created_at
+     FROM public.clinics c
+     LEFT JOIN public.users owner_user
+       ON c.owner_user_id = owner_user.user_id
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
+     WHERE c.owner_user_id = $1
+     AND c.clinic_id = $2
+     LIMIT 1`,
+    [ownerUserId, clinicId],
+  );
+
+  return result.rows[0] || null;
+};
+
+const getLocationUsage = async (client, clinicId) => {
+  const dentistCount = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM public.dentists
+     WHERE clinic_id = $1`,
+    [clinicId],
+  );
+
+  const assistantCount = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM public.assistants
+     WHERE clinic_id = $1`,
+    [clinicId],
+  );
+
+  const patientCount = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM public.patients
+     WHERE clinic_id = $1`,
+    [clinicId],
+  );
+
+  const fallbackPatientCount = await client.query(
+    `SELECT COUNT(DISTINCT dr.patient_id)::int AS count
+     FROM public.dental_records dr
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     WHERE d.clinic_id = $1
+     AND COALESCE(dr.status, 'Active') = 'Active'`,
+    [clinicId],
+  );
+
+  const recordCount = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM public.dental_records dr
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     WHERE d.clinic_id = $1
+     AND COALESCE(dr.status, 'Active') = 'Active'`,
+    [clinicId],
+  );
+
+  const xrayCount = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM public.xray_images x
+     JOIN public.dental_records dr ON x.record_id = dr.record_id
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     WHERE d.clinic_id = $1`,
+    [clinicId],
+  );
+
+  const storageUsage = await client.query(
+    `SELECT COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint AS total_bytes
+     FROM public.xray_images x
+     JOIN public.dental_records dr ON x.record_id = dr.record_id
+     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     WHERE d.clinic_id = $1`,
+    [clinicId],
+  );
+
+  const directPatients = Number(patientCount.rows[0].count || 0);
+  const fallbackPatients = Number(fallbackPatientCount.rows[0].count || 0);
+  const totalBytes = Number(storageUsage.rows[0].total_bytes || 0);
+  const storageUsedMb = totalBytes / 1024 / 1024;
+
+  return {
+    dentists: dentistCount.rows[0].count,
+    assistants: assistantCount.rows[0].count,
+    patients: Math.max(directPatients, fallbackPatients),
+    records: recordCount.rows[0].count,
+    xrays: xrayCount.rows[0].count,
+    storage_used_mb: Number(storageUsedMb.toFixed(2)),
+    storage_used_bytes: totalBytes,
+  };
+};
+
+const getOwnerAggregateUsage = async (client, ownerUserId) => {
+  const locations = await getOwnerLocations(client, ownerUserId);
+
+  const activeLocations = locations.filter((location) => {
+    return String(location.status || "Active") === "Active";
+  });
+
+  const usageByLocation = [];
+  const totalUsage = {
+    dentists: 0,
+    assistants: 0,
+    patients: 0,
+    records: 0,
+    xrays: 0,
+    storage_used_mb: 0,
+    storage_used_bytes: 0,
+  };
+
+  for (const location of activeLocations) {
+    const usage = await getLocationUsage(client, location.clinic_id);
+
+    usageByLocation.push({
+      clinic_id: location.clinic_id,
+      clinic_name: location.clinic_name,
+      usage,
+    });
+
+    totalUsage.dentists += Number(usage.dentists || 0);
+    totalUsage.assistants += Number(usage.assistants || 0);
+    totalUsage.patients += Number(usage.patients || 0);
+    totalUsage.records += Number(usage.records || 0);
+    totalUsage.xrays += Number(usage.xrays || 0);
+    totalUsage.storage_used_bytes += Number(usage.storage_used_bytes || 0);
+  }
+
+  totalUsage.storage_used_mb = Number(
+    (totalUsage.storage_used_bytes / 1024 / 1024).toFixed(2),
+  );
+
+  return {
+    locations,
+    usage_by_location: usageByLocation,
+    usage: totalUsage,
+  };
+};
+
+const syncOwnerLocationSubscriptions = async (
+  client,
+  ownerUserId,
+  subscriptionSource,
+) => {
+  if (!subscriptionSource) return;
+
+  await client.query(
+    `UPDATE public.clinics
+     SET subscription_plan_id = $1,
+         subscription_start_date = $2,
+         subscription_end_date = $3,
+         subscription_status = $4
+     WHERE owner_user_id = $5`,
+    [
+      subscriptionSource.subscription_plan_id || null,
+      subscriptionSource.subscription_start_date || null,
+      subscriptionSource.subscription_end_date || null,
+      subscriptionSource.subscription_status || "Active",
+      ownerUserId,
+    ],
+  );
 };
 
 // ===============================
@@ -512,76 +807,101 @@ router.get(
 );
 
 // ===============================
-// CLINIC OWNER: GET OWN CLINIC
+// CLINIC OWNER: GET ALL OWN CLINIC LOCATIONS
 // ===============================
 
 router.get(
-  "/owner/my-clinic",
+  "/owner/locations",
   authenticateToken,
   authorizeRoles("Clinic Owner"),
   async (req, res) => {
+    const client = await pool.connect();
+
     try {
-      const clinic = await pool.query(
-        `SELECT 
-            c.clinic_id,
-            c.clinic_name,
-            c.address,
-            c.latitude,
-            c.longitude,
-            c.services,
-            c.contact_number,
-            c.opening_hours,
-            c.subscription_plan_id,
-            c.owner_user_id,
-            owner_user.name AS owner_name,
-            owner_user.email AS owner_email,
-            sp.plan_name,
-            sp.plan_tier,
-            sp.price,
-            sp.billing_cycle,
-            sp.max_dentists,
-            sp.max_assistants,
-            sp.max_patients,
-            sp.max_records,
-            sp.max_xrays,
-            sp.storage_limit_mb,
-            c.status,
-            c.created_at
-         FROM public.clinics c
-         LEFT JOIN public.users owner_user
-           ON c.owner_user_id = owner_user.user_id
-         LEFT JOIN public.subscription_plans sp
-           ON c.subscription_plan_id = sp.plan_id
-         WHERE c.owner_user_id = $1
-         LIMIT 1`,
-        [req.user.user_id],
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
       );
 
-      if (clinic.rows.length === 0) {
-        return res.status(404).json({
-          error: "No clinic is linked to this clinic owner account.",
-        });
+      if (subscriptionSource) {
+        await syncOwnerLocationSubscriptions(
+          client,
+          req.user.user_id,
+          subscriptionSource,
+        );
       }
 
+      const locations = await getOwnerLocations(client, req.user.user_id);
+
       res.status(200).json({
-        message: "Clinic owner clinic retrieved successfully",
-        clinic: clinic.rows[0],
+        message: "Clinic owner locations retrieved successfully.",
+        shared_subscription: subscriptionSource,
+        locations,
       });
     } catch (err) {
-      console.error("Get clinic owner clinic error:", err.message);
+      console.error("Get clinic owner locations error:", err.message);
       res.status(500).json({
-        error: "Error retrieving clinic owner clinic",
+        error: "Error retrieving clinic owner locations.",
       });
+    } finally {
+      client.release();
     }
   },
 );
 
 // ===============================
-// CLINIC OWNER: UPDATE OWN CLINIC PROFILE
+// CLINIC OWNER: GET SINGLE OWN LOCATION
 // ===============================
 
-router.put(
-  "/owner/my-clinic",
+router.get(
+  "/owner/locations/:clinic_id",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const { clinic_id } = req.params;
+    const client = await pool.connect();
+
+    try {
+      const location = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinic_id,
+      );
+
+      if (!location) {
+        return res.status(404).json({
+          error: "Clinic location not found under this clinic owner account.",
+        });
+      }
+
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
+      );
+
+      res.status(200).json({
+        message: "Clinic owner location retrieved successfully.",
+        shared_subscription: subscriptionSource,
+        location,
+        clinic: location,
+      });
+    } catch (err) {
+      console.error("Get clinic owner location error:", err.message);
+      res.status(500).json({
+        error: "Error retrieving clinic owner location.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: CREATE NEW LOCATION UNDER SAME SUBSCRIPTION
+// ===============================
+
+router.post(
+  "/owner/locations",
   authenticateToken,
   authorizeRoles("Clinic Owner"),
   async (req, res) => {
@@ -597,48 +917,452 @@ router.put(
 
     const cleanClinicName = cleanText(clinic_name);
     const cleanAddress = cleanText(address);
+    const cleanServices = cleanText(services);
+    const cleanContactNumber = cleanText(contact_number);
+    const cleanOpeningHours = cleanText(opening_hours);
 
     if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
-        error: "Clinic name and address are required.",
+        error: "Clinic location name and address are required.",
       });
     }
 
+    const client = await pool.connect();
+
     try {
-      const clinicCheck = await pool.query(
-        `SELECT clinic_id, clinic_name
-         FROM public.clinics
-         WHERE owner_user_id = $1
-         LIMIT 1`,
-        [req.user.user_id],
+      await client.query("BEGIN");
+
+      let subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
       );
 
-      if (clinicCheck.rows.length === 0) {
-        return res.status(404).json({
-          error: "No clinic is linked to this clinic owner account.",
+      if (!subscriptionSource) {
+        const freePlan = await getFreePlan(client);
+
+        if (!freePlan) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error:
+              "No shared subscription was found and the Free plan is unavailable.",
+          });
+        }
+
+        subscriptionSource = {
+          subscription_plan_id: freePlan.plan_id,
+          subscription_start_date: null,
+          subscription_end_date: null,
+          subscription_status: "Active",
+          ...freePlan,
+        };
+      }
+
+      const duplicateCheck = await client.query(
+        `SELECT clinic_id
+         FROM public.clinics
+         WHERE LOWER(clinic_name) = LOWER($1)
+         AND LOWER(address) = LOWER($2)
+         LIMIT 1`,
+        [cleanClinicName, cleanAddress],
+      );
+
+      if (duplicateCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error:
+            "A clinic location with the same name and address already exists.",
         });
       }
 
-      const clinicId = clinicCheck.rows[0].clinic_id;
+      await syncOwnerLocationSubscriptions(
+        client,
+        req.user.user_id,
+        subscriptionSource,
+      );
 
-      const duplicateCheck = await pool.query(
+      const newLocation = await client.query(
+        `INSERT INTO public.clinics
+         (
+           clinic_name,
+           address,
+           latitude,
+           longitude,
+           services,
+           contact_number,
+           opening_hours,
+           subscription_plan_id,
+           subscription_start_date,
+           subscription_end_date,
+           subscription_status,
+           owner_user_id,
+           status,
+           created_at
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Active', CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [
+          cleanClinicName,
+          cleanAddress,
+          normalizeNumber(latitude),
+          normalizeNumber(longitude),
+          normalizeNullable(cleanServices),
+          normalizeNullable(cleanContactNumber),
+          normalizeNullable(cleanOpeningHours),
+          subscriptionSource.subscription_plan_id || null,
+          subscriptionSource.subscription_start_date || null,
+          subscriptionSource.subscription_end_date || null,
+          subscriptionSource.subscription_status || "Active",
+          req.user.user_id,
+        ],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "CREATE_CLINIC_LOCATION",
+        module: "Clinic Owner Locations",
+        description: `Clinic owner created location ${newLocation.rows[0].clinic_name} under the shared subscription.`,
+        ip_address: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      res.status(201).json({
+        message:
+          "Clinic location created successfully under the same clinic owner subscription.",
+        shared_subscription: subscriptionSource,
+        location: newLocation.rows[0],
+        clinic: newLocation.rows[0],
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+
+      console.error("Create clinic owner location error:", err.message);
+      res.status(500).json({
+        error: "Error creating clinic owner location.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: UPDATE OWN LOCATION
+// ===============================
+
+router.put(
+  "/owner/locations/:clinic_id",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const { clinic_id } = req.params;
+    const {
+      clinic_name,
+      address,
+      latitude,
+      longitude,
+      services,
+      contact_number,
+      opening_hours,
+      status,
+    } = req.body || {};
+
+    const cleanClinicName = cleanText(clinic_name);
+    const cleanAddress = cleanText(address);
+
+    if (!cleanClinicName || !cleanAddress) {
+      return res.status(400).json({
+        error: "Clinic location name and address are required.",
+      });
+    }
+
+    const allowedStatuses = ["Active", "Inactive"];
+
+    if (status && !allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        error: "Invalid status. Use Active or Inactive.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const existingLocation = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinic_id,
+      );
+
+      if (!existingLocation) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          error: "Clinic location not found under this clinic owner account.",
+        });
+      }
+
+      const duplicateCheck = await client.query(
         `SELECT clinic_id
          FROM public.clinics
          WHERE LOWER(clinic_name) = LOWER($1)
          AND LOWER(address) = LOWER($2)
          AND clinic_id <> $3
          LIMIT 1`,
-        [cleanClinicName, cleanAddress, clinicId],
+        [cleanClinicName, cleanAddress, clinic_id],
+      );
+
+      if (duplicateCheck.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error:
+            "Another clinic location with the same name and address already exists.",
+        });
+      }
+
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
+      );
+
+      if (subscriptionSource) {
+        await syncOwnerLocationSubscriptions(
+          client,
+          req.user.user_id,
+          subscriptionSource,
+        );
+      }
+
+      const updatedLocation = await client.query(
+        `UPDATE public.clinics
+         SET clinic_name = $1,
+             address = $2,
+             latitude = $3,
+             longitude = $4,
+             services = $5,
+             contact_number = $6,
+             opening_hours = $7,
+             status = COALESCE($8, status)
+         WHERE clinic_id = $9
+         AND owner_user_id = $10
+         RETURNING *`,
+        [
+          cleanClinicName,
+          cleanAddress,
+          normalizeNumber(latitude),
+          normalizeNumber(longitude),
+          normalizeNullable(cleanText(services)),
+          normalizeNullable(cleanText(contact_number)),
+          normalizeNullable(cleanText(opening_hours)),
+          normalizeNullable(status),
+          clinic_id,
+          req.user.user_id,
+        ],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_CLINIC_LOCATION",
+        module: "Clinic Owner Locations",
+        description: `Clinic owner updated location ${updatedLocation.rows[0].clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      res.status(200).json({
+        message: "Clinic location updated successfully.",
+        shared_subscription: subscriptionSource,
+        location: updatedLocation.rows[0],
+        clinic: updatedLocation.rows[0],
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+
+      console.error("Update clinic owner location error:", err.message);
+      res.status(500).json({
+        error: "Error updating clinic owner location.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: GET SINGLE LOCATION USAGE
+// ===============================
+
+router.get(
+  "/owner/locations/:clinic_id/usage",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const { clinic_id } = req.params;
+    const client = await pool.connect();
+
+    try {
+      const location = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinic_id,
+      );
+
+      if (!location) {
+        return res.status(404).json({
+          error: "Clinic location not found under this clinic owner account.",
+        });
+      }
+
+      const expiredSubscription =
+        await markExpiredSubscriptionIfNeeded(clinic_id);
+
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
+      );
+
+      const usage = await getLocationUsage(client, clinic_id);
+
+      res.status(200).json({
+        message: "Clinic owner location usage retrieved successfully.",
+        shared_subscription: subscriptionSource,
+        location: expiredSubscription
+          ? {
+              ...location,
+              subscription_status: expiredSubscription.subscription_status,
+            }
+          : location,
+        clinic: expiredSubscription
+          ? {
+              ...location,
+              subscription_status: expiredSubscription.subscription_status,
+            }
+          : location,
+        usage,
+      });
+    } catch (err) {
+      console.error("Get clinic owner location usage error:", err.message);
+      res.status(500).json({
+        error: "Error retrieving clinic owner location usage.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: GET OWN CLINIC
+// Backward compatible: returns first owned location and all locations.
+// ===============================
+
+router.get(
+  "/owner/my-clinic",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
+      );
+
+      if (subscriptionSource) {
+        await syncOwnerLocationSubscriptions(
+          client,
+          req.user.user_id,
+          subscriptionSource,
+        );
+      }
+
+      const locations = await getOwnerLocations(client, req.user.user_id);
+
+      if (locations.length === 0) {
+        return res.status(404).json({
+          error: "No clinic location is linked to this clinic owner account.",
+        });
+      }
+
+      res.status(200).json({
+        message: "Clinic owner clinic locations retrieved successfully.",
+        clinic: locations[0],
+        locations,
+        shared_subscription: subscriptionSource,
+      });
+    } catch (err) {
+      console.error("Get clinic owner clinic error:", err.message);
+      res.status(500).json({
+        error: "Error retrieving clinic owner clinic locations.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: UPDATE OWN CLINIC PROFILE
+// Backward compatible: updates first owned location.
+// ===============================
+
+router.put(
+  "/owner/my-clinic",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+      const locations = await getOwnerLocations(client, req.user.user_id);
+
+      if (locations.length === 0) {
+        return res.status(404).json({
+          error: "No clinic location is linked to this clinic owner account.",
+        });
+      }
+
+      req.params.clinic_id = locations[0].clinic_id;
+
+      const {
+        clinic_name,
+        address,
+        latitude,
+        longitude,
+        services,
+        contact_number,
+        opening_hours,
+      } = req.body || {};
+
+      const cleanClinicName = cleanText(clinic_name);
+      const cleanAddress = cleanText(address);
+
+      if (!cleanClinicName || !cleanAddress) {
+        return res.status(400).json({
+          error: "Clinic name and address are required.",
+        });
+      }
+
+      const duplicateCheck = await client.query(
+        `SELECT clinic_id
+         FROM public.clinics
+         WHERE LOWER(clinic_name) = LOWER($1)
+         AND LOWER(address) = LOWER($2)
+         AND clinic_id <> $3
+         LIMIT 1`,
+        [cleanClinicName, cleanAddress, locations[0].clinic_id],
       );
 
       if (duplicateCheck.rows.length > 0) {
         return res.status(400).json({
           error:
-            "Another clinic with the same name and address already exists.",
+            "Another clinic location with the same name and address already exists.",
         });
       }
 
-      const updatedClinic = await pool.query(
+      const updatedClinic = await client.query(
         `UPDATE public.clinics
          SET clinic_name = $1,
              address = $2,
@@ -649,19 +1373,7 @@ router.put(
              opening_hours = $7
          WHERE clinic_id = $8
          AND owner_user_id = $9
-         RETURNING 
-           clinic_id,
-           clinic_name,
-           address,
-           latitude,
-           longitude,
-           services,
-           contact_number,
-           opening_hours,
-           subscription_plan_id,
-           owner_user_id,
-           status,
-           created_at`,
+         RETURNING *`,
         [
           cleanClinicName,
           cleanAddress,
@@ -670,7 +1382,7 @@ router.put(
           normalizeNullable(cleanText(services)),
           normalizeNullable(cleanText(contact_number)),
           normalizeNullable(cleanText(opening_hours)),
-          clinicId,
+          locations[0].clinic_id,
           req.user.user_id,
         ],
       );
@@ -692,12 +1404,15 @@ router.put(
       res.status(500).json({
         error: "Error updating clinic profile.",
       });
+    } finally {
+      client.release();
     }
   },
 );
 
 // ===============================
-// CLINIC OWNER: GET OWN CLINIC SUBSCRIPTION USAGE
+// CLINIC OWNER: GET OWN SHARED SUBSCRIPTION USAGE
+// Aggregates usage across all owned clinic locations.
 // ===============================
 
 router.get(
@@ -705,128 +1420,46 @@ router.get(
   authenticateToken,
   authorizeRoles("Clinic Owner"),
   async (req, res) => {
+    const client = await pool.connect();
+
     try {
-      const clinicResult = await pool.query(
-        `SELECT 
-            c.clinic_id,
-            c.clinic_name,
-            c.subscription_plan_id,
-            c.subscription_start_date,
-            c.subscription_end_date,
-            c.subscription_status,
-            c.owner_user_id,
-            owner_user.name AS owner_name,
-            owner_user.email AS owner_email,
-            sp.plan_name,
-            sp.plan_tier,
-            sp.price,
-            sp.billing_cycle,
-            sp.max_dentists,
-            sp.max_assistants,
-            sp.max_patients,
-            sp.max_records,
-            sp.max_xrays,
-            sp.storage_limit_mb
-         FROM public.clinics c
-         LEFT JOIN public.users owner_user
-           ON c.owner_user_id = owner_user.user_id
-         LEFT JOIN public.subscription_plans sp
-           ON c.subscription_plan_id = sp.plan_id
-         WHERE c.owner_user_id = $1
-         LIMIT 1`,
-        [req.user.user_id],
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
       );
 
-      if (clinicResult.rows.length === 0) {
+      if (!subscriptionSource) {
         return res.status(404).json({
-          error: "No clinic is linked to this clinic owner account.",
+          error:
+            "No active clinic location is linked to this clinic owner account.",
         });
       }
 
-      let clinic = clinicResult.rows[0];
-      const clinicId = clinic.clinic_id;
-
-      const expiredSubscription =
-        await markExpiredSubscriptionIfNeeded(clinicId);
-
-      if (expiredSubscription) {
-        clinic = {
-          ...clinic,
-          subscription_status: expiredSubscription.subscription_status,
-        };
-      }
-
-      const dentistCount = await pool.query(
-        `SELECT COUNT(*)::int AS count
-         FROM public.dentists
-         WHERE clinic_id = $1`,
-        [clinicId],
+      await markExpiredSubscriptionIfNeeded(subscriptionSource.clinic_id);
+      await syncOwnerLocationSubscriptions(
+        client,
+        req.user.user_id,
+        subscriptionSource,
       );
 
-      const assistantCount = await pool.query(
-        `SELECT COUNT(*)::int AS count
-         FROM public.assistants
-         WHERE clinic_id = $1`,
-        [clinicId],
-      );
-
-      const patientCount = await pool.query(
-        `SELECT COUNT(DISTINCT dr.patient_id)::int AS count
-         FROM public.dental_records dr
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1
-         AND COALESCE(dr.status, 'Active') = 'Active'`,
-        [clinicId],
-      );
-
-      const recordCount = await pool.query(
-        `SELECT COUNT(*)::int AS count
-         FROM public.dental_records dr
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1
-         AND COALESCE(dr.status, 'Active') = 'Active'`,
-        [clinicId],
-      );
-
-      const xrayCount = await pool.query(
-        `SELECT COUNT(*)::int AS count
-         FROM public.xray_images x
-         JOIN public.dental_records dr ON x.record_id = dr.record_id
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1`,
-        [clinicId],
-      );
-
-      const storageUsage = await pool.query(
-        `SELECT COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint AS total_bytes
-         FROM public.xray_images x
-         JOIN public.dental_records dr ON x.record_id = dr.record_id
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1`,
-        [clinicId],
-      );
-
-      const totalBytes = Number(storageUsage.rows[0].total_bytes || 0);
-      const storageUsedMb = totalBytes / 1024 / 1024;
+      const aggregate = await getOwnerAggregateUsage(client, req.user.user_id);
 
       res.status(200).json({
-        message: "Clinic owner usage retrieved successfully",
-        clinic,
-        usage: {
-          dentists: dentistCount.rows[0].count,
-          assistants: assistantCount.rows[0].count,
-          patients: patientCount.rows[0].count,
-          records: recordCount.rows[0].count,
-          xrays: xrayCount.rows[0].count,
-          storage_used_mb: Number(storageUsedMb.toFixed(2)),
-          storage_used_bytes: totalBytes,
-        },
+        message:
+          "Clinic owner shared subscription usage retrieved successfully.",
+        clinic: subscriptionSource,
+        shared_subscription: subscriptionSource,
+        locations: aggregate.locations,
+        usage_by_location: aggregate.usage_by_location,
+        usage: aggregate.usage,
       });
     } catch (err) {
       console.error("Get clinic owner usage error:", err.message);
       res.status(500).json({
-        error: "Error retrieving clinic owner usage",
+        error: "Error retrieving clinic owner usage.",
       });
+    } finally {
+      client.release();
     }
   },
 );

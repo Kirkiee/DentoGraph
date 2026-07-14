@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { useNavigate, useParams } from "react-router-dom";
@@ -1003,6 +1003,38 @@ function DentistDentalRecordDetails() {
 
   const availableToothNumbers = getAvailableToothNumbers();
 
+  const recordSummary = useMemo(() => {
+    const needsAttention = teeth.filter((tooth) => {
+      const status = normalizeToothStatusValue(tooth.tooth_status);
+      return status !== "Sound";
+    }).length;
+
+    return {
+      teeth: teeth.length,
+      needsAttention,
+      treatments: treatments.length,
+      xrays: xrays.length,
+      documents: documents.length,
+      arPreviews: Number(arSummary?.total_previews || 0),
+    };
+  }, [teeth, treatments, xrays, documents, arSummary]);
+
+  const renderLoadingState = () => {
+    return (
+      <div className="appointments-list">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div className="appointment-item loading-card" key={index}>
+            <div className="appointment-info">
+              <div className="loading-line loading-title"></div>
+              <div className="loading-line loading-text"></div>
+              <div className="loading-line loading-text"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout role="Dentist">
       <div className="appointments-list-card">
@@ -1065,7 +1097,7 @@ function DentistDentalRecordDetails() {
         {error && <div className="error-message no-print">{error}</div>}
 
         {loading ? (
-          <p>Loading dental record details...</p>
+          renderLoadingState()
         ) : !record ? (
           <div className="empty-state">
             <h3>Dental record not found</h3>
@@ -1075,6 +1107,58 @@ function DentistDentalRecordDetails() {
           </div>
         ) : (
           <>
+            <div className="patient-dashboard-summary-grid no-print">
+              <div className="patient-dashboard-card">
+                <span>Teeth Recorded</span>
+                <strong>{recordSummary.teeth}</strong>
+                <p>Teeth added to this dental chart.</p>
+              </div>
+
+              <div className="patient-dashboard-card">
+                <span>Needs Attention</span>
+                <strong>{recordSummary.needsAttention}</strong>
+                <p>Teeth not marked as sound/normal.</p>
+              </div>
+
+              <div className="patient-dashboard-card">
+                <span>Treatments</span>
+                <strong>{recordSummary.treatments}</strong>
+                <p>Procedures recorded for this patient.</p>
+              </div>
+
+              <div className="patient-dashboard-card">
+                <span>X-rays</span>
+                <strong>{recordSummary.xrays}</strong>
+                <p>X-ray files linked to this record.</p>
+              </div>
+            </div>
+
+            <div className="patient-dashboard-summary-grid no-print">
+              <div className="patient-dashboard-card">
+                <span>Documents</span>
+                <strong>{recordSummary.documents}</strong>
+                <p>PDA forms, old records, or scanned files.</p>
+              </div>
+
+              <div className="patient-dashboard-card">
+                <span>AR Previews</span>
+                <strong>{recordSummary.arPreviews}</strong>
+                <p>Patient-submitted AR braces previews.</p>
+              </div>
+
+              <div className="patient-dashboard-card">
+                <span>Dental Chart Type</span>
+                <strong>{getRecordDentitionType()}</strong>
+                <p>{getDentitionLabel()}</p>
+              </div>
+
+              <div className="patient-dashboard-card">
+                <span>Record Source</span>
+                <strong>{getRecordSourceLabel(record.record_source)}</strong>
+                <p>Source classification of this dental record.</p>
+              </div>
+            </div>
+
             <div className="dental-record-print-report">
               <div className="print-report-header">
                 <h1>DentoGraph Dental Record Report</h1>

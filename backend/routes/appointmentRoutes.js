@@ -138,21 +138,26 @@ router.get(
   authenticateToken,
   authorizeRoles("Patient"),
   async (req, res) => {
+    const user_id = req.user.user_id;
+
     try {
       const clinics = await pool.query(
         `SELECT
-            clinic_id,
-            clinic_name,
-            address,
-            contact_number,
-            status
-         FROM public.clinics
-         WHERE status = 'Active'
-         ORDER BY clinic_name ASC`,
+            c.clinic_id,
+            c.clinic_name,
+            c.address,
+            c.contact_number,
+            c.status
+         FROM public.patients p
+         JOIN public.clinics c ON p.clinic_id = c.clinic_id
+         WHERE p.user_id = $1
+         AND c.status = 'Active'
+         ORDER BY c.clinic_name ASC`,
+        [user_id],
       );
 
       res.status(200).json({
-        message: "Clinics retrieved successfully",
+        message: "Assigned clinic retrieved successfully",
         clinics: clinics.rows,
       });
     } catch (err) {
@@ -168,7 +173,30 @@ router.get(
   authenticateToken,
   authorizeRoles("Patient"),
   async (req, res) => {
+    const user_id = req.user.user_id;
+
     try {
+      const patientClinicResult = await pool.query(
+        `SELECT clinic_id
+         FROM public.patients
+         WHERE user_id = $1`,
+        [user_id],
+      );
+
+      if (patientClinicResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "Patient profile not found.",
+        });
+      }
+
+      const patientClinicId = patientClinicResult.rows[0].clinic_id;
+
+      if (!patientClinicId) {
+        return res.status(400).json({
+          error: "Your patient account is not linked to a clinic yet.",
+        });
+      }
+
       const dentists = await pool.query(
         `SELECT
             d.dentist_id,
@@ -182,9 +210,11 @@ router.get(
             c.clinic_name
          FROM public.dentists d
          JOIN public.users u ON d.user_id = u.user_id
-         LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+         JOIN public.clinics c ON d.clinic_id = c.clinic_id
          WHERE d.status = 'Active'
+         AND d.clinic_id = $1
          ORDER BY u.name ASC`,
+        [patientClinicId],
       );
 
       res.status(200).json({
@@ -204,6 +234,7 @@ router.get(
   authenticateToken,
   authorizeRoles("Patient"),
   async (req, res) => {
+    const user_id = req.user.user_id;
     const { clinic_id } = req.params;
 
     if (!clinic_id) {
@@ -211,6 +242,33 @@ router.get(
     }
 
     try {
+      const patientClinicResult = await pool.query(
+        `SELECT clinic_id
+         FROM public.patients
+         WHERE user_id = $1`,
+        [user_id],
+      );
+
+      if (patientClinicResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "Patient profile not found.",
+        });
+      }
+
+      const patientClinicId = patientClinicResult.rows[0].clinic_id;
+
+      if (!patientClinicId) {
+        return res.status(400).json({
+          error: "Your patient account is not linked to a clinic yet.",
+        });
+      }
+
+      if (Number(patientClinicId) !== Number(clinic_id)) {
+        return res.status(403).json({
+          error: "You can only view dentists under your assigned clinic.",
+        });
+      }
+
       const clinicCheck = await pool.query(
         `SELECT clinic_id
          FROM public.clinics
@@ -393,7 +451,9 @@ router.post(
 
     try {
       const patientResult = await pool.query(
-        "SELECT patient_id FROM public.patients WHERE user_id = $1",
+        `SELECT patient_id, clinic_id
+         FROM public.patients
+         WHERE user_id = $1`,
         [user_id],
       );
 
@@ -405,6 +465,13 @@ router.post(
       }
 
       const patient_id = patientResult.rows[0].patient_id;
+      const patientClinicId = patientResult.rows[0].clinic_id;
+
+      if (!patientClinicId) {
+        return res.status(400).json({
+          error: "Your patient account is not linked to a clinic yet.",
+        });
+      }
 
       const dentistResult = await pool.query(
         `SELECT
@@ -430,9 +497,16 @@ router.post(
         });
       }
 
-      if (clinic_id && Number(dentist.clinic_id) !== Number(clinic_id)) {
-        return res.status(400).json({
-          error: "Selected dentist does not belong to the selected clinic",
+      if (Number(dentist.clinic_id) !== Number(patientClinicId)) {
+        return res.status(403).json({
+          error:
+            "You can only book appointments with dentists under your assigned clinic.",
+        });
+      }
+
+      if (clinic_id && Number(clinic_id) !== Number(patientClinicId)) {
+        return res.status(403).json({
+          error: "Selected clinic does not match your assigned clinic.",
         });
       }
 

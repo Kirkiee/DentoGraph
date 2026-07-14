@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
 import { useNavigate } from "react-router-dom";
@@ -6,8 +6,11 @@ import { useNavigate } from "react-router-dom";
 function ClinicOwnerDashboard() {
   const navigate = useNavigate();
 
-  const [clinic, setClinic] = useState(null);
-  const [usage, setUsage] = useState(null);
+  const [clinicLocations, setClinicLocations] = useState([]);
+  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [selectedLocationUsage, setSelectedLocationUsage] = useState(null);
+  const [aggregateClinic, setAggregateClinic] = useState(null);
+  const [aggregateUsage, setAggregateUsage] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -16,10 +19,29 @@ function ClinicOwnerDashboard() {
   const storedUser = localStorage.getItem("user");
   const user = storedUser ? JSON.parse(storedUser) : null;
 
+  const selectedLocation = useMemo(() => {
+    return (
+      clinicLocations.find(
+        (location) => String(location.clinic_id) === String(selectedClinicId),
+      ) || null
+    );
+  }, [clinicLocations, selectedClinicId]);
+
+  const sharedSubscriptionSource = aggregateClinic || selectedLocation || null;
+
   useEffect(() => {
     fetchDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (selectedClinicId) {
+      fetchSelectedLocationUsage(selectedClinicId);
+    } else {
+      setSelectedLocationUsage(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClinicId]);
 
   const fetchDashboardData = async (isRefresh = false) => {
     try {
@@ -31,22 +53,77 @@ function ClinicOwnerDashboard() {
 
       setError("");
 
-      const [clinicResponse, usageResponse] = await Promise.all([
-        API.get("/api/clinics/owner/my-clinic"),
+      const [locationsResponse, usageResponse] = await Promise.all([
+        API.get("/api/clinics/owner/locations"),
         API.get("/api/clinics/owner/usage"),
       ]);
 
-      setClinic(clinicResponse.data.clinic || null);
-      setUsage(usageResponse.data.usage || null);
+      const locations =
+        locationsResponse.data.locations ||
+        locationsResponse.data.clinics ||
+        locationsResponse.data.clinic_locations ||
+        [];
+
+      setClinicLocations(locations);
+      setAggregateClinic(usageResponse.data.clinic || null);
+      setAggregateUsage(usageResponse.data.usage || null);
+
+      if (locations.length > 0) {
+        setSelectedClinicId((currentClinicId) => {
+          const currentStillExists = locations.some(
+            (location) =>
+              String(location.clinic_id) === String(currentClinicId),
+          );
+
+          return currentStillExists
+            ? String(currentClinicId)
+            : String(locations[0].clinic_id);
+        });
+      } else {
+        setSelectedClinicId("");
+        setSelectedLocationUsage(null);
+      }
     } catch (err) {
       setError(
         err.response?.data?.error ||
           "Unable to load clinic owner dashboard data.",
       );
+      setClinicLocations([]);
+      setSelectedClinicId("");
+      setSelectedLocationUsage(null);
+      setAggregateClinic(null);
+      setAggregateUsage(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const fetchSelectedLocationUsage = async (clinicId) => {
+    if (!clinicId) return;
+
+    try {
+      const response = await API.get(
+        `/api/clinics/owner/locations/${clinicId}/usage`,
+      );
+
+      setSelectedLocationUsage({
+        clinic: response.data.clinic || null,
+        usage: response.data.usage || null,
+      });
+    } catch (err) {
+      console.error("Selected location usage error:", err);
+      setSelectedLocationUsage(null);
+    }
+  };
+
+  const handleLocationChange = (e) => {
+    setSelectedClinicId(e.target.value);
+    setMessageSafe("");
+  };
+
+  const setMessageSafe = () => {
+    setError("");
   };
 
   const formatLimit = (value) => {
@@ -61,6 +138,21 @@ function ClinicOwnerDashboard() {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`;
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return date.toLocaleDateString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    });
   };
 
   const getUsagePercent = (used, limit) => {
@@ -138,60 +230,76 @@ function ClinicOwnerDashboard() {
     );
   };
 
+  const locationUsage = selectedLocationUsage?.usage || null;
+  const locationClinic = selectedLocationUsage?.clinic || selectedLocation;
+
   const summaryCards = [
     {
-      label: "Dentists",
-      value: usage?.dentists || 0,
-      description: `Limit: ${formatLimit(clinic?.max_dentists)}`,
+      label: "Clinic Locations",
+      value: clinicLocations.length,
+      description: "Branches under this clinic owner account.",
     },
     {
-      label: "Dental Assistants",
-      value: usage?.assistants || 0,
-      description: `Limit: ${formatLimit(clinic?.max_assistants)}`,
+      label: "Total Dentists",
+      value: aggregateUsage?.dentists || 0,
+      description: `Shared limit: ${formatLimit(
+        sharedSubscriptionSource?.max_dentists,
+      )}`,
     },
     {
-      label: "Patients",
-      value: usage?.patients || 0,
-      description: `Limit: ${formatLimit(clinic?.max_patients)}`,
+      label: "Total Assistants",
+      value: aggregateUsage?.assistants || 0,
+      description: `Shared limit: ${formatLimit(
+        sharedSubscriptionSource?.max_assistants,
+      )}`,
+    },
+    {
+      label: "Total Patients",
+      value: aggregateUsage?.patients || 0,
+      description: `Shared limit: ${formatLimit(
+        sharedSubscriptionSource?.max_patients,
+      )}`,
     },
     {
       label: "Dental Records",
-      value: usage?.records || 0,
-      description: `Limit: ${formatLimit(clinic?.max_records)}`,
+      value: aggregateUsage?.records || 0,
+      description: `Shared limit: ${formatLimit(
+        sharedSubscriptionSource?.max_records,
+      )}`,
     },
     {
       label: "X-rays",
-      value: usage?.xrays || 0,
-      description: `Limit: ${formatLimit(clinic?.max_xrays)}`,
+      value: aggregateUsage?.xrays || 0,
+      description: `Shared limit: ${formatLimit(
+        sharedSubscriptionSource?.max_xrays,
+      )}`,
     },
     {
       label: "Storage Used",
-      value: `${usage?.storage_used_mb || 0} MB`,
-      description: `Limit: ${formatLimit(clinic?.storage_limit_mb)} MB`,
+      value: `${aggregateUsage?.storage_used_mb || 0} MB`,
+      description: `Shared limit: ${formatLimit(
+        sharedSubscriptionSource?.storage_limit_mb,
+      )} MB`,
     },
     {
-      label: "Plan",
-      value: clinic?.plan_name || "No Plan",
-      description: clinic?.billing_cycle || "No billing cycle",
-    },
-    {
-      label: "Clinic Status",
-      value: clinic?.status || "N/A",
-      description: "Current clinic account status.",
+      label: "Shared Plan",
+      value: sharedSubscriptionSource?.plan_name || "No Plan",
+      description:
+        sharedSubscriptionSource?.billing_cycle || "No billing cycle",
     },
   ];
 
   const quickActions = [
     {
       title: "Staff Management",
-      description: "Add and manage dentists and dental assistants.",
+      description: "Add and manage staff per clinic location.",
       buttonLabel: "Manage Staff",
       className: "primary-button",
       path: "/clinic-owner/staff",
     },
     {
       title: "Subscription",
-      description: "View plans, limits, upgrades, and subscription status.",
+      description: "View the shared subscription for all clinic locations.",
       buttonLabel: "View Subscription",
       className: "secondary-button",
       path: "/clinic-owner/subscription",
@@ -204,9 +312,9 @@ function ClinicOwnerDashboard() {
       path: "/clinic-owner/payments",
     },
     {
-      title: "Clinic Profile",
-      description: "Update clinic address, services, and opening hours.",
-      buttonLabel: "Edit Clinic",
+      title: "Clinic Locations",
+      description: "Update clinic location details and branch information.",
+      buttonLabel: "Manage Locations",
       className: "secondary-button",
       path: "/clinic-owner/profile",
     },
@@ -219,8 +327,9 @@ function ClinicOwnerDashboard() {
           <div>
             <h2>Clinic Owner Dashboard</h2>
             <p>
-              Welcome back, {user?.name || "Clinic Owner"}. Manage your clinic,
-              subscription plan, usage limits, staff access, and payments.
+              Welcome back, {user?.name || "Clinic Owner"}. Manage your clinic
+              locations, shared subscription, usage limits, staff access, and
+              payments.
             </p>
           </div>
 
@@ -250,21 +359,25 @@ function ClinicOwnerDashboard() {
 
         {loading ? (
           renderLoadingState()
-        ) : !clinic ? (
+        ) : clinicLocations.length === 0 ? (
           <div className="empty-state">
-            <h3>No clinic found</h3>
+            <h3>No clinic locations found</h3>
             <p>
-              This account is not linked to a clinic. Please contact the system
-              administrator.
+              This account is not linked to any clinic location yet. Please
+              register or add a clinic location first.
             </p>
           </div>
         ) : (
           <>
             <div className="info-message">
-              <strong>Current Plan:</strong> {clinic.plan_name || "No Plan"}
+              <strong>Shared Subscription:</strong>{" "}
+              {sharedSubscriptionSource?.plan_name || "No Plan"}
               <br />
-              Your clinic status is <strong>{clinic.status || "N/A"}</strong>.
-              Usage below is based on your current subscription limits.
+              This Clinic Owner account has{" "}
+              <strong>{clinicLocations.length}</strong> clinic location
+              {clinicLocations.length === 1 ? "" : "s"}. Usage below is
+              aggregated across all locations because the subscription is shared
+              under one Clinic Owner account.
             </div>
 
             <div className="patient-dashboard-summary-grid">
@@ -280,54 +393,162 @@ function ClinicOwnerDashboard() {
             <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Clinic Information</h2>
-                  <p>Basic clinic profile details shown to system users.</p>
+                  <h2>My Clinic Locations</h2>
+                  <p>
+                    These are the active branch locations under this clinic
+                    owner account.
+                  </p>
                 </div>
 
                 <button
                   className="secondary-button"
                   onClick={() => navigate("/clinic-owner/profile")}
                 >
-                  Edit Clinic Profile
+                  Manage Locations
                 </button>
               </div>
 
-              <div className="appointment-item">
-                <div className="appointment-info">
-                  <div className="appointment-title-row">
-                    <h3>{clinic.clinic_name}</h3>
+              <div className="patient-quick-action-grid">
+                {clinicLocations.map((location) => (
+                  <div
+                    className="patient-quick-action-card"
+                    key={location.clinic_id}
+                  >
+                    <div>
+                      <div className="appointment-title-row">
+                        <h3>{location.clinic_name}</h3>
+                        <span className="status-badge status-scheduled">
+                          {location.status || "Active"}
+                        </span>
+                      </div>
 
-                    <span className="status-badge status-scheduled">
-                      {clinic.status || "Active"}
-                    </span>
+                      <p>
+                        <strong>Address:</strong> {location.address || "N/A"}
+                      </p>
+
+                      <p>
+                        <strong>Contact:</strong>{" "}
+                        {location.contact_number || "N/A"}
+                      </p>
+
+                      <p>
+                        <strong>Services:</strong> {location.services || "N/A"}
+                      </p>
+                    </div>
+
+                    <div className="appointment-actions">
+                      <button
+                        className="primary-button"
+                        onClick={() => {
+                          setSelectedClinicId(String(location.clinic_id));
+                          navigate("/clinic-owner/staff");
+                        }}
+                      >
+                        Manage Staff
+                      </button>
+
+                      <button
+                        className="secondary-button"
+                        onClick={() => navigate("/clinic-owner/profile")}
+                      >
+                        Edit Location
+                      </button>
+                    </div>
                   </div>
+                ))}
+              </div>
+            </div>
 
+            <div className="patient-dashboard-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Selected Location Usage</h2>
                   <p>
-                    <strong>Owner:</strong> {clinic.owner_name || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Owner Email:</strong> {clinic.owner_email || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Address:</strong> {clinic.address || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Contact Number:</strong>{" "}
-                    {clinic.contact_number || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Services:</strong> {clinic.services || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Opening Hours:</strong>{" "}
-                    {clinic.opening_hours || "N/A"}
+                    View staff and record usage for one clinic location while
+                    keeping subscription limits shared across all locations.
                   </p>
                 </div>
+              </div>
+
+              <div className="clinic-location-panel">
+                <div className="clinic-location-grid">
+                  <div className="clinic-location-field">
+                    <label>Clinic Location</label>
+                    <select
+                      value={selectedClinicId}
+                      onChange={handleLocationChange}
+                      disabled={refreshing}
+                    >
+                      {clinicLocations.map((location) => (
+                        <option
+                          key={location.clinic_id}
+                          value={location.clinic_id}
+                        >
+                          {location.clinic_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="clinic-location-field">
+                    <label>Shared Subscription</label>
+                    <div className="clinic-location-readonly">
+                      {sharedSubscriptionSource?.plan_name || "No active plan"}
+                    </div>
+                  </div>
+                </div>
+
+                {locationClinic && (
+                  <div className="clinic-location-note">
+                    <strong>{locationClinic.clinic_name}</strong> is currently
+                    selected. Its branch usage is shown below, while the plan
+                    limits still come from the shared Clinic Owner subscription.
+                  </div>
+                )}
+              </div>
+
+              <div className="appointments-list">
+                {renderUsageCard(
+                  "Dentists in Selected Location",
+                  locationUsage?.dentists || 0,
+                  sharedSubscriptionSource?.max_dentists,
+                  "Dentist accounts assigned to this branch.",
+                )}
+
+                {renderUsageCard(
+                  "Assistants in Selected Location",
+                  locationUsage?.assistants || 0,
+                  sharedSubscriptionSource?.max_assistants,
+                  "Dental assistant accounts assigned to this branch.",
+                )}
+
+                {renderUsageCard(
+                  "Patients in Selected Location",
+                  locationUsage?.patients || 0,
+                  sharedSubscriptionSource?.max_patients,
+                  "Unique patients with active records under this branch.",
+                )}
+
+                {renderUsageCard(
+                  "Records in Selected Location",
+                  locationUsage?.records || 0,
+                  sharedSubscriptionSource?.max_records,
+                  "Active dental records created under this branch.",
+                )}
+
+                {renderUsageCard(
+                  "X-rays in Selected Location",
+                  locationUsage?.xrays || 0,
+                  sharedSubscriptionSource?.max_xrays,
+                  "X-ray files uploaded under this branch records.",
+                )}
+
+                {renderUsageCard(
+                  "Storage Used in Selected Location",
+                  locationUsage?.storage_used_mb || 0,
+                  sharedSubscriptionSource?.storage_limit_mb,
+                  "Total X-ray file storage used by this branch in MB.",
+                )}
               </div>
             </div>
 
@@ -363,9 +584,10 @@ function ClinicOwnerDashboard() {
             <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Current Subscription</h2>
+                  <h2>Current Shared Subscription</h2>
                   <p>
-                    Review the clinic plan currently assigned to this clinic.
+                    This subscription is shared by all clinic locations under
+                    this Clinic Owner account.
                   </p>
                 </div>
 
@@ -380,49 +602,68 @@ function ClinicOwnerDashboard() {
               <div className="appointment-item">
                 <div className="appointment-info">
                   <div className="appointment-title-row">
-                    <h3>{clinic.plan_name || "No Subscription Plan"}</h3>
+                    <h3>
+                      {sharedSubscriptionSource?.plan_name ||
+                        "No Subscription Plan"}
+                    </h3>
 
                     <span className="status-badge status-completed">
-                      {clinic.billing_cycle || "N/A"}
+                      {sharedSubscriptionSource?.billing_cycle || "N/A"}
                     </span>
                   </div>
 
                   <p>
-                    <strong>Plan Tier:</strong> {clinic.plan_tier || "N/A"}
+                    <strong>Plan Tier:</strong>{" "}
+                    {sharedSubscriptionSource?.plan_tier || "N/A"}
                   </p>
 
                   <p>
-                    <strong>Price:</strong> {formatPrice(clinic.price)}
+                    <strong>Price:</strong>{" "}
+                    {formatPrice(sharedSubscriptionSource?.price)}
                   </p>
 
                   <p>
                     <strong>Storage Limit:</strong>{" "}
-                    {formatLimit(clinic.storage_limit_mb)} MB
+                    {formatLimit(sharedSubscriptionSource?.storage_limit_mb)} MB
                   </p>
 
                   <p>
                     <strong>Dentist Limit:</strong>{" "}
-                    {formatLimit(clinic.max_dentists)}
+                    {formatLimit(sharedSubscriptionSource?.max_dentists)}
                   </p>
 
                   <p>
                     <strong>Assistant Limit:</strong>{" "}
-                    {formatLimit(clinic.max_assistants)}
+                    {formatLimit(sharedSubscriptionSource?.max_assistants)}
                   </p>
 
                   <p>
                     <strong>Patient Limit:</strong>{" "}
-                    {formatLimit(clinic.max_patients)}
+                    {formatLimit(sharedSubscriptionSource?.max_patients)}
                   </p>
 
                   <p>
                     <strong>Record Limit:</strong>{" "}
-                    {formatLimit(clinic.max_records)}
+                    {formatLimit(sharedSubscriptionSource?.max_records)}
                   </p>
 
                   <p>
                     <strong>X-ray Limit:</strong>{" "}
-                    {formatLimit(clinic.max_xrays)}
+                    {formatLimit(sharedSubscriptionSource?.max_xrays)}
+                  </p>
+
+                  <p>
+                    <strong>Subscription Status:</strong>{" "}
+                    {sharedSubscriptionSource?.subscription_status ||
+                      sharedSubscriptionSource?.status ||
+                      "N/A"}
+                  </p>
+
+                  <p>
+                    <strong>Subscription End Date:</strong>{" "}
+                    {formatDate(
+                      sharedSubscriptionSource?.subscription_end_date,
+                    )}
                   </p>
                 </div>
               </div>
@@ -431,54 +672,55 @@ function ClinicOwnerDashboard() {
             <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Usage Limits</h2>
+                  <h2>Aggregated Usage Limits</h2>
                   <p>
-                    These limits are based on the current subscription plan.
+                    These totals count all clinic locations owned by this Clinic
+                    Owner account.
                   </p>
                 </div>
               </div>
 
               <div className="appointments-list">
                 {renderUsageCard(
-                  "Dentists",
-                  usage?.dentists || 0,
-                  clinic.max_dentists,
-                  "Dentist accounts assigned to your clinic.",
+                  "Total Dentists",
+                  aggregateUsage?.dentists || 0,
+                  sharedSubscriptionSource?.max_dentists,
+                  "Dentist accounts across all clinic locations.",
                 )}
 
                 {renderUsageCard(
-                  "Dental Assistants",
-                  usage?.assistants || 0,
-                  clinic.max_assistants,
-                  "Dental assistant accounts assigned to your clinic.",
+                  "Total Dental Assistants",
+                  aggregateUsage?.assistants || 0,
+                  sharedSubscriptionSource?.max_assistants,
+                  "Dental assistant accounts across all clinic locations.",
                 )}
 
                 {renderUsageCard(
-                  "Patients",
-                  usage?.patients || 0,
-                  clinic.max_patients,
-                  "Unique patients with active records under your clinic.",
+                  "Total Patients",
+                  aggregateUsage?.patients || 0,
+                  sharedSubscriptionSource?.max_patients,
+                  "Unique patients across all clinic locations.",
                 )}
 
                 {renderUsageCard(
-                  "Dental Records",
-                  usage?.records || 0,
-                  clinic.max_records,
-                  "Active dental records created under your clinic.",
+                  "Total Dental Records",
+                  aggregateUsage?.records || 0,
+                  sharedSubscriptionSource?.max_records,
+                  "Active dental records across all clinic locations.",
                 )}
 
                 {renderUsageCard(
-                  "X-rays",
-                  usage?.xrays || 0,
-                  clinic.max_xrays,
-                  "X-ray files uploaded under your clinic records.",
+                  "Total X-rays",
+                  aggregateUsage?.xrays || 0,
+                  sharedSubscriptionSource?.max_xrays,
+                  "X-ray files across all clinic locations.",
                 )}
 
                 {renderUsageCard(
-                  "Storage Used",
-                  usage?.storage_used_mb || 0,
-                  clinic.storage_limit_mb,
-                  "Total X-ray file storage used in MB.",
+                  "Total Storage Used",
+                  aggregateUsage?.storage_used_mb || 0,
+                  sharedSubscriptionSource?.storage_limit_mb,
+                  "Total X-ray file storage used across all locations in MB.",
                 )}
               </div>
             </div>

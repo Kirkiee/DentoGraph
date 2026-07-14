@@ -14,7 +14,6 @@ const {
   authenticateToken,
   authorizeRoles,
 } = require("../middleware/authMiddleware");
-const { verifyTurnstileMiddleware } = require("../utils/verifyTurnstile");
 
 // ===============================
 // SECURITY LIMITERS
@@ -185,14 +184,6 @@ const optionalAuthenticateToken = (req, res, next) => {
   });
 };
 
-const verifyTurnstileForPublicRequest = async (req, res, next) => {
-  if (req.user) {
-    return next();
-  }
-
-  return verifyTurnstileMiddleware(req, res, next);
-};
-
 const isAssistantRole = (role) => {
   return role === "Assistant" || role === "Dental Assistant";
 };
@@ -214,6 +205,7 @@ const checkClinicSubscriptionLimit = async (
     `SELECT 
         c.clinic_id,
         c.clinic_name,
+        c.owner_user_id,
         c.subscription_plan_id,
         sp.plan_name,
         sp.max_dentists,
@@ -232,7 +224,7 @@ const checkClinicSubscriptionLimit = async (
   if (clinicPlanResult.rows.length === 0) {
     return {
       allowed: false,
-      message: "Selected clinic was not found.",
+      message: "Selected clinic location was not found.",
     };
   }
 
@@ -242,17 +234,23 @@ const checkClinicSubscriptionLimit = async (
     return {
       allowed: false,
       message:
-        "This clinic has no subscription plan assigned. Please assign a plan before adding staff.",
+        "This clinic owner has no shared subscription plan assigned. Please assign a plan before adding staff.",
     };
   }
+
+  const sharedScopeValue = clinic.owner_user_id || clinic.clinic_id;
+  const sharedScopeColumn = clinic.owner_user_id
+    ? "c.owner_user_id = $1"
+    : "c.clinic_id = $1";
 
   if (limitType === "Dentist") {
     const countResult = await client.query(
       `SELECT COUNT(*)::int AS count
-       FROM public.dentists
-       WHERE clinic_id = $1
-       AND ($2::int IS NULL OR user_id <> $2)`,
-      [clinic_id, excludeUserId],
+       FROM public.dentists d
+       JOIN public.clinics c ON d.clinic_id = c.clinic_id
+       WHERE ${sharedScopeColumn}
+       AND ($2::int IS NULL OR d.user_id <> $2)`,
+      [sharedScopeValue, excludeUserId],
     );
 
     const currentCount = countResult.rows[0].count;
@@ -261,7 +259,7 @@ const checkClinicSubscriptionLimit = async (
     if (maxAllowed !== null && currentCount >= maxAllowed) {
       return {
         allowed: false,
-        message: `${clinic.clinic_name} has reached the dentist limit for the ${clinic.plan_name} plan. Limit: ${maxAllowed}.`,
+        message: `The shared ${clinic.plan_name} subscription for this clinic owner has reached the dentist limit. Limit: ${maxAllowed}.`,
       };
     }
   }
@@ -269,10 +267,11 @@ const checkClinicSubscriptionLimit = async (
   if (limitType === "Assistant") {
     const countResult = await client.query(
       `SELECT COUNT(*)::int AS count
-       FROM public.assistants
-       WHERE clinic_id = $1
-       AND ($2::int IS NULL OR user_id <> $2)`,
-      [clinic_id, excludeUserId],
+       FROM public.assistants a
+       JOIN public.clinics c ON a.clinic_id = c.clinic_id
+       WHERE ${sharedScopeColumn}
+       AND ($2::int IS NULL OR a.user_id <> $2)`,
+      [sharedScopeValue, excludeUserId],
     );
 
     const currentCount = countResult.rows[0].count;
@@ -281,7 +280,7 @@ const checkClinicSubscriptionLimit = async (
     if (maxAllowed !== null && currentCount >= maxAllowed) {
       return {
         allowed: false,
-        message: `${clinic.clinic_name} has reached the assistant limit for the ${clinic.plan_name} plan. Limit: ${maxAllowed}.`,
+        message: `The shared ${clinic.plan_name} subscription for this clinic owner has reached the assistant limit. Limit: ${maxAllowed}.`,
       };
     }
   }
@@ -292,12 +291,15 @@ const checkClinicSubscriptionLimit = async (
   };
 };
 
-const getClinicOwnedByUser = async (client, ownerUserId) => {
+const getClinicsOwnedByUser = async (client, ownerUserId) => {
   const clinicResult = await client.query(
     `SELECT 
         c.clinic_id,
         c.clinic_name,
+        c.address,
         c.subscription_plan_id,
+        c.owner_user_id,
+        c.status,
         sp.plan_name,
         sp.max_dentists,
         sp.max_assistants
@@ -306,8 +308,42 @@ const getClinicOwnedByUser = async (client, ownerUserId) => {
        ON c.subscription_plan_id = sp.plan_id
      WHERE c.owner_user_id = $1
      AND c.status = 'Active'
-     LIMIT 1`,
+     ORDER BY c.clinic_name ASC`,
     [ownerUserId],
+  );
+
+  return clinicResult.rows;
+};
+
+const getClinicOwnedByUser = async (client, ownerUserId, clinicId = null) => {
+  const params = [ownerUserId];
+  let clinicFilter = "";
+
+  if (clinicId) {
+    params.push(clinicId);
+    clinicFilter = "AND c.clinic_id = $2";
+  }
+
+  const clinicResult = await client.query(
+    `SELECT 
+        c.clinic_id,
+        c.clinic_name,
+        c.address,
+        c.subscription_plan_id,
+        c.owner_user_id,
+        c.status,
+        sp.plan_name,
+        sp.max_dentists,
+        sp.max_assistants
+     FROM public.clinics c
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
+     WHERE c.owner_user_id = $1
+     AND c.status = 'Active'
+     ${clinicFilter}
+     ORDER BY c.clinic_name ASC
+     LIMIT 1`,
+    params,
   );
 
   return clinicResult.rows[0] || null;
@@ -383,7 +419,6 @@ router.post(
   "/register",
   registerLimiter,
   optionalAuthenticateToken,
-  verifyTurnstileForPublicRequest,
   async (req, res) => {
     const {
       name,
@@ -575,10 +610,39 @@ router.post(
       }
 
       if (roleName === "Patient") {
+        if (!normalizedClinicId) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "Please select the clinic you are registering under.",
+          });
+        }
+
+        const clinicCheck = await client.query(
+          `SELECT clinic_id, clinic_name, status
+           FROM public.clinics
+           WHERE clinic_id = $1
+           LIMIT 1`,
+          [normalizedClinicId],
+        );
+
+        if (clinicCheck.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({
+            error: "Selected clinic was not found.",
+          });
+        }
+
+        if (clinicCheck.rows[0].status !== "Active") {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "Selected clinic is not currently active.",
+          });
+        }
+
         await client.query(
-          `INSERT INTO public.patients (user_id)
-           VALUES ($1)`,
-          [userId],
+          `INSERT INTO public.patients (user_id, clinic_id)
+           VALUES ($1, $2)`,
+          [userId, normalizedClinicId],
         );
       }
 
@@ -627,29 +691,25 @@ router.post(
 // NOTE: Login blocks unverified accounts.
 // ===============================
 
-router.post(
-  "/login",
-  loginLimiter,
-  verifyTurnstileMiddleware,
-  async (req, res) => {
-    const { email, password, rememberMe } = req.body || {};
-    const cleanEmail = normalizeEmail(email);
+router.post("/login", loginLimiter, async (req, res) => {
+  const { email, password, rememberMe } = req.body || {};
+  const cleanEmail = normalizeEmail(email);
 
-    if (!cleanEmail || !password) {
-      return res.status(400).json({
-        error: "Email and password are required.",
-      });
-    }
+  if (!cleanEmail || !password) {
+    return res.status(400).json({
+      error: "Email and password are required.",
+    });
+  }
 
-    if (!isValidEmail(cleanEmail)) {
-      return res.status(400).json({
-        error: AUTH_ERROR_MESSAGE,
-      });
-    }
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({
+      error: AUTH_ERROR_MESSAGE,
+    });
+  }
 
-    try {
-      const userResult = await pool.query(
-        `SELECT 
+  try {
+    const userResult = await pool.query(
+      `SELECT 
           u.user_id,
           u.name,
           u.email,
@@ -663,76 +723,75 @@ router.post(
        JOIN public.roles r ON ur.role_id = r.role_id
        WHERE LOWER(u.email) = LOWER($1)
        LIMIT 1`,
-        [cleanEmail],
-      );
+      [cleanEmail],
+    );
 
-      if (userResult.rows.length === 0) {
-        return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
-      }
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
+    }
 
-      const user = userResult.rows[0];
+    const user = userResult.rows[0];
 
-      const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.password);
 
-      if (!isPasswordValid) {
-        return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
-      }
+    if (!isPasswordValid) {
+      return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
+    }
 
-      if (user.status === "Inactive") {
-        return res.status(403).json({
-          error: "This account is inactive. Please contact the administrator.",
-        });
-      }
-
-      if (!user.email_verified) {
-        return res.status(403).json({
-          error:
-            "Your email address is not verified. Please verify your email before logging in.",
-          email_unverified: true,
-        });
-      }
-
-      const token = jwt.sign(
-        {
-          user_id: user.user_id,
-          email: user.email,
-          role: user.role_name,
-        },
-        process.env.JWT_SECRET,
-        {
-          expiresIn: rememberMe ? "7d" : "2h",
-        },
-      );
-
-      await createAuditLog({
-        user_id: user.user_id,
-        action: "LOGIN",
-        module: "Authentication",
-        description: `${user.name} logged in as ${user.role_name}.`,
-        ip_address: req.ip,
-      });
-
-      res.status(200).json({
-        message: "Login successful",
-        token,
-        user: {
-          user_id: user.user_id,
-          name: user.name,
-          email: user.email,
-          status: user.status,
-          email_verified: user.email_verified,
-          role_id: user.role_id,
-          role: user.role_name,
-        },
-      });
-    } catch (err) {
-      console.error("Login error:", err.message);
-      res.status(500).json({
-        error: "Server error during login. Please try again later.",
+    if (user.status === "Inactive") {
+      return res.status(403).json({
+        error: "This account is inactive. Please contact the administrator.",
       });
     }
-  },
-);
+
+    if (!user.email_verified) {
+      return res.status(403).json({
+        error:
+          "Your email address is not verified. Please verify your email before logging in.",
+        email_unverified: true,
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        user_id: user.user_id,
+        email: user.email,
+        role: user.role_name,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: rememberMe ? "7d" : "2h",
+      },
+    );
+
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "LOGIN",
+      module: "Authentication",
+      description: `${user.name} logged in as ${user.role_name}.`,
+      ip_address: req.ip,
+    });
+
+    res.status(200).json({
+      message: "Login successful",
+      token,
+      user: {
+        user_id: user.user_id,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+        email_verified: user.email_verified,
+        role_id: user.role_id,
+        role: user.role_name,
+      },
+    });
+  } catch (err) {
+    console.error("Login error:", err.message);
+    res.status(500).json({
+      error: "Server error during login. Please try again later.",
+    });
+  }
+});
 
 // ===============================
 // VERIFY EMAIL
@@ -800,187 +859,177 @@ router.get("/verify-email/:token", async (req, res) => {
 // RESEND EMAIL VERIFICATION
 // ===============================
 
-router.post(
-  "/resend-verification",
-  registerLimiter,
-  verifyTurnstileMiddleware,
-  async (req, res) => {
-    const { email } = req.body || {};
-    const cleanEmail = normalizeEmail(email);
+router.post("/resend-verification", registerLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  const cleanEmail = normalizeEmail(email);
 
-    if (!cleanEmail) {
-      return res.status(400).json({
-        error: "Email is required.",
-      });
-    }
+  if (!cleanEmail) {
+    return res.status(400).json({
+      error: "Email is required.",
+    });
+  }
 
-    if (!isValidEmail(cleanEmail)) {
-      return res.status(400).json({
-        error: "Please enter a valid email address.",
-      });
-    }
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({
+      error: "Please enter a valid email address.",
+    });
+  }
 
-    try {
-      const userResult = await pool.query(
-        `SELECT user_id, name, email, status, COALESCE(email_verified, false) AS email_verified
+  try {
+    const userResult = await pool.query(
+      `SELECT user_id, name, email, status, COALESCE(email_verified, false) AS email_verified
        FROM public.users
        WHERE LOWER(email) = LOWER($1)
        LIMIT 1`,
-        [cleanEmail],
-      );
+      [cleanEmail],
+    );
 
-      const genericMessage =
-        "If the email exists and is not yet verified, a verification email has been sent.";
+    const genericMessage =
+      "If the email exists and is not yet verified, a verification email has been sent.";
 
-      if (userResult.rows.length === 0) {
-        return res.status(200).json({
-          message: genericMessage,
-        });
-      }
+    if (userResult.rows.length === 0) {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
 
-      const user = userResult.rows[0];
+    const user = userResult.rows[0];
 
-      if (user.email_verified) {
-        return res.status(200).json({
-          message: "This email address is already verified.",
-        });
-      }
+    if (user.email_verified) {
+      return res.status(200).json({
+        message: "This email address is already verified.",
+      });
+    }
 
-      if (user.status === "Inactive") {
-        return res.status(200).json({
-          message: genericMessage,
-        });
-      }
+    if (user.status === "Inactive") {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
 
-      const emailVerification = generateEmailVerification();
+    const emailVerification = generateEmailVerification();
 
-      await pool.query(
-        `UPDATE public.users
+    await pool.query(
+      `UPDATE public.users
        SET email_verification_token = $1,
            email_verification_expires = $2
        WHERE user_id = $3`,
-        [
-          emailVerification.hashedToken,
-          emailVerification.expiresAt,
-          user.user_id,
-        ],
-      );
+      [
+        emailVerification.hashedToken,
+        emailVerification.expiresAt,
+        user.user_id,
+      ],
+    );
 
-      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
+    const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
 
-      await sendVerificationEmail({
-        to: user.email,
-        name: user.name,
-        verificationUrl,
-      });
+    await sendVerificationEmail({
+      to: user.email,
+      name: user.name,
+      verificationUrl,
+    });
 
-      await createAuditLog({
-        user_id: user.user_id,
-        action: "RESEND_EMAIL_VERIFICATION",
-        module: "Authentication",
-        description: `${user.name} requested a new email verification link.`,
-        ip_address: req.ip,
-      });
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "RESEND_EMAIL_VERIFICATION",
+      module: "Authentication",
+      description: `${user.name} requested a new email verification link.`,
+      ip_address: req.ip,
+    });
 
-      res.status(200).json({
-        message: genericMessage,
-      });
-    } catch (err) {
-      console.error("Resend verification error:", err.message);
-      res.status(500).json({
-        error: "Unable to resend verification email.",
-      });
-    }
-  },
-);
+    res.status(200).json({
+      message: genericMessage,
+    });
+  } catch (err) {
+    console.error("Resend verification error:", err.message);
+    res.status(500).json({
+      error: "Unable to resend verification email.",
+    });
+  }
+});
 
 // ===============================
 // FORGOT PASSWORD
 // ===============================
 
-router.post(
-  "/forgot-password",
-  forgotPasswordLimiter,
-  verifyTurnstileMiddleware,
-  async (req, res) => {
-    const { email } = req.body || {};
-    const cleanEmail = normalizeEmail(email);
+router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
+  const { email } = req.body || {};
+  const cleanEmail = normalizeEmail(email);
 
-    if (!cleanEmail) {
-      return res.status(400).json({
-        error: "Email is required.",
-      });
-    }
+  if (!cleanEmail) {
+    return res.status(400).json({
+      error: "Email is required.",
+    });
+  }
 
-    if (!isValidEmail(cleanEmail)) {
-      return res.status(400).json({
-        error: "Please enter a valid email address.",
-      });
-    }
+  if (!isValidEmail(cleanEmail)) {
+    return res.status(400).json({
+      error: "Please enter a valid email address.",
+    });
+  }
 
-    try {
-      const userResult = await pool.query(
-        `SELECT user_id, name, email, status
+  try {
+    const userResult = await pool.query(
+      `SELECT user_id, name, email, status
        FROM public.users
        WHERE LOWER(email) = LOWER($1)
        LIMIT 1`,
-        [cleanEmail],
-      );
+      [cleanEmail],
+    );
 
-      const genericMessage =
-        "If an account with that email exists, a password reset email has been sent.";
+    const genericMessage =
+      "If an account with that email exists, a password reset email has been sent.";
 
-      if (userResult.rows.length === 0) {
-        return res.status(200).json({
-          message: genericMessage,
-        });
-      }
+    if (userResult.rows.length === 0) {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
 
-      const user = userResult.rows[0];
+    const user = userResult.rows[0];
 
-      if (user.status === "Inactive") {
-        return res.status(200).json({
-          message: genericMessage,
-        });
-      }
+    if (user.status === "Inactive") {
+      return res.status(200).json({
+        message: genericMessage,
+      });
+    }
 
-      const passwordReset = generatePasswordReset();
+    const passwordReset = generatePasswordReset();
 
-      await pool.query(
-        `UPDATE public.users
+    await pool.query(
+      `UPDATE public.users
        SET password_reset_token = $1,
            password_reset_expires = $2
        WHERE user_id = $3`,
-        [passwordReset.hashedToken, passwordReset.expiresAt, user.user_id],
-      );
+      [passwordReset.hashedToken, passwordReset.expiresAt, user.user_id],
+    );
 
-      const resetUrl = `${getFrontendBaseUrl()}/reset-password/${passwordReset.rawToken}`;
+    const resetUrl = `${getFrontendBaseUrl()}/reset-password/${passwordReset.rawToken}`;
 
-      await sendPasswordResetEmail({
-        to: user.email,
-        name: user.name,
-        resetUrl,
-      });
+    await sendPasswordResetEmail({
+      to: user.email,
+      name: user.name,
+      resetUrl,
+    });
 
-      await createAuditLog({
-        user_id: user.user_id,
-        action: "FORGOT_PASSWORD_REQUEST",
-        module: "Authentication",
-        description: `${user.name} requested a password reset link.`,
-        ip_address: req.ip,
-      });
+    await createAuditLog({
+      user_id: user.user_id,
+      action: "FORGOT_PASSWORD_REQUEST",
+      module: "Authentication",
+      description: `${user.name} requested a password reset link.`,
+      ip_address: req.ip,
+    });
 
-      res.status(200).json({
-        message: genericMessage,
-      });
-    } catch (err) {
-      console.error("Forgot password error:", err.message);
-      res.status(500).json({
-        error: "Unable to process forgot password request.",
-      });
-    }
-  },
-);
+    res.status(200).json({
+      message: genericMessage,
+    });
+  } catch (err) {
+    console.error("Forgot password error:", err.message);
+    res.status(500).json({
+      error: "Unable to process forgot password request.",
+    });
+  }
+});
 
 // ===============================
 // RESET PASSWORD
@@ -1530,6 +1579,35 @@ router.put(
       }
 
       if (newRole.role_name === "Patient") {
+        if (!normalizedClinicId) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "Please select a clinic before assigning the Patient role.",
+          });
+        }
+
+        const clinicCheck = await client.query(
+          `SELECT clinic_id, clinic_name, status
+           FROM public.clinics
+           WHERE clinic_id = $1
+           LIMIT 1`,
+          [normalizedClinicId],
+        );
+
+        if (clinicCheck.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({
+            error: "Selected clinic was not found.",
+          });
+        }
+
+        if (clinicCheck.rows[0].status !== "Active") {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "Selected clinic is not currently active.",
+          });
+        }
+
         const patientCheck = await client.query(
           "SELECT patient_id FROM public.patients WHERE user_id = $1",
           [user_id],
@@ -1537,9 +1615,16 @@ router.put(
 
         if (patientCheck.rows.length === 0) {
           await client.query(
-            `INSERT INTO public.patients (user_id)
-             VALUES ($1)`,
-            [user_id],
+            `INSERT INTO public.patients (user_id, clinic_id)
+             VALUES ($1, $2)`,
+            [user_id, normalizedClinicId],
+          );
+        } else {
+          await client.query(
+            `UPDATE public.patients
+             SET clinic_id = $1
+             WHERE user_id = $2`,
+            [normalizedClinicId, user_id],
           );
         }
       }
@@ -1579,6 +1664,9 @@ router.put(
 
 // ===============================
 // CLINIC OWNER: GET OWN STAFF
+// Supports multiple clinic locations. If clinic_id is provided,
+// only staff from that clinic location will be returned.
+// Otherwise, staff from all active locations owned by the clinic owner is returned.
 // ===============================
 
 router.get(
@@ -1586,13 +1674,33 @@ router.get(
   authenticateToken,
   authorizeRoles("Clinic Owner"),
   async (req, res) => {
-    try {
-      const clinic = await getClinicOwnedByUser(pool, req.user.user_id);
+    const { clinic_id } = req.query || {};
 
-      if (!clinic) {
+    try {
+      const ownedClinics = await getClinicsOwnedByUser(pool, req.user.user_id);
+
+      if (ownedClinics.length === 0) {
         return res.status(404).json({
-          error: "No active clinic is linked to this clinic owner account.",
+          error:
+            "No active clinic locations are linked to this clinic owner account.",
         });
+      }
+
+      let selectedClinic = null;
+      let clinicIds = ownedClinics.map((clinic) => Number(clinic.clinic_id));
+
+      if (clinic_id) {
+        selectedClinic = ownedClinics.find(
+          (clinic) => Number(clinic.clinic_id) === Number(clinic_id),
+        );
+
+        if (!selectedClinic) {
+          return res.status(403).json({
+            error: "Selected clinic location does not belong to your account.",
+          });
+        }
+
+        clinicIds = [Number(selectedClinic.clinic_id)];
       }
 
       const staff = await pool.query(
@@ -1611,31 +1719,42 @@ router.get(
             d.license_number AS dentist_license_number,
             d.specialization,
             d.availability AS dentist_availability,
+            d.clinic_id AS dentist_clinic_id,
+            dc.clinic_name AS dentist_clinic_name,
 
             a.assistant_id,
             a.license_number AS assistant_license_number,
-            a.availability AS assistant_availability
+            a.availability AS assistant_availability,
+            a.clinic_id AS assistant_clinic_id,
+            ac.clinic_name AS assistant_clinic_name,
+
+            COALESCE(d.clinic_id, a.clinic_id) AS clinic_id,
+            COALESCE(dc.clinic_name, ac.clinic_name) AS clinic_name
 
          FROM public.users u
          JOIN public.user_roles ur ON u.user_id = ur.user_id
          JOIN public.roles r ON ur.role_id = r.role_id
 
          LEFT JOIN public.dentists d ON u.user_id = d.user_id
+         LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
          LEFT JOIN public.assistants a ON u.user_id = a.user_id
+         LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
 
          WHERE 
            (
-             d.clinic_id = $1
-             OR a.clinic_id = $1
+             d.clinic_id = ANY($1::int[])
+             OR a.clinic_id = ANY($1::int[])
            )
          AND r.role_name IN ('Dentist', 'Assistant', 'Dental Assistant')
-         ORDER BY u.created_at DESC`,
-        [clinic.clinic_id],
+         ORDER BY COALESCE(dc.clinic_name, ac.clinic_name) ASC, u.created_at DESC`,
+        [clinicIds],
       );
 
       res.status(200).json({
         message: "Clinic staff retrieved successfully",
-        clinic,
+        clinics: ownedClinics,
+        clinic: selectedClinic || ownedClinics[0],
+        selected_clinic: selectedClinic,
         staff: staff.rows,
       });
     } catch (err) {
@@ -1649,6 +1768,8 @@ router.get(
 
 // ===============================
 // CLINIC OWNER: CREATE OWN STAFF
+// Requires clinic_id so staff are assigned to a specific clinic location.
+// The subscription limit is checked against the clinic owner's shared subscription.
 // ===============================
 
 router.post(
@@ -1665,15 +1786,24 @@ router.post(
       license_number,
       specialization,
       availability,
+      clinic_id,
     } = req.body || {};
 
     const cleanName = cleanText(name);
     const cleanEmail = normalizeEmail(email);
     const passwordError = validatePasswordStrength(password);
+    const normalizedClinicId = Number(clinic_id);
 
-    if (!cleanName || !cleanEmail || !password || !staff_role) {
+    if (!cleanName || !cleanEmail || !password || !staff_role || !clinic_id) {
       return res.status(400).json({
-        error: "Name, email, password, and staff role are required.",
+        error:
+          "Name, email, password, staff role, and clinic location are required.",
+      });
+    }
+
+    if (!Number.isInteger(normalizedClinicId) || normalizedClinicId <= 0) {
+      return res.status(400).json({
+        error: "Please select a valid clinic location.",
       });
     }
 
@@ -1695,13 +1825,17 @@ router.post(
     try {
       await client.query("BEGIN");
 
-      const clinic = await getClinicOwnedByUser(client, req.user.user_id);
+      const clinic = await getClinicOwnedByUser(
+        client,
+        req.user.user_id,
+        normalizedClinicId,
+      );
 
       if (!clinic) {
         await client.query("ROLLBACK");
 
-        return res.status(404).json({
-          error: "No active clinic is linked to this clinic owner account.",
+        return res.status(403).json({
+          error: "Selected clinic location does not belong to your account.",
         });
       }
 
@@ -1868,6 +2002,7 @@ router.post(
 
 // ===============================
 // CLINIC OWNER: UPDATE OWN STAFF STATUS
+// Works across all clinic locations owned by the same clinic owner.
 // ===============================
 
 router.put(
@@ -1897,16 +2032,6 @@ router.put(
     try {
       await client.query("BEGIN");
 
-      const clinic = await getClinicOwnedByUser(client, req.user.user_id);
-
-      if (!clinic) {
-        await client.query("ROLLBACK");
-
-        return res.status(404).json({
-          error: "No active clinic is linked to this clinic owner account.",
-        });
-      }
-
       const staffCheck = await client.query(
         `SELECT 
             u.user_id,
@@ -1917,25 +2042,32 @@ router.put(
 
             d.dentist_id,
             d.clinic_id AS dentist_clinic_id,
+            dc.clinic_name AS dentist_clinic_name,
 
             a.assistant_id,
-            a.clinic_id AS assistant_clinic_id
+            a.clinic_id AS assistant_clinic_id,
+            ac.clinic_name AS assistant_clinic_name,
+
+            COALESCE(d.clinic_id, a.clinic_id) AS clinic_id,
+            COALESCE(dc.clinic_name, ac.clinic_name) AS clinic_name
 
          FROM public.users u
          JOIN public.user_roles ur ON u.user_id = ur.user_id
          JOIN public.roles r ON ur.role_id = r.role_id
 
          LEFT JOIN public.dentists d ON u.user_id = d.user_id
+         LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
          LEFT JOIN public.assistants a ON u.user_id = a.user_id
+         LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
 
          WHERE u.user_id = $1
          AND r.role_name IN ('Dentist', 'Assistant', 'Dental Assistant')
          AND (
-              d.clinic_id = $2
-              OR a.clinic_id = $2
+              dc.owner_user_id = $2
+              OR ac.owner_user_id = $2
          )
          LIMIT 1`,
-        [user_id, clinic.clinic_id],
+        [user_id, req.user.user_id],
       );
 
       if (staffCheck.rows.length === 0) {
@@ -1943,7 +2075,7 @@ router.put(
 
         return res.status(404).json({
           error:
-            "Staff member not found or does not belong to your assigned clinic.",
+            "Staff member not found or does not belong to any of your clinic locations.",
         });
       }
 
@@ -1963,7 +2095,7 @@ router.put(
            SET status = $1
            WHERE user_id = $2
            AND clinic_id = $3`,
-          [status, user_id, clinic.clinic_id],
+          [status, user_id, staffMember.clinic_id],
         );
       }
 
@@ -1973,7 +2105,7 @@ router.put(
            SET status = $1
            WHERE user_id = $2
            AND clinic_id = $3`,
-          [status, user_id, clinic.clinic_id],
+          [status, user_id, staffMember.clinic_id],
         );
       }
 
@@ -1981,7 +2113,7 @@ router.put(
         user_id: req.user.user_id,
         action: "UPDATE_CLINIC_STAFF_STATUS",
         module: "Clinic Owner Staff Management",
-        description: `Clinic owner updated ${staffMember.name}'s account status to ${status} under ${clinic.clinic_name}.`,
+        description: `Clinic owner updated ${staffMember.name}'s account status to ${status} under ${staffMember.clinic_name}.`,
         ip_address: req.ip,
       });
 
@@ -1990,7 +2122,10 @@ router.put(
       res.status(200).json({
         message: `${staffMember.name}'s account status updated to ${status}.`,
         user: updatedUser.rows[0],
-        clinic,
+        clinic: {
+          clinic_id: staffMember.clinic_id,
+          clinic_name: staffMember.clinic_name,
+        },
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});

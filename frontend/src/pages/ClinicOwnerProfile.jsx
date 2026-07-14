@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
 import { useNavigate } from "react-router-dom";
@@ -7,7 +7,7 @@ import PasswordInput from "../components/auth/PasswordInput";
 function ClinicOwnerProfile() {
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
+  const emptyLocationForm = {
     clinic_name: "",
     address: "",
     latitude: "",
@@ -15,7 +15,16 @@ function ClinicOwnerProfile() {
     services: "",
     contact_number: "",
     opening_hours: "",
-  });
+  };
+
+  const [clinicLocations, setClinicLocations] = useState([]);
+  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [locationForm, setLocationForm] = useState(emptyLocationForm);
+  const [newLocationForm, setNewLocationForm] = useState(emptyLocationForm);
+
+  const [showEditLocation, setShowEditLocation] = useState(false);
+  const [showAddLocation, setShowAddLocation] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   const [passwordForm, setPasswordForm] = useState({
     current_password: "",
@@ -23,12 +32,9 @@ function ClinicOwnerProfile() {
     confirm_password: "",
   });
 
-  const [showPasswordForm, setShowPasswordForm] = useState(false);
-
-  const [originalClinic, setOriginalClinic] = useState(null);
-
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
+  const [addingLocation, setAddingLocation] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -38,29 +44,90 @@ function ClinicOwnerProfile() {
   const [passwordError, setPasswordError] = useState("");
   const [passwordRules, setPasswordRules] = useState([]);
 
+  const selectedLocation = useMemo(() => {
+    return (
+      clinicLocations.find(
+        (location) => String(location.clinic_id) === String(selectedClinicId),
+      ) || null
+    );
+  }, [clinicLocations, selectedClinicId]);
+
+  const sharedPlanName =
+    selectedLocation?.plan_name ||
+    clinicLocations.find((location) => location.plan_name)?.plan_name ||
+    "No active plan";
+
   useEffect(() => {
-    fetchClinicProfile();
+    fetchClinicLocations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (selectedLocation) {
+      setLocationForm({
+        clinic_name: selectedLocation.clinic_name || "",
+        address: selectedLocation.address || "",
+        latitude: selectedLocation.latitude || "",
+        longitude: selectedLocation.longitude || "",
+        services: selectedLocation.services || "",
+        contact_number: selectedLocation.contact_number || "",
+        opening_hours: selectedLocation.opening_hours || "",
+      });
+    }
+  }, [selectedLocation]);
+
+  const fetchClinicLocations = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      setMessage("");
+
+      const response = await API.get("/api/clinics/owner/locations");
+
+      const locations =
+        response.data.locations ||
+        response.data.clinics ||
+        response.data.clinic_locations ||
+        [];
+
+      setClinicLocations(locations);
+
+      if (locations.length > 0) {
+        setSelectedClinicId((currentClinicId) => {
+          const stillExists = locations.some(
+            (location) =>
+              String(location.clinic_id) === String(currentClinicId),
+          );
+
+          return stillExists
+            ? String(currentClinicId)
+            : String(locations[0].clinic_id);
+        });
+      } else {
+        setSelectedClinicId("");
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || "Unable to load clinic locations.");
+      setClinicLocations([]);
+      setSelectedClinicId("");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const validatePasswordStrength = (password) => {
     const value = String(password || "");
 
-    if (value.length < 8) {
-      return "Password must be at least 8 characters long.";
-    }
-
+    if (value.length < 8) return "Password must be at least 8 characters long.";
     if (!/[A-Z]/.test(value)) {
       return "Password must contain at least one uppercase letter.";
     }
-
     if (!/[a-z]/.test(value)) {
       return "Password must contain at least one lowercase letter.";
     }
-
     if (!/[0-9]/.test(value)) {
       return "Password must contain at least one number.";
     }
-
     if (!/[^A-Za-z0-9]/.test(value)) {
       return "Password must contain at least one special character.";
     }
@@ -68,39 +135,21 @@ function ClinicOwnerProfile() {
     return null;
   };
 
-  const fetchClinicProfile = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      setMessage("");
-
-      const response = await API.get("/api/clinics/owner/my-clinic");
-
-      const clinic = response.data.clinic;
-
-      setOriginalClinic(clinic);
-
-      setFormData({
-        clinic_name: clinic?.clinic_name || "",
-        address: clinic?.address || "",
-        latitude: clinic?.latitude || "",
-        longitude: clinic?.longitude || "",
-        services: clinic?.services || "",
-        contact_number: clinic?.contact_number || "",
-        opening_hours: clinic?.opening_hours || "",
-      });
-    } catch (err) {
-      setError(err.response?.data?.error || "Unable to load clinic profile.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleChange = (e) => {
+  const handleLocationFormChange = (e) => {
     setMessage("");
     setError("");
 
-    setFormData((prev) => ({
+    setLocationForm((prev) => ({
+      ...prev,
+      [e.target.name]: e.target.value,
+    }));
+  };
+
+  const handleNewLocationChange = (e) => {
+    setMessage("");
+    setError("");
+
+    setNewLocationForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
     }));
@@ -117,52 +166,103 @@ function ClinicOwnerProfile() {
     }));
   };
 
-  const handleReset = () => {
-    if (!originalClinic) return;
-
+  const openEditLocation = (location) => {
+    setSelectedClinicId(String(location.clinic_id));
+    setShowEditLocation(true);
+    setShowAddLocation(false);
     setMessage("");
     setError("");
-
-    setFormData({
-      clinic_name: originalClinic.clinic_name || "",
-      address: originalClinic.address || "",
-      latitude: originalClinic.latitude || "",
-      longitude: originalClinic.longitude || "",
-      services: originalClinic.services || "",
-      contact_number: originalClinic.contact_number || "",
-      opening_hours: originalClinic.opening_hours || "",
-    });
   };
 
-  const handleSubmit = async (e) => {
+  const handleUpdateLocation = async (e) => {
     e.preventDefault();
 
-    if (!formData.clinic_name || !formData.address) {
+    if (!selectedClinicId) {
+      setError("Please select a clinic location to update.");
+      return;
+    }
+
+    if (!locationForm.clinic_name.trim() || !locationForm.address.trim()) {
       setError("Clinic name and address are required.");
       return;
     }
 
     try {
-      setSaving(true);
+      setSavingLocation(true);
       setMessage("");
       setError("");
 
-      const response = await API.put("/api/clinics/owner/my-clinic", {
-        clinic_name: formData.clinic_name,
-        address: formData.address,
-        latitude: formData.latitude || null,
-        longitude: formData.longitude || null,
-        services: formData.services || null,
-        contact_number: formData.contact_number || null,
-        opening_hours: formData.opening_hours || null,
+      const response = await API.put(
+        `/api/clinics/owner/locations/${selectedClinicId}`,
+        {
+          clinic_name: locationForm.clinic_name.trim(),
+          address: locationForm.address.trim(),
+          latitude: locationForm.latitude || null,
+          longitude: locationForm.longitude || null,
+          services: locationForm.services || null,
+          contact_number: locationForm.contact_number || null,
+          opening_hours: locationForm.opening_hours || null,
+        },
+      );
+
+      const updatedLocation = response.data.clinic || null;
+
+      setClinicLocations((prev) =>
+        prev.map((location) =>
+          String(location.clinic_id) === String(selectedClinicId)
+            ? { ...location, ...(updatedLocation || locationForm) }
+            : location,
+        ),
+      );
+
+      setMessage(response.data.message || "Clinic location updated.");
+      setShowEditLocation(false);
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Unable to update clinic location.",
+      );
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
+  const handleAddLocation = async (e) => {
+    e.preventDefault();
+
+    const clinicName = newLocationForm.clinic_name.trim();
+    const address = newLocationForm.address.trim();
+
+    if (!clinicName || !address) {
+      setError("Clinic name and address are required.");
+      return;
+    }
+
+    try {
+      setAddingLocation(true);
+      setMessage("");
+      setError("");
+
+      const response = await API.post("/api/clinics/owner/locations", {
+        clinic_name: clinicName,
+        address,
+        latitude: newLocationForm.latitude || null,
+        longitude: newLocationForm.longitude || null,
+        services: newLocationForm.services || null,
+        contact_number: newLocationForm.contact_number || null,
+        opening_hours: newLocationForm.opening_hours || null,
       });
 
-      setMessage(response.data.message || "Clinic profile updated.");
-      setOriginalClinic(response.data.clinic || originalClinic);
+      const newLocation = response.data.clinic;
+
+      setClinicLocations((prev) => [...prev, newLocation]);
+      setSelectedClinicId(String(newLocation.clinic_id));
+      setNewLocationForm(emptyLocationForm);
+      setShowAddLocation(false);
+      setMessage(response.data.message || "Clinic location added.");
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to update clinic profile.");
+      setError(err.response?.data?.error || "Unable to add clinic location.");
     } finally {
-      setSaving(false);
+      setAddingLocation(false);
     }
   };
 
@@ -236,163 +336,379 @@ function ClinicOwnerProfile() {
     }
   };
 
+  const renderLocationFields = (data, onChange, disabled) => {
+    return (
+      <>
+        <div className="form-row">
+          <div className="form-group">
+            <label>
+              Clinic Location Name <span className="auth-required">*</span>
+            </label>
+            <input
+              type="text"
+              name="clinic_name"
+              value={data.clinic_name}
+              onChange={onChange}
+              placeholder="Example: BrightSmile Makati"
+              disabled={disabled}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>
+              Address <span className="auth-required">*</span>
+            </label>
+            <input
+              type="text"
+              name="address"
+              value={data.address}
+              onChange={onChange}
+              placeholder="Enter clinic address"
+              disabled={disabled}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Contact Number</label>
+            <input
+              type="text"
+              name="contact_number"
+              value={data.contact_number}
+              onChange={onChange}
+              placeholder="Example: 09123456789"
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Opening Hours</label>
+            <input
+              type="text"
+              name="opening_hours"
+              value={data.opening_hours}
+              onChange={onChange}
+              placeholder="Example: Mon-Sat, 9:00 AM - 5:00 PM"
+              disabled={disabled}
+            />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label>Services Offered</label>
+          <textarea
+            name="services"
+            value={data.services}
+            onChange={onChange}
+            placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
+            rows="4"
+            disabled={disabled}
+          />
+        </div>
+
+        <div className="form-row">
+          <div className="form-group">
+            <label>Latitude</label>
+            <input
+              type="number"
+              step="any"
+              name="latitude"
+              value={data.latitude}
+              onChange={onChange}
+              placeholder="Optional"
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Longitude</label>
+            <input
+              type="number"
+              step="any"
+              name="longitude"
+              value={data.longitude}
+              onChange={onChange}
+              placeholder="Optional"
+              disabled={disabled}
+            />
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
     <DashboardLayout role="Clinic Owner">
-      <div className="appointments-layout">
-        <div>
-          <div className="appointment-form-card">
-            <h2>Clinic Profile</h2>
+      <div className="appointments-list-card clinic-owner-profile-page">
+        <div className="appointments-header">
+          <div>
+            <h2>Clinic Locations</h2>
             <p>
-              Update your clinic details shown in your clinic owner dashboard
-              and future clinic discovery features.
+              Manage clinic branches in a cleaner, sectioned layout. Each
+              location has separate operations, while the subscription is
+              shared.
             </p>
+          </div>
 
-            {message && <div className="success-message">{message}</div>}
-            {error && <div className="error-message">{error}</div>}
+          <div className="appointment-actions" style={{ flexDirection: "row" }}>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => navigate("/clinic-owner/dashboard")}
+            >
+              Back to Dashboard
+            </button>
 
-            {loading ? (
-              <p>Loading clinic profile...</p>
-            ) : (
-              <form className="appointment-form" onSubmit={handleSubmit}>
-                <div className="form-group">
-                  <label>Clinic Name</label>
-                  <input
-                    type="text"
-                    name="clinic_name"
-                    value={formData.clinic_name}
-                    onChange={handleChange}
-                    placeholder="Enter clinic name"
-                    required
-                  />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={fetchClinicLocations}
+              disabled={loading || savingLocation || addingLocation}
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        {message && <div className="success-message">{message}</div>}
+        {error && <div className="error-message">{error}</div>}
+
+        <div className="info-message">
+          <strong>Shared Subscription:</strong> {sharedPlanName}. Staff,
+          patients, records, and X-rays remain separated by location, but plan
+          limits are shared under this Clinic Owner account.
+        </div>
+
+        {loading ? (
+          <div className="payment-loading-card">
+            <p>Loading clinic locations...</p>
+          </div>
+        ) : (
+          <>
+            <div className="staff-summary-grid">
+              <div className="staff-summary-card">
+                <span>Total Locations</span>
+                <strong>{clinicLocations.length}</strong>
+                <p>Branches under your account</p>
+              </div>
+
+              <div className="staff-summary-card">
+                <span>Shared Plan</span>
+                <strong>{sharedPlanName}</strong>
+                <p>Applies to all locations</p>
+              </div>
+
+              <div className="staff-summary-card">
+                <span>Selected Location</span>
+                <strong>{selectedLocation?.clinic_name || "None"}</strong>
+                <p>{selectedLocation?.status || "No location selected"}</p>
+              </div>
+            </div>
+
+            <div className="patient-dashboard-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Saved Locations</h2>
+                  <p>
+                    View the important details only. Use Edit Location to see or
+                    change full branch information.
+                  </p>
                 </div>
 
-                <div className="form-group">
-                  <label>Clinic Address</label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    placeholder="Enter clinic address"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Contact Number</label>
-                  <input
-                    type="text"
-                    name="contact_number"
-                    value={formData.contact_number}
-                    onChange={handleChange}
-                    placeholder="Example: 09123456789"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Services Offered</label>
-                  <textarea
-                    name="services"
-                    value={formData.services}
-                    onChange={handleChange}
-                    placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
-                    rows="4"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Opening Hours</label>
-                  <textarea
-                    name="opening_hours"
-                    value={formData.opening_hours}
-                    onChange={handleChange}
-                    placeholder="Example: Monday to Saturday, 9:00 AM - 5:00 PM"
-                    rows="4"
-                  />
-                </div>
-
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Latitude</label>
-                    <input
-                      type="number"
-                      step="any"
-                      name="latitude"
-                      value={formData.latitude}
-                      onChange={handleChange}
-                      placeholder="Optional"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label>Longitude</label>
-                    <input
-                      type="number"
-                      step="any"
-                      name="longitude"
-                      value={formData.longitude}
-                      onChange={handleChange}
-                      placeholder="Optional"
-                    />
-                  </div>
-                </div>
-
-                <div
-                  className="appointment-actions"
-                  style={{ marginTop: "12px" }}
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => {
+                    setShowAddLocation(true);
+                    setShowEditLocation(false);
+                    setMessage("");
+                    setError("");
+                  }}
                 >
+                  Add Location
+                </button>
+              </div>
+
+              {clinicLocations.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No locations yet</h3>
+                  <p>Add your first clinic location to continue.</p>
+                </div>
+              ) : (
+                <div className="patient-quick-action-grid">
+                  {clinicLocations.map((location) => (
+                    <div
+                      className="patient-quick-action-card clinic-location-card"
+                      key={location.clinic_id}
+                    >
+                      <div>
+                        <div className="appointment-title-row">
+                          <h3>{location.clinic_name || "Clinic Location"}</h3>
+
+                          <span className="status-badge status-scheduled">
+                            {location.status || "Active"}
+                          </span>
+                        </div>
+
+                        <p>
+                          <strong>Address:</strong> {location.address || "N/A"}
+                        </p>
+
+                        <p>
+                          <strong>Contact:</strong>{" "}
+                          {location.contact_number || "N/A"}
+                        </p>
+
+                        <p>
+                          <strong>Opening Hours:</strong>{" "}
+                          {location.opening_hours || "N/A"}
+                        </p>
+                      </div>
+
+                      <div className="appointment-actions">
+                        <button
+                          className="primary-button"
+                          onClick={() => openEditLocation(location)}
+                        >
+                          Edit Location
+                        </button>
+
+                        <button
+                          className="secondary-button"
+                          onClick={() => navigate("/clinic-owner/staff")}
+                        >
+                          Manage Staff
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {showEditLocation && selectedLocation && (
+              <div className="patient-dashboard-section">
+                <div className="appointments-header">
+                  <div>
+                    <h2>Edit Location</h2>
+                    <p>
+                      Update only the selected branch. This does not change your
+                      shared subscription.
+                    </p>
+                  </div>
+
                   <button
                     type="button"
                     className="secondary-button"
-                    onClick={handleReset}
-                    disabled={saving}
+                    onClick={() => setShowEditLocation(false)}
+                    disabled={savingLocation}
                   >
-                    Reset
+                    Close
                   </button>
+                </div>
+
+                <form
+                  className="appointment-form"
+                  onSubmit={handleUpdateLocation}
+                >
+                  {renderLocationFields(
+                    locationForm,
+                    handleLocationFormChange,
+                    savingLocation,
+                  )}
+
+                  <div className="appointment-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => {
+                        setLocationForm({
+                          clinic_name: selectedLocation.clinic_name || "",
+                          address: selectedLocation.address || "",
+                          latitude: selectedLocation.latitude || "",
+                          longitude: selectedLocation.longitude || "",
+                          services: selectedLocation.services || "",
+                          contact_number: selectedLocation.contact_number || "",
+                          opening_hours: selectedLocation.opening_hours || "",
+                        });
+                      }}
+                      disabled={savingLocation}
+                    >
+                      Reset
+                    </button>
+
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={savingLocation}
+                    >
+                      {savingLocation ? "Saving..." : "Save Changes"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {showAddLocation && (
+              <div className="patient-dashboard-section">
+                <div className="appointments-header">
+                  <div>
+                    <h2>Add Location</h2>
+                    <p>
+                      Add a new branch under the same Clinic Owner account and
+                      shared subscription.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => {
+                      setShowAddLocation(false);
+                      setNewLocationForm(emptyLocationForm);
+                    }}
+                    disabled={addingLocation}
+                  >
+                    Cancel
+                  </button>
+                </div>
+
+                <form className="appointment-form" onSubmit={handleAddLocation}>
+                  {renderLocationFields(
+                    newLocationForm,
+                    handleNewLocationChange,
+                    addingLocation,
+                  )}
 
                   <button
                     type="submit"
                     className="primary-button"
-                    disabled={saving}
+                    disabled={addingLocation}
                   >
-                    {saving ? "Saving..." : "Save Changes"}
+                    {addingLocation ? "Adding..." : "Add Clinic Location"}
                   </button>
-                </div>
-              </form>
-            )}
-          </div>
-
-          <div className="appointment-form-card" style={{ marginTop: "20px" }}>
-            <h2>Account Security</h2>
-
-            <p>
-              Update your password regularly to keep your DentoGraph clinic
-              owner account secure.
-            </p>
-
-            {passwordMessage && (
-              <div className="success-message">{passwordMessage}</div>
-            )}
-
-            {passwordError && (
-              <div className="error-message">{passwordError}</div>
-            )}
-
-            {passwordRules.length > 0 && (
-              <div className="error-message">
-                <strong>Password must follow these rules:</strong>
-                <ul>
-                  {passwordRules.map((rule, index) => (
-                    <li key={index}>{rule}</li>
-                  ))}
-                </ul>
+                </form>
               </div>
             )}
+          </>
+        )}
 
-            {!showPasswordForm ? (
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Account Security</h2>
+              <p>
+                Keep password management separate from clinic location editing.
+              </p>
+            </div>
+
+            {!showPasswordForm && (
               <button
                 type="button"
-                className="primary-button"
+                className="secondary-button"
                 onClick={() => {
                   setShowPasswordForm(true);
                   setPasswordMessage("");
@@ -402,157 +718,104 @@ function ClinicOwnerProfile() {
               >
                 Change Password
               </button>
-            ) : (
-              <form
-                className="appointment-form"
-                onSubmit={handleChangePassword}
-              >
-                <PasswordInput
-                  label="Current Password"
-                  name="current_password"
-                  placeholder="Enter current password"
-                  value={passwordForm.current_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="current-password"
-                  disabled={changingPassword}
-                  required
-                />
-
-                <PasswordInput
-                  label="New Password"
-                  name="new_password"
-                  placeholder="Enter new password"
-                  value={passwordForm.new_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="new-password"
-                  disabled={changingPassword}
-                  required
-                />
-
-                <PasswordInput
-                  label="Confirm New Password"
-                  name="confirm_password"
-                  placeholder="Confirm new password"
-                  value={passwordForm.confirm_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="new-password"
-                  disabled={changingPassword}
-                  required
-                />
-
-                <div className="info-message" style={{ marginTop: "16px" }}>
-                  Password must have at least 8 characters, one uppercase
-                  letter, one lowercase letter, one number, and one special
-                  character.
-                </div>
-
-                <div
-                  className="appointment-actions"
-                  style={{ marginTop: "16px" }}
-                >
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    disabled={changingPassword}
-                    onClick={() => {
-                      setShowPasswordForm(false);
-                      setPasswordForm({
-                        current_password: "",
-                        new_password: "",
-                        confirm_password: "",
-                      });
-                      setPasswordError("");
-                      setPasswordMessage("");
-                      setPasswordRules([]);
-                    }}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="primary-button"
-                    disabled={changingPassword}
-                  >
-                    {changingPassword ? "Changing..." : "Save New Password"}
-                  </button>
-                </div>
-              </form>
             )}
           </div>
-        </div>
 
-        <div className="appointments-list-card">
-          <div className="appointments-header">
-            <div>
-              <h2>Profile Preview</h2>
-              <p>This is how your clinic information is currently saved.</p>
+          {passwordMessage && (
+            <div className="success-message">{passwordMessage}</div>
+          )}
+
+          {passwordError && (
+            <div className="error-message">{passwordError}</div>
+          )}
+
+          {passwordRules.length > 0 && (
+            <div className="error-message">
+              <strong>Password must follow these rules:</strong>
+              <ul>
+                {passwordRules.map((rule, index) => (
+                  <li key={index}>{rule}</li>
+                ))}
+              </ul>
             </div>
+          )}
 
-            <button
-              className="secondary-button"
-              onClick={() => navigate("/clinic-owner/dashboard")}
-            >
-              Back to Dashboard
-            </button>
-          </div>
+          {showPasswordForm ? (
+            <form className="appointment-form" onSubmit={handleChangePassword}>
+              <PasswordInput
+                label="Current Password"
+                name="current_password"
+                placeholder="Enter current password"
+                value={passwordForm.current_password}
+                onChange={handlePasswordChange}
+                icon="🔒"
+                autoComplete="current-password"
+                disabled={changingPassword}
+                required
+              />
 
-          {loading ? (
-            <p>Loading preview...</p>
-          ) : (
-            <div className="appointment-item">
-              <div className="appointment-info">
-                <div className="appointment-title-row">
-                  <h3>{formData.clinic_name || "Clinic Name"}</h3>
+              <PasswordInput
+                label="New Password"
+                name="new_password"
+                placeholder="Enter new password"
+                value={passwordForm.new_password}
+                onChange={handlePasswordChange}
+                icon="🔒"
+                autoComplete="new-password"
+                disabled={changingPassword}
+                required
+              />
 
-                  <span className="status-badge status-scheduled">
-                    {originalClinic?.status || "Active"}
-                  </span>
-                </div>
+              <PasswordInput
+                label="Confirm New Password"
+                name="confirm_password"
+                placeholder="Confirm new password"
+                value={passwordForm.confirm_password}
+                onChange={handlePasswordChange}
+                icon="🔒"
+                autoComplete="new-password"
+                disabled={changingPassword}
+                required
+              />
 
-                <p>
-                  <strong>Address:</strong> {formData.address || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Contact Number:</strong>{" "}
-                  {formData.contact_number || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Services:</strong> {formData.services || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Opening Hours:</strong>{" "}
-                  {formData.opening_hours || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Latitude:</strong> {formData.latitude || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Longitude:</strong> {formData.longitude || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Subscription Plan:</strong>{" "}
-                  {originalClinic?.plan_name || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Owner:</strong> {originalClinic?.owner_name || "N/A"}
-                </p>
-
-                <p>
-                  <strong>Owner Email:</strong>{" "}
-                  {originalClinic?.owner_email || "N/A"}
-                </p>
+              <div className="info-message">
+                Password must have at least 8 characters, one uppercase letter,
+                one lowercase letter, one number, and one special character.
               </div>
+
+              <div className="appointment-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  disabled={changingPassword}
+                  onClick={() => {
+                    setShowPasswordForm(false);
+                    setPasswordForm({
+                      current_password: "",
+                      new_password: "",
+                      confirm_password: "",
+                    });
+                    setPasswordError("");
+                    setPasswordMessage("");
+                    setPasswordRules([]);
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={changingPassword}
+                >
+                  {changingPassword ? "Changing..." : "Save New Password"}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="info-message">
+              Password changes are hidden by default to keep this page focused
+              on clinic location management.
             </div>
           )}
         </div>

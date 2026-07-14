@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import API from "../api/axios";
@@ -24,9 +24,13 @@ function Register() {
     lastName: "",
     email: "",
     contact_number: "",
+    clinic_id: "",
     password: "",
     confirmPassword: "",
   });
+
+  const [clinics, setClinics] = useState([]);
+  const [loadingClinics, setLoadingClinics] = useState(true);
 
   const [agree, setAgree] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -35,6 +39,28 @@ function Register() {
   const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    fetchClinics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fetchClinics = async () => {
+    try {
+      setLoadingClinics(true);
+
+      const response = await API.get("/api/clinics/public/list");
+      setClinics(response.data.clinics || []);
+    } catch (err) {
+      console.error("Fetch public clinics error:", err);
+      setClinics([]);
+      setError(
+        "Unable to load clinic list. Please refresh the page or contact the clinic.",
+      );
+    } finally {
+      setLoadingClinics(false);
+    }
+  };
 
   const isValidEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
@@ -95,6 +121,7 @@ function Register() {
       lastName: "",
       email: "",
       contact_number: "",
+      clinic_id: "",
       password: "",
       confirmPassword: "",
     });
@@ -102,6 +129,10 @@ function Register() {
     setAgree(false);
     resetTurnstile();
   };
+
+  const selectedClinic = clinics.find(
+    (clinic) => Number(clinic.clinic_id) === Number(formData.clinic_id),
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -116,6 +147,7 @@ function Register() {
     const lastName = formData.lastName.trim();
     const cleanEmail = formData.email.trim().toLowerCase();
     const contactNumber = cleanPhoneNumber(formData.contact_number);
+    const clinicId = formData.clinic_id;
     const password = formData.password;
     const confirmPassword = formData.confirmPassword;
 
@@ -131,6 +163,11 @@ function Register() {
 
     if (!isValidEmail(cleanEmail)) {
       setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (!clinicId) {
+      setError("Please select the clinic you are registering under.");
       return;
     }
 
@@ -166,6 +203,7 @@ function Register() {
         email: cleanEmail,
         password,
         role_id: PATIENT_ROLE_ID,
+        clinic_id: Number(clinicId),
         contact_number: contactNumber || null,
         turnstileToken,
       });
@@ -209,7 +247,7 @@ function Register() {
   return (
     <AuthLayout
       title="Create Patient Account"
-      subtitle="Register as a patient to access DentoGraph"
+      subtitle="Register under your selected clinic workspace"
       wide
     >
       <ThemeToggle />
@@ -290,6 +328,47 @@ function Register() {
             disabled={loading}
           />
 
+          <div className="auth-field">
+            <label htmlFor="clinic_id">
+              Clinic <span className="auth-required">*</span>
+            </label>
+
+            <select
+              id="clinic_id"
+              name="clinic_id"
+              value={formData.clinic_id}
+              onChange={handleChange}
+              required
+              disabled={loading || loadingClinics}
+              className="auth-input"
+            >
+              <option value="">
+                {loadingClinics ? "Loading clinics..." : "Select your clinic"}
+              </option>
+
+              {clinics.map((clinic) => (
+                <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                  {clinic.clinic_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedClinic && (
+            <div className="auth-note">
+              You are registering under{" "}
+              <strong>{selectedClinic.clinic_name}</strong>. Your appointments,
+              dentists, dental records, and X-rays will be connected to this
+              clinic workspace.
+            </div>
+          )}
+
+          {!loadingClinics && clinics.length === 0 && (
+            <div className="auth-error">
+              No active clinics are available for registration yet.
+            </div>
+          )}
+
           <div className="auth-row">
             <PasswordInput
               label="Password"
@@ -367,7 +446,12 @@ function Register() {
             </div>
           )}
 
-          <AuthButton type="submit" disabled={loading || !siteKey}>
+          <AuthButton
+            type="submit"
+            disabled={
+              loading || loadingClinics || clinics.length === 0 || !siteKey
+            }
+          >
             {loading ? "Creating Account..." : "Create Patient Account"}
           </AuthButton>
         </form>
