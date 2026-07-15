@@ -4,6 +4,10 @@ import DashboardLayout from "../components/dashboard/DashboardLayout";
 
 function AssistantXrays() {
   const [records, setRecords] = useState([]);
+  const [assignedClinic, setAssignedClinic] = useState({
+    clinic_id: null,
+    clinic_name: "",
+  });
   const [xrays, setXrays] = useState([]);
   const [teeth, setTeeth] = useState([]);
 
@@ -73,6 +77,10 @@ function AssistantXrays() {
       const dentalRecords = response.data.dental_records || [];
 
       setRecords(dentalRecords);
+      setAssignedClinic({
+        clinic_id: response.data.assigned_clinic_id || null,
+        clinic_name: response.data.assigned_clinic_name || "",
+      });
 
       if (dentalRecords.length > 0 && !selectedRecordId) {
         setSelectedRecordId(String(dentalRecords[0].record_id));
@@ -433,6 +441,16 @@ function AssistantXrays() {
           AI interpretation and final clinical review remain under the dentist
           workflow.
         </div>
+
+        {assignedClinic.clinic_name && (
+          <div className="info-message">
+            <strong>Assigned Clinic Location:</strong>{" "}
+            {assignedClinic.clinic_name}
+            {assignedClinic.clinic_id
+              ? ` (Clinic ID: ${assignedClinic.clinic_id})`
+              : ""}
+          </div>
+        )}
 
         {message && <div className="success-message">{message}</div>}
 

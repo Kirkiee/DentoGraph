@@ -459,8 +459,9 @@ function PatientProfile() {
                   </div>
 
                   <div className="info-message patient-profile-guide">
-                    <strong>Dentition Type Guide:</strong> Adult uses permanent
-                    tooth numbering. Child uses primary tooth numbering.
+                    <strong>Dentition Type Guide: </strong>
+                    Adult uses permanent tooth numbering. Child uses primary
+                    tooth numbering.
                   </div>
                 </div>
 

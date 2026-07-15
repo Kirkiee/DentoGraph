@@ -4,6 +4,10 @@ import DashboardLayout from "../components/dashboard/DashboardLayout";
 
 function AssistantAppointments() {
   const [appointments, setAppointments] = useState([]);
+  const [assignedClinic, setAssignedClinic] = useState({
+    clinic_id: null,
+    clinic_name: "",
+  });
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -65,7 +69,16 @@ function AssistantAppointments() {
       const response = await API.get("/api/appointments", authHeaders);
 
       setAppointments(response.data.appointments || []);
+      setAssignedClinic({
+        clinic_id: response.data.assigned_clinic_id || null,
+        clinic_name: response.data.assigned_clinic_name || "",
+      });
     } catch (err) {
+      setAppointments([]);
+      setAssignedClinic({
+        clinic_id: null,
+        clinic_name: "",
+      });
       setError(err.response?.data?.error || "Unable to load appointments.");
     } finally {
       setLoading(false);
@@ -315,8 +328,8 @@ function AssistantAppointments() {
           <div>
             <h2>Appointment Management</h2>
             <p>
-              View, filter, schedule, complete, cancel, and process reschedule
-              requests for patient appointments.
+              View and manage patient appointments from your assigned clinic
+              location only.
             </p>
           </div>
 
@@ -384,9 +397,16 @@ function AssistantAppointments() {
           </div>
 
           <div className="patient-dashboard-card">
-            <span>Assistant Access</span>
-            <strong>Clinic</strong>
-            <p>Limited to assigned clinic workflow.</p>
+            <span>Assigned Clinic Location</span>
+            <strong>
+              {assignedClinic.clinic_name ||
+                (loading ? "Loading..." : "Not assigned")}
+            </strong>
+            <p>
+              {assignedClinic.clinic_id
+                ? `Clinic ID: ${assignedClinic.clinic_id}`
+                : "Appointment access is restricted until a clinic location is assigned."}
+            </p>
           </div>
         </div>
 
@@ -395,7 +415,8 @@ function AssistantAppointments() {
             <div>
               <h2>Search and Filter</h2>
               <p>
-                Find appointments by patient, dentist, clinic, type, or notes.
+                Find appointments by patient, dentist, type, status, or notes
+                within your assigned clinic location.
               </p>
             </div>
 
@@ -457,8 +478,8 @@ function AssistantAppointments() {
             <div className="empty-state">
               <h3>No appointments found</h3>
               <p>
-                Appointments will appear here once patients submit booking
-                requests.
+                Appointments will appear here when patients assigned to your
+                clinic location submit booking requests.
               </p>
             </div>
           ) : filteredAppointments.length === 0 ? (

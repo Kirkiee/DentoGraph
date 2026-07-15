@@ -230,7 +230,30 @@ function PatientAppointments() {
         authHeaders,
       );
 
-      setClinics(response.data.clinics || []);
+      const assignedClinics = response.data.clinics || [];
+      const assignedClinic = assignedClinics[0] || null;
+
+      setClinics(assignedClinics);
+
+      setFormData((prev) => ({
+        ...prev,
+        clinic_id: assignedClinic ? String(assignedClinic.clinic_id) : "",
+        dentist_id:
+          assignedClinic &&
+          Number(prev.clinic_id) === Number(assignedClinic.clinic_id)
+            ? prev.dentist_id
+            : "",
+        appointment_date:
+          assignedClinic &&
+          Number(prev.clinic_id) === Number(assignedClinic.clinic_id)
+            ? prev.appointment_date
+            : "",
+        appointment_time:
+          assignedClinic &&
+          Number(prev.clinic_id) === Number(assignedClinic.clinic_id)
+            ? prev.appointment_time
+            : "",
+      }));
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load clinics.");
     } finally {
@@ -351,7 +374,9 @@ function PatientAppointments() {
     e.preventDefault();
 
     if (!formData.clinic_id) {
-      setError("Please select a clinic first.");
+      setError(
+        "Your patient account must be assigned to an active clinic location before booking.",
+      );
       return;
     }
 
@@ -404,16 +429,25 @@ function PatientAppointments() {
       );
 
       setMessage("Appointment request submitted successfully.");
+      const assignedClinicId = clinics[0]?.clinic_id
+        ? String(clinics[0].clinic_id)
+        : "";
+
       setFormData({
-        clinic_id: "",
+        clinic_id: assignedClinicId,
         dentist_id: "",
         appointment_date: "",
         appointment_time: "",
         appointment_type: "Dental Consultation",
         notes: "",
       });
-      setDentists([]);
       setAvailableTimes([]);
+
+      if (assignedClinicId) {
+        fetchDentistsByClinic(assignedClinicId);
+      } else {
+        setDentists([]);
+      }
       setShowBookingForm(false);
 
       fetchAppointments();
@@ -693,8 +727,8 @@ function PatientAppointments() {
               <div>
                 <h2>Book New Appointment</h2>
                 <p>
-                  Select a clinic, choose an active dentist, then pick an
-                  available schedule.
+                  Your clinic location is assigned to your patient account.
+                  Choose an active dentist, then pick an available schedule.
                 </p>
               </div>
             </div>
@@ -712,16 +746,20 @@ function PatientAppointments() {
             >
               <div className="patient-booking-grid">
                 <div className="form-group">
-                  <label>Clinic</label>
+                  <label>Clinic Location</label>
                   <select
                     name="clinic_id"
                     value={formData.clinic_id}
                     onChange={handleChange}
-                    disabled={loadingClinics || booking}
+                    disabled={true}
                     required
                   >
                     <option value="">
-                      {loadingClinics ? "Loading clinics..." : "Select Clinic"}
+                      {loadingClinics
+                        ? "Loading assigned clinic location..."
+                        : clinics.length === 0
+                          ? "No clinic location assigned"
+                          : "Assigned Clinic Location"}
                     </option>
 
                     {clinics.map((clinic) => (
@@ -744,7 +782,7 @@ function PatientAppointments() {
                   >
                     <option value="">
                       {!formData.clinic_id
-                        ? "Select a clinic first"
+                        ? "Waiting for assigned clinic location"
                         : loadingDentists
                           ? "Loading dentists..."
                           : dentists.length === 0

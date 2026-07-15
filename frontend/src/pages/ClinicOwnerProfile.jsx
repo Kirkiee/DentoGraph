@@ -15,10 +15,14 @@ function ClinicOwnerProfile() {
     services: "",
     contact_number: "",
     opening_hours: "",
+    status: "Active",
   };
 
   const [clinicLocations, setClinicLocations] = useState([]);
-  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [sharedSubscription, setSharedSubscription] = useState(null);
+  const [selectedClinicId, setSelectedClinicId] = useState(
+    () => localStorage.getItem("clinicOwnerSelectedClinicId") || "",
+  );
   const [locationForm, setLocationForm] = useState(emptyLocationForm);
   const [newLocationForm, setNewLocationForm] = useState(emptyLocationForm);
 
@@ -36,6 +40,7 @@ function ClinicOwnerProfile() {
   const [savingLocation, setSavingLocation] = useState(false);
   const [addingLocation, setAddingLocation] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [updatingLocationStatus, setUpdatingLocationStatus] = useState("");
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -55,7 +60,28 @@ function ClinicOwnerProfile() {
   const sharedPlanName =
     selectedLocation?.plan_name ||
     clinicLocations.find((location) => location.plan_name)?.plan_name ||
+    sharedSubscription?.plan_name ||
     "No active plan";
+
+  const maximumLocations = Number(
+    sharedSubscription?.max_locations ??
+      sharedSubscription?.location_limit ??
+      sharedSubscription?.max_clinics ??
+      selectedLocation?.max_locations ??
+      0,
+  );
+
+  const hasLocationLimit =
+    Number.isFinite(maximumLocations) && maximumLocations > 0;
+
+  const canAddLocation =
+    !hasLocationLimit || clinicLocations.length < maximumLocations;
+
+  const locationLimitText = hasLocationLimit
+    ? `${clinicLocations.length} of ${maximumLocations} locations used`
+    : `${clinicLocations.length} location${
+        clinicLocations.length === 1 ? "" : "s"
+      } used`;
 
   useEffect(() => {
     fetchClinicLocations();
@@ -72,9 +98,21 @@ function ClinicOwnerProfile() {
         services: selectedLocation.services || "",
         contact_number: selectedLocation.contact_number || "",
         opening_hours: selectedLocation.opening_hours || "",
+        status: selectedLocation.status || "Active",
       });
     }
   }, [selectedLocation]);
+
+  useEffect(() => {
+    if (selectedClinicId) {
+      localStorage.setItem(
+        "clinicOwnerSelectedClinicId",
+        String(selectedClinicId),
+      );
+    } else {
+      localStorage.removeItem("clinicOwnerSelectedClinicId");
+    }
+  }, [selectedClinicId]);
 
   const fetchClinicLocations = async () => {
     try {
@@ -91,6 +129,7 @@ function ClinicOwnerProfile() {
         [];
 
       setClinicLocations(locations);
+      setSharedSubscription(response.data.shared_subscription || null);
 
       if (locations.length > 0) {
         setSelectedClinicId((currentClinicId) => {
@@ -202,6 +241,7 @@ function ClinicOwnerProfile() {
           services: locationForm.services || null,
           contact_number: locationForm.contact_number || null,
           opening_hours: locationForm.opening_hours || null,
+          status: locationForm.status || "Active",
         },
       );
 
@@ -237,6 +277,13 @@ function ClinicOwnerProfile() {
       return;
     }
 
+    if (!canAddLocation) {
+      setError(
+        "Your current subscription has reached its clinic location limit.",
+      );
+      return;
+    }
+
     try {
       setAddingLocation(true);
       setMessage("");
@@ -250,6 +297,7 @@ function ClinicOwnerProfile() {
         services: newLocationForm.services || null,
         contact_number: newLocationForm.contact_number || null,
         opening_hours: newLocationForm.opening_hours || null,
+        status: newLocationForm.status || "Active",
       });
 
       const newLocation = response.data.clinic;
@@ -263,6 +311,56 @@ function ClinicOwnerProfile() {
       setError(err.response?.data?.error || "Unable to add clinic location.");
     } finally {
       setAddingLocation(false);
+    }
+  };
+
+  const handleToggleLocationStatus = async (location) => {
+    const clinicId = String(location.clinic_id);
+    const currentStatus = location.status || "Active";
+    const nextStatus = currentStatus === "Active" ? "Inactive" : "Active";
+
+    try {
+      setUpdatingLocationStatus(clinicId);
+      setMessage("");
+      setError("");
+
+      const response = await API.put(
+        `/api/clinics/owner/locations/${clinicId}`,
+        {
+          clinic_name: location.clinic_name,
+          address: location.address,
+          latitude: location.latitude || null,
+          longitude: location.longitude || null,
+          services: location.services || null,
+          contact_number: location.contact_number || null,
+          opening_hours: location.opening_hours || null,
+          status: nextStatus,
+        },
+      );
+
+      const updatedLocation = response.data?.clinic || {
+        ...location,
+        status: nextStatus,
+      };
+
+      setClinicLocations((prev) =>
+        prev.map((item) =>
+          String(item.clinic_id) === clinicId
+            ? { ...item, ...updatedLocation, status: nextStatus }
+            : item,
+        ),
+      );
+
+      setMessage(
+        response.data?.message ||
+          `Clinic location marked as ${nextStatus.toLowerCase()}.`,
+      );
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Unable to update clinic location status.",
+      );
+    } finally {
+      setUpdatingLocationStatus("");
     }
   };
 
@@ -436,6 +534,19 @@ function ClinicOwnerProfile() {
             />
           </div>
         </div>
+
+        <div className="form-group">
+          <label>Location Status</label>
+          <select
+            name="status"
+            value={data.status || "Active"}
+            onChange={onChange}
+            disabled={disabled}
+          >
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </div>
       </>
     );
   };
@@ -476,12 +587,6 @@ function ClinicOwnerProfile() {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        <div className="info-message">
-          <strong>Shared Subscription:</strong> {sharedPlanName}. Staff,
-          patients, records, and X-rays remain separated by location, but plan
-          limits are shared under this Clinic Owner account.
-        </div>
-
         {loading ? (
           <div className="payment-loading-card">
             <p>Loading clinic locations...</p>
@@ -492,7 +597,7 @@ function ClinicOwnerProfile() {
               <div className="staff-summary-card clinic-owner-profile-summary-card">
                 <span>Total Locations</span>
                 <strong>{clinicLocations.length}</strong>
-                <p>Branches under your account</p>
+                <p>{locationLimitText}</p>
               </div>
 
               <div className="staff-summary-card clinic-owner-profile-summary-card">
@@ -522,13 +627,26 @@ function ClinicOwnerProfile() {
                   type="button"
                   className="primary-button"
                   onClick={() => {
+                    if (!canAddLocation) {
+                      setError(
+                        "Your current subscription has reached its clinic location limit.",
+                      );
+                      return;
+                    }
+
                     setShowAddLocation(true);
                     setShowEditLocation(false);
                     setMessage("");
                     setError("");
                   }}
+                  disabled={!canAddLocation}
+                  title={
+                    canAddLocation
+                      ? "Add another clinic location"
+                      : "Clinic location limit reached"
+                  }
                 >
-                  Add Location
+                  {canAddLocation ? "Add Location" : "Location Limit Reached"}
                 </button>
               </div>
 
@@ -577,10 +695,27 @@ function ClinicOwnerProfile() {
                         </button>
 
                         <button
+                          type="button"
                           className="secondary-button"
                           onClick={() => navigate("/clinic-owner/staff")}
                         >
                           Manage Staff
+                        </button>
+
+                        <button
+                          type="button"
+                          className="secondary-button"
+                          onClick={() => handleToggleLocationStatus(location)}
+                          disabled={
+                            updatingLocationStatus ===
+                            String(location.clinic_id)
+                          }
+                        >
+                          {updatingLocationStatus === String(location.clinic_id)
+                            ? "Updating..."
+                            : (location.status || "Active") === "Active"
+                              ? "Deactivate"
+                              : "Activate"}
                         </button>
                       </div>
                     </div>
@@ -633,6 +768,7 @@ function ClinicOwnerProfile() {
                           services: selectedLocation.services || "",
                           contact_number: selectedLocation.contact_number || "",
                           opening_hours: selectedLocation.opening_hours || "",
+                          status: selectedLocation.status || "Active",
                         });
                       }}
                       disabled={savingLocation}
@@ -689,9 +825,13 @@ function ClinicOwnerProfile() {
                   <button
                     type="submit"
                     className="primary-button"
-                    disabled={addingLocation}
+                    disabled={addingLocation || !canAddLocation}
                   >
-                    {addingLocation ? "Adding..." : "Add Clinic Location"}
+                    {addingLocation
+                      ? "Adding..."
+                      : canAddLocation
+                        ? "Add Clinic Location"
+                        : "Location Limit Reached"}
                   </button>
                 </form>
               </div>

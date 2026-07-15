@@ -3,6 +3,9 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const rateLimit = require("express-rate-limit");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
 const { sendVerificationEmail } = require("../utils/emailSender");
@@ -55,6 +58,73 @@ const clinicRegisterLimiter = rateLimit({
   },
 });
 
+const clinicBrandingUploadDir = path.join(
+  __dirname,
+  "../uploads/clinic-branding",
+);
+
+if (!fs.existsSync(clinicBrandingUploadDir)) {
+  fs.mkdirSync(clinicBrandingUploadDir, { recursive: true });
+}
+
+const clinicBrandingStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, clinicBrandingUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+
+    cb(null, `clinic-logo-${uniqueSuffix}${extension}`);
+  },
+});
+
+const clinicBrandingFileFilter = (req, file, cb) => {
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "image/svg+xml",
+  ];
+
+  const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".svg"];
+  const extension = path.extname(file.originalname).toLowerCase();
+
+  if (
+    allowedMimeTypes.includes(file.mimetype) &&
+    allowedExtensions.includes(extension)
+  ) {
+    cb(null, true);
+    return;
+  }
+
+  cb(
+    new Error("Only JPG, JPEG, PNG, WEBP, and SVG logo files are allowed."),
+    false,
+  );
+};
+
+const uploadClinicLogo = multer({
+  storage: clinicBrandingStorage,
+  fileFilter: clinicBrandingFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024,
+  },
+});
+
+const deleteClinicBrandingFile = (filePath) => {
+  if (!filePath || !String(filePath).startsWith("uploads/clinic-branding/")) {
+    return;
+  }
+
+  const absolutePath = path.join(__dirname, "..", filePath);
+
+  if (fs.existsSync(absolutePath)) {
+    fs.unlinkSync(absolutePath);
+  }
+};
+
 // ===============================
 // HELPER FUNCTIONS
 // ===============================
@@ -66,6 +136,36 @@ const normalizeNullable = (value) => {
 
 const cleanText = (value) => {
   return String(value || "").trim();
+};
+
+const normalizeHexColor = (value, fallback) => {
+  const color = cleanText(value);
+  if (!color) return fallback;
+  if (!/^#[0-9A-Fa-f]{6}$/.test(color)) return null;
+  return color.toUpperCase();
+};
+
+const normalizeBrandingPayload = (body = {}) => {
+  const primaryColor = normalizeHexColor(body.primary_color, "#2563EB");
+  const secondaryColor = normalizeHexColor(body.secondary_color, "#0F172A");
+
+  if (!primaryColor || !secondaryColor) {
+    return {
+      valid: false,
+      error:
+        "Brand colors must use six-digit hexadecimal format, such as #2563EB.",
+    };
+  }
+
+  return {
+    valid: true,
+    branding: {
+      brand_name: normalizeNullable(cleanText(body.brand_name)),
+      primary_color: primaryColor,
+      secondary_color: secondaryColor,
+      welcome_message: normalizeNullable(cleanText(body.welcome_message)),
+    },
+  };
 };
 
 const normalizeEmail = (email) => {
@@ -245,6 +345,11 @@ const getOwnerLocations = async (client, ownerUserId) => {
         c.services,
         c.contact_number,
         c.opening_hours,
+        c.brand_name,
+        c.brand_logo_url,
+        COALESCE(c.primary_color, '#2563EB') AS primary_color,
+        COALESCE(c.secondary_color, '#0F172A') AS secondary_color,
+        c.welcome_message,
         c.subscription_plan_id,
         c.subscription_start_date,
         c.subscription_end_date,
@@ -288,6 +393,11 @@ const getOwnerLocationById = async (client, ownerUserId, clinicId) => {
         c.services,
         c.contact_number,
         c.opening_hours,
+        c.brand_name,
+        c.brand_logo_url,
+        COALESCE(c.primary_color, '#2563EB') AS primary_color,
+        COALESCE(c.secondary_color, '#0F172A') AS secondary_color,
+        c.welcome_message,
         c.subscription_plan_id,
         c.subscription_start_date,
         c.subscription_end_date,
@@ -398,8 +508,8 @@ const getLocationUsage = async (client, clinicId) => {
 const getOwnerAggregateUsage = async (client, ownerUserId) => {
   const locations = await getOwnerLocations(client, ownerUserId);
 
-  const activeLocations = locations.filter((location) => {
-    return String(location.status || "Active") === "Active";
+  const billableLocations = locations.filter((location) => {
+    return ["Active", "Inactive"].includes(String(location.status || "Active"));
   });
 
   const usageByLocation = [];
@@ -413,7 +523,7 @@ const getOwnerAggregateUsage = async (client, ownerUserId) => {
     storage_used_bytes: 0,
   };
 
-  for (const location of activeLocations) {
+  for (const location of billableLocations) {
     const usage = await getLocationUsage(client, location.clinic_id);
 
     usageByLocation.push({
@@ -806,6 +916,441 @@ router.get(
   },
 );
 
+// AUTHENTICATED: CURRENT CLINIC WHITE-LABEL BRANDING
+router.get("/branding/current", authenticateToken, async (req, res) => {
+  const requestedClinicId = req.query.clinic_id
+    ? Number(req.query.clinic_id)
+    : null;
+
+  if (
+    req.query.clinic_id &&
+    (!Number.isInteger(requestedClinicId) || requestedClinicId <= 0)
+  ) {
+    return res.status(400).json({
+      error: "A valid clinic location ID is required.",
+    });
+  }
+
+  try {
+    let clinicId = requestedClinicId;
+
+    if (req.user.role === "Clinic Owner") {
+      if (clinicId) {
+        const owned = await pool.query(
+          `SELECT clinic_id
+           FROM public.clinics
+           WHERE clinic_id = $1 AND owner_user_id = $2
+           LIMIT 1`,
+          [clinicId, req.user.user_id],
+        );
+
+        if (owned.rows.length === 0) {
+          return res.status(403).json({
+            error:
+              "Selected clinic location does not belong to this Clinic Owner account.",
+          });
+        }
+      } else {
+        const firstOwned = await pool.query(
+          `SELECT clinic_id
+           FROM public.clinics
+           WHERE owner_user_id = $1
+           ORDER BY CASE WHEN status = 'Active' THEN 0 ELSE 1 END, clinic_id
+           LIMIT 1`,
+          [req.user.user_id],
+        );
+        clinicId = firstOwned.rows[0]?.clinic_id || null;
+      }
+    } else if (req.user.role === "Dentist") {
+      const result = await pool.query(
+        `SELECT clinic_id FROM public.dentists WHERE user_id = $1 LIMIT 1`,
+        [req.user.user_id],
+      );
+      clinicId = result.rows[0]?.clinic_id || null;
+    } else if (
+      req.user.role === "Assistant" ||
+      req.user.role === "Dental Assistant"
+    ) {
+      const result = await pool.query(
+        `SELECT clinic_id FROM public.assistants WHERE user_id = $1 LIMIT 1`,
+        [req.user.user_id],
+      );
+      clinicId = result.rows[0]?.clinic_id || null;
+    } else if (req.user.role === "Patient") {
+      const result = await pool.query(
+        `SELECT clinic_id FROM public.patients WHERE user_id = $1 LIMIT 1`,
+        [req.user.user_id],
+      );
+      clinicId = result.rows[0]?.clinic_id || null;
+    } else if (req.user.role === "Admin" && !clinicId) {
+      return res.status(200).json({
+        branding: {
+          clinic_id: null,
+          clinic_name: "DentoGraph",
+          brand_name: "DentoGraph",
+          brand_logo_url: null,
+          primary_color: "#2563EB",
+          secondary_color: "#0F172A",
+          welcome_message: null,
+        },
+      });
+    }
+
+    if (!clinicId) {
+      return res.status(404).json({
+        error: "No clinic location is assigned to this account.",
+      });
+    }
+
+    const result = await pool.query(
+      `SELECT
+          clinic_id,
+          clinic_name,
+          status,
+          COALESCE(NULLIF(brand_name, ''), clinic_name) AS brand_name,
+          brand_logo_url,
+          COALESCE(primary_color, '#2563EB') AS primary_color,
+          COALESCE(secondary_color, '#0F172A') AS secondary_color,
+          welcome_message,
+          contact_number,
+          address
+       FROM public.clinics
+       WHERE clinic_id = $1
+       LIMIT 1`,
+      [clinicId],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Clinic location was not found." });
+    }
+
+    return res.status(200).json({ branding: result.rows[0] });
+  } catch (err) {
+    console.error("Get current clinic branding error:", err.message);
+    return res.status(500).json({
+      error: "Error retrieving clinic branding.",
+    });
+  }
+});
+
+// CLINIC OWNER: UPLOAD OWN LOCATION BRAND LOGO
+router.post(
+  "/owner/locations/:clinic_id/branding/logo",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  (req, res, next) => {
+    uploadClinicLogo.single("logo")(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res.status(400).json({
+            error: "Clinic logo must not exceed 5 MB.",
+          });
+        }
+
+        return res.status(400).json({
+          error: err.message || "Clinic logo upload failed.",
+        });
+      }
+
+      if (err) {
+        return res.status(400).json({
+          error: err.message || "Invalid clinic logo file.",
+        });
+      }
+
+      next();
+    });
+  },
+  async (req, res) => {
+    const clinicId = Number(req.params.clinic_id);
+
+    if (!Number.isInteger(clinicId) || clinicId <= 0) {
+      if (req.file) {
+        deleteClinicBrandingFile(
+          `uploads/clinic-branding/${req.file.filename}`,
+        );
+      }
+
+      return res.status(400).json({
+        error: "A valid clinic location ID is required.",
+      });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: "Please select a clinic logo image.",
+      });
+    }
+
+    const newLogoPath = `uploads/clinic-branding/${req.file.filename}`;
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const ownedLocation = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinicId,
+      );
+
+      if (!ownedLocation) {
+        deleteClinicBrandingFile(newLogoPath);
+        await client.query("ROLLBACK");
+
+        return res.status(403).json({
+          error:
+            "Selected clinic location does not belong to this Clinic Owner account.",
+        });
+      }
+
+      const previousLogoResult = await client.query(
+        `SELECT brand_logo_url
+         FROM public.clinics
+         WHERE clinic_id = $1
+         AND owner_user_id = $2
+         LIMIT 1`,
+        [clinicId, req.user.user_id],
+      );
+
+      const previousLogo = previousLogoResult.rows[0]?.brand_logo_url || null;
+
+      const updated = await client.query(
+        `UPDATE public.clinics
+         SET brand_logo_url = $1
+         WHERE clinic_id = $2
+         AND owner_user_id = $3
+         RETURNING
+           clinic_id,
+           clinic_name,
+           COALESCE(NULLIF(brand_name, ''), clinic_name) AS brand_name,
+           brand_logo_url,
+           COALESCE(primary_color, '#2563EB') AS primary_color,
+           COALESCE(secondary_color, '#0F172A') AS secondary_color,
+           welcome_message`,
+        [newLogoPath, clinicId, req.user.user_id],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPLOAD_CLINIC_LOGO",
+        module: "Clinic White Label",
+        description: `Uploaded a new brand logo for ${ownedLocation.clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      if (previousLogo && previousLogo !== newLogoPath) {
+        deleteClinicBrandingFile(previousLogo);
+      }
+
+      return res.status(200).json({
+        message: "Clinic logo uploaded successfully.",
+        branding: updated.rows[0],
+        logo_path: newLogoPath,
+        logo_url: `/${newLogoPath}`,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      deleteClinicBrandingFile(newLogoPath);
+
+      console.error("Upload clinic logo error:", err.message);
+
+      return res.status(500).json({
+        error: "Error uploading clinic logo.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// CLINIC OWNER: REMOVE OWN LOCATION BRAND LOGO
+router.delete(
+  "/owner/locations/:clinic_id/branding/logo",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const clinicId = Number(req.params.clinic_id);
+
+    if (!Number.isInteger(clinicId) || clinicId <= 0) {
+      return res.status(400).json({
+        error: "A valid clinic location ID is required.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const ownedLocation = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinicId,
+      );
+
+      if (!ownedLocation) {
+        await client.query("ROLLBACK");
+
+        return res.status(403).json({
+          error:
+            "Selected clinic location does not belong to this Clinic Owner account.",
+        });
+      }
+
+      const logoResult = await client.query(
+        `SELECT brand_logo_url
+         FROM public.clinics
+         WHERE clinic_id = $1
+         AND owner_user_id = $2
+         LIMIT 1`,
+        [clinicId, req.user.user_id],
+      );
+
+      const previousLogo = logoResult.rows[0]?.brand_logo_url || null;
+
+      const updated = await client.query(
+        `UPDATE public.clinics
+         SET brand_logo_url = NULL
+         WHERE clinic_id = $1
+         AND owner_user_id = $2
+         RETURNING
+           clinic_id,
+           clinic_name,
+           COALESCE(NULLIF(brand_name, ''), clinic_name) AS brand_name,
+           brand_logo_url,
+           COALESCE(primary_color, '#2563EB') AS primary_color,
+           COALESCE(secondary_color, '#0F172A') AS secondary_color,
+           welcome_message`,
+        [clinicId, req.user.user_id],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "REMOVE_CLINIC_LOGO",
+        module: "Clinic White Label",
+        description: `Removed the brand logo for ${ownedLocation.clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      deleteClinicBrandingFile(previousLogo);
+
+      return res.status(200).json({
+        message: "Clinic logo removed successfully.",
+        branding: updated.rows[0],
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+
+      console.error("Remove clinic logo error:", err.message);
+
+      return res.status(500).json({
+        error: "Error removing clinic logo.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// CLINIC OWNER: UPDATE OWN LOCATION WHITE-LABEL BRANDING
+router.put(
+  "/owner/locations/:clinic_id/branding",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const clinicId = Number(req.params.clinic_id);
+
+    if (!Number.isInteger(clinicId) || clinicId <= 0) {
+      return res.status(400).json({
+        error: "A valid clinic location ID is required.",
+      });
+    }
+
+    const normalized = normalizeBrandingPayload(req.body);
+
+    if (!normalized.valid) {
+      return res.status(400).json({ error: normalized.error });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const ownedLocation = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinicId,
+      );
+
+      if (!ownedLocation) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          error:
+            "Selected clinic location does not belong to this Clinic Owner account.",
+        });
+      }
+
+      const branding = normalized.branding;
+
+      const updated = await client.query(
+        `UPDATE public.clinics
+         SET brand_name = $1,
+             primary_color = $2,
+             secondary_color = $3,
+             welcome_message = $4
+         WHERE clinic_id = $5
+         AND owner_user_id = $6
+         RETURNING
+           clinic_id,
+           clinic_name,
+           COALESCE(NULLIF(brand_name, ''), clinic_name) AS brand_name,
+           brand_logo_url,
+           primary_color,
+           secondary_color,
+           welcome_message`,
+        [
+          branding.brand_name,
+          branding.primary_color,
+          branding.secondary_color,
+          branding.welcome_message,
+          clinicId,
+          req.user.user_id,
+        ],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_CLINIC_BRANDING",
+        module: "Clinic White Label",
+        description: `Updated white-label branding for ${ownedLocation.clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      return res.status(200).json({
+        message: "Clinic white-label branding updated successfully.",
+        branding: updated.rows[0],
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("Update clinic branding error:", err.message);
+      return res.status(500).json({
+        error: "Error updating clinic white-label branding.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
 // ===============================
 // CLINIC OWNER: GET ALL OWN CLINIC LOCATIONS
 // ===============================
@@ -955,6 +1500,46 @@ router.post(
           subscription_status: "Active",
           ...freePlan,
         };
+      }
+
+      const existingLocationCount = await client.query(
+        `SELECT COUNT(*)::int AS count
+         FROM public.clinics
+         WHERE owner_user_id = $1
+         AND status IN ('Active', 'Inactive')`,
+        [req.user.user_id],
+      );
+
+      const maxClinics =
+        subscriptionSource.max_clinics === null ||
+        subscriptionSource.max_clinics === undefined
+          ? null
+          : Number(subscriptionSource.max_clinics);
+
+      const currentLocationCount = Number(
+        existingLocationCount.rows[0].count || 0,
+      );
+
+      if (maxClinics !== null && currentLocationCount >= maxClinics) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: `The shared ${subscriptionSource.plan_name || "subscription"} plan has reached its clinic location limit. Limit: ${maxClinics}.`,
+        });
+      }
+
+      const isExpiredByDate =
+        subscriptionSource.subscription_end_date &&
+        new Date(subscriptionSource.subscription_end_date) < new Date();
+
+      if (
+        subscriptionSource.subscription_status !== "Active" ||
+        isExpiredByDate
+      ) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          error:
+            "The shared Clinic Owner subscription is inactive or expired. Renew the subscription before creating another clinic location.",
+        });
       }
 
       const duplicateCheck = await client.query(
@@ -1452,6 +2037,12 @@ router.get(
         locations: aggregate.locations,
         usage_by_location: aggregate.usage_by_location,
         usage: aggregate.usage,
+        location_count: aggregate.locations.filter((location) =>
+          ["Active", "Inactive"].includes(String(location.status || "Active")),
+        ).length,
+        active_location_count: aggregate.locations.filter(
+          (location) => String(location.status || "Active") === "Active",
+        ).length,
       });
     } catch (err) {
       console.error("Get clinic owner usage error:", err.message);

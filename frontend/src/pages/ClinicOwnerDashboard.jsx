@@ -7,10 +7,13 @@ function ClinicOwnerDashboard() {
   const navigate = useNavigate();
 
   const [clinicLocations, setClinicLocations] = useState([]);
-  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [selectedClinicId, setSelectedClinicId] = useState(
+    () => localStorage.getItem("clinicOwnerSelectedClinicId") || "",
+  );
   const [selectedLocationUsage, setSelectedLocationUsage] = useState(null);
   const [aggregateClinic, setAggregateClinic] = useState(null);
   const [aggregateUsage, setAggregateUsage] = useState(null);
+  const [reportSummary, setReportSummary] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -36,6 +39,10 @@ function ClinicOwnerDashboard() {
 
   useEffect(() => {
     if (selectedClinicId) {
+      localStorage.setItem(
+        "clinicOwnerSelectedClinicId",
+        String(selectedClinicId),
+      );
       fetchSelectedLocationUsage(selectedClinicId);
     } else {
       setSelectedLocationUsage(null);
@@ -53,10 +60,12 @@ function ClinicOwnerDashboard() {
 
       setError("");
 
-      const [locationsResponse, usageResponse] = await Promise.all([
-        API.get("/api/clinics/owner/locations"),
-        API.get("/api/clinics/owner/usage"),
-      ]);
+      const [locationsResponse, usageResponse, reportResponse] =
+        await Promise.all([
+          API.get("/api/clinics/owner/locations"),
+          API.get("/api/clinics/owner/usage"),
+          API.get("/api/reports/clinic-owner-summary"),
+        ]);
 
       const locations =
         locationsResponse.data.locations ||
@@ -67,6 +76,7 @@ function ClinicOwnerDashboard() {
       setClinicLocations(locations);
       setAggregateClinic(usageResponse.data.clinic || null);
       setAggregateUsage(usageResponse.data.usage || null);
+      setReportSummary(reportResponse.data || null);
 
       if (locations.length > 0) {
         setSelectedClinicId((currentClinicId) => {
@@ -103,9 +113,10 @@ function ClinicOwnerDashboard() {
     if (!clinicId) return;
 
     try {
-      const response = await API.get(
-        `/api/clinics/owner/locations/${clinicId}/usage`,
-      );
+      const [response, reportResponse] = await Promise.all([
+        API.get(`/api/clinics/owner/locations/${clinicId}/usage`),
+        API.get(`/api/reports/clinic-owner-summary?clinic_id=${clinicId}`),
+      ]);
 
       setSelectedLocationUsage({
         clinic: response.data.clinic || null,
@@ -458,6 +469,62 @@ function ClinicOwnerDashboard() {
                 ))}
               </div>
             </div>
+
+            {reportSummary && (
+              <div className="patient-dashboard-section">
+                <div className="appointments-header">
+                  <div>
+                    <h2>
+                      {reportSummary.scope === "location"
+                        ? "Selected Location Analytics"
+                        : "Account-Wide Analytics"}
+                    </h2>
+                    <p>
+                      Operational totals include only valid patient, dentist,
+                      and clinic-location relationships.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="patient-dashboard-summary-grid">
+                  <div className="patient-dashboard-card">
+                    <span>Total Appointments</span>
+                    <strong>
+                      {reportSummary.summaries?.appointments
+                        ?.total_appointments || 0}
+                    </strong>
+                    <p>Appointments within the current report scope.</p>
+                  </div>
+
+                  <div className="patient-dashboard-card">
+                    <span>Active Records</span>
+                    <strong>
+                      {reportSummary.summaries?.records?.active_records || 0}
+                    </strong>
+                    <p>Same-location active dental records.</p>
+                  </div>
+
+                  <div className="patient-dashboard-card">
+                    <span>X-rays</span>
+                    <strong>
+                      {reportSummary.summaries?.xrays?.total_xrays || 0}
+                    </strong>
+                    <p>Authorized X-rays within the current scope.</p>
+                  </div>
+
+                  <div className="patient-dashboard-card">
+                    <span>Storage Used</span>
+                    <strong>
+                      {Number(
+                        reportSummary.summaries?.xrays?.storage_used_mb || 0,
+                      ).toFixed(2)}{" "}
+                      MB
+                    </strong>
+                    <p>Shared storage consumed by scoped X-ray files.</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="patient-dashboard-section">
               <div className="appointments-header">

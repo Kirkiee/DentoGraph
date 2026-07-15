@@ -7,6 +7,10 @@ function PatientXrays() {
   const navigate = useNavigate();
 
   const [records, setRecords] = useState([]);
+  const [assignedClinic, setAssignedClinic] = useState({
+    clinic_id: null,
+    clinic_name: "",
+  });
   const [xrays, setXrays] = useState([]);
 
   const [selectedRecordId, setSelectedRecordId] = useState("");
@@ -59,6 +63,10 @@ function PatientXrays() {
 
       const patientRecords = response.data.dental_records || [];
       setRecords(patientRecords);
+      setAssignedClinic({
+        clinic_id: response.data.assigned_clinic_id || null,
+        clinic_name: response.data.assigned_clinic_name || "",
+      });
 
       if (!selectedRecordId && patientRecords.length > 0) {
         setSelectedRecordId(patientRecords[0].record_id);
@@ -284,6 +292,16 @@ function PatientXrays() {
             </button>
           </div>
         </div>
+
+        {assignedClinic.clinic_name && (
+          <div className="info-message">
+            <strong>Assigned Clinic Location:</strong>{" "}
+            {assignedClinic.clinic_name}
+            {assignedClinic.clinic_id
+              ? ` (Clinic ID: ${assignedClinic.clinic_id})`
+              : ""}
+          </div>
+        )}
 
         {message && <div className="success-message">{message}</div>}
 

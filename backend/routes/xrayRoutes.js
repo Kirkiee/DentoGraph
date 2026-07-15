@@ -119,48 +119,159 @@ const getRoboflowModelUrl = () => {
   return null;
 };
 
-const getDentistProfile = async (user_id) => {
-  const result = await pool.query(
-    `SELECT dentist_id, clinic_id
-     FROM public.dentists
-     WHERE user_id = $1`,
+const getDentistProfile = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT
+        d.dentist_id,
+        d.clinic_id,
+        d.status AS dentist_status,
+        c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id
+     FROM public.dentists d
+     LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     WHERE d.user_id = $1
+     LIMIT 1`,
     [user_id],
   );
 
   return result.rows[0] || null;
 };
 
-const getAssistantProfile = async (user_id) => {
-  const result = await pool.query(
-    `SELECT assistant_id, clinic_id
-     FROM public.assistants
-     WHERE user_id = $1`,
+const getAssistantProfile = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT
+        a.assistant_id,
+        a.clinic_id,
+        a.status AS assistant_status,
+        c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id
+     FROM public.assistants a
+     LEFT JOIN public.clinics c ON a.clinic_id = c.clinic_id
+     WHERE a.user_id = $1
+     LIMIT 1`,
     [user_id],
   );
 
   return result.rows[0] || null;
 };
 
-const getPatientProfile = async (user_id) => {
-  const result = await pool.query(
-    `SELECT patient_id
-     FROM public.patients
-     WHERE user_id = $1`,
+const getPatientProfile = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT
+        p.patient_id,
+        p.clinic_id,
+        c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id
+     FROM public.patients p
+     LEFT JOIN public.clinics c ON p.clinic_id = c.clinic_id
+     WHERE p.user_id = $1
+     LIMIT 1`,
     [user_id],
   );
 
   return result.rows[0] || null;
+};
+
+const validateStaffClinicContext = (profile, roleLabel) => {
+  if (!profile) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: `${roleLabel} profile not found.`,
+    };
+  }
+
+  if (!profile.clinic_id) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error: `${roleLabel} is not assigned to a clinic location.`,
+    };
+  }
+
+  const accountStatus =
+    roleLabel === "Dentist" ? profile.dentist_status : profile.assistant_status;
+
+  if (accountStatus !== "Active") {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: `${roleLabel} account is currently inactive.`,
+    };
+  }
+
+  if (!profile.clinic_name) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: "Assigned clinic location no longer exists.",
+    };
+  }
+
+  if (profile.clinic_status !== "Active") {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: "Assigned clinic location is currently inactive.",
+    };
+  }
+
+  return { allowed: true };
+};
+
+const validatePatientClinicContext = (patient) => {
+  if (!patient) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: "Patient profile not found.",
+    };
+  }
+
+  if (!patient.clinic_id) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error: "Patient account is not assigned to a clinic location.",
+    };
+  }
+
+  if (!patient.clinic_name) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: "Assigned clinic location no longer exists.",
+    };
+  }
+
+  if (patient.clinic_status !== "Active") {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: "Assigned clinic location is currently inactive.",
+    };
+  }
+
+  return { allowed: true };
 };
 
 const getRecordContext = async (record_id) => {
   const result = await pool.query(
-    `SELECT 
+    `SELECT
         dr.record_id,
         dr.patient_id,
         dr.dentist_id,
         COALESCE(dr.status, 'Active') AS record_status,
-        d.clinic_id,
+        d.clinic_id AS dentist_clinic_id,
+        d.status AS dentist_status,
+        p.clinic_id AS patient_clinic_id,
+        c.clinic_id,
         c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id,
         c.subscription_plan_id,
         c.subscription_end_date,
         c.subscription_status,
@@ -169,8 +280,10 @@ const getRecordContext = async (record_id) => {
         sp.storage_limit_mb
      FROM public.dental_records dr
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     JOIN public.patients p ON dr.patient_id = p.patient_id
      LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
-     LEFT JOIN public.subscription_plans sp ON c.subscription_plan_id = sp.plan_id
+     LEFT JOIN public.subscription_plans sp
+       ON c.subscription_plan_id = sp.plan_id
      WHERE dr.record_id = $1`,
     [record_id],
   );
@@ -181,13 +294,12 @@ const getRecordContext = async (record_id) => {
 const getAccessibleRecordForXray = async (req, record_id) => {
   const role = req.user.role;
   const user_id = req.user.user_id;
-
   const record = await getRecordContext(record_id);
 
   if (!record) {
     return {
       allowed: false,
-      error: "Dental record not found",
+      error: "Dental record not found.",
       statusCode: 404,
       record: null,
     };
@@ -196,8 +308,22 @@ const getAccessibleRecordForXray = async (req, record_id) => {
   if (record.record_status === "Archived") {
     return {
       allowed: false,
-      error: "Cannot modify an archived dental record.",
+      error: "X-ray actions are unavailable for an archived dental record.",
       statusCode: 400,
+      record,
+    };
+  }
+
+  if (
+    !record.clinic_id ||
+    !record.patient_clinic_id ||
+    Number(record.clinic_id) !== Number(record.patient_clinic_id)
+  ) {
+    return {
+      allowed: false,
+      error:
+        "This dental record has an invalid cross-clinic assignment and cannot be used for X-ray operations.",
+      statusCode: 409,
       record,
     };
   }
@@ -213,20 +339,20 @@ const getAccessibleRecordForXray = async (req, record_id) => {
 
   if (role === "Dentist") {
     const dentist = await getDentistProfile(user_id);
+    const context = validateStaffClinicContext(dentist, "Dentist");
 
-    if (!dentist) {
-      return {
-        allowed: false,
-        error: "Dentist profile not found",
-        statusCode: 404,
-        record,
-      };
+    if (!context.allowed) {
+      return { ...context, record };
     }
 
-    if (Number(record.dentist_id) !== Number(dentist.dentist_id)) {
+    if (
+      Number(record.dentist_id) !== Number(dentist.dentist_id) ||
+      Number(record.clinic_id) !== Number(dentist.clinic_id)
+    ) {
       return {
         allowed: false,
-        error: "This dental record is not assigned to this dentist.",
+        error:
+          "This dental record is not assigned to this dentist or clinic location.",
         statusCode: 403,
         record,
       };
@@ -242,29 +368,17 @@ const getAccessibleRecordForXray = async (req, record_id) => {
 
   if (isAssistantRole(role)) {
     const assistant = await getAssistantProfile(user_id);
+    const context = validateStaffClinicContext(assistant, "Assistant");
 
-    if (!assistant) {
-      return {
-        allowed: false,
-        error: "Assistant profile not found",
-        statusCode: 404,
-        record,
-      };
-    }
-
-    if (!assistant.clinic_id) {
-      return {
-        allowed: false,
-        error: "Assistant is not assigned to a clinic.",
-        statusCode: 400,
-        record,
-      };
+    if (!context.allowed) {
+      return { ...context, record };
     }
 
     if (Number(record.clinic_id) !== Number(assistant.clinic_id)) {
       return {
         allowed: false,
-        error: "This dental record is not under your assigned clinic.",
+        error:
+          "This dental record is not under the assistant's assigned clinic location.",
         statusCode: 403,
         record,
       };
@@ -280,20 +394,20 @@ const getAccessibleRecordForXray = async (req, record_id) => {
 
   if (role === "Patient") {
     const patient = await getPatientProfile(user_id);
+    const context = validatePatientClinicContext(patient);
 
-    if (!patient) {
-      return {
-        allowed: false,
-        error: "Patient profile not found",
-        statusCode: 404,
-        record,
-      };
+    if (!context.allowed) {
+      return { ...context, record };
     }
 
-    if (Number(record.patient_id) !== Number(patient.patient_id)) {
+    if (
+      Number(record.patient_id) !== Number(patient.patient_id) ||
+      Number(record.clinic_id) !== Number(patient.clinic_id)
+    ) {
       return {
         allowed: false,
-        error: "This dental record does not belong to this patient.",
+        error:
+          "This dental record does not belong to this patient or assigned clinic location.",
         statusCode: 403,
         record,
       };
@@ -309,7 +423,7 @@ const getAccessibleRecordForXray = async (req, record_id) => {
 
   return {
     allowed: false,
-    error: "Access denied",
+    error: "Access denied.",
     statusCode: 403,
     record,
   };
@@ -327,10 +441,14 @@ const getAccessibleXray = async (req, xray_id) => {
         dr.patient_id,
         dr.dentist_id,
         d.clinic_id,
-        c.clinic_name
+        d.status AS dentist_status,
+        p.clinic_id AS patient_clinic_id,
+        c.clinic_name,
+        c.status AS clinic_status
      FROM public.xray_images x
      JOIN public.dental_records dr ON x.record_id = dr.record_id
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+     JOIN public.patients p ON dr.patient_id = p.patient_id
      LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
      WHERE x.xray_id = $1`,
     [xray_id],
@@ -376,16 +494,34 @@ const checkClinicSubscriptionActiveForXray = async (record_id) => {
     };
   }
 
+  if (!record.owner_user_id) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error:
+        "Clinic location is not linked to a Clinic Owner account. Shared subscription status cannot be validated.",
+    };
+  }
+
   const isExpiredByDate =
     record.subscription_end_date &&
     new Date(record.subscription_end_date) < new Date();
 
-  if (record.subscription_status === "Expired" || isExpiredByDate) {
+  if (record.subscription_status !== "Active" || isExpiredByDate) {
     return {
       allowed: false,
       statusCode: 403,
       error:
-        "Your clinic subscription has expired. Please ask the Clinic Owner to renew or change the subscription plan before using X-ray analysis and annotations.",
+        "The shared Clinic Owner subscription is inactive or expired. Please ask the Clinic Owner to renew or change the subscription before using X-ray features.",
+    };
+  }
+
+  if (!record.subscription_plan_id) {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error:
+        "The Clinic Owner account has no shared subscription plan assigned.",
     };
   }
 
@@ -393,6 +529,7 @@ const checkClinicSubscriptionActiveForXray = async (record_id) => {
     allowed: true,
     statusCode: 200,
     error: null,
+    owner_user_id: record.owner_user_id,
   };
 };
 
@@ -406,31 +543,13 @@ const checkClinicXrayLimit = async (record_id, newFileSizeBytes) => {
     };
   }
 
-  if (!record.clinic_id) {
+  const subscriptionCheck =
+    await checkClinicSubscriptionActiveForXray(record_id);
+
+  if (!subscriptionCheck.allowed) {
     return {
       allowed: false,
-      error:
-        "This dental record is not connected to a clinic. Cannot validate subscription limits.",
-    };
-  }
-
-  const isExpiredByDate =
-    record.subscription_end_date &&
-    new Date(record.subscription_end_date) < new Date();
-
-  if (record.subscription_status === "Expired" || isExpiredByDate) {
-    return {
-      allowed: false,
-      error:
-        "Your clinic subscription has expired. Please ask the Clinic Owner to renew or change the subscription plan before uploading X-rays.",
-    };
-  }
-
-  if (!record.subscription_plan_id) {
-    return {
-      allowed: false,
-      error:
-        "This clinic has no subscription plan assigned. Please assign a plan before uploading X-rays.",
+      error: subscriptionCheck.error,
     };
   }
 
@@ -439,35 +558,54 @@ const checkClinicXrayLimit = async (record_id, newFileSizeBytes) => {
      FROM public.xray_images x
      JOIN public.dental_records dr ON x.record_id = dr.record_id
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-     WHERE d.clinic_id = $1`,
-    [record.clinic_id],
+     JOIN public.patients p ON dr.patient_id = p.patient_id
+     JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     WHERE c.owner_user_id = $1
+     AND p.clinic_id = d.clinic_id`,
+    [record.owner_user_id],
   );
 
   const storageResult = await pool.query(
-    `SELECT COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint AS total_bytes
+    `SELECT
+        COALESCE(
+          SUM(COALESCE(x.file_size_bytes, 0)),
+          0
+        )::bigint AS total_bytes
      FROM public.xray_images x
      JOIN public.dental_records dr ON x.record_id = dr.record_id
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-     WHERE d.clinic_id = $1`,
-    [record.clinic_id],
+     JOIN public.patients p ON dr.patient_id = p.patient_id
+     JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     WHERE c.owner_user_id = $1
+     AND p.clinic_id = d.clinic_id`,
+    [record.owner_user_id],
   );
 
   const currentXrays = xrayCountResult.rows[0].count;
   const currentBytes = Number(storageResult.rows[0].total_bytes || 0);
 
-  const maxXrays = Number(record.max_xrays || 0);
-  const storageLimitMb = Number(record.storage_limit_mb || 0);
-  const storageLimitBytes = storageLimitMb * 1024 * 1024;
+  const maxXrays =
+    record.max_xrays === null || record.max_xrays === undefined
+      ? null
+      : Number(record.max_xrays);
 
-  if (maxXrays > 0 && currentXrays >= maxXrays) {
+  const storageLimitMb =
+    record.storage_limit_mb === null || record.storage_limit_mb === undefined
+      ? null
+      : Number(record.storage_limit_mb);
+
+  const storageLimitBytes =
+    storageLimitMb === null ? null : storageLimitMb * 1024 * 1024;
+
+  if (maxXrays !== null && currentXrays >= maxXrays) {
     return {
       allowed: false,
-      error: `${record.clinic_name} has reached the X-ray upload limit for the ${record.plan_name} plan. Limit: ${maxXrays}.`,
+      error: `The Clinic Owner account has reached the shared X-ray upload limit for the ${record.plan_name} plan. Limit: ${maxXrays}.`,
     };
   }
 
   if (
-    storageLimitBytes > 0 &&
+    storageLimitBytes !== null &&
     currentBytes + Number(newFileSizeBytes || 0) > storageLimitBytes
   ) {
     const usedMb = currentBytes / 1024 / 1024;
@@ -475,7 +613,7 @@ const checkClinicXrayLimit = async (record_id, newFileSizeBytes) => {
 
     return {
       allowed: false,
-      error: `${record.clinic_name} has reached the storage limit for the ${record.plan_name} plan. Used: ${usedMb.toFixed(
+      error: `The Clinic Owner account has reached the shared storage limit for the ${record.plan_name} plan. Used: ${usedMb.toFixed(
         2,
       )} MB, new file: ${newMb.toFixed(2)} MB, limit: ${storageLimitMb} MB.`,
     };
@@ -484,6 +622,7 @@ const checkClinicXrayLimit = async (record_id, newFileSizeBytes) => {
   return {
     allowed: true,
     error: null,
+    owner_user_id: record.owner_user_id,
   };
 };
 
@@ -737,6 +876,8 @@ router.post(
 
       return res.status(201).json({
         message: "X-ray uploaded successfully",
+        assigned_clinic_id: access.record.clinic_id,
+        assigned_clinic_name: access.record.clinic_name,
         xray: insertedXray,
       });
     } catch (err) {
@@ -795,6 +936,8 @@ router.get(
 
       res.status(200).json({
         message: "X-rays retrieved successfully",
+        assigned_clinic_id: access.record.clinic_id,
+        assigned_clinic_name: access.record.clinic_name,
         xrays: xrays.rows,
       });
     } catch (err) {
@@ -831,6 +974,8 @@ router.get(
 
       res.status(200).json({
         message: "X-ray retrieved successfully",
+        assigned_clinic_id: access.xray.clinic_id,
+        assigned_clinic_name: access.xray.clinic_name,
         xray: access.xray,
       });
     } catch (err) {
@@ -1029,7 +1174,13 @@ router.post(
 router.get(
   "/:xray_id/annotations",
   authenticateToken,
-  authorizeRoles("Dentist", "Patient", "Admin"),
+  authorizeRoles(
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+    "Patient",
+    "Admin",
+  ),
   async (req, res) => {
     const { xray_id } = req.params;
 
@@ -1118,6 +1269,16 @@ router.post(
       }
 
       const dentist = await getDentistProfile(req.user.user_id);
+
+      if (req.user.role === "Dentist") {
+        const dentistContext = validateStaffClinicContext(dentist, "Dentist");
+
+        if (!dentistContext.allowed) {
+          return res
+            .status(dentistContext.statusCode)
+            .json({ error: dentistContext.error });
+        }
+      }
 
       const finalNote =
         note ||
@@ -1229,6 +1390,17 @@ router.put(
       }
 
       const dentist = await getDentistProfile(req.user.user_id);
+
+      if (req.user.role === "Dentist") {
+        const dentistContext = validateStaffClinicContext(dentist, "Dentist");
+
+        if (!dentistContext.allowed) {
+          return res
+            .status(dentistContext.statusCode)
+            .json({ error: dentistContext.error });
+        }
+      }
+
       const normalizedStatus = status
         ? normalizeAnnotationStatus(status)
         : annotation.status;
@@ -1325,13 +1497,11 @@ const reviewAnnotationHandler = async (req, res) => {
 
     const annotation = annotationResult.rows[0];
 
-    if (
-      req.user.role === "Dentist" &&
-      Number(annotation.record_dentist_user_id) !== Number(req.user.user_id)
-    ) {
-      return res.status(403).json({
-        error:
-          "This annotation belongs to a dental record assigned to another dentist.",
+    const access = await getAccessibleRecordForXray(req, annotation.record_id);
+
+    if (!access.allowed) {
+      return res.status(access.statusCode).json({
+        error: access.error,
       });
     }
 
@@ -1346,6 +1516,16 @@ const reviewAnnotationHandler = async (req, res) => {
     }
 
     const dentist = await getDentistProfile(req.user.user_id);
+
+    if (req.user.role === "Dentist") {
+      const dentistContext = validateStaffClinicContext(dentist, "Dentist");
+
+      if (!dentistContext.allowed) {
+        return res
+          .status(dentistContext.statusCode)
+          .json({ error: dentistContext.error });
+      }
+    }
 
     const updatedAnnotation = await pool.query(
       `UPDATE public.xray_annotations

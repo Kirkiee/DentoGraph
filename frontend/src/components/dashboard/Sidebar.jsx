@@ -81,6 +81,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
     "Clinic Owner": [
       { label: "Dashboard", path: "/clinic-owner/dashboard" },
       { label: "Clinic Locations", path: "/clinic-owner/profile" },
+      { label: "Clinic Customization", path: "/clinic-owner/branding" },
       { label: "Staff Management", path: "/clinic-owner/staff" },
       { label: "Shared Subscription", path: "/clinic-owner/subscription" },
       { label: "Payment History", path: "/clinic-owner/payments" },

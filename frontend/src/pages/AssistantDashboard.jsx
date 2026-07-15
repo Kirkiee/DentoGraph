@@ -185,7 +185,8 @@ function AssistantDashboard() {
             <h2>Assistant Dashboard</h2>
             <p>
               Welcome back, {user?.name || "Assistant"}. View your assigned
-              clinic, appointments, records, dentists, and X-ray activity.
+              clinic, same-location appointments, valid dental records, active
+              dentists, and X-ray activity.
             </p>
           </div>
 

@@ -4,6 +4,7 @@ import DashboardLayout from "../components/dashboard/DashboardLayout";
 
 function DentistAppointments() {
   const [appointments, setAppointments] = useState([]);
+  const [assignedClinic, setAssignedClinic] = useState(null);
 
   const [statusFilter, setStatusFilter] = useState("All");
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,7 +70,18 @@ function DentistAppointments() {
       );
 
       setAppointments(response.data.appointments || []);
+      setAssignedClinic(
+        response.data.assigned_clinic_id
+          ? {
+              clinic_id: response.data.assigned_clinic_id,
+              clinic_name:
+                response.data.assigned_clinic_name ||
+                "Assigned Clinic Location",
+            }
+          : null,
+      );
     } catch (err) {
+      setAssignedClinic(null);
       setError(err.response?.data?.error || "Unable to load appointments.");
     } finally {
       setLoading(false);
@@ -369,8 +381,8 @@ function DentistAppointments() {
           <div>
             <h2>My Appointments</h2>
             <p>
-              Review patient bookings, manage appointment status, and process
-              reschedule requests in one organized view.
+              Review only the patient appointments assigned to you within your
+              clinic location, manage status, and process reschedule requests.
             </p>
           </div>
 
@@ -385,6 +397,13 @@ function DentistAppointments() {
           </div>
         </div>
 
+        {assignedClinic && (
+          <div className="info-message">
+            <strong>Assigned Clinic Location:</strong>{" "}
+            {assignedClinic.clinic_name}
+          </div>
+        )}
+
         {message && <div className="success-message">{message}</div>}
 
         {error && (
@@ -398,7 +417,7 @@ function DentistAppointments() {
           <div className="patient-dashboard-card">
             <span>Total Appointments</span>
             <strong>{appointmentSummary.total}</strong>
-            <p>All assigned appointment records.</p>
+            <p>Appointments assigned to you at this clinic location.</p>
           </div>
 
           <div className="patient-dashboard-card">
@@ -424,7 +443,9 @@ function DentistAppointments() {
           <div className="appointments-header">
             <div>
               <h2>Search and Filter</h2>
-              <p>Filter by status, schedule, patient, clinic, or notes.</p>
+              <p>
+                Filter by status, schedule, patient, appointment ID, or notes.
+              </p>
             </div>
 
             {(statusFilter !== "All" || dateFilter !== "All" || searchTerm) && (
@@ -445,7 +466,7 @@ function DentistAppointments() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search patient, clinic, notes, or appointment ID"
+                placeholder="Search patient, notes, status, or appointment ID"
               />
             </div>
 

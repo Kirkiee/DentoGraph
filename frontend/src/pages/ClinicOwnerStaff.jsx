@@ -7,7 +7,9 @@ function ClinicOwnerStaff() {
   const navigate = useNavigate();
 
   const [clinicLocations, setClinicLocations] = useState([]);
-  const [selectedClinicId, setSelectedClinicId] = useState("");
+  const [selectedClinicId, setSelectedClinicId] = useState(
+    () => localStorage.getItem("clinicOwnerSelectedClinicId") || "",
+  );
   const [clinic, setClinic] = useState(null);
   const [staff, setStaff] = useState([]);
 
@@ -34,6 +36,12 @@ function ClinicOwnerStaff() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const activeClinicLocations = useMemo(() => {
+    return clinicLocations.filter(
+      (location) => String(location.status || "Active") === "Active",
+    );
+  }, [clinicLocations]);
+
   const selectedClinic = useMemo(() => {
     return (
       clinicLocations.find(
@@ -49,6 +57,10 @@ function ClinicOwnerStaff() {
 
   useEffect(() => {
     if (selectedClinicId) {
+      localStorage.setItem(
+        "clinicOwnerSelectedClinicId",
+        String(selectedClinicId),
+      );
       fetchStaff(selectedClinicId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -486,10 +498,10 @@ function ClinicOwnerStaff() {
                   disabled={loading || creating || updatingStatus}
                   required
                 >
-                  {clinicLocations.length === 0 ? (
+                  {activeClinicLocations.length === 0 ? (
                     <option value="">No clinic locations available</option>
                   ) : (
-                    clinicLocations.map((location) => (
+                    activeClinicLocations.map((location) => (
                       <option
                         key={location.clinic_id}
                         value={location.clinic_id}
@@ -513,6 +525,12 @@ function ClinicOwnerStaff() {
 
             {displayedClinic && (
               <div className="clinic-location-note">
+                {displayedClinic.status !== "Active" && (
+                  <p className="error-message">
+                    This clinic location is inactive. Staff creation and new
+                    operational activity are disabled until it is reactivated.
+                  </p>
+                )}
                 <strong>{displayedClinic.clinic_name}</strong> is the active
                 clinic location for this page. Staff created here will be
                 assigned to this location, while subscription limits are shared
@@ -614,10 +632,10 @@ function ClinicOwnerStaff() {
                     disabled={creating || loading}
                     required
                   >
-                    {clinicLocations.length === 0 ? (
+                    {activeClinicLocations.length === 0 ? (
                       <option value="">No clinic locations available</option>
                     ) : (
-                      clinicLocations.map((location) => (
+                      activeClinicLocations.map((location) => (
                         <option
                           key={location.clinic_id}
                           value={location.clinic_id}
@@ -637,7 +655,11 @@ function ClinicOwnerStaff() {
                     name="staff_role"
                     value={formData.staff_role}
                     onChange={handleChange}
-                    disabled={creating}
+                    disabled={
+                      creating ||
+                      !selectedClinic ||
+                      selectedClinic.status !== "Active"
+                    }
                     required
                   >
                     <option value="Dentist">Dentist</option>

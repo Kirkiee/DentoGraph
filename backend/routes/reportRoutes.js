@@ -133,28 +133,60 @@ router.get(
         `WITH clinic_usage AS (
            SELECT
              c.clinic_id,
-             COUNT(DISTINCT d.dentist_id)::int AS dentists_used,
-             COUNT(DISTINCT a.assistant_id)::int AS assistants_used,
-             GREATEST(
-               COUNT(DISTINCT p.patient_id),
-               COUNT(DISTINCT dr.patient_id)
-             )::int AS patients_used,
-             COUNT(DISTINCT dr.record_id)::int AS records_used,
-             COUNT(DISTINCT x.xray_id)::int AS xrays_used,
-             COALESCE(SUM(DISTINCT COALESCE(x.file_size_bytes, 0)), 0)::bigint AS storage_used_bytes
+             (
+               SELECT COUNT(*)::int
+               FROM public.dentists d
+               WHERE d.clinic_id = c.clinic_id
+             ) AS dentists_used,
+             (
+               SELECT COUNT(*)::int
+               FROM public.assistants a
+               WHERE a.clinic_id = c.clinic_id
+             ) AS assistants_used,
+             (
+               SELECT COUNT(*)::int
+               FROM public.patients p
+               WHERE p.clinic_id = c.clinic_id
+             ) AS patients_used,
+             (
+               SELECT COUNT(*)::int
+               FROM public.dental_records dr
+               JOIN public.dentists d
+                 ON dr.dentist_id = d.dentist_id
+               JOIN public.patients p
+                 ON dr.patient_id = p.patient_id
+               WHERE d.clinic_id = c.clinic_id
+               AND p.clinic_id = c.clinic_id
+               AND COALESCE(dr.status, 'Active') = 'Active'
+             ) AS records_used,
+             (
+               SELECT COUNT(*)::int
+               FROM public.xray_images x
+               JOIN public.dental_records dr
+                 ON x.record_id = dr.record_id
+               JOIN public.dentists d
+                 ON dr.dentist_id = d.dentist_id
+               JOIN public.patients p
+                 ON dr.patient_id = p.patient_id
+               WHERE d.clinic_id = c.clinic_id
+               AND p.clinic_id = c.clinic_id
+             ) AS xrays_used,
+             (
+               SELECT COALESCE(
+                 SUM(COALESCE(x.file_size_bytes, 0)),
+                 0
+               )::bigint
+               FROM public.xray_images x
+               JOIN public.dental_records dr
+                 ON x.record_id = dr.record_id
+               JOIN public.dentists d
+                 ON dr.dentist_id = d.dentist_id
+               JOIN public.patients p
+                 ON dr.patient_id = p.patient_id
+               WHERE d.clinic_id = c.clinic_id
+               AND p.clinic_id = c.clinic_id
+             ) AS storage_used_bytes
            FROM public.clinics c
-           LEFT JOIN public.dentists d
-             ON c.clinic_id = d.clinic_id
-           LEFT JOIN public.assistants a
-             ON c.clinic_id = a.clinic_id
-           LEFT JOIN public.patients p
-             ON c.clinic_id = p.clinic_id
-           LEFT JOIN public.dental_records dr
-             ON d.dentist_id = dr.dentist_id
-            AND COALESCE(dr.status, 'Active') = 'Active'
-           LEFT JOIN public.xray_images x
-             ON dr.record_id = x.record_id
-           GROUP BY c.clinic_id
          ),
          owner_location_counts AS (
            SELECT
@@ -248,8 +280,9 @@ router.get(
            ON a.dentist_id = d.dentist_id
          JOIN public.users dentist_user 
            ON d.user_id = dentist_user.user_id
-         LEFT JOIN public.clinics c 
+         JOIN public.clinics c
            ON d.clinic_id = c.clinic_id
+         WHERE p.clinic_id = d.clinic_id
          ORDER BY a.appointment_date DESC
          LIMIT 10`,
       );
@@ -310,6 +343,269 @@ router.get(
 
       res.status(500).json({
         error: "Error retrieving admin reports summary",
+      });
+    }
+  },
+);
+
+// CLINIC OWNER: ACCOUNT-WIDE AND SELECTED-LOCATION REPORT
+router.get(
+  "/clinic-owner-summary",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const requestedClinicId = req.query.clinic_id
+      ? Number(req.query.clinic_id)
+      : null;
+
+    if (
+      req.query.clinic_id &&
+      (!Number.isInteger(requestedClinicId) || requestedClinicId <= 0)
+    ) {
+      return res.status(400).json({
+        error: "A valid clinic location ID is required.",
+      });
+    }
+
+    try {
+      const locationsResult = await pool.query(
+        `SELECT
+            c.clinic_id,
+            c.clinic_name,
+            c.status,
+            c.owner_user_id,
+            c.subscription_plan_id,
+            c.subscription_status,
+            c.subscription_end_date,
+            sp.plan_name,
+            sp.max_clinics,
+            sp.max_dentists,
+            sp.max_assistants,
+            sp.max_patients,
+            sp.max_records,
+            sp.max_xrays,
+            sp.storage_limit_mb
+         FROM public.clinics c
+         LEFT JOIN public.subscription_plans sp
+           ON c.subscription_plan_id = sp.plan_id
+         WHERE c.owner_user_id = $1
+         ORDER BY c.clinic_name ASC`,
+        [req.user.user_id],
+      );
+
+      if (locationsResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "No clinic locations are linked to this Clinic Owner account.",
+        });
+      }
+
+      const locations = locationsResult.rows;
+      let selectedLocation = null;
+
+      if (requestedClinicId) {
+        selectedLocation = locations.find(
+          (location) =>
+            Number(location.clinic_id) === Number(requestedClinicId),
+        );
+
+        if (!selectedLocation) {
+          return res.status(403).json({
+            error:
+              "Selected clinic location does not belong to this Clinic Owner account.",
+          });
+        }
+      }
+
+      const scopeClinicIds = selectedLocation
+        ? [Number(selectedLocation.clinic_id)]
+        : locations.map((location) => Number(location.clinic_id));
+
+      const appointments = await pool.query(
+        `SELECT
+            COUNT(*)::int AS total_appointments,
+            COUNT(*) FILTER (WHERE a.status = 'Pending')::int AS pending,
+            COUNT(*) FILTER (WHERE a.status = 'Scheduled')::int AS scheduled,
+            COUNT(*) FILTER (WHERE a.status = 'Completed')::int AS completed,
+            COUNT(*) FILTER (WHERE a.status = 'Cancelled')::int AS cancelled,
+            COUNT(*) FILTER (
+              WHERE a.reschedule_request = true
+              AND COALESCE(a.reschedule_status, 'Pending') = 'Pending'
+            )::int AS reschedule_requests
+         FROM public.appointments a
+         JOIN public.dentists d
+           ON a.dentist_id = d.dentist_id
+         JOIN public.patients p
+           ON a.patient_id = p.patient_id
+         WHERE d.clinic_id = ANY($1::int[])
+         AND p.clinic_id = d.clinic_id`,
+        [scopeClinicIds],
+      );
+
+      const records = await pool.query(
+        `SELECT
+            COUNT(*)::int AS total_records,
+            COUNT(*) FILTER (
+              WHERE COALESCE(dr.status, 'Active') = 'Active'
+            )::int AS active_records,
+            COUNT(*) FILTER (
+              WHERE dr.status = 'Archived'
+            )::int AS archived_records,
+            COUNT(DISTINCT dr.patient_id)::int AS patients_with_records
+         FROM public.dental_records dr
+         JOIN public.dentists d
+           ON dr.dentist_id = d.dentist_id
+         JOIN public.patients p
+           ON dr.patient_id = p.patient_id
+         WHERE d.clinic_id = ANY($1::int[])
+         AND p.clinic_id = d.clinic_id`,
+        [scopeClinicIds],
+      );
+
+      const staff = await pool.query(
+        `SELECT
+            COUNT(*) FILTER (
+              WHERE role_scope.role_name = 'Dentist'
+            )::int AS dentists,
+            COUNT(*) FILTER (
+              WHERE role_scope.role_name IN ('Assistant', 'Dental Assistant')
+            )::int AS assistants,
+            COUNT(*) FILTER (
+              WHERE role_scope.account_status = 'Active'
+            )::int AS active_staff,
+            COUNT(*) FILTER (
+              WHERE role_scope.account_status = 'Inactive'
+            )::int AS inactive_staff
+         FROM (
+           SELECT
+             'Dentist'::text AS role_name,
+             u.status AS account_status
+           FROM public.dentists d
+           JOIN public.users u ON d.user_id = u.user_id
+           WHERE d.clinic_id = ANY($1::int[])
+
+           UNION ALL
+
+           SELECT
+             'Assistant'::text AS role_name,
+             u.status AS account_status
+           FROM public.assistants a
+           JOIN public.users u ON a.user_id = u.user_id
+           WHERE a.clinic_id = ANY($1::int[])
+         ) role_scope`,
+        [scopeClinicIds],
+      );
+
+      const xrays = await pool.query(
+        `SELECT
+            COUNT(*)::int AS total_xrays,
+            COALESCE(
+              SUM(COALESCE(x.file_size_bytes, 0)),
+              0
+            )::bigint AS storage_used_bytes
+         FROM public.xray_images x
+         JOIN public.dental_records dr
+           ON x.record_id = dr.record_id
+         JOIN public.dentists d
+           ON dr.dentist_id = d.dentist_id
+         JOIN public.patients p
+           ON dr.patient_id = p.patient_id
+         WHERE d.clinic_id = ANY($1::int[])
+         AND p.clinic_id = d.clinic_id`,
+        [scopeClinicIds],
+      );
+
+      const activityByLocation = await pool.query(
+        `SELECT
+            c.clinic_id,
+            c.clinic_name,
+            c.status,
+            (
+              SELECT COUNT(*)::int
+              FROM public.appointments a
+              JOIN public.dentists d
+                ON a.dentist_id = d.dentist_id
+              JOIN public.patients p
+                ON a.patient_id = p.patient_id
+              WHERE d.clinic_id = c.clinic_id
+              AND p.clinic_id = c.clinic_id
+            ) AS appointments,
+            (
+              SELECT COUNT(*)::int
+              FROM public.dental_records dr
+              JOIN public.dentists d
+                ON dr.dentist_id = d.dentist_id
+              JOIN public.patients p
+                ON dr.patient_id = p.patient_id
+              WHERE d.clinic_id = c.clinic_id
+              AND p.clinic_id = c.clinic_id
+              AND COALESCE(dr.status, 'Active') = 'Active'
+            ) AS active_records,
+            (
+              SELECT COUNT(*)::int
+              FROM public.xray_images x
+              JOIN public.dental_records dr
+                ON x.record_id = dr.record_id
+              JOIN public.dentists d
+                ON dr.dentist_id = d.dentist_id
+              JOIN public.patients p
+                ON dr.patient_id = p.patient_id
+              WHERE d.clinic_id = c.clinic_id
+              AND p.clinic_id = c.clinic_id
+            ) AS xrays
+         FROM public.clinics c
+         WHERE c.owner_user_id = $1
+         ORDER BY c.clinic_name ASC`,
+        [req.user.user_id],
+      );
+
+      const recentAppointments = await pool.query(
+        `SELECT
+            a.appointment_id,
+            a.appointment_date,
+            a.status,
+            a.appointment_type,
+            pu.name AS patient_name,
+            du.name AS dentist_name,
+            c.clinic_id,
+            c.clinic_name
+         FROM public.appointments a
+         JOIN public.patients p ON a.patient_id = p.patient_id
+         JOIN public.users pu ON p.user_id = pu.user_id
+         JOIN public.dentists d ON a.dentist_id = d.dentist_id
+         JOIN public.users du ON d.user_id = du.user_id
+         JOIN public.clinics c ON d.clinic_id = c.clinic_id
+         WHERE c.owner_user_id = $1
+         AND p.clinic_id = d.clinic_id
+         AND ($2::int IS NULL OR c.clinic_id = $2)
+         ORDER BY a.appointment_date DESC
+         LIMIT 10`,
+        [req.user.user_id, requestedClinicId],
+      );
+
+      const storageBytes = Number(xrays.rows[0].storage_used_bytes || 0);
+
+      res.status(200).json({
+        message: "Clinic Owner report retrieved successfully.",
+        scope: selectedLocation ? "location" : "account",
+        selected_location: selectedLocation,
+        locations,
+        shared_subscription: locations[0],
+        summaries: {
+          appointments: appointments.rows[0],
+          records: records.rows[0],
+          staff: staff.rows[0],
+          xrays: {
+            ...xrays.rows[0],
+            storage_used_mb: Number((storageBytes / 1024 / 1024).toFixed(2)),
+          },
+        },
+        activity_by_location: activityByLocation.rows,
+        recent_appointments: recentAppointments.rows,
+      });
+    } catch (err) {
+      console.error("Clinic Owner reports error:", err.message);
+      res.status(500).json({
+        error: "Error retrieving Clinic Owner report.",
       });
     }
   },

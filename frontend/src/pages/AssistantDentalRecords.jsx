@@ -25,6 +25,10 @@ function AssistantDentalRecords() {
   const navigate = useNavigate();
 
   const [records, setRecords] = useState([]);
+  const [assignedClinic, setAssignedClinic] = useState({
+    clinic_id: null,
+    clinic_name: "",
+  });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -63,6 +67,10 @@ function AssistantDentalRecords() {
       const response = await API.get("/api/dental-records", authHeaders);
 
       setRecords(response.data.dental_records || []);
+      setAssignedClinic({
+        clinic_id: response.data.assigned_clinic_id || null,
+        clinic_name: response.data.assigned_clinic_name || "",
+      });
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load dental records.");
     } finally {
@@ -335,6 +343,16 @@ function AssistantDentalRecords() {
           Creating, editing, archiving, or deleting dental record data is
           restricted to authorized dentist/admin roles.
         </div>
+
+        {assignedClinic.clinic_name && (
+          <div className="info-message">
+            <strong>Assigned Clinic Location:</strong>{" "}
+            {assignedClinic.clinic_name}
+            {assignedClinic.clinic_id
+              ? ` (Clinic ID: ${assignedClinic.clinic_id})`
+              : ""}
+          </div>
+        )}
 
         {message && <div className="success-message">{message}</div>}
 

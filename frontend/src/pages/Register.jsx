@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Turnstile } from "@marsidev/react-turnstile";
 import API from "../api/axios";
@@ -7,6 +7,195 @@ import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
 import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
+import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import "../styles/registerClinicLocator.css";
+
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+
+delete L.Icon.Default.prototype._getIconUrl;
+
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+const DEFAULT_MAP_CENTER = [14.5995, 120.9842];
+const NEARBY_RADIUS_KM = 25;
+
+const CLINIC_COORDINATE_FALLBACKS = {
+  7: {
+    latitude: 14.5828936,
+    longitude: 121.1756235,
+  },
+  10: {
+    latitude: 14.2892997,
+    longitude: 121.4573182,
+  },
+};
+
+const getClinicLatitude = (clinic) => {
+  if (!clinic) return null;
+
+  const clinicId = Number(clinic.clinic_id);
+  const fallbackLatitude =
+    CLINIC_COORDINATE_FALLBACKS[clinicId]?.latitude ?? null;
+
+  const rawValue =
+    clinic.latitude ??
+    clinic.lat ??
+    clinic.clinic_latitude ??
+    clinic.location_latitude ??
+    clinic.map_latitude ??
+    fallbackLatitude;
+
+  if (
+    rawValue === null ||
+    rawValue === undefined ||
+    String(rawValue).trim() === ""
+  ) {
+    return null;
+  }
+
+  const latitude = parseFloat(String(rawValue).trim());
+
+  return Number.isFinite(latitude) && latitude >= -90 && latitude <= 90
+    ? latitude
+    : fallbackLatitude;
+};
+
+const getClinicLongitude = (clinic) => {
+  if (!clinic) return null;
+
+  const clinicId = Number(clinic.clinic_id);
+  const fallbackLongitude =
+    CLINIC_COORDINATE_FALLBACKS[clinicId]?.longitude ?? null;
+
+  const rawValue =
+    clinic.longitude ??
+    clinic.lng ??
+    clinic.lon ??
+    clinic.clinic_longitude ??
+    clinic.location_longitude ??
+    clinic.map_longitude ??
+    fallbackLongitude;
+
+  if (
+    rawValue === null ||
+    rawValue === undefined ||
+    String(rawValue).trim() === ""
+  ) {
+    return null;
+  }
+
+  const longitude = parseFloat(String(rawValue).trim());
+
+  return Number.isFinite(longitude) && longitude >= -180 && longitude <= 180
+    ? longitude
+    : fallbackLongitude;
+};
+
+const getClinicServices = (clinic) => {
+  if (Array.isArray(clinic?.services)) {
+    return clinic.services
+      .map((service) => String(service).trim())
+      .filter(Boolean);
+  }
+
+  if (typeof clinic?.services === "string") {
+    const trimmed = clinic.services.trim();
+
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+
+      if (Array.isArray(parsed)) {
+        return parsed.map((service) => String(service).trim()).filter(Boolean);
+      }
+    } catch {
+      // Continue with comma-separated parsing.
+    }
+
+    return trimmed
+      .split(",")
+      .map((service) => service.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+};
+
+const calculateDistanceKm = (lat1, lon1, lat2, lon2) => {
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+
+  const deltaLatitude = toRadians(lat2 - lat1);
+  const deltaLongitude = toRadians(lon2 - lon1);
+
+  const calculation =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(toRadians(lat1)) *
+      Math.cos(toRadians(lat2)) *
+      Math.sin(deltaLongitude / 2) ** 2;
+
+  return (
+    earthRadiusKm *
+    2 *
+    Math.atan2(Math.sqrt(calculation), Math.sqrt(1 - calculation))
+  );
+};
+
+function RegistrationMapController({
+  selectedClinic,
+  userLocation,
+  markerClinics,
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    const selectedLatitude = getClinicLatitude(selectedClinic);
+    const selectedLongitude = getClinicLongitude(selectedClinic);
+
+    if (selectedLatitude !== null && selectedLongitude !== null) {
+      map.setView([selectedLatitude, selectedLongitude], 14);
+      return;
+    }
+
+    if (userLocation) {
+      map.setView([userLocation.latitude, userLocation.longitude], 12);
+      return;
+    }
+
+    const markerPositions = markerClinics
+      .map((clinic) => {
+        const latitude = getClinicLatitude(clinic);
+        const longitude = getClinicLongitude(clinic);
+
+        return latitude !== null && longitude !== null
+          ? [latitude, longitude]
+          : null;
+      })
+      .filter(Boolean);
+
+    if (markerPositions.length === 1) {
+      map.setView(markerPositions[0], 13);
+    } else if (markerPositions.length > 1) {
+      map.fitBounds(markerPositions, {
+        padding: [28, 28],
+        maxZoom: 13,
+      });
+    } else {
+      map.setView(DEFAULT_MAP_CENTER, 11);
+    }
+  }, [selectedClinic, userLocation, markerClinics, map]);
+
+  return null;
+}
 
 function Register() {
   const navigate = useNavigate();
@@ -30,6 +219,9 @@ function Register() {
 
   const [clinics, setClinics] = useState([]);
   const [loadingClinics, setLoadingClinics] = useState(true);
+  const [clinicSearch, setClinicSearch] = useState("");
+  const [userLocation, setUserLocation] = useState(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
 
   const [agree, setAgree] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState("");
@@ -47,14 +239,69 @@ function Register() {
   const fetchClinics = async () => {
     try {
       setLoadingClinics(true);
+      setError("");
 
       const response = await API.get("/api/clinics/public/list");
-      setClinics(response.data.clinics || []);
+
+      let clinicList = [];
+
+      if (Array.isArray(response.data)) {
+        clinicList = response.data;
+      } else if (Array.isArray(response.data?.clinics)) {
+        clinicList = response.data.clinics;
+      } else if (Array.isArray(response.data?.data)) {
+        clinicList = response.data.data;
+      }
+
+      const normalizedClinics = clinicList.map((clinic) => {
+        const clinicId = Number(clinic.clinic_id);
+        const fallback = CLINIC_COORDINATE_FALLBACKS[clinicId] || {};
+
+        const latitude = parseFloat(
+          String(
+            clinic.latitude ??
+              clinic.lat ??
+              clinic.clinic_latitude ??
+              clinic.location_latitude ??
+              clinic.map_latitude ??
+              fallback.latitude ??
+              "",
+          ).trim(),
+        );
+
+        const longitude = parseFloat(
+          String(
+            clinic.longitude ??
+              clinic.lng ??
+              clinic.lon ??
+              clinic.clinic_longitude ??
+              clinic.location_longitude ??
+              clinic.map_longitude ??
+              fallback.longitude ??
+              "",
+          ).trim(),
+        );
+
+        return {
+          ...clinic,
+          clinic_id: clinicId,
+          latitude: Number.isFinite(latitude)
+            ? latitude
+            : (fallback.latitude ?? null),
+          longitude: Number.isFinite(longitude)
+            ? longitude
+            : (fallback.longitude ?? null),
+          services: getClinicServices(clinic),
+        };
+      });
+
+      setClinics(normalizedClinics);
     } catch (err) {
       console.error("Fetch public clinics error:", err);
       setClinics([]);
       setError(
-        "Unable to load clinic list. Please refresh the page or contact the clinic.",
+        err.response?.data?.error ||
+          "Unable to load clinic locations. Please refresh and try again.",
       );
     } finally {
       setLoadingClinics(false);
@@ -132,6 +379,141 @@ function Register() {
   const selectedClinic = clinics.find(
     (clinic) => Number(clinic.clinic_id) === Number(formData.clinic_id),
   );
+
+  const activeClinics = useMemo(() => {
+    return clinics.filter(
+      (clinic) =>
+        String(clinic.status || "Active").toLowerCase() !== "inactive",
+    );
+  }, [clinics]);
+
+  const searchableClinics = useMemo(() => {
+    const term = clinicSearch.trim().toLowerCase();
+
+    if (!term) return activeClinics;
+
+    return activeClinics.filter((clinic) => {
+      const clinicName = String(clinic.clinic_name || "").toLowerCase();
+      const address = String(clinic.address || "").toLowerCase();
+      const services = getClinicServices(clinic).join(" ").toLowerCase();
+
+      return (
+        clinicName.includes(term) ||
+        address.includes(term) ||
+        services.includes(term)
+      );
+    });
+  }, [activeClinics, clinicSearch]);
+
+  const markerClinics = useMemo(() => {
+    return searchableClinics.filter((clinic) => {
+      return (
+        getClinicLatitude(clinic) !== null &&
+        getClinicLongitude(clinic) !== null
+      );
+    });
+  }, [searchableClinics]);
+
+  const nearbyClinics = useMemo(() => {
+    if (!userLocation) return [];
+
+    return activeClinics
+      .map((clinic) => {
+        const latitude = getClinicLatitude(clinic);
+        const longitude = getClinicLongitude(clinic);
+
+        if (latitude === null || longitude === null) return null;
+
+        return {
+          ...clinic,
+          distanceKm: calculateDistanceKm(
+            userLocation.latitude,
+            userLocation.longitude,
+            latitude,
+            longitude,
+          ),
+        };
+      })
+      .filter(Boolean)
+      .filter((clinic) => clinic.distanceKm <= NEARBY_RADIUS_KM)
+      .sort((a, b) => a.distanceKm - b.distanceKm);
+  }, [activeClinics, userLocation]);
+
+  const serviceSuggestedClinics = useMemo(() => {
+    const term = clinicSearch.trim().toLowerCase();
+
+    const clinicsWithServices = activeClinics.filter(
+      (clinic) => getClinicServices(clinic).length > 0,
+    );
+
+    if (!term) return clinicsWithServices;
+
+    return clinicsWithServices.filter((clinic) => {
+      return getClinicServices(clinic).join(" ").toLowerCase().includes(term);
+    });
+  }, [activeClinics, clinicSearch]);
+
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setError("Geolocation is not supported by this browser.");
+      return;
+    }
+
+    setGettingLocation(true);
+    setError("");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setUserLocation({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        });
+        setGettingLocation(false);
+      },
+      () => {
+        setError(
+          "Unable to get your current location. You can still search and select a clinic manually.",
+        );
+        setGettingLocation(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      },
+    );
+  };
+
+  const selectClinic = (clinicId) => {
+    setFormData((prev) => ({
+      ...prev,
+      clinic_id: String(clinicId),
+    }));
+    setError("");
+    setSuccess("");
+  };
+
+  const mapCenter = (() => {
+    const selectedLatitude = getClinicLatitude(selectedClinic);
+    const selectedLongitude = getClinicLongitude(selectedClinic);
+
+    if (selectedLatitude !== null && selectedLongitude !== null) {
+      return [selectedLatitude, selectedLongitude];
+    }
+
+    if (userLocation) {
+      return [userLocation.latitude, userLocation.longitude];
+    }
+
+    if (markerClinics.length > 0) {
+      return [
+        getClinicLatitude(markerClinics[0]),
+        getClinicLongitude(markerClinics[0]),
+      ];
+    }
+
+    return DEFAULT_MAP_CENTER;
+  })();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -327,44 +709,344 @@ function Register() {
             disabled={loading}
           />
 
-          <div className="auth-field">
-            <label htmlFor="clinic_id">
-              Clinic <span className="auth-required">*</span>
-            </label>
+          <div className="registration-clinic-locator">
+            <div className="registration-clinic-header">
+              <div>
+                <h3>Select Your Clinic Location</h3>
+                <p>
+                  Choose the clinic where your appointments and dental records
+                  will be managed.
+                </p>
+              </div>
 
-            <select
-              id="clinic_id"
+              <button
+                type="button"
+                className="registration-location-button"
+                onClick={getCurrentLocation}
+                disabled={gettingLocation || loadingClinics || loading}
+              >
+                {gettingLocation ? "Detecting..." : "Use My Location"}
+              </button>
+            </div>
+
+            {selectedClinic ? (
+              <div
+                className="registration-selected-clinic-banner"
+                role="status"
+                aria-live="polite"
+              >
+                <div className="registration-selected-clinic-icon">✓</div>
+
+                <div className="registration-selected-clinic-content">
+                  <span className="registration-selected-clinic-label">
+                    Currently Selected Clinic
+                  </span>
+                  <strong>{selectedClinic.clinic_name}</strong>
+                  <small>
+                    {selectedClinic.address || "No address provided"}
+                  </small>
+                </div>
+
+                <button
+                  type="button"
+                  className="registration-change-clinic-button"
+                  onClick={() => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      clinic_id: "",
+                    }));
+                  }}
+                  disabled={loading}
+                >
+                  Change
+                </button>
+              </div>
+            ) : (
+              <div className="registration-selected-clinic-empty">
+                No clinic selected yet. Choose one from the map or clinic lists
+                below.
+              </div>
+            )}
+
+            <div className="auth-field">
+              <label htmlFor="clinic-search">
+                Search Any Clinic or Available Service
+              </label>
+              <input
+                id="clinic-search"
+                type="search"
+                className="auth-input"
+                placeholder="Search clinic name, city, address, or service"
+                value={clinicSearch}
+                onChange={(event) => setClinicSearch(event.target.value)}
+                disabled={loadingClinics || loading}
+              />
+            </div>
+
+            <div className="registration-clinic-map">
+              <MapContainer
+                center={mapCenter}
+                zoom={selectedClinic ? 14 : 11}
+                scrollWheelZoom
+                className="registration-leaflet-map"
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                <RegistrationMapController
+                  selectedClinic={selectedClinic}
+                  userLocation={userLocation}
+                  markerClinics={markerClinics}
+                />
+
+                {markerClinics.map((clinic) => {
+                  const latitude = getClinicLatitude(clinic);
+                  const longitude = getClinicLongitude(clinic);
+                  const distanceKm = userLocation
+                    ? calculateDistanceKm(
+                        userLocation.latitude,
+                        userLocation.longitude,
+                        latitude,
+                        longitude,
+                      )
+                    : null;
+
+                  return (
+                    <Marker
+                      key={clinic.clinic_id}
+                      position={[latitude, longitude]}
+                      eventHandlers={{
+                        click: () => selectClinic(clinic.clinic_id),
+                      }}
+                    >
+                      <Popup>
+                        <strong>{clinic.clinic_name}</strong>
+                        <br />
+                        {clinic.address || "No address provided"}
+
+                        {distanceKm !== null && (
+                          <>
+                            <br />
+                            {distanceKm.toFixed(2)} km away
+                          </>
+                        )}
+
+                        <br />
+
+                        <button
+                          type="button"
+                          className="registration-popup-select"
+                          onClick={() => selectClinic(clinic.clinic_id)}
+                        >
+                          Select this clinic
+                        </button>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
+              </MapContainer>
+            </div>
+
+            <div className="registration-clinic-suggestions">
+              <section className="registration-suggestion-section">
+                <div className="registration-suggestion-heading">
+                  <h4>1. Nearby Clinics</h4>
+                  <p>
+                    {userLocation
+                      ? `Clinics within ${NEARBY_RADIUS_KM} km are ordered from nearest to farthest.`
+                      : 'Select "Use My Location" to view nearby clinic suggestions.'}
+                  </p>
+                </div>
+
+                {loadingClinics ? (
+                  <div className="auth-note">Loading clinic locations...</div>
+                ) : !userLocation ? (
+                  <div className="auth-note">
+                    Location access has not been enabled.
+                  </div>
+                ) : nearbyClinics.length === 0 ? (
+                  <div className="auth-note">
+                    No clinic is available within the nearby distance.
+                  </div>
+                ) : (
+                  <div className="registration-clinic-list">
+                    {nearbyClinics.map((clinic) => {
+                      const isSelected =
+                        Number(formData.clinic_id) === Number(clinic.clinic_id);
+
+                      return (
+                        <button
+                          key={`nearby-${clinic.clinic_id}`}
+                          type="button"
+                          className={
+                            isSelected
+                              ? "registration-clinic-option selected"
+                              : "registration-clinic-option"
+                          }
+                          onClick={() => selectClinic(clinic.clinic_id)}
+                          disabled={loading}
+                        >
+                          <span className="registration-clinic-option-main">
+                            <strong>{clinic.clinic_name}</strong>
+                            <small>
+                              {clinic.address || "No address provided"}
+                            </small>
+                            <small>
+                              {clinic.distanceKm.toFixed(2)} km away
+                            </small>
+                          </span>
+
+                          <span className="registration-clinic-select-label">
+                            {isSelected ? "Selected" : "Select"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <section className="registration-suggestion-section">
+                <div className="registration-suggestion-heading">
+                  <h4>2. Services Available</h4>
+                  <p>Search for a service to find clinics that provide it.</p>
+                </div>
+
+                {loadingClinics ? (
+                  <div className="auth-note">Loading clinic services...</div>
+                ) : serviceSuggestedClinics.length === 0 ? (
+                  <div className="auth-note">
+                    {clinicSearch.trim()
+                      ? "No clinic service matches your search."
+                      : "No clinic services have been listed yet."}
+                  </div>
+                ) : (
+                  <div className="registration-clinic-list">
+                    {serviceSuggestedClinics.map((clinic) => {
+                      const isSelected =
+                        Number(formData.clinic_id) === Number(clinic.clinic_id);
+                      const services = getClinicServices(clinic);
+
+                      return (
+                        <button
+                          key={`service-${clinic.clinic_id}`}
+                          type="button"
+                          className={
+                            isSelected
+                              ? "registration-clinic-option selected"
+                              : "registration-clinic-option"
+                          }
+                          onClick={() => selectClinic(clinic.clinic_id)}
+                          disabled={loading}
+                        >
+                          <span className="registration-clinic-option-main">
+                            <strong>{clinic.clinic_name}</strong>
+                            <small>
+                              {clinic.address || "No address provided"}
+                            </small>
+                            <small>Services: {services.join(", ")}</small>
+                          </span>
+
+                          <span className="registration-clinic-select-label">
+                            {isSelected ? "Selected" : "Select"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {clinicSearch.trim() && (
+                <section className="registration-suggestion-section">
+                  <div className="registration-suggestion-heading">
+                    <h4>Search Results</h4>
+                    <p>
+                      Select any clinic matching the clinic name, address, or
+                      service, even when it is outside the nearby distance.
+                    </p>
+                  </div>
+
+                  {loadingClinics ? (
+                    <div className="auth-note">
+                      Searching clinic locations...
+                    </div>
+                  ) : searchableClinics.length === 0 ? (
+                    <div className="auth-note">
+                      No clinic matches your search.
+                    </div>
+                  ) : (
+                    <div className="registration-clinic-list">
+                      {searchableClinics.map((clinic) => {
+                        const isSelected =
+                          Number(formData.clinic_id) ===
+                          Number(clinic.clinic_id);
+
+                        const latitude = getClinicLatitude(clinic);
+                        const longitude = getClinicLongitude(clinic);
+
+                        const distanceKm =
+                          userLocation &&
+                          latitude !== null &&
+                          longitude !== null
+                            ? calculateDistanceKm(
+                                userLocation.latitude,
+                                userLocation.longitude,
+                                latitude,
+                                longitude,
+                              )
+                            : null;
+
+                        return (
+                          <button
+                            key={`search-${clinic.clinic_id}`}
+                            type="button"
+                            className={
+                              isSelected
+                                ? "registration-clinic-option selected"
+                                : "registration-clinic-option"
+                            }
+                            onClick={() => selectClinic(clinic.clinic_id)}
+                            aria-pressed={isSelected}
+                            disabled={loading}
+                          >
+                            <span className="registration-clinic-option-main">
+                              <strong>{clinic.clinic_name}</strong>
+                              <small>
+                                {clinic.address || "No address provided"}
+                              </small>
+
+                              {distanceKm !== null && (
+                                <small>
+                                  {distanceKm.toFixed(2)} km away
+                                  {distanceKm > NEARBY_RADIUS_KM
+                                    ? " · Outside nearby range"
+                                    : ""}
+                                </small>
+                              )}
+                            </span>
+
+                            <span className="registration-clinic-select-label">
+                              {isSelected ? "Selected" : "Select"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              )}
+            </div>
+
+            <input
+              type="hidden"
               name="clinic_id"
               value={formData.clinic_id}
-              onChange={handleChange}
               required
-              disabled={loading || loadingClinics}
-              className="auth-input"
-            >
-              <option value="">
-                {loadingClinics
-                  ? "Loading clinic locations..."
-                  : "Select your clinic location"}
-              </option>
-
-              {clinics
-                .filter((clinic) => clinic.status !== "Inactive")
-                .map((clinic) => (
-                  <option key={clinic.clinic_id} value={clinic.clinic_id}>
-                    {clinic.clinic_name}
-                  </option>
-                ))}
-            </select>
+            />
           </div>
-
-          {selectedClinic && (
-            <div className="auth-note">
-              You are registering under{" "}
-              <strong>{selectedClinic.clinic_name}</strong>. Your appointments,
-              dentists, dental records, and X-rays will be connected to this
-              clinic location workspace.
-            </div>
-          )}
 
           {!loadingClinics && clinics.length === 0 && (
             <div className="auth-error">

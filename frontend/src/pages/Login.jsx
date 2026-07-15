@@ -5,6 +5,7 @@ import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
 import PasswordInput from "../components/auth/PasswordInput";
+import ThemeToggle from "../components/ThemeToggle";
 
 function Login() {
   const navigate = useNavigate();
@@ -212,6 +213,12 @@ function Login() {
       title="Welcome Back"
       subtitle="Log in to continue using DentoGraph."
     >
+      <ThemeToggle />
+
+      <Link to="/" className="auth-back-link">
+        ← Back to Landing Page
+      </Link>
+
       <form onSubmit={handleSubmit} className="auth-form">
         {error && <div className="auth-error">{error}</div>}
         {message && <div className="auth-success">{message}</div>}

@@ -439,6 +439,12 @@ function PatientXrayAnnotationView() {
           </div>
         )}
 
+        {xray?.clinic_name && (
+          <div className="info-message">
+            <strong>Clinic Location:</strong> {xray.clinic_name}
+          </div>
+        )}
+
         {message && <div className="success-message">{message}</div>}
 
         {error && (

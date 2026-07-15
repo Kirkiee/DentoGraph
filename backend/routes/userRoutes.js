@@ -230,11 +230,30 @@ const checkClinicSubscriptionLimit = async (
 
   const clinic = clinicPlanResult.rows[0];
 
+  if (!clinic.owner_user_id) {
+    return {
+      allowed: false,
+      message: "This clinic location is not linked to a Clinic Owner account.",
+    };
+  }
+
   if (!clinic.subscription_plan_id) {
     return {
       allowed: false,
       message:
         "This clinic owner has no shared subscription plan assigned. Please assign a plan before adding staff.",
+    };
+  }
+
+  const isExpiredByDate =
+    clinic.subscription_end_date &&
+    new Date(clinic.subscription_end_date) < new Date();
+
+  if (clinic.subscription_status !== "Active" || isExpiredByDate) {
+    return {
+      allowed: false,
+      message:
+        "The shared Clinic Owner subscription is inactive or expired. Renew the subscription before adding staff.",
     };
   }
 
@@ -298,6 +317,8 @@ const getClinicsOwnedByUser = async (client, ownerUserId) => {
         c.clinic_name,
         c.address,
         c.subscription_plan_id,
+        c.subscription_end_date,
+        c.subscription_status,
         c.owner_user_id,
         c.status,
         sp.plan_name,
@@ -330,6 +351,8 @@ const getClinicOwnedByUser = async (client, ownerUserId, clinicId = null) => {
         c.clinic_name,
         c.address,
         c.subscription_plan_id,
+        c.subscription_end_date,
+        c.subscription_status,
         c.owner_user_id,
         c.status,
         sp.plan_name,
@@ -429,6 +452,7 @@ router.post(
       specialization,
       availability,
       clinic_id,
+      contact_number,
     } = req.body || {};
 
     const cleanName = cleanText(name);
@@ -471,6 +495,9 @@ router.post(
 
       const roleName = roleCheck.rows[0].role_name;
       const normalizedClinicId = normalizeNullable(clinic_id);
+      const normalizedContactNumber = normalizeNullable(
+        cleanText(contact_number),
+      );
 
       const allowedRoles = [
         "Admin",
@@ -517,128 +544,9 @@ router.post(
         });
       }
 
-      if (roleName === "Dentist" && normalizedClinicId) {
-        const limitCheck = await checkClinicSubscriptionLimit(
-          client,
-          normalizedClinicId,
-          "Dentist",
-        );
-
-        if (!limitCheck.allowed) {
-          await client.query("ROLLBACK");
-          return res.status(400).json({ error: limitCheck.message });
-        }
-      }
-
-      if (isAssistantRole(roleName) && normalizedClinicId) {
-        const limitCheck = await checkClinicSubscriptionLimit(
-          client,
-          normalizedClinicId,
-          "Assistant",
-        );
-
-        if (!limitCheck.allowed) {
-          await client.query("ROLLBACK");
-          return res.status(400).json({ error: limitCheck.message });
-        }
-      }
-
-      const hashedPassword = await bcrypt.hash(password, 12);
-      const emailVerification = generateEmailVerification();
-
-      const newUser = await client.query(
-        `INSERT INTO public.users 
-         (
-           name,
-           email,
-           password,
-           status,
-           email_verified,
-           email_verification_token,
-           email_verification_expires
-         )
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING user_id, name, email, status, email_verified, created_at`,
-        [
-          cleanName,
-          cleanEmail,
-          hashedPassword,
-          "Active",
-          false,
-          emailVerification.hashedToken,
-          emailVerification.expiresAt,
-        ],
-      );
-
-      const userId = newUser.rows[0].user_id;
-
-      await client.query(
-        `INSERT INTO public.user_roles (user_id, role_id)
-         VALUES ($1, $2)`,
-        [userId, role_id],
-      );
-
-      if (roleName === "Dentist") {
-        await client.query(
-          `INSERT INTO public.dentists
-           (user_id, license_number, specialization, availability, status, clinic_id)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [
-            userId,
-            license_number || `DEN-${userId}`,
-            specialization || "General Dentistry",
-            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
-            "Active",
-            normalizedClinicId,
-          ],
-        );
-      }
-
-      if (isAssistantRole(roleName)) {
-        await client.query(
-          `INSERT INTO public.assistants
-           (user_id, license_number, availability, status, clinic_id)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [
-            userId,
-            license_number || `AST-${userId}`,
-            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
-            "Active",
-            normalizedClinicId,
-          ],
-        );
-      }
+      let selectedPatientClinic = null;
 
       if (roleName === "Patient") {
-        if (!normalizedClinicId) {
-          await client.query("ROLLBACK");
-          return res.status(400).json({
-            error: "Please select the clinic you are registering under.",
-          });
-        }
-
-        const clinicCheck = await client.query(
-          `SELECT clinic_id, clinic_name, status
-           FROM public.clinics
-           WHERE clinic_id = $1
-           LIMIT 1`,
-          [normalizedClinicId],
-        );
-
-        if (clinicCheck.rows.length === 0) {
-          await client.query("ROLLBACK");
-          return res.status(404).json({
-            error: "Selected clinic was not found.",
-          });
-        }
-
-        if (clinicCheck.rows[0].status !== "Active") {
-          await client.query("ROLLBACK");
-          return res.status(400).json({
-            error: "Selected clinic is not currently active.",
-          });
-        }
-
         await client.query(
           `INSERT INTO public.patients (user_id, clinic_id)
            VALUES ($1, $2)`,
@@ -660,7 +568,14 @@ router.post(
         user_id: req.user?.user_id || null,
         action: "CREATE_USER",
         module: "User Management",
-        description: `Created user account for ${newUser.rows[0].name} as ${roleName}.`,
+        description:
+          roleName === "Patient"
+            ? `Created patient account for ${newUser.rows[0].name} under clinic ${selectedPatientClinic?.clinic_name || normalizedClinicId}${
+                normalizedContactNumber
+                  ? ` with contact number ${normalizedContactNumber}`
+                  : ""
+              }.`
+            : `Created user account for ${newUser.rows[0].name} as ${roleName}.`,
         ip_address: req.ip,
       });
 
@@ -669,6 +584,14 @@ router.post(
           "User registered successfully. Please check your email to verify your account.",
         user: newUser.rows[0],
         role: roleName,
+        clinic:
+          roleName === "Patient"
+            ? {
+                clinic_id: selectedPatientClinic.clinic_id,
+                clinic_name: selectedPatientClinic.clinic_name,
+                address: selectedPatientClinic.address,
+              }
+            : null,
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
@@ -1933,6 +1856,14 @@ router.post(
         });
       }
 
+      if (clinic.status !== "Active") {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          error:
+            "Staff cannot be added to an inactive clinic location. Activate the location first.",
+        });
+      }
+
       const role = await getStaffRoleByName(client, staff_role);
 
       if (!role) {
@@ -2073,6 +2004,12 @@ router.post(
         user: newUser.rows[0],
         role: role.role_name,
         clinic,
+        shared_subscription_scope: {
+          owner_user_id: clinic.owner_user_id,
+          plan_name: clinic.plan_name,
+          max_dentists: clinic.max_dentists,
+          max_assistants: clinic.max_assistants,
+        },
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -18,6 +18,7 @@ import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
 import ClinicOwnerStaff from "./pages/ClinicOwnerStaff";
 import ClinicOwnerProfile from "./pages/ClinicOwnerProfile";
+import ClinicOwnerBranding from "./pages/ClinicOwnerBranding";
 import ClinicOwnerSubscription from "./pages/ClinicOwnerSubscription";
 import ClinicOwnerPaymentSuccess from "./pages/ClinicOwnerPaymentSuccess";
 import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
@@ -69,26 +70,14 @@ import AssistantXrays from "./pages/AssistantXrays";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("dentograph-theme") || "light";
-  });
-
   useEffect(() => {
-    document.body.classList.remove("light-mode", "dark-mode");
-    document.body.classList.add(theme === "dark" ? "dark-mode" : "light-mode");
-    localStorage.setItem("dentograph-theme", theme);
-  }, [theme]);
+    document.documentElement.classList.remove("light-mode");
+    document.documentElement.classList.add("dark-mode");
 
-  useEffect(() => {
-    const handleThemeChange = () => {
-      setTheme(localStorage.getItem("dentograph-theme") || "light");
-    };
+    document.body.classList.remove("light-mode");
+    document.body.classList.add("dark-mode");
 
-    window.addEventListener("dentograph-theme-change", handleThemeChange);
-
-    return () => {
-      window.removeEventListener("dentograph-theme-change", handleThemeChange);
-    };
+    localStorage.setItem("dentograph-theme", "dark");
   }, []);
 
   const assistantRoles = ["Assistant", "Dental Assistant"];
@@ -273,6 +262,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerProfile />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/branding"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerBranding />
             </ProtectedRoute>
           }
         />
