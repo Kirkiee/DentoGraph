@@ -368,12 +368,12 @@ function AdminReports() {
 
   const subscriptionSummaryCards = [
     {
-      label: "Total Clinics",
+      label: "Clinic Locations",
       value: formatNumber(subscriptionUsage.length),
-      description: "Clinics with usage data",
+      description: "Locations with usage data",
     },
     {
-      label: "Visible Clinics",
+      label: "Visible Locations",
       value: `${Math.min(
         visibleSubscriptionCount,
         filteredSubscriptionUsage.length,
@@ -383,12 +383,12 @@ function AdminReports() {
     {
       label: "Near Limit",
       value: formatNumber(nearLimitCount),
-      description: "At least one usage type is 80%+",
+      description: "Any usage type is 80%+",
     },
     {
       label: "Limit Reached",
       value: formatNumber(limitReachedCount),
-      description: "At least one plan limit is full",
+      description: "Any plan limit is full",
     },
   ];
 
@@ -732,25 +732,25 @@ function AdminReports() {
               </div>
             </div>
 
-            <div className="module-report-section">
+            <div className="module-report-section admin-subscription-usage-section">
               <div className="appointments-header">
                 <div>
                   <h2>Subscription Usage Reports</h2>
                   <p>
-                    Quickly review clinic usage against subscription plan
-                    limits. Admins can search, filter by plan, and scan usage in
-                    a compact table.
+                    Review shared subscription usage in a cleaner table. Each
+                    row shows one clinic location with grouped usage indicators
+                    instead of several cramped columns.
                   </p>
                 </div>
               </div>
 
               {renderReportCards(subscriptionSummaryCards)}
 
-              <div className="module-report-filter-card">
+              <div className="module-report-filter-card subscription-report-filter-card">
                 <div className="appointment-form">
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Search Clinic</label>
+                      <label>Search Clinic or Plan</label>
                       <input
                         type="text"
                         value={subscriptionSearch}
@@ -758,7 +758,7 @@ function AdminReports() {
                           setSubscriptionSearch(e.target.value);
                           setVisibleSubscriptionCount(10);
                         }}
-                        placeholder="Search by clinic name or plan..."
+                        placeholder="Search by clinic location or plan..."
                       />
                     </div>
 
@@ -780,7 +780,7 @@ function AdminReports() {
                     </div>
 
                     <div className="form-group">
-                      <label>Visible Clinics</label>
+                      <label>Visible Locations</label>
                       <input
                         type="text"
                         value={`${Math.min(
@@ -806,19 +806,15 @@ function AdminReports() {
                 </div>
               ) : (
                 <>
-                  <div className="subscription-clean-table-wrapper">
-                    <table className="subscription-clean-table">
+                  <div className="payment-table-wrapper subscription-usage-table-wrapper">
+                    <table className="payment-table subscription-usage-table">
                       <thead>
                         <tr>
-                          <th>Clinic</th>
+                          <th>Clinic Location</th>
                           <th>Plan</th>
-                          <th>Dentists</th>
-                          <th>Assistants</th>
-                          <th>Patients</th>
-                          <th>Records</th>
-                          <th>X-rays</th>
+                          <th>Usage Overview</th>
                           <th>Storage</th>
-                          <th>Usage Status</th>
+                          <th>Status</th>
                         </tr>
                       </thead>
 
@@ -826,135 +822,96 @@ function AdminReports() {
                         {visibleSubscriptionUsage.map((clinic) => {
                           const usageStatus = getUsageStatus(clinic);
 
+                          const usageMetrics = [
+                            {
+                              label: "Dentists",
+                              used: clinic.dentists_used,
+                              limit: clinic.max_dentists,
+                            },
+                            {
+                              label: "Assistants",
+                              used: clinic.assistants_used,
+                              limit: clinic.max_assistants,
+                            },
+                            {
+                              label: "Patients",
+                              used: clinic.patients_used,
+                              limit: clinic.max_patients,
+                            },
+                            {
+                              label: "Records",
+                              used: clinic.records_used,
+                              limit: clinic.max_records,
+                            },
+                            {
+                              label: "X-rays",
+                              used: clinic.xrays_used,
+                              limit: clinic.max_xrays,
+                            },
+                          ];
+
                           return (
                             <tr key={clinic.clinic_id}>
                               <td>
                                 <strong>
-                                  {clinic.clinic_name || "Clinic"}
+                                  {clinic.clinic_name || "Clinic Location"}
                                 </strong>
                               </td>
 
-                              <td>{clinic.plan_name || "No Plan"}</td>
+                              <td>
+                                <span className="status-badge status-scheduled">
+                                  {clinic.plan_name || "No Plan"}
+                                </span>
+                              </td>
 
                               <td>
-                                <div className="subscription-usage-cell">
-                                  <span>
-                                    {formatUsage(
-                                      clinic.dentists_used,
-                                      clinic.max_dentists,
-                                    )}
-                                  </span>
-                                  <div className="usage-bar compact-usage-bar">
-                                    <div
-                                      className="usage-bar-fill"
-                                      style={{
-                                        width: `${getUsagePercent(
-                                          clinic.dentists_used,
-                                          clinic.max_dentists,
-                                        )}%`,
-                                      }}
-                                    ></div>
-                                  </div>
+                                <div className="subscription-usage-metric-grid">
+                                  {usageMetrics.map((metric) => {
+                                    const percent = getUsagePercent(
+                                      metric.used,
+                                      metric.limit,
+                                    );
+
+                                    return (
+                                      <div
+                                        className="subscription-usage-metric"
+                                        key={metric.label}
+                                      >
+                                        <div className="subscription-usage-metric-header">
+                                          <span>{metric.label}</span>
+                                          <strong>
+                                            {formatUsage(
+                                              metric.used,
+                                              metric.limit,
+                                            )}
+                                          </strong>
+                                        </div>
+
+                                        <div className="usage-bar compact-usage-bar">
+                                          <div
+                                            className="usage-bar-fill"
+                                            style={{ width: `${percent}%` }}
+                                          ></div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </td>
 
                               <td>
-                                <div className="subscription-usage-cell">
-                                  <span>
-                                    {formatUsage(
-                                      clinic.assistants_used,
-                                      clinic.max_assistants,
-                                    )}
-                                  </span>
-                                  <div className="usage-bar compact-usage-bar">
-                                    <div
-                                      className="usage-bar-fill"
-                                      style={{
-                                        width: `${getUsagePercent(
-                                          clinic.assistants_used,
-                                          clinic.max_assistants,
-                                        )}%`,
-                                      }}
-                                    ></div>
+                                <div className="subscription-usage-metric storage-metric">
+                                  <div className="subscription-usage-metric-header">
+                                    <span>Storage</span>
+                                    <strong>
+                                      {formatUsage(
+                                        clinic.storage_used_mb,
+                                        clinic.storage_limit_mb,
+                                        " MB",
+                                      )}
+                                    </strong>
                                   </div>
-                                </div>
-                              </td>
 
-                              <td>
-                                <div className="subscription-usage-cell">
-                                  <span>
-                                    {formatUsage(
-                                      clinic.patients_used,
-                                      clinic.max_patients,
-                                    )}
-                                  </span>
-                                  <div className="usage-bar compact-usage-bar">
-                                    <div
-                                      className="usage-bar-fill"
-                                      style={{
-                                        width: `${getUsagePercent(
-                                          clinic.patients_used,
-                                          clinic.max_patients,
-                                        )}%`,
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td>
-                                <div className="subscription-usage-cell">
-                                  <span>
-                                    {formatUsage(
-                                      clinic.records_used,
-                                      clinic.max_records,
-                                    )}
-                                  </span>
-                                  <div className="usage-bar compact-usage-bar">
-                                    <div
-                                      className="usage-bar-fill"
-                                      style={{
-                                        width: `${getUsagePercent(
-                                          clinic.records_used,
-                                          clinic.max_records,
-                                        )}%`,
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td>
-                                <div className="subscription-usage-cell">
-                                  <span>
-                                    {formatUsage(
-                                      clinic.xrays_used,
-                                      clinic.max_xrays,
-                                    )}
-                                  </span>
-                                  <div className="usage-bar compact-usage-bar">
-                                    <div
-                                      className="usage-bar-fill"
-                                      style={{
-                                        width: `${getUsagePercent(
-                                          clinic.xrays_used,
-                                          clinic.max_xrays,
-                                        )}%`,
-                                      }}
-                                    ></div>
-                                  </div>
-                                </div>
-                              </td>
-
-                              <td>
-                                <div className="subscription-usage-cell">
-                                  <span>
-                                    {formatUsage(
-                                      clinic.storage_used_mb,
-                                      clinic.storage_limit_mb,
-                                      " MB",
-                                    )}
-                                  </span>
                                   <div className="usage-bar compact-usage-bar">
                                     <div
                                       className="usage-bar-fill"
@@ -992,7 +949,7 @@ function AdminReports() {
                           )
                         }
                       >
-                        Show More Clinics
+                        Show More Locations
                       </button>
                     </div>
                   )}

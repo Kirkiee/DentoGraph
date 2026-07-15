@@ -16,8 +16,7 @@ function Register() {
   // Make sure this matches the Patient role_id in your roles table.
   const PATIENT_ROLE_ID = 3;
 
-  const siteKey =
-    process.env.REACT_APP_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+  const siteKey = process.env.REACT_APP_TURNSTILE_SITE_KEY;
 
   const [formData, setFormData] = useState({
     firstName: "",
@@ -247,7 +246,7 @@ function Register() {
   return (
     <AuthLayout
       title="Create Patient Account"
-      subtitle="Register under your selected clinic workspace"
+      subtitle="Register under your selected clinic location workspace"
       wide
     >
       <ThemeToggle />
@@ -343,14 +342,18 @@ function Register() {
               className="auth-input"
             >
               <option value="">
-                {loadingClinics ? "Loading clinics..." : "Select your clinic"}
+                {loadingClinics
+                  ? "Loading clinic locations..."
+                  : "Select your clinic location"}
               </option>
 
-              {clinics.map((clinic) => (
-                <option key={clinic.clinic_id} value={clinic.clinic_id}>
-                  {clinic.clinic_name}
-                </option>
-              ))}
+              {clinics
+                .filter((clinic) => clinic.status !== "Inactive")
+                .map((clinic) => (
+                  <option key={clinic.clinic_id} value={clinic.clinic_id}>
+                    {clinic.clinic_name}
+                  </option>
+                ))}
             </select>
           </div>
 
@@ -359,13 +362,13 @@ function Register() {
               You are registering under{" "}
               <strong>{selectedClinic.clinic_name}</strong>. Your appointments,
               dentists, dental records, and X-rays will be connected to this
-              clinic workspace.
+              clinic location workspace.
             </div>
           )}
 
           {!loadingClinics && clinics.length === 0 && (
             <div className="auth-error">
-              No active clinics are available for registration yet.
+              No active clinic locations are available for registration yet.
             </div>
           )}
 
@@ -492,7 +495,7 @@ function Register() {
 
       <div className="auth-note">
         Dentists and dental assistants are registered through a subscribed
-        clinic account.
+        clinic owner account and assigned to a specific clinic location.
       </div>
     </AuthLayout>
   );

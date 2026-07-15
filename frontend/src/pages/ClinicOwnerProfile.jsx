@@ -489,19 +489,19 @@ function ClinicOwnerProfile() {
         ) : (
           <>
             <div className="staff-summary-grid">
-              <div className="staff-summary-card">
+              <div className="staff-summary-card clinic-owner-profile-summary-card">
                 <span>Total Locations</span>
                 <strong>{clinicLocations.length}</strong>
                 <p>Branches under your account</p>
               </div>
 
-              <div className="staff-summary-card">
+              <div className="staff-summary-card clinic-owner-profile-summary-card">
                 <span>Shared Plan</span>
                 <strong>{sharedPlanName}</strong>
                 <p>Applies to all locations</p>
               </div>
 
-              <div className="staff-summary-card">
+              <div className="staff-summary-card clinic-owner-profile-summary-card">
                 <span>Selected Location</span>
                 <strong>{selectedLocation?.clinic_name || "None"}</strong>
                 <p>{selectedLocation?.status || "No location selected"}</p>
@@ -611,7 +611,7 @@ function ClinicOwnerProfile() {
                 </div>
 
                 <form
-                  className="appointment-form"
+                  className="appointment-form clinic-owner-profile-form"
                   onSubmit={handleUpdateLocation}
                 >
                   {renderLocationFields(
@@ -676,7 +676,10 @@ function ClinicOwnerProfile() {
                   </button>
                 </div>
 
-                <form className="appointment-form" onSubmit={handleAddLocation}>
+                <form
+                  className="appointment-form clinic-owner-profile-form"
+                  onSubmit={handleAddLocation}
+                >
                   {renderLocationFields(
                     newLocationForm,
                     handleNewLocationChange,
@@ -741,7 +744,10 @@ function ClinicOwnerProfile() {
           )}
 
           {showPasswordForm ? (
-            <form className="appointment-form" onSubmit={handleChangePassword}>
+            <form
+              className="appointment-form clinic-owner-profile-form"
+              onSubmit={handleChangePassword}
+            >
               <PasswordInput
                 label="Current Password"
                 name="current_password"

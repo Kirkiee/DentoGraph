@@ -466,7 +466,7 @@ const syncOwnerLocationSubscriptions = async (
 };
 
 // ===============================
-// PUBLIC: REGISTER CLINIC OWNER + CLINIC WITH FREE PLAN
+// PUBLIC: REGISTER CLINIC OWNER + FIRST CLINIC LOCATION WITH FREE SHARED PLAN
 // ===============================
 
 router.post(
@@ -671,15 +671,15 @@ router.post(
 
       await createAuditLog({
         user_id: ownerUserId,
-        action: "REGISTER_CLINIC",
+        action: "REGISTER_CLINIC_OWNER",
         module: "Clinic Registration",
-        description: `Clinic owner ${cleanOwnerName} registered clinic ${cleanClinicName} with the Free plan.`,
+        description: `Clinic owner ${cleanOwnerName} registered the first clinic location ${cleanClinicName} with the Free shared subscription.`,
         ip_address: req.ip,
       });
 
       res.status(201).json({
         message:
-          "Clinic registered successfully. Your clinic has been assigned the Free plan by default. A verification email has been sent to the clinic owner email address. You may now log in.",
+          "Clinic owner account and first clinic location created successfully. The account has been assigned the Free shared subscription by default. A verification email has been sent to the clinic owner email address. You may now log in.",
         owner: newOwner.rows[0],
         role: role.role_name,
         clinic: newClinic.rows[0],
@@ -1466,6 +1466,7 @@ router.get(
 
 // ===============================
 // ADMIN: MONITOR CLINIC SUBSCRIPTIONS
+// Table-ready SaaS view: one Clinic Owner can have many clinic locations.
 // ===============================
 
 router.get(
@@ -1474,6 +1475,34 @@ router.get(
   authorizeRoles("Admin"),
   async (req, res) => {
     try {
+      // Keep all active locations under the same owner aligned to one shared
+      // subscription source before returning the monitoring table.
+      await pool.query(
+        `WITH subscription_source AS (
+           SELECT DISTINCT ON (owner_user_id)
+             owner_user_id,
+             subscription_plan_id,
+             subscription_start_date,
+             subscription_end_date,
+             COALESCE(subscription_status, 'Active') AS subscription_status
+           FROM public.clinics
+           WHERE owner_user_id IS NOT NULL
+           ORDER BY
+             owner_user_id,
+             CASE WHEN subscription_plan_id IS NULL THEN 1 ELSE 0 END,
+             created_at ASC NULLS LAST,
+             clinic_id ASC
+         )
+         UPDATE public.clinics c
+         SET subscription_plan_id = s.subscription_plan_id,
+             subscription_start_date = s.subscription_start_date,
+             subscription_end_date = s.subscription_end_date,
+             subscription_status = s.subscription_status
+         FROM subscription_source s
+         WHERE c.owner_user_id = s.owner_user_id
+         AND c.owner_user_id IS NOT NULL`,
+      );
+
       await pool.query(
         `UPDATE public.clinics
          SET subscription_status = 'Expired'
@@ -1483,56 +1512,102 @@ router.get(
       );
 
       const subscriptions = await pool.query(
-        `SELECT
-            c.clinic_id,
-            c.clinic_name,
-            c.owner_user_id,
-            owner_user.name AS owner_name,
-            owner_user.email AS owner_email,
-            c.subscription_plan_id,
-            sp.plan_name,
-            sp.plan_tier,
-            sp.price,
-            sp.billing_cycle,
-            c.subscription_start_date,
-            c.subscription_end_date,
-            COALESCE(c.subscription_status, 'Active') AS subscription_status,
-            CASE
-              WHEN c.subscription_plan_id IS NULL THEN 'No Plan'
-              WHEN c.subscription_end_date IS NULL THEN 'No End Date'
-              WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 'Expired'
-              WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 'Expiring Soon'
-              ELSE COALESCE(c.subscription_status, 'Active')
-            END AS monitoring_status,
-            CASE
-              WHEN c.subscription_end_date IS NULL THEN NULL
-              ELSE CEIL(EXTRACT(EPOCH FROM (c.subscription_end_date - CURRENT_TIMESTAMP)) / 86400)::int
-            END AS days_remaining,
-            c.status AS clinic_status,
-            c.created_at
-         FROM public.clinics c
-         LEFT JOIN public.users owner_user
-           ON c.owner_user_id = owner_user.user_id
-         LEFT JOIN public.subscription_plans sp
-           ON c.subscription_plan_id = sp.plan_id
-         ORDER BY
+        `WITH owner_location_counts AS (
+           SELECT
+             owner_user_id,
+             COUNT(*)::int AS owner_location_count,
+             COUNT(*) FILTER (WHERE COALESCE(status, 'Active') = 'Active')::int
+               AS owner_active_location_count
+           FROM public.clinics
+           WHERE owner_user_id IS NOT NULL
+           GROUP BY owner_user_id
+         )
+         SELECT
+             c.clinic_id,
+             c.clinic_name,
+             c.owner_user_id,
+             owner_user.name AS owner_name,
+             owner_user.email AS owner_email,
+
+             COALESCE(olc.owner_location_count, 1) AS owner_location_count,
+             COALESCE(olc.owner_active_location_count, 0)
+               AS owner_active_location_count,
+             CASE
+               WHEN COALESCE(olc.owner_location_count, 1) > 1
+                 THEN 'Shared across locations'
+               ELSE 'Single location'
+             END AS subscription_scope,
+
+             c.subscription_plan_id,
+             sp.plan_name,
+             sp.plan_tier,
+             sp.price,
+             sp.billing_cycle,
+             sp.max_clinics,
+             sp.max_dentists,
+             sp.max_assistants,
+             sp.max_patients,
+             sp.max_records,
+             sp.max_xrays,
+             sp.storage_limit_mb,
+
+             c.subscription_start_date,
+             c.subscription_end_date,
+             COALESCE(c.subscription_status, 'Active') AS subscription_status,
+
+             CASE
+               WHEN c.subscription_plan_id IS NULL THEN 'No Plan'
+               WHEN c.subscription_end_date IS NULL THEN 'No End Date'
+               WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 'Expired'
+               WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days'
+                 THEN 'Expiring Soon'
+               ELSE COALESCE(c.subscription_status, 'Active')
+             END AS monitoring_status,
+
+             CASE
+               WHEN c.subscription_end_date IS NULL THEN NULL
+               ELSE CEIL(EXTRACT(EPOCH FROM (c.subscription_end_date - CURRENT_TIMESTAMP)) / 86400)::int
+             END AS days_remaining,
+
+             c.status AS clinic_status,
+             c.created_at
+          FROM public.clinics c
+          LEFT JOIN public.users owner_user
+            ON c.owner_user_id = owner_user.user_id
+          LEFT JOIN public.subscription_plans sp
+            ON c.subscription_plan_id = sp.plan_id
+          LEFT JOIN owner_location_counts olc
+            ON c.owner_user_id = olc.owner_user_id
+          ORDER BY
            CASE
-             WHEN c.subscription_plan_id IS NULL THEN 1
-             WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 2
-             WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 3
-             ELSE 4
+              WHEN c.subscription_plan_id IS NULL THEN 1
+              WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 2
+              WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 3
+              ELSE 4
            END,
-           c.subscription_end_date ASC NULLS LAST,
-           c.clinic_name ASC`,
+            owner_user.name ASC NULLS LAST,
+            c.subscription_end_date ASC NULLS LAST,
+            c.clinic_name ASC`,
       );
 
       const rows = subscriptions.rows;
 
+      const uniqueOwnerIds = new Set(
+        rows
+          .map((item) => item.owner_user_id)
+          .filter(
+            (ownerUserId) => ownerUserId !== null && ownerUserId !== undefined,
+          ),
+      );
+
       res.status(200).json({
-        message: "Clinic subscription monitoring retrieved successfully",
+        message:
+          "Clinic owner shared subscription monitoring retrieved successfully.",
         subscriptions: rows,
         summary: {
           total: rows.length,
+          total_clinic_locations: rows.length,
+          total_owner_accounts: uniqueOwnerIds.size,
           active: rows.filter((item) => item.monitoring_status === "Active")
             .length,
           expiring_soon: rows.filter(
@@ -1547,7 +1622,7 @@ router.get(
     } catch (err) {
       console.error("Admin subscription monitoring error:", err.message);
       res.status(500).json({
-        error: "Error retrieving clinic subscription monitoring",
+        error: "Error retrieving clinic owner shared subscription monitoring",
       });
     }
   },
@@ -1812,7 +1887,8 @@ router.post(
 
       if (duplicateCheck.rows.length > 0) {
         return res.status(400).json({
-          error: "A clinic with the same name and address already exists",
+          error:
+            "A clinic location with the same name and address already exists",
         });
       }
 

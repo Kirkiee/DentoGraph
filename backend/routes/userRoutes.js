@@ -1230,7 +1230,17 @@ router.get(
   async (req, res) => {
     try {
       const users = await pool.query(
-        `SELECT 
+        `WITH owner_profiles AS (
+           SELECT
+             c.owner_user_id,
+             STRING_AGG(DISTINCT c.clinic_name, ', ' ORDER BY c.clinic_name) AS owner_clinic_name,
+             COUNT(*)::int AS owner_clinic_count,
+             COUNT(*) FILTER (WHERE COALESCE(c.status, 'Active') = 'Active')::int AS owner_active_clinic_count
+           FROM public.clinics c
+           WHERE c.owner_user_id IS NOT NULL
+           GROUP BY c.owner_user_id
+         )
+         SELECT 
             u.user_id,
             u.name,
             u.email,
@@ -1252,7 +1262,36 @@ router.get(
             a.license_number AS assistant_license_number,
             a.availability AS assistant_availability,
             a.clinic_id AS assistant_clinic_id,
-            ac.clinic_name AS assistant_clinic_name
+            ac.clinic_name AS assistant_clinic_name,
+
+            p.patient_id,
+            p.clinic_id AS patient_clinic_id,
+            pc.clinic_name AS patient_clinic_name,
+
+            op.owner_clinic_name,
+            op.owner_clinic_count,
+            op.owner_active_clinic_count,
+
+            COALESCE(
+              dc_owner.user_id,
+              ac_owner.user_id,
+              pc_owner.user_id,
+              CASE WHEN r.role_name = 'Clinic Owner' THEN u.user_id END
+            ) AS owner_user_id,
+
+            COALESCE(
+              dc_owner.name,
+              ac_owner.name,
+              pc_owner.name,
+              CASE WHEN r.role_name = 'Clinic Owner' THEN u.name END
+            ) AS owner_name,
+
+            COALESCE(
+              dc_owner.email,
+              ac_owner.email,
+              pc_owner.email,
+              CASE WHEN r.role_name = 'Clinic Owner' THEN u.email END
+            ) AS owner_email
 
          FROM public.users u
          LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
@@ -1260,9 +1299,17 @@ router.get(
 
          LEFT JOIN public.dentists d ON u.user_id = d.user_id
          LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
+         LEFT JOIN public.users dc_owner ON dc.owner_user_id = dc_owner.user_id
 
          LEFT JOIN public.assistants a ON u.user_id = a.user_id
          LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
+         LEFT JOIN public.users ac_owner ON ac.owner_user_id = ac_owner.user_id
+
+         LEFT JOIN public.patients p ON u.user_id = p.user_id
+         LEFT JOIN public.clinics pc ON p.clinic_id = pc.clinic_id
+         LEFT JOIN public.users pc_owner ON pc.owner_user_id = pc_owner.user_id
+
+         LEFT JOIN owner_profiles op ON u.user_id = op.owner_user_id
 
          ORDER BY u.user_id DESC`,
       );
@@ -1291,7 +1338,17 @@ router.get(
 
     try {
       const user = await pool.query(
-        `SELECT 
+        `WITH owner_profiles AS (
+           SELECT
+             c.owner_user_id,
+             STRING_AGG(DISTINCT c.clinic_name, ', ' ORDER BY c.clinic_name) AS owner_clinic_name,
+             COUNT(*)::int AS owner_clinic_count,
+             COUNT(*) FILTER (WHERE COALESCE(c.status, 'Active') = 'Active')::int AS owner_active_clinic_count
+           FROM public.clinics c
+           WHERE c.owner_user_id IS NOT NULL
+           GROUP BY c.owner_user_id
+         )
+         SELECT 
             u.user_id,
             u.name,
             u.email,
@@ -1313,7 +1370,36 @@ router.get(
             a.license_number AS assistant_license_number,
             a.availability AS assistant_availability,
             a.clinic_id AS assistant_clinic_id,
-            ac.clinic_name AS assistant_clinic_name
+            ac.clinic_name AS assistant_clinic_name,
+
+            p.patient_id,
+            p.clinic_id AS patient_clinic_id,
+            pc.clinic_name AS patient_clinic_name,
+
+            op.owner_clinic_name,
+            op.owner_clinic_count,
+            op.owner_active_clinic_count,
+
+            COALESCE(
+              dc_owner.user_id,
+              ac_owner.user_id,
+              pc_owner.user_id,
+              CASE WHEN r.role_name = 'Clinic Owner' THEN u.user_id END
+            ) AS owner_user_id,
+
+            COALESCE(
+              dc_owner.name,
+              ac_owner.name,
+              pc_owner.name,
+              CASE WHEN r.role_name = 'Clinic Owner' THEN u.name END
+            ) AS owner_name,
+
+            COALESCE(
+              dc_owner.email,
+              ac_owner.email,
+              pc_owner.email,
+              CASE WHEN r.role_name = 'Clinic Owner' THEN u.email END
+            ) AS owner_email
 
          FROM public.users u
          LEFT JOIN public.user_roles ur ON u.user_id = ur.user_id
@@ -1321,9 +1407,17 @@ router.get(
 
          LEFT JOIN public.dentists d ON u.user_id = d.user_id
          LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
+         LEFT JOIN public.users dc_owner ON dc.owner_user_id = dc_owner.user_id
 
          LEFT JOIN public.assistants a ON u.user_id = a.user_id
          LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
+         LEFT JOIN public.users ac_owner ON ac.owner_user_id = ac_owner.user_id
+
+         LEFT JOIN public.patients p ON u.user_id = p.user_id
+         LEFT JOIN public.clinics pc ON p.clinic_id = pc.clinic_id
+         LEFT JOIN public.users pc_owner ON pc.owner_user_id = pc_owner.user_id
+
+         LEFT JOIN owner_profiles op ON u.user_id = op.owner_user_id
 
          WHERE u.user_id = $1`,
         [user_id],

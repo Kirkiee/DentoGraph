@@ -159,6 +159,11 @@ function App() {
         />
 
         <Route
+          path="/admin/clinic-locations"
+          element={<Navigate to="/admin/clinics" />}
+        />
+
+        <Route
           path="/admin/subscriptions"
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
@@ -168,12 +173,22 @@ function App() {
         />
 
         <Route
+          path="/admin/shared-subscriptions"
+          element={<Navigate to="/admin/subscriptions" />}
+        />
+
+        <Route
           path="/admin/reports"
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminReports />
             </ProtectedRoute>
           }
+        />
+
+        <Route
+          path="/admin/reports-analytics"
+          element={<Navigate to="/admin/reports" />}
         />
 
         <Route
@@ -231,6 +246,11 @@ function App() {
         />
 
         <Route
+          path="/admin/subscription-payments"
+          element={<Navigate to="/admin/payments" />}
+        />
+
+        <Route
           path="/clinic-owner/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
@@ -258,12 +278,22 @@ function App() {
         />
 
         <Route
+          path="/clinic-owner/locations"
+          element={<Navigate to="/clinic-owner/profile" />}
+        />
+
+        <Route
           path="/clinic-owner/subscription"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerSubscription />
             </ProtectedRoute>
           }
+        />
+
+        <Route
+          path="/clinic-owner/shared-subscription"
+          element={<Navigate to="/clinic-owner/subscription" />}
         />
 
         <Route
@@ -350,7 +380,7 @@ function App() {
         <Route
           path="/dentist/dental-records/:recordId/ar-simulations"
           element={
-            <ProtectedRoute allowedRoles={["Dentist", "dentist"]}>
+            <ProtectedRoute allowedRoles={["Dentist"]}>
               <DentistARSimulations />
             </ProtectedRoute>
           }

@@ -171,6 +171,9 @@ function AdminUsers() {
           user.role_name?.toLowerCase().includes(term) ||
           user.dentist_clinic_name?.toLowerCase().includes(term) ||
           user.assistant_clinic_name?.toLowerCase().includes(term) ||
+          user.patient_clinic_name?.toLowerCase().includes(term) ||
+          user.owner_clinic_name?.toLowerCase().includes(term) ||
+          user.owner_email?.toLowerCase().includes(term) ||
           String(user.user_id).includes(term)
         );
       });
@@ -288,20 +291,36 @@ function AdminUsers() {
   const getAssignedClinicName = (user) => {
     if (user.dentist_clinic_name) return user.dentist_clinic_name;
     if (user.assistant_clinic_name) return user.assistant_clinic_name;
+    if (user.patient_clinic_name) return user.patient_clinic_name;
+    if (user.owner_clinic_name) return user.owner_clinic_name;
 
     if (user.role_name === "Clinic Owner") {
-      return "Clinic owner account";
+      return "Owner account / locations managed separately";
     }
 
     if (user.role_name === "Patient") {
-      return "Patient account";
+      return "No assigned clinic location";
     }
 
     if (user.role_name === "Admin") {
       return "System admin";
     }
 
-    return "No assigned clinic";
+    return "No assigned clinic location";
+  };
+
+  const getClinicLinkType = (user) => {
+    if (user.role_name === "Clinic Owner") return "Owner Account";
+    if (user.role_name === "Dentist") return "Dentist Location";
+    if (
+      user.role_name === "Assistant" ||
+      user.role_name === "Dental Assistant"
+    ) {
+      return "Assistant Location";
+    }
+    if (user.role_name === "Patient") return "Patient Location";
+    if (user.role_name === "Admin") return "System";
+    return "Unassigned";
   };
 
   const formatDate = (dateValue) => {
@@ -645,16 +664,20 @@ function AdminUsers() {
   const unverifiedUsers = users.filter(
     (user) => !Boolean(user.email_verified),
   ).length;
+  const clinicOwnerUsers = users.filter(
+    (user) => user.role_name === "Clinic Owner",
+  ).length;
 
   return (
     <DashboardLayout role="Admin">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card admin-users-page">
         <div className="appointments-header">
           <div>
             <h2>User Management</h2>
             <p>
-              Manage system user accounts separately from clinic records. Users
-              are login accounts, while clinics are client/business profiles.
+              Manage login accounts separately from clinic locations. Staff and
+              patients must be linked to the correct clinic location, while
+              Clinic Owners manage one or more locations under a shared account.
             </p>
           </div>
 
@@ -718,6 +741,12 @@ function AdminUsers() {
               <strong>{unverifiedUsers}</strong>
               <p>Need email verification</p>
             </div>
+
+            <div className="admin-users-summary-card">
+              <span>Clinic Owners</span>
+              <strong>{clinicOwnerUsers}</strong>
+              <p>SaaS client accounts</p>
+            </div>
           </div>
         </div>
 
@@ -725,7 +754,10 @@ function AdminUsers() {
           <div className="appointments-header">
             <div>
               <h2>User Filters</h2>
-              <p>Search and filter users by role, status, or verification.</p>
+              <p>
+                Search and filter users by role, status, verification, or
+                assigned clinic location.
+              </p>
             </div>
           </div>
 
@@ -738,7 +770,7 @@ function AdminUsers() {
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search by name, email, role, clinic, or user ID"
+                    placeholder="Search by name, email, role, clinic location, owner, or user ID"
                     disabled={loading}
                   />
                 </div>
@@ -819,17 +851,15 @@ function AdminUsers() {
               <p>Users will appear here once accounts are registered.</p>
             </div>
           ) : (
-            <div className="admin-users-table-wrapper">
-              <table className="admin-users-table">
+            <div className="payment-table-wrapper admin-users-table-wrapper">
+              <table className="payment-table admin-users-table">
                 <thead>
                   <tr>
-                    <th>User ID</th>
-                    <th>Name</th>
-                    <th>Email</th>
+                    <th>User</th>
                     <th>Role</th>
+                    <th>Clinic Location Link</th>
                     <th>Status</th>
                     <th>Email Verification</th>
-                    <th>Clinic Link</th>
                     <th>Created At</th>
                     <th>Actions</th>
                   </tr>
@@ -839,20 +869,28 @@ function AdminUsers() {
                   {filteredUsers.map((user) => (
                     <tr key={user.user_id}>
                       <td>
-                        <strong>{user.user_id}</strong>
-                      </td>
-
-                      <td>
                         <strong>{user.name}</strong>
-                      </td>
-
-                      <td>
+                        <br />
                         <span className="admin-users-email-text">
                           {user.email}
                         </span>
+                        <br />
+                        <span className="muted-text">ID: {user.user_id}</span>
                       </td>
 
-                      <td>{user.role_name || "No Role"}</td>
+                      <td>
+                        <span className="status-badge status-scheduled">
+                          {user.role_name || "No Role"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <strong>{getAssignedClinicName(user)}</strong>
+                        <br />
+                        <span className="muted-text">
+                          {getClinicLinkType(user)}
+                        </span>
+                      </td>
 
                       <td>
                         <span className={getStatusClass(user.status)}>
@@ -869,8 +907,6 @@ function AdminUsers() {
                           {user.email_verified ? "Verified" : "Unverified"}
                         </span>
                       </td>
-
-                      <td>{getAssignedClinicName(user)}</td>
 
                       <td>{formatDate(user.created_at)}</td>
 
@@ -919,8 +955,9 @@ function AdminUsers() {
               <div>
                 <h3>Create User Account</h3>
                 <p>
-                  Create a login account. Dentist and assistant accounts may be
-                  linked to a clinic, but the user account remains separate.
+                  Create a login account. Dentist and assistant accounts should
+                  be linked to a specific clinic location, while Clinic Owner
+                  accounts manage locations separately.
                 </p>
               </div>
 
@@ -1016,14 +1053,14 @@ function AdminUsers() {
 
               {(isCreateDentist || isCreateAssistant) && (
                 <div className="form-group">
-                  <label>Clinic Assignment</label>
+                  <label>Clinic Location Assignment</label>
                   <select
                     name="clinic_id"
                     value={createForm.clinic_id}
                     onChange={handleCreateChange}
                     disabled={creating}
                   >
-                    <option value="">No assigned clinic</option>
+                    <option value="">No assigned clinic location</option>
                     {clinics
                       .filter((clinic) => clinic.status === "Active")
                       .map((clinic) => (
@@ -1033,8 +1070,8 @@ function AdminUsers() {
                       ))}
                   </select>
                   <small>
-                    Clinic assignment links the user to a clinic, but does not
-                    turn the clinic record into a user account.
+                    Assign staff to the specific clinic location where they will
+                    work. Clinic records remain separate from user accounts.
                   </small>
                 </div>
               )}
@@ -1226,8 +1263,8 @@ function AdminUsers() {
               <div>
                 <h3>Change User Role</h3>
                 <p>
-                  Select a new role. Dentist and assistant roles can be linked
-                  to a clinic record.
+                  Select a new role. Dentist and assistant roles should be
+                  linked to a specific clinic location.
                 </p>
               </div>
 
@@ -1258,7 +1295,7 @@ function AdminUsers() {
                 <strong>Current Role:</strong>{" "}
                 {selectedUser?.role_name || "No Role"}
                 <br />
-                <strong>Current Clinic Link:</strong>{" "}
+                <strong>Current Clinic Location Link:</strong>{" "}
                 {selectedUser ? getAssignedClinicName(selectedUser) : "N/A"}
               </div>
 
@@ -1284,14 +1321,14 @@ function AdminUsers() {
 
               {(isChangeDentist || isChangeAssistant) && (
                 <div className="form-group">
-                  <label>Clinic Assignment</label>
+                  <label>Clinic Location Assignment</label>
                   <select
                     name="clinic_id"
                     value={roleProfileForm.clinic_id}
                     onChange={handleRoleProfileChange}
                     disabled={updating}
                   >
-                    <option value="">No assigned clinic</option>
+                    <option value="">No assigned clinic location</option>
                     {clinics
                       .filter((clinic) => clinic.status === "Active")
                       .map((clinic) => (

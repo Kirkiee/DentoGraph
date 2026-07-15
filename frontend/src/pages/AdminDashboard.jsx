@@ -97,29 +97,24 @@ function AdminDashboard() {
       description: "All registered accounts in the system.",
     },
     {
-      label: "Active Users",
-      value: users.active_users || 0,
-      description: "Accounts currently allowed to access the system.",
+      label: "Clinic Owners",
+      value: clinics.total_owner_accounts || getRoleCount("Clinic Owner") || 0,
+      description: "SaaS client accounts managing clinic locations.",
     },
     {
-      label: "Inactive Users",
-      value: users.inactive_users || 0,
-      description: "Accounts disabled by the administrator.",
+      label: "Clinic Locations",
+      value: clinics.total_clinic_locations || clinics.total_clinics || 0,
+      description: "All clinic locations registered in DentoGraph.",
     },
     {
-      label: "Clinics",
-      value: clinics.total_clinics || 0,
-      description: "All clinics registered in DentoGraph.",
-    },
-    {
-      label: "Active Clinics",
+      label: "Active Locations",
       value: clinics.active_clinics || 0,
-      description: "Clinics currently active in the system.",
+      description: "Clinic locations currently active in the system.",
     },
     {
       label: "Appointments",
       value: appointments.total_appointments || 0,
-      description: "All appointment records across clinics.",
+      description: "All appointment records across clinic locations.",
     },
     {
       label: "Dental Records",
@@ -130,6 +125,11 @@ function AdminDashboard() {
       label: "X-rays",
       value: xrays.total_xrays || 0,
       description: "All uploaded dental X-ray images.",
+    },
+    {
+      label: "Active Plans",
+      value: subscriptions.active_plans || 0,
+      description: "Shared subscription plans currently available.",
     },
   ];
 
@@ -191,12 +191,12 @@ function AdminDashboard() {
       description: "Dental records archived in the system.",
     },
     {
-      label: "Subscription Plans",
+      label: "Shared Plans",
       value: subscriptions.total_plans || 0,
-      description: "Plans configured for clinic subscriptions.",
+      description: "Plans configured for clinic owner subscriptions.",
     },
     {
-      label: "Active Plans",
+      label: "Active Shared Plans",
       value: subscriptions.active_plans || 0,
       description: "Subscription plans currently active.",
     },
@@ -212,7 +212,7 @@ function AdminDashboard() {
     },
     {
       title: "Clinic Management",
-      description: "View, update, archive, restore, and manage clinics.",
+      description: "Manage clinic locations, owners, maps, and shared plans.",
       buttonLabel: "Manage Clinics",
       className: "secondary-button",
       path: "/admin/clinics",
@@ -226,7 +226,7 @@ function AdminDashboard() {
     },
     {
       title: "Payments",
-      description: "Review clinic subscription payments and transactions.",
+      description: "Review shared subscription payments and transactions.",
       buttonLabel: "View Payments",
       className: "secondary-button",
       path: "/admin/payments",
@@ -273,13 +273,14 @@ function AdminDashboard() {
 
   return (
     <DashboardLayout role="Admin">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card admin-dashboard-page">
         <div className="appointments-header">
           <div>
             <h2>Admin Dashboard</h2>
             <p>
-              Welcome back, {user?.name || "Admin"}. Monitor users, clinics,
-              appointments, records, X-rays, subscriptions, and recent activity.
+              Welcome back, {user?.name || "Admin"}. Monitor users, clinic owner
+              accounts, clinic locations, shared subscriptions, records, X-rays,
+              and recent activity.
             </p>
           </div>
 
@@ -317,9 +318,9 @@ function AdminDashboard() {
         ) : (
           <>
             <div className="info-message">
-              <strong>System Overview:</strong> This dashboard summarizes the
-              main DentoGraph modules for quick monitoring during admin use and
-              system demos.
+              <strong>SaaS Overview:</strong> This dashboard summarizes the main
+              DentoGraph modules using the new structure: clinic owner accounts,
+              multiple clinic locations, and shared subscriptions.
             </div>
 
             {renderCardGrid(summaryCards)}
@@ -356,8 +357,11 @@ function AdminDashboard() {
             <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Records and Subscriptions</h2>
-                  <p>Overview of dental records and subscription plan setup.</p>
+                  <h2>Records and Shared Subscriptions</h2>
+                  <p>
+                    Overview of dental records and shared subscription plan
+                    setup.
+                  </p>
                 </div>
               </div>
 
@@ -412,50 +416,56 @@ function AdminDashboard() {
                   <p>Recent appointment activity will appear here.</p>
                 </div>
               ) : (
-                <div className="appointments-list">
-                  {recentAppointments.map((appointment) => (
-                    <div
-                      className="appointment-item"
-                      key={appointment.appointment_id}
-                    >
-                      <div className="appointment-info">
-                        <div className="appointment-title-row">
-                          <h3>
-                            {appointment.appointment_type ||
-                              "Dental Consultation"}
-                          </h3>
+                <div className="payment-table-wrapper admin-dashboard-appointments-wrapper">
+                  <table className="payment-table admin-dashboard-appointments-table">
+                    <thead>
+                      <tr>
+                        <th>Appointment</th>
+                        <th>Patient</th>
+                        <th>Dentist</th>
+                        <th>Clinic Location</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
 
-                          <span
-                            className={`status-badge ${getStatusClass(
-                              appointment.status,
-                            )}`}
-                          >
-                            {appointment.status || "Scheduled"}
-                          </span>
-                        </div>
+                    <tbody>
+                      {recentAppointments.map((appointment) => (
+                        <tr key={appointment.appointment_id}>
+                          <td>
+                            <strong>
+                              {appointment.appointment_type ||
+                                "Dental Consultation"}
+                            </strong>
+                            <br />
+                            <span className="muted-text">
+                              #{appointment.appointment_id}
+                            </span>
+                          </td>
 
-                        <p>
-                          <strong>Patient:</strong>{" "}
-                          {appointment.patient_name || "N/A"}
-                        </p>
+                          <td>{appointment.patient_name || "N/A"}</td>
 
-                        <p>
-                          <strong>Dentist:</strong>{" "}
-                          {appointment.dentist_name || "N/A"}
-                        </p>
+                          <td>{appointment.dentist_name || "N/A"}</td>
 
-                        <p>
-                          <strong>Clinic:</strong>{" "}
-                          {appointment.clinic_name || "No assigned clinic"}
-                        </p>
+                          <td>
+                            {appointment.clinic_name || "No assigned location"}
+                          </td>
 
-                        <p>
-                          <strong>Date:</strong>{" "}
-                          {formatDate(appointment.appointment_date)}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+                          <td>
+                            <span
+                              className={`status-badge ${getStatusClass(
+                                appointment.status,
+                              )}`}
+                            >
+                              {appointment.status || "Scheduled"}
+                            </span>
+                          </td>
+
+                          <td>{formatDate(appointment.appointment_date)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

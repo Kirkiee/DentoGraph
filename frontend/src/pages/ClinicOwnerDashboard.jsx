@@ -207,7 +207,7 @@ function ClinicOwnerDashboard() {
     const percent = getUsagePercent(used, limit);
 
     return (
-      <div className="appointment-item">
+      <div className="appointment-item clinic-owner-usage-card">
         <div className="appointment-info" style={{ width: "100%" }}>
           <div className="appointment-title-row">
             <h3>{label}</h3>
@@ -322,7 +322,7 @@ function ClinicOwnerDashboard() {
 
   return (
     <DashboardLayout role="Clinic Owner">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card clinic-owner-dashboard-page">
         <div className="appointments-header">
           <div>
             <h2>Clinic Owner Dashboard</h2>
@@ -599,7 +599,7 @@ function ClinicOwnerDashboard() {
                 </button>
               </div>
 
-              <div className="appointment-item">
+              <div className="appointment-item clinic-owner-subscription-card">
                 <div className="appointment-info">
                   <div className="appointment-title-row">
                     <h3>

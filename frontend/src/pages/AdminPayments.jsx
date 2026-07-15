@@ -161,12 +161,12 @@ function AdminPayments() {
 
   return (
     <DashboardLayout role="Admin">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card admin-payments-page">
         <div className="appointments-header">
           <div>
             <h2>Payment Monitoring</h2>
             <p>
-              View all clinic subscription payments, checkout sessions, payment
+              View shared subscription payments, checkout sessions, payment
               statuses, and admin backup confirmation actions.
             </p>
           </div>
@@ -197,7 +197,10 @@ function AdminPayments() {
           <div className="appointments-header">
             <div>
               <h2>Payment Summary</h2>
-              <p>System-wide payment overview for clinic subscriptions.</p>
+              <p>
+                System-wide payment overview for shared clinic owner
+                subscriptions.
+              </p>
             </div>
           </div>
 
@@ -239,7 +242,8 @@ function AdminPayments() {
             <div>
               <h2>Payment Filters</h2>
               <p>
-                Search by payment ID, clinic, owner, email, plan, or checkout.
+                Search by payment ID, clinic location, owner, email, shared
+                plan, or checkout.
               </p>
             </div>
           </div>
@@ -290,7 +294,7 @@ function AdminPayments() {
           <div className="appointments-header">
             <div>
               <h2>Payment Records</h2>
-              <p>Detailed table of all clinic subscription payment records.</p>
+              <p>Detailed table of shared subscription payment records.</p>
             </div>
           </div>
 
@@ -304,21 +308,18 @@ function AdminPayments() {
               <p>No payment records match your current filters.</p>
             </div>
           ) : (
-            <div className="payment-table-wrapper">
-              <table className="payment-table">
+            <div className="payment-table-wrapper admin-payments-table-wrapper">
+              <table className="payment-table admin-payments-table">
                 <thead>
                   <tr>
-                    <th>Payment ID</th>
-                    <th>Clinic</th>
-                    <th>Owner</th>
-                    <th>Email</th>
-                    <th>Plan</th>
+                    <th>Payment</th>
+                    <th>Owner Account</th>
+                    <th>Applied Scope</th>
+                    <th>Shared Plan</th>
                     <th>Amount</th>
-                    <th>Billing Cycle</th>
                     <th>Status</th>
-                    <th>Created At</th>
-                    <th>Paid At</th>
-                    <th>Checkout Session</th>
+                    <th>Dates</th>
+                    <th>Checkout</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -327,24 +328,40 @@ function AdminPayments() {
                   {filteredPayments.map((payment) => (
                     <tr key={payment.payment_id}>
                       <td>
-                        <strong>{payment.payment_id}</strong>
+                        <strong>#{payment.payment_id}</strong>
+                        <br />
+                        <span className="muted-text">Record ID</span>
                       </td>
 
-                      <td>{payment.clinic_name || "N/A"}</td>
-
-                      <td>{payment.owner_name || "N/A"}</td>
-
                       <td>
+                        <strong>{payment.owner_name || "N/A"}</strong>
+                        <br />
                         <span className="payment-session-text">
                           {payment.owner_email || "N/A"}
                         </span>
                       </td>
 
-                      <td>{payment.plan_name || "Subscription"}</td>
+                      <td>
+                        <strong>Shared subscription</strong>
+                        <br />
+                        <span className="muted-text">
+                          {payment.clinic_name
+                            ? `Linked location: ${payment.clinic_name}`
+                            : "No linked clinic location"}
+                        </span>
+                      </td>
 
-                      <td>{formatPrice(payment.amount)}</td>
+                      <td>
+                        <strong>{payment.plan_name || "Subscription"}</strong>
+                        <br />
+                        <span className="muted-text">
+                          {payment.billing_cycle || "N/A"}
+                        </span>
+                      </td>
 
-                      <td>{payment.billing_cycle || "N/A"}</td>
+                      <td>
+                        <strong>{formatPrice(payment.amount)}</strong>
+                      </td>
 
                       <td>
                         <span className={getStatusClass(payment.status)}>
@@ -352,9 +369,14 @@ function AdminPayments() {
                         </span>
                       </td>
 
-                      <td>{formatDate(payment.created_at)}</td>
-
-                      <td>{formatDate(payment.paid_at)}</td>
+                      <td>
+                        <strong>Created:</strong>{" "}
+                        {formatDate(payment.created_at)}
+                        <br />
+                        <span className="muted-text">
+                          Paid: {formatDate(payment.paid_at)}
+                        </span>
+                      </td>
 
                       <td>
                         <span className="payment-session-text">
@@ -364,7 +386,7 @@ function AdminPayments() {
 
                       <td>
                         {payment.status === "Pending" ? (
-                          <div className="payment-table-actions">
+                          <div className="payment-table-actions admin-payments-actions">
                             {payment.checkout_url && (
                               <button
                                 className="secondary-button"

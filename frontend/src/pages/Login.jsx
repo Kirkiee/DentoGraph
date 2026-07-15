@@ -26,6 +26,10 @@ function Login() {
 
   const siteKey = process.env.REACT_APP_TURNSTILE_SITE_KEY;
 
+  const getNormalizedRole = (user) => {
+    return user?.role || user?.role_name || "";
+  };
+
   const redirectByRole = (role) => {
     switch (role) {
       case "Admin":
@@ -102,9 +106,22 @@ function Login() {
       });
 
       const { token, user } = response.data;
+      const normalizedRole = getNormalizedRole(user);
+
+      if (!token || !user || !normalizedRole) {
+        setError("Login response is missing account role details.");
+        resetTurnstile();
+        return;
+      }
+
+      const storedUser = {
+        ...user,
+        role: normalizedRole,
+        role_name: user.role_name || normalizedRole,
+      };
 
       localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
+      localStorage.setItem("user", JSON.stringify(storedUser));
 
       if (formData.rememberMe) {
         localStorage.setItem("rememberMe", "true");
@@ -112,7 +129,7 @@ function Login() {
         localStorage.removeItem("rememberMe");
       }
 
-      redirectByRole(user.role);
+      redirectByRole(normalizedRole);
     } catch (err) {
       const status = err.response?.status;
       const apiError = err.response?.data?.error;

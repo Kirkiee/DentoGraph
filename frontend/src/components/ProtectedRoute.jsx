@@ -1,19 +1,34 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from "react-router-dom";
 
 function ProtectedRoute({ children, allowedRoles }) {
-    const token = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    const user = storedUser ? JSON.parse(storedUser) : null;
+  const location = useLocation();
 
-    if (!token || !user) {
-        return <Navigate to="/" replace />;
-    }
+  const token = localStorage.getItem("token");
+  const storedUser = localStorage.getItem("user");
 
-    if (allowedRoles && !allowedRoles.includes(user.role)) {
-        return <Navigate to="/" replace />;
-    }
+  let user = null;
 
-    return children;
+  try {
+    user = storedUser ? JSON.parse(storedUser) : null;
+  } catch (err) {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("rememberMe");
+
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  if (!token || !user) {
+    return <Navigate to="/auth/login" replace />;
+  }
+
+  const userRole = user.role || user.role_name;
+
+  if (allowedRoles && !allowedRoles.includes(userRole)) {
+    return <Navigate to="/" replace state={{ from: location }} />;
+  }
+
+  return children;
 }
 
 export default ProtectedRoute;

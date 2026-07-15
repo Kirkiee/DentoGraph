@@ -428,7 +428,7 @@ function ClinicOwnerStaff() {
 
   return (
     <DashboardLayout role="Clinic Owner">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card clinic-owner-staff-page">
         <div className="appointments-header">
           <div>
             <h2>Clinic Staff Management</h2>
@@ -534,7 +534,7 @@ function ClinicOwnerStaff() {
           </div>
 
           <div className="staff-summary-grid">
-            <div className="staff-summary-card">
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
               <span>Selected Location</span>
               <strong>
                 {displayedClinic?.clinic_name || "No clinic loaded"}
@@ -542,13 +542,13 @@ function ClinicOwnerStaff() {
               <p>{displayedClinic?.plan_name || "No active plan"}</p>
             </div>
 
-            <div className="staff-summary-card">
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
               <span>Total Staff</span>
               <strong>{staff.length}</strong>
               <p>{activeStaffCount} active account(s)</p>
             </div>
 
-            <div className="staff-summary-card">
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
               <span>Dentists</span>
               <strong>
                 {dentistCount}
@@ -560,7 +560,7 @@ function ClinicOwnerStaff() {
               <p>Dental provider accounts</p>
             </div>
 
-            <div className="staff-summary-card">
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
               <span>Assistants</span>
               <strong>
                 {assistantCount}
@@ -572,7 +572,7 @@ function ClinicOwnerStaff() {
               <p>Clinic support accounts</p>
             </div>
 
-            <div className="staff-summary-card">
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
               <span>Unverified</span>
               <strong>{unverifiedStaffCount}</strong>
               <p>Waiting for email verification</p>
@@ -591,14 +591,17 @@ function ClinicOwnerStaff() {
             </div>
           </div>
 
-          <div className="staff-form-card">
+          <div className="staff-form-card clinic-owner-staff-form-card">
             <div className="info-message" style={{ marginBottom: "16px" }}>
               Fields marked with <span className="auth-required">*</span> are
               required. Staff accounts are separate user accounts, but each one
               is assigned to a specific clinic location.
             </div>
 
-            <form className="appointment-form" onSubmit={handleCreateStaff}>
+            <form
+              className="appointment-form clinic-owner-staff-form"
+              onSubmit={handleCreateStaff}
+            >
               <div className="form-row">
                 <div className="form-group">
                   <label>
@@ -876,7 +879,7 @@ function ClinicOwnerStaff() {
 
       {showStatusModal && selectedStaff && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="modal-card clinic-owner-staff-modal-card">
             <div className="modal-header">
               <div>
                 <h3>Update Staff Status</h3>

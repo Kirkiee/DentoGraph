@@ -37,8 +37,13 @@ router.get(
       const clinicsResult = await pool.query(`
         SELECT
           COUNT(*)::int AS total_clinics,
+          COUNT(*)::int AS total_clinic_locations,
+          COUNT(DISTINCT owner_user_id) FILTER (WHERE owner_user_id IS NOT NULL)::int AS total_owner_accounts,
           COUNT(*) FILTER (WHERE status = 'Active')::int AS active_clinics,
-          COUNT(*) FILTER (WHERE status = 'Inactive')::int AS inactive_clinics
+          COUNT(*) FILTER (WHERE status = 'Active')::int AS active_clinic_locations,
+          COUNT(*) FILTER (WHERE status = 'Inactive')::int AS inactive_clinics,
+          COUNT(*) FILTER (WHERE status = 'Inactive')::int AS inactive_clinic_locations,
+          COUNT(*) FILTER (WHERE subscription_plan_id IS NOT NULL)::int AS subscribed_clinic_locations
         FROM public.clinics
       `);
 
@@ -69,7 +74,9 @@ router.get(
       const subscriptionsResult = await pool.query(`
         SELECT
           COUNT(*)::int AS total_plans,
-          COUNT(*) FILTER (WHERE status = 'Active')::int AS active_plans
+          COUNT(*)::int AS total_shared_plans,
+          COUNT(*) FILTER (WHERE status = 'Active')::int AS active_plans,
+          COUNT(*) FILTER (WHERE status = 'Active')::int AS active_shared_plans
         FROM public.subscription_plans
       `);
 
@@ -81,13 +88,17 @@ router.get(
           a.appointment_type,
           pu.name AS patient_name,
           du.name AS dentist_name,
-          c.clinic_name
+          c.clinic_name,
+          c.owner_user_id,
+          ou.name AS owner_name,
+          ou.email AS owner_email
         FROM public.appointments a
         JOIN public.patients p ON a.patient_id = p.patient_id
         JOIN public.users pu ON p.user_id = pu.user_id
         JOIN public.dentists d ON a.dentist_id = d.dentist_id
         JOIN public.users du ON d.user_id = du.user_id
         LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+        LEFT JOIN public.users ou ON c.owner_user_id = ou.user_id
         ORDER BY a.appointment_date DESC
         LIMIT 5
       `);

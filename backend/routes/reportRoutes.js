@@ -52,6 +52,8 @@ router.get(
       const clinicSummary = await pool.query(
         `SELECT 
             COUNT(*)::int AS total_clinics,
+            COUNT(*)::int AS total_clinic_locations,
+            COUNT(DISTINCT owner_user_id) FILTER (WHERE owner_user_id IS NOT NULL)::int AS total_owner_accounts,
             COUNT(*) FILTER (WHERE status = 'Active')::int AS active_clinics,
             COUNT(*) FILTER (WHERE status = 'Inactive')::int AS inactive_clinics,
             COUNT(*) FILTER (WHERE subscription_plan_id IS NOT NULL)::int AS subscribed_clinics
@@ -72,10 +74,22 @@ router.get(
          LEFT JOIN public.roles r ON ur.role_id = r.role_id`,
       );
 
+      const paymentSummary = await pool.query(
+        `SELECT
+            COUNT(*)::int AS total_payments,
+            COUNT(*) FILTER (WHERE status = 'Paid')::int AS paid_payments,
+            COUNT(*) FILTER (WHERE status = 'Pending')::int AS pending_payments,
+            COUNT(*) FILTER (WHERE status = 'Cancelled')::int AS cancelled_payments,
+            COUNT(*) FILTER (WHERE status = 'Failed')::int AS failed_payments,
+            COALESCE(SUM(amount) FILTER (WHERE status = 'Paid'), 0)::numeric AS total_paid_amount
+         FROM public.payments`,
+      );
+
       const clinicsByPlan = await pool.query(
         `SELECT 
             COALESCE(sp.plan_name, 'No Plan Assigned') AS plan_name,
-            COUNT(c.clinic_id)::int AS clinic_count
+            COUNT(c.clinic_id)::int AS clinic_count,
+            COUNT(DISTINCT c.owner_user_id) FILTER (WHERE c.owner_user_id IS NOT NULL)::int AS owner_account_count
          FROM public.clinics c
          LEFT JOIN public.subscription_plans sp 
            ON c.subscription_plan_id = sp.plan_id
@@ -116,11 +130,72 @@ router.get(
       );
 
       const subscriptionUsage = await pool.query(
-        `SELECT 
+        `WITH clinic_usage AS (
+           SELECT
+             c.clinic_id,
+             COUNT(DISTINCT d.dentist_id)::int AS dentists_used,
+             COUNT(DISTINCT a.assistant_id)::int AS assistants_used,
+             GREATEST(
+               COUNT(DISTINCT p.patient_id),
+               COUNT(DISTINCT dr.patient_id)
+             )::int AS patients_used,
+             COUNT(DISTINCT dr.record_id)::int AS records_used,
+             COUNT(DISTINCT x.xray_id)::int AS xrays_used,
+             COALESCE(SUM(DISTINCT COALESCE(x.file_size_bytes, 0)), 0)::bigint AS storage_used_bytes
+           FROM public.clinics c
+           LEFT JOIN public.dentists d
+             ON c.clinic_id = d.clinic_id
+           LEFT JOIN public.assistants a
+             ON c.clinic_id = a.clinic_id
+           LEFT JOIN public.patients p
+             ON c.clinic_id = p.clinic_id
+           LEFT JOIN public.dental_records dr
+             ON d.dentist_id = dr.dentist_id
+            AND COALESCE(dr.status, 'Active') = 'Active'
+           LEFT JOIN public.xray_images x
+             ON dr.record_id = x.record_id
+           GROUP BY c.clinic_id
+         ),
+         owner_location_counts AS (
+           SELECT
+             owner_user_id,
+             COUNT(*)::int AS owner_location_count,
+             COUNT(*) FILTER (WHERE COALESCE(status, 'Active') = 'Active')::int AS owner_active_location_count
+           FROM public.clinics
+           WHERE owner_user_id IS NOT NULL
+           GROUP BY owner_user_id
+         ),
+         owner_usage AS (
+           SELECT
+             c.owner_user_id,
+             COALESCE(SUM(cu.dentists_used), 0)::int AS dentists_used,
+             COALESCE(SUM(cu.assistants_used), 0)::int AS assistants_used,
+             COALESCE(SUM(cu.patients_used), 0)::int AS patients_used,
+             COALESCE(SUM(cu.records_used), 0)::int AS records_used,
+             COALESCE(SUM(cu.xrays_used), 0)::int AS xrays_used,
+             COALESCE(SUM(cu.storage_used_bytes), 0)::bigint AS storage_used_bytes
+           FROM public.clinics c
+           LEFT JOIN clinic_usage cu
+             ON c.clinic_id = cu.clinic_id
+           WHERE c.owner_user_id IS NOT NULL
+           GROUP BY c.owner_user_id
+         )
+         SELECT 
             c.clinic_id,
             c.clinic_name,
+            c.owner_user_id,
+            owner_user.name AS owner_name,
+            owner_user.email AS owner_email,
+            COALESCE(olc.owner_location_count, 1) AS owner_location_count,
+            COALESCE(olc.owner_active_location_count, 1) AS owner_active_location_count,
+            CASE
+              WHEN COALESCE(olc.owner_location_count, 1) > 1
+                THEN 'Shared across locations'
+              ELSE 'Single location'
+            END AS subscription_scope,
             COALESCE(sp.plan_name, 'No Plan Assigned') AS plan_name,
 
+            sp.max_clinics,
             sp.max_dentists,
             sp.max_assistants,
             sp.max_patients,
@@ -128,37 +203,31 @@ router.get(
             sp.max_xrays,
             sp.storage_limit_mb,
 
-            COUNT(DISTINCT d.dentist_id)::int AS dentists_used,
-            COUNT(DISTINCT a.assistant_id)::int AS assistants_used,
-            COUNT(DISTINCT dr.patient_id)::int AS patients_used,
-            COUNT(DISTINCT dr.record_id)::int AS records_used,
-            COUNT(DISTINCT x.xray_id)::int AS xrays_used,
-            COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint AS storage_used_bytes
+            COALESCE(ou.dentists_used, cu.dentists_used, 0)::int AS dentists_used,
+            COALESCE(ou.assistants_used, cu.assistants_used, 0)::int AS assistants_used,
+            COALESCE(ou.patients_used, cu.patients_used, 0)::int AS patients_used,
+            COALESCE(ou.records_used, cu.records_used, 0)::int AS records_used,
+            COALESCE(ou.xrays_used, cu.xrays_used, 0)::int AS xrays_used,
+            COALESCE(ou.storage_used_bytes, cu.storage_used_bytes, 0)::bigint AS storage_used_bytes,
+
+            COALESCE(cu.dentists_used, 0)::int AS location_dentists_used,
+            COALESCE(cu.assistants_used, 0)::int AS location_assistants_used,
+            COALESCE(cu.patients_used, 0)::int AS location_patients_used,
+            COALESCE(cu.records_used, 0)::int AS location_records_used,
+            COALESCE(cu.xrays_used, 0)::int AS location_xrays_used,
+            COALESCE(cu.storage_used_bytes, 0)::bigint AS location_storage_used_bytes
 
          FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
          LEFT JOIN public.subscription_plans sp 
            ON c.subscription_plan_id = sp.plan_id
-         LEFT JOIN public.dentists d 
-           ON c.clinic_id = d.clinic_id
-         LEFT JOIN public.assistants a 
-           ON c.clinic_id = a.clinic_id
-         LEFT JOIN public.dental_records dr 
-           ON d.dentist_id = dr.dentist_id
-          AND COALESCE(dr.status, 'Active') = 'Active'
-         LEFT JOIN public.xray_images x 
-           ON dr.record_id = x.record_id
-
-         GROUP BY 
-            c.clinic_id,
-            c.clinic_name,
-            sp.plan_name,
-            sp.max_dentists,
-            sp.max_assistants,
-            sp.max_patients,
-            sp.max_records,
-            sp.max_xrays,
-            sp.storage_limit_mb
-
+         LEFT JOIN clinic_usage cu
+           ON c.clinic_id = cu.clinic_id
+         LEFT JOIN owner_location_counts olc
+           ON c.owner_user_id = olc.owner_user_id
+         LEFT JOIN owner_usage ou
+           ON c.owner_user_id = ou.owner_user_id
          ORDER BY c.clinic_name ASC`,
       );
 
@@ -204,6 +273,7 @@ router.get(
           annotations: annotationSummary.rows[0],
           clinics: clinicSummary.rows[0],
           users: userSummary.rows[0],
+          payments: paymentSummary.rows[0],
         },
 
         charts: {
@@ -223,6 +293,13 @@ router.get(
           ...item,
           storage_used_mb: Number(
             (Number(item.storage_used_bytes || 0) / 1024 / 1024).toFixed(2),
+          ),
+          location_storage_used_mb: Number(
+            (
+              Number(item.location_storage_used_bytes || 0) /
+              1024 /
+              1024
+            ).toFixed(2),
           ),
         })),
 

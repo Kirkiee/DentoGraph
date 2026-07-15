@@ -47,14 +47,18 @@ router.get(
       }
 
       if (search && search.trim() !== "") {
-        values.push(`%${search.toLowerCase()}%`);
+        values.push(`%${search.trim().toLowerCase()}%`);
         query += `
           AND (
             LOWER(COALESCE(u.name, '')) LIKE $${values.length}
             OR LOWER(COALESCE(u.email, '')) LIKE $${values.length}
+            OR LOWER(COALESCE(r.role_name, '')) LIKE $${values.length}
             OR LOWER(COALESCE(al.action, '')) LIKE $${values.length}
             OR LOWER(COALESCE(al.module, '')) LIKE $${values.length}
             OR LOWER(COALESCE(al.description, '')) LIKE $${values.length}
+            OR LOWER(COALESCE(al.ip_address, '')) LIKE $${values.length}
+            OR CAST(al.log_id AS TEXT) LIKE $${values.length}
+            OR CAST(al.user_id AS TEXT) LIKE $${values.length}
           )
         `;
       }
@@ -67,19 +71,35 @@ router.get(
         `SELECT
             COUNT(*)::int AS total_logs,
             COUNT(*) FILTER (WHERE created_at::date = CURRENT_DATE)::int AS logs_today,
-            COUNT(DISTINCT user_id)::int AS active_users_logged
+            COUNT(DISTINCT user_id)::int AS active_users_logged,
+            COUNT(*) FILTER (WHERE action ILIKE '%LOGIN%')::int AS login_logs,
+            COUNT(*) FILTER (WHERE action ILIKE '%CREATE%')::int AS create_logs,
+            COUNT(*) FILTER (
+              WHERE action ILIKE '%UPDATE%'
+                 OR action ILIKE '%CHANGE%'
+                 OR action ILIKE '%SUBSCRIPTION%'
+            )::int AS update_logs,
+            COUNT(*) FILTER (
+              WHERE action ILIKE '%DELETE%'
+                 OR action ILIKE '%ARCHIVE%'
+                 OR action ILIKE '%DEACTIVATE%'
+            )::int AS critical_logs
          FROM public.audit_logs`,
       );
 
       const modules = await pool.query(
         `SELECT DISTINCT module
          FROM public.audit_logs
+         WHERE module IS NOT NULL
+         AND TRIM(module) <> ''
          ORDER BY module ASC`,
       );
 
       const actions = await pool.query(
         `SELECT DISTINCT action
          FROM public.audit_logs
+         WHERE action IS NOT NULL
+         AND TRIM(action) <> ''
          ORDER BY action ASC`,
       );
 

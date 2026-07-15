@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
 import { useNavigate } from "react-router-dom";
@@ -7,8 +7,11 @@ function ClinicOwnerPayments() {
   const navigate = useNavigate();
 
   const [payments, setPayments] = useState([]);
+  const [clinicLocations, setClinicLocations] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState(null);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
 
@@ -22,11 +25,22 @@ function ClinicOwnerPayments() {
       setError("");
       setMessage("");
 
-      const response = await API.get("/api/payments/my-payments");
+      const [paymentsResponse, locationsResponse] = await Promise.all([
+        API.get("/api/payments/my-payments"),
+        API.get("/api/clinics/owner/locations"),
+      ]);
 
-      setPayments(response.data.payments || []);
+      const locations =
+        locationsResponse.data.locations ||
+        locationsResponse.data.clinics ||
+        locationsResponse.data.clinic_locations ||
+        [];
+
+      setPayments(paymentsResponse.data.payments || []);
+      setClinicLocations(locations);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load payment history.");
+      setClinicLocations([]);
     } finally {
       setLoading(false);
     }
@@ -34,7 +48,7 @@ function ClinicOwnerPayments() {
 
   const handleCancelPayment = async (paymentId) => {
     const confirmCancel = window.confirm(
-      "Are you sure you want to cancel this pending payment record?",
+      "Are you sure you want to cancel this pending shared subscription payment record?",
     );
 
     if (!confirmCancel) return;
@@ -103,22 +117,29 @@ function ClinicOwnerPayments() {
     .filter((payment) => payment.status === "Paid")
     .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
-  const latestPayment = [...payments].sort((a, b) => {
-    const dateA = new Date(a.created_at || 0).getTime();
-    const dateB = new Date(b.created_at || 0).getTime();
+  const latestPayment = useMemo(() => {
+    return [...payments].sort((a, b) => {
+      const dateA = new Date(a.created_at || 0).getTime();
+      const dateB = new Date(b.created_at || 0).getTime();
 
-    return dateB - dateA;
-  })[0];
+      return dateB - dateA;
+    })[0];
+  }, [payments]);
+
+  const paidPayments = countByStatus("Paid");
+  const pendingPayments = countByStatus("Pending");
+  const failedOrCancelledPayments =
+    countByStatus("Failed") + countByStatus("Cancelled");
 
   return (
     <DashboardLayout role="Clinic Owner">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card clinic-owner-payments-page">
         <div className="appointments-header">
           <div>
-            <h2>Payments</h2>
+            <h2>Shared Subscription Payments</h2>
             <p>
-              Review your clinic subscription payments, checkout sessions, and
-              payment status.
+              Review payment records for the Clinic Owner account. Payments
+              apply to the shared subscription used by all clinic locations.
             </p>
           </div>
 
@@ -144,15 +165,29 @@ function ClinicOwnerPayments() {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
+        <div className="info-message">
+          <strong>Shared payment scope:</strong> A completed payment updates the
+          Clinic Owner subscription and should apply across all linked clinic
+          locations, not just one branch.
+        </div>
+
         <div className="payment-section">
           <div className="appointments-header">
             <div>
               <h2>Payment Summary</h2>
-              <p>Quick overview of your clinic payment activity.</p>
+              <p>
+                Quick overview of payment activity for the shared subscription.
+              </p>
             </div>
           </div>
 
           <div className="payment-summary-grid">
+            <div className="payment-summary-card">
+              <span>Clinic Locations</span>
+              <strong>{clinicLocations.length}</strong>
+              <p>Using the shared subscription</p>
+            </div>
+
             <div className="payment-summary-card">
               <span>Total Records</span>
               <strong>{payments.length}</strong>
@@ -160,19 +195,25 @@ function ClinicOwnerPayments() {
             </div>
 
             <div className="payment-summary-card">
-              <span>Paid Payments</span>
-              <strong>{countByStatus("Paid")}</strong>
+              <span>Paid</span>
+              <strong>{paidPayments}</strong>
               <p>Successfully completed</p>
             </div>
 
             <div className="payment-summary-card">
-              <span>Pending Payments</span>
-              <strong>{countByStatus("Pending")}</strong>
+              <span>Pending</span>
+              <strong>{pendingPayments}</strong>
               <p>Awaiting checkout or confirmation</p>
             </div>
 
             <div className="payment-summary-card">
-              <span>Total Paid Amount</span>
+              <span>Failed / Cancelled</span>
+              <strong>{failedOrCancelledPayments}</strong>
+              <p>Not completed</p>
+            </div>
+
+            <div className="payment-summary-card">
+              <span>Total Paid</span>
               <strong>{formatPrice(totalPaidAmount)}</strong>
               <p>Confirmed paid amount</p>
             </div>
@@ -184,7 +225,7 @@ function ClinicOwnerPayments() {
             <div className="appointments-header">
               <div>
                 <h2>Latest Payment</h2>
-                <p>Most recent subscription payment record.</p>
+                <p>Most recent shared subscription payment record.</p>
               </div>
             </div>
 
@@ -222,9 +263,7 @@ function ClinicOwnerPayments() {
           <div className="appointments-header">
             <div>
               <h2>Payment History</h2>
-              <p>
-                Detailed list of your clinic subscription payment transactions.
-              </p>
+              <p>Detailed list of shared subscription payment transactions.</p>
             </div>
           </div>
 
@@ -235,7 +274,7 @@ function ClinicOwnerPayments() {
           ) : payments.length === 0 ? (
             <div className="empty-state">
               <h3>No payments yet</h3>
-              <p>Your subscription payments will appear here.</p>
+              <p>Your shared subscription payments will appear here.</p>
             </div>
           ) : (
             <div className="payment-table-wrapper">
@@ -243,7 +282,7 @@ function ClinicOwnerPayments() {
                 <thead>
                   <tr>
                     <th>Plan</th>
-                    <th>Clinic</th>
+                    <th>Applied Scope</th>
                     <th>Amount</th>
                     <th>Billing Cycle</th>
                     <th>Status</th>
@@ -261,7 +300,14 @@ function ClinicOwnerPayments() {
                         <strong>{payment.plan_name || "Subscription"}</strong>
                       </td>
 
-                      <td>{payment.clinic_name || "N/A"}</td>
+                      <td>
+                        <span className="payment-scope-text">
+                          Shared account
+                          {payment.clinic_name
+                            ? ` (${payment.clinic_name})`
+                            : ""}
+                        </span>
+                      </td>
 
                       <td>{formatPrice(payment.amount)}</td>
 

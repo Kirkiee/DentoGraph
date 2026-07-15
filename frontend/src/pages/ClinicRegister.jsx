@@ -12,8 +12,7 @@ function ClinicRegister() {
   const navigate = useNavigate();
   const turnstileRef = useRef(null);
 
-  const siteKey =
-    process.env.REACT_APP_TURNSTILE_SITE_KEY || "1x00000000000000000000AA";
+  const siteKey = process.env.REACT_APP_TURNSTILE_SITE_KEY;
 
   const [formData, setFormData] = useState({
     owner_name: "",
@@ -152,12 +151,12 @@ function ClinicRegister() {
     }
 
     if (!clinicName) {
-      setError("Clinic name is required.");
+      setError("Clinic location name is required.");
       return;
     }
 
     if (!address) {
-      setError("Clinic address is required.");
+      setError("Clinic location address is required.");
       return;
     }
 
@@ -198,7 +197,7 @@ function ClinicRegister() {
 
       setSuccess(
         response.data?.message ||
-          "Clinic registered successfully. Please check the clinic owner email to verify the account.",
+          "Clinic owner account and first clinic location created successfully. Please check the clinic owner email to verify the account.",
       );
 
       resetForm();
@@ -232,7 +231,7 @@ function ClinicRegister() {
   return (
     <AuthLayout
       title="Register Your Clinic"
-      subtitle="Create a clinic owner account and start with the Free plan"
+      subtitle="Create a clinic owner account and first clinic location workspace"
       wide
     >
       <ThemeToggle />
@@ -259,9 +258,9 @@ function ClinicRegister() {
       {!success && (
         <>
           <div className="info-message" style={{ marginBottom: "16px" }}>
-            <strong>Default Plan:</strong> New clinics are automatically
-            assigned the Free plan. You can upgrade later once the payment
-            gateway is added.
+            <strong>Default Setup:</strong> This creates one Clinic Owner
+            account and the first clinic location. The account starts with the
+            Free shared subscription and can add more locations after upgrading.
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
@@ -328,9 +327,9 @@ function ClinicRegister() {
             </div>
 
             <AuthInput
-              label="Clinic Name"
+              label="Clinic Location Name"
               name="clinic_name"
-              placeholder="Dela Cruz Dental Clinic"
+              placeholder="Dela Cruz Dental Clinic - Main Branch"
               value={formData.clinic_name}
               onChange={handleChange}
               icon="🏥"
@@ -340,7 +339,7 @@ function ClinicRegister() {
             />
 
             <AuthInput
-              label="Clinic Address"
+              label="Clinic Location Address"
               name="address"
               placeholder="123 Sample Street, Quezon City"
               value={formData.address}
@@ -352,7 +351,7 @@ function ClinicRegister() {
             />
 
             <AuthInput
-              label="Clinic Contact Number"
+              label="Clinic Location Contact Number"
               type="tel"
               name="contact_number"
               placeholder="09123456789"
@@ -363,6 +362,12 @@ function ClinicRegister() {
               autoComplete="tel"
               disabled={loading}
             />
+
+            <div className="auth-note">
+              This first clinic location will be linked to the Clinic Owner
+              account. Additional locations can be managed later from the Clinic
+              Owner portal.
+            </div>
 
             <div className="auth-textarea-group">
               <label>
@@ -441,7 +446,7 @@ function ClinicRegister() {
             )}
 
             <AuthButton type="submit" disabled={loading || !siteKey}>
-              {loading ? "Registering Clinic..." : "Register Clinic"}
+              {loading ? "Registering Clinic..." : "Register Clinic Location"}
             </AuthButton>
           </form>
         </>
@@ -463,13 +468,13 @@ function ClinicRegister() {
               resetTurnstile();
             }}
           >
-            Register another clinic
+            Register another clinic owner
           </button>
         </div>
       )}
 
       <p className="auth-footer">
-        Already registered?{" "}
+        Already have a clinic owner account?{" "}
         <button
           type="button"
           className="auth-link"

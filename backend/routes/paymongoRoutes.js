@@ -18,16 +18,20 @@ const getPayMongoAuthHeader = () => {
   return `Basic ${encodedKey}`;
 };
 
-const getOwnedClinic = async (client, ownerUserId) => {
+const getOwnerSubscriptionSource = async (client, ownerUserId) => {
   const result = await client.query(
     `SELECT 
-        clinic_id,
-        clinic_name,
-        subscription_plan_id,
-        owner_user_id
-     FROM public.clinics
-     WHERE owner_user_id = $1
-     AND status = 'Active'
+        c.clinic_id,
+        c.clinic_name,
+        c.subscription_plan_id,
+        c.owner_user_id
+     FROM public.clinics c
+     WHERE c.owner_user_id = $1
+     AND c.status = 'Active'
+     ORDER BY 
+       CASE WHEN c.subscription_plan_id IS NULL THEN 1 ELSE 0 END,
+       c.created_at ASC NULLS LAST,
+       c.clinic_id ASC
      LIMIT 1`,
     [ownerUserId],
   );
@@ -35,52 +39,112 @@ const getOwnedClinic = async (client, ownerUserId) => {
   return result.rows[0] || null;
 };
 
-const validateClinicUsageAgainstPlan = async (client, clinicId, plan) => {
-  const usageResult = await client.query(
-    `SELECT
-        (SELECT COUNT(*)::int 
-         FROM public.dentists 
-         WHERE clinic_id = $1) AS current_dentists,
-
-        (SELECT COUNT(*)::int 
-         FROM public.assistants 
-         WHERE clinic_id = $1) AS current_assistants,
-
-        (SELECT COUNT(DISTINCT dr.patient_id)::int
-         FROM public.dental_records dr
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1
-         AND COALESCE(dr.status, 'Active') = 'Active') AS current_patients,
-
-        (SELECT COUNT(*)::int
-         FROM public.dental_records dr
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1
-         AND COALESCE(dr.status, 'Active') = 'Active') AS current_records,
-
-        (SELECT COUNT(*)::int
-         FROM public.xray_images x
-         JOIN public.dental_records dr ON x.record_id = dr.record_id
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1) AS current_xrays,
-
-        (SELECT COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint
-         FROM public.xray_images x
-         JOIN public.dental_records dr ON x.record_id = dr.record_id
-         JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-         WHERE d.clinic_id = $1) AS current_storage_bytes`,
-    [clinicId],
+const getOwnerLocationCount = async (client, ownerUserId) => {
+  const result = await client.query(
+    `SELECT COUNT(*)::int AS count
+     FROM public.clinics
+     WHERE owner_user_id = $1
+     AND status = 'Active'`,
+    [ownerUserId],
   );
 
-  const usage = usageResult.rows[0];
+  return Number(result.rows[0]?.count || 0);
+};
+
+const syncOwnerSubscriptionToAllLocations = async (
+  client,
+  ownerUserId,
+  planId,
+  billingCycle,
+) => {
+  const result = await client.query(
+    `UPDATE public.clinics
+     SET ${buildSubscriptionDateUpdateSQL()}
+     WHERE owner_user_id = $2
+     AND status = 'Active'
+     RETURNING clinic_id, clinic_name, subscription_plan_id, subscription_status`,
+    [planId, ownerUserId, billingCycle],
+  );
+
+  return result.rows;
+};
+
+const validateOwnerUsageAgainstPlan = async (client, ownerUserId, plan) => {
+  const usageResult = await client.query(
+    `WITH owner_clinics AS (
+       SELECT clinic_id
+       FROM public.clinics
+       WHERE owner_user_id = $1
+       AND status = 'Active'
+     ),
+     direct_patients AS (
+       SELECT p.patient_id
+       FROM public.patients p
+       JOIN owner_clinics oc ON p.clinic_id = oc.clinic_id
+       WHERE p.patient_id IS NOT NULL
+     ),
+     record_patients AS (
+       SELECT DISTINCT dr.patient_id
+       FROM public.dental_records dr
+       JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+       JOIN owner_clinics oc ON d.clinic_id = oc.clinic_id
+       WHERE dr.patient_id IS NOT NULL
+       AND COALESCE(dr.status, 'Active') = 'Active'
+     ),
+     all_patients AS (
+       SELECT patient_id FROM direct_patients
+       UNION
+       SELECT patient_id FROM record_patients
+     )
+     SELECT
+       (SELECT COUNT(*)::int FROM owner_clinics) AS current_clinics,
+
+       (SELECT COUNT(*)::int 
+        FROM public.dentists d
+        JOIN owner_clinics oc ON d.clinic_id = oc.clinic_id) AS current_dentists,
+
+       (SELECT COUNT(*)::int 
+        FROM public.assistants a
+        JOIN owner_clinics oc ON a.clinic_id = oc.clinic_id) AS current_assistants,
+
+       (SELECT COUNT(*)::int
+        FROM all_patients) AS current_patients,
+
+       (SELECT COUNT(*)::int
+        FROM public.dental_records dr
+        JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+        JOIN owner_clinics oc ON d.clinic_id = oc.clinic_id
+        WHERE COALESCE(dr.status, 'Active') = 'Active') AS current_records,
+
+       (SELECT COUNT(*)::int
+        FROM public.xray_images x
+        JOIN public.dental_records dr ON x.record_id = dr.record_id
+        JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+        JOIN owner_clinics oc ON d.clinic_id = oc.clinic_id) AS current_xrays,
+
+       (SELECT COALESCE(SUM(COALESCE(x.file_size_bytes, 0)), 0)::bigint
+        FROM public.xray_images x
+        JOIN public.dental_records dr ON x.record_id = dr.record_id
+        JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+        JOIN owner_clinics oc ON d.clinic_id = oc.clinic_id) AS current_storage_bytes`,
+    [ownerUserId],
+  );
+
+  const usage = usageResult.rows[0] || {};
   const violations = [];
 
+  const currentClinics = Number(usage.current_clinics || 0);
   const currentDentists = Number(usage.current_dentists || 0);
   const currentAssistants = Number(usage.current_assistants || 0);
   const currentPatients = Number(usage.current_patients || 0);
   const currentRecords = Number(usage.current_records || 0);
   const currentXrays = Number(usage.current_xrays || 0);
   const currentStorageBytes = Number(usage.current_storage_bytes || 0);
+
+  const maxClinics =
+    plan.max_clinics === null || plan.max_clinics === undefined
+      ? null
+      : Number(plan.max_clinics);
 
   const maxDentists =
     plan.max_dentists === null || plan.max_dentists === undefined
@@ -115,6 +179,10 @@ const validateClinicUsageAgainstPlan = async (client, clinicId, plan) => {
   const storageLimitBytes =
     storageLimitMb && storageLimitMb > 0 ? storageLimitMb * 1024 * 1024 : 0;
 
+  if (maxClinics !== null && currentClinics > maxClinics) {
+    violations.push(`Clinic locations: ${currentClinics}/${maxClinics}`);
+  }
+
   if (maxDentists !== null && currentDentists > maxDentists) {
     violations.push(`Dentists: ${currentDentists}/${maxDentists}`);
   }
@@ -143,6 +211,16 @@ const validateClinicUsageAgainstPlan = async (client, clinicId, plan) => {
   return {
     allowed: violations.length === 0,
     violations,
+    usage: {
+      clinics: currentClinics,
+      dentists: currentDentists,
+      assistants: currentAssistants,
+      patients: currentPatients,
+      records: currentRecords,
+      xrays: currentXrays,
+      storage_bytes: currentStorageBytes,
+      storage_used_mb: Number((currentStorageBytes / 1024 / 1024).toFixed(2)),
+    },
   };
 };
 
@@ -205,13 +283,14 @@ router.post(
     try {
       await client.query("BEGIN");
 
-      const clinic = await getOwnedClinic(client, req.user.user_id);
+      const clinic = await getOwnerSubscriptionSource(client, req.user.user_id);
 
       if (!clinic) {
         await client.query("ROLLBACK");
 
         return res.status(404).json({
-          error: "No active clinic is linked to this clinic owner account.",
+          error:
+            "No active clinic location is linked to this clinic owner account.",
         });
       }
 
@@ -252,7 +331,8 @@ router.post(
         await client.query("ROLLBACK");
 
         return res.status(400).json({
-          error: "This clinic is already subscribed to the selected plan.",
+          error:
+            "This Clinic Owner account is already subscribed to the selected plan.",
         });
       }
 
@@ -264,9 +344,9 @@ router.post(
         });
       }
 
-      const usageValidation = await validateClinicUsageAgainstPlan(
+      const usageValidation = await validateOwnerUsageAgainstPlan(
         client,
-        clinic.clinic_id,
+        req.user.user_id,
         plan,
       );
 
@@ -275,7 +355,7 @@ router.post(
 
         return res.status(400).json({
           error:
-            "This clinic's current usage exceeds the selected plan limits. Please remove/archive data or choose a higher plan.",
+            "The combined usage across all clinic locations exceeds the selected plan limits. Please remove/archive data or choose a higher plan.",
           violations: usageValidation.violations,
         });
       }
@@ -291,7 +371,7 @@ router.post(
             send_email_receipt: true,
             show_description: true,
             show_line_items: true,
-            description: `${plan.plan_name} subscription for ${clinic.clinic_name}`,
+            description: `${plan.plan_name} shared subscription for Clinic Owner account`,
             success_url: successUrl,
             cancel_url: cancelUrl,
             line_items: [
@@ -302,7 +382,7 @@ router.post(
                 quantity: 1,
                 description: `${plan.plan_name} ${
                   plan.billing_cycle || ""
-                } subscription`,
+                } shared subscription`,
               },
             ],
             payment_method_types: ["card", "gcash", "paymaya"],
@@ -355,12 +435,12 @@ router.post(
         user_id: req.user.user_id,
         action: "CREATE_PAYMONGO_CHECKOUT",
         module: "Payments",
-        description: `Created PayMongo checkout for ${plan.plan_name} plan under ${clinic.clinic_name}.`,
+        description: `Created PayMongo checkout for ${plan.plan_name} shared plan under Clinic Owner account.`,
         ip_address: req.ip,
       });
 
       res.status(200).json({
-        message: "Checkout session created successfully.",
+        message: "Shared subscription checkout session created successfully.",
         checkout_url: checkoutUrl,
         checkout_session_id: checkoutSessionId,
         payment: paymentRecord.rows[0],
@@ -435,11 +515,11 @@ router.put(
         [payment_id],
       );
 
-      await client.query(
-        `UPDATE public.clinics
-         SET ${buildSubscriptionDateUpdateSQL()}
-         WHERE clinic_id = $2`,
-        [payment.plan_id, payment.clinic_id, payment.billing_cycle],
+      const updatedLocations = await syncOwnerSubscriptionToAllLocations(
+        client,
+        payment.owner_user_id,
+        payment.plan_id,
+        payment.billing_cycle,
       );
 
       await client.query("COMMIT");
@@ -448,12 +528,13 @@ router.put(
         user_id: req.user.user_id,
         action: "MANUAL_CONFIRM_PAYMENT",
         module: "Payments",
-        description: `Payment ${payment_id} manually confirmed. Clinic subscription changed to ${payment.plan_name}.`,
+        description: `Payment ${payment_id} manually confirmed. Shared subscription changed to ${payment.plan_name} for all owned clinic locations.`,
         ip_address: req.ip,
       });
 
       res.status(200).json({
-        message: `Payment confirmed. Clinic subscription changed to ${payment.plan_name}.`,
+        message: `Payment confirmed. Shared subscription changed to ${payment.plan_name} for all clinic locations.`,
+        updated_locations: updatedLocations,
       });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -612,13 +693,14 @@ router.put(
     try {
       await client.query("BEGIN");
 
-      const clinic = await getOwnedClinic(client, req.user.user_id);
+      const clinic = await getOwnerSubscriptionSource(client, req.user.user_id);
 
       if (!clinic) {
         await client.query("ROLLBACK");
 
         return res.status(404).json({
-          error: "No active clinic is linked to this clinic owner account.",
+          error:
+            "No active clinic location is linked to this clinic owner account.",
         });
       }
 
@@ -659,7 +741,8 @@ router.put(
         await client.query("ROLLBACK");
 
         return res.status(400).json({
-          error: "This clinic is already subscribed to the selected plan.",
+          error:
+            "This Clinic Owner account is already subscribed to the selected plan.",
         });
       }
 
@@ -672,9 +755,9 @@ router.put(
         });
       }
 
-      const usageValidation = await validateClinicUsageAgainstPlan(
+      const usageValidation = await validateOwnerUsageAgainstPlan(
         client,
-        clinic.clinic_id,
+        req.user.user_id,
         plan,
       );
 
@@ -683,16 +766,16 @@ router.put(
 
         return res.status(400).json({
           error:
-            "This clinic's current usage exceeds the selected plan limits. Please remove/archive data or choose a higher plan.",
+            "The combined usage across all clinic locations exceeds the selected plan limits. Please remove/archive data or choose a higher plan.",
           violations: usageValidation.violations,
         });
       }
 
-      await client.query(
-        `UPDATE public.clinics
-         SET ${buildSubscriptionDateUpdateSQL()}
-         WHERE clinic_id = $2`,
-        [plan.plan_id, clinic.clinic_id, plan.billing_cycle],
+      const updatedLocations = await syncOwnerSubscriptionToAllLocations(
+        client,
+        req.user.user_id,
+        plan.plan_id,
+        plan.billing_cycle,
       );
 
       await client.query("COMMIT");
@@ -701,13 +784,14 @@ router.put(
         user_id: req.user.user_id,
         action: "CHANGE_FREE_SUBSCRIPTION_PLAN",
         module: "Subscriptions",
-        description: `Clinic subscription changed to ${plan.plan_name} without checkout.`,
+        description: `Shared subscription changed to ${plan.plan_name} without checkout for all owned clinic locations.`,
         ip_address: req.ip,
       });
 
       res.status(200).json({
-        message: `Clinic subscription changed to ${plan.plan_name}.`,
+        message: `Shared subscription changed to ${plan.plan_name} for all clinic locations.`,
         plan,
+        updated_locations: updatedLocations,
       });
     } catch (err) {
       await client.query("ROLLBACK");
@@ -813,11 +897,11 @@ router.post("/webhook", async (req, res) => {
         [payment.payment_id],
       );
 
-      await client.query(
-        `UPDATE public.clinics
-         SET ${buildSubscriptionDateUpdateSQL()}
-         WHERE clinic_id = $2`,
-        [payment.plan_id, payment.clinic_id, payment.billing_cycle],
+      const updatedLocations = await syncOwnerSubscriptionToAllLocations(
+        client,
+        payment.owner_user_id,
+        payment.plan_id,
+        payment.billing_cycle,
       );
 
       await client.query("COMMIT");
@@ -826,13 +910,14 @@ router.post("/webhook", async (req, res) => {
         user_id: payment.owner_user_id,
         action: "PAYMONGO_WEBHOOK_PAYMENT_PAID",
         module: "Payments",
-        description: `PayMongo webhook confirmed payment ${payment.payment_id}. Clinic subscription changed to ${payment.plan_name}.`,
+        description: `PayMongo webhook confirmed payment ${payment.payment_id}. Shared subscription changed to ${payment.plan_name} for all owned clinic locations.`,
         ip_address: req.ip,
       });
 
       return res.status(200).json({
         received: true,
-        message: `Payment confirmed. Clinic subscription changed to ${payment.plan_name}.`,
+        message: `Payment confirmed. Shared subscription changed to ${payment.plan_name} for all clinic locations.`,
+        updated_locations: updatedLocations,
       });
     } catch (err) {
       await client.query("ROLLBACK");
