@@ -5556,6 +5556,26 @@ body textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder {
   color: #94a3b8;
 }
@@ -5860,6 +5880,50 @@ body .appointment-filters select:focus {
 }
 
 /* Placeholder text */
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::-webkit-input-placeholder,
 body textarea::-webkit-input-placeholder,
 body .modal-form input::-webkit-input-placeholder,
@@ -18139,6 +18203,26 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::-webkit-input-placeholder, .patient-xray-control-panel input::-webkit-input-placeholder {
   color: #94a3b8 !important;
 }
@@ -22125,6 +22209,26 @@ body {
   color: #718096 !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: #718096 !important;
 }
@@ -23951,6 +24055,42 @@ body {
   ) !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: color-mix(
     in srgb,
@@ -24344,6 +24484,42 @@ body {
   border-color: var(--clinic-primary) !important;
   box-shadow: 0 0 0 4px
     color-mix(in srgb, var(--clinic-primary) 16%, transparent) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
@@ -29541,4 +29717,851 @@ body {
   color: var(--clinic-muted-text, #94a3b8);
   font-size: 0.76rem;
   overflow-wrap: anywhere;
+}
+
+/* =========================================================
+   PHASE 8D — WALK-IN REGISTRATION PAGE CONSISTENCY
+   Reuses the established Clinic Owner Staff page components.
+   ========================================================= */
+
+.walk-in-registration-page {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.walk-in-registration-notice {
+  margin-top: 18px;
+}
+
+.walk-in-registration-form {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.walk-in-registration-page .walk-in-form-section {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.walk-in-registration-page .walk-in-form-section > .appointments-header {
+  margin-bottom: 0;
+}
+
+.walk-in-registration-page .walk-in-form-card {
+  margin-top: 18px;
+}
+
+.walk-in-registration-page .walk-in-location-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(260px, 0.8fr);
+}
+
+.walk-in-registration-page .form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.walk-in-registration-page .form-group {
+  min-width: 0;
+}
+
+.walk-in-registration-page input,
+.walk-in-registration-page select,
+.walk-in-registration-page textarea {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.walk-in-field-warning {
+  color: #fca5a5;
+}
+
+.walk-in-consent-control {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  line-height: 1.55;
+  cursor: pointer;
+}
+
+.walk-in-consent-control input {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  accent-color: var(--clinic-primary);
+}
+
+.walk-in-form-actions,
+.walk-in-credential-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 24px;
+}
+
+.walk-in-credentials-modal {
+  width: min(560px, calc(100vw - 32px));
+  max-width: 560px;
+  overflow-x: hidden;
+}
+
+.walk-in-credential-warning {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 10px;
+  color: #fcd34d;
+  background: rgba(245, 158, 11, 0.1);
+  line-height: 1.5;
+}
+
+.walk-in-credential-card {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.walk-in-credential-card > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 10px;
+}
+
+.walk-in-credential-card span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.walk-in-credential-card strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.walk-in-temporary-password {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 1.15rem;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 900px) {
+  .walk-in-registration-page .walk-in-location-grid,
+  .walk-in-registration-page .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .walk-in-form-actions,
+  .walk-in-credential-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .walk-in-form-actions button,
+  .walk-in-credential-actions button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   PHASE 8F — WALK-IN CREDENTIAL MODAL FIX
+   ========================================================= */
+
+.dashboard-layout .modal-overlay:has(.walk-in-credentials-modal) {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(2, 6, 23, 0.76);
+  -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
+}
+
+.dashboard-layout .walk-in-credentials-modal {
+  display: block;
+  width: min(560px, 100%);
+  max-width: 560px;
+  max-height: calc(100vh - 40px);
+  margin: auto;
+  padding: 26px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--clinic-heading-text);
+  background: var(--clinic-surface-elevated);
+  border: 1px solid var(--clinic-primary);
+  border-radius: 20px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+  box-sizing: border-box;
+}
+
+.dashboard-layout .walk-in-credentials-modal .modal-header {
+  display: block;
+  margin: 0 0 18px;
+  padding: 0 0 16px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--clinic-primary) 42%, transparent);
+}
+
+.dashboard-layout .walk-in-credentials-modal .modal-header h3 {
+  margin: 0;
+  color: var(--clinic-heading-text);
+  font-size: 1.45rem;
+  line-height: 1.2;
+}
+
+.dashboard-layout .walk-in-credentials-modal .modal-header p {
+  margin: 8px 0 0;
+  color: var(--clinic-muted-text);
+  line-height: 1.5;
+}
+
+.dashboard-layout .walk-in-credentials-modal .success-message {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  color: #bbf7d0;
+  background: rgba(20, 83, 45, 0.35);
+  border: 1px solid #16a34a;
+  border-radius: 10px;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .walk-in-credentials-modal .walk-in-credential-warning {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  color: #fde68a;
+  background: rgba(120, 53, 15, 0.32);
+  border: 1px solid #d97706;
+  border-radius: 10px;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .walk-in-credentials-modal .walk-in-credential-card {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin: 0 0 20px;
+}
+
+.dashboard-layout .walk-in-credentials-modal .walk-in-credential-card > div {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 14px;
+  color: var(--clinic-heading-text);
+  background: var(--clinic-surface);
+  border: 1px solid color-mix(in srgb, var(--clinic-primary) 72%, transparent);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .walk-in-credentials-modal .walk-in-credential-card span {
+  color: var(--clinic-muted-text);
+}
+
+.dashboard-layout .walk-in-credentials-modal .walk-in-credential-card strong {
+  color: var(--clinic-heading-text);
+}
+
+.dashboard-layout .walk-in-credentials-modal .walk-in-credential-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+}
+
+.dashboard-layout
+  .walk-in-credentials-modal
+  .walk-in-credential-actions
+  button {
+  min-height: 44px;
+}
+
+@media (max-width: 620px) {
+  .dashboard-layout .modal-overlay:has(.walk-in-credentials-modal) {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .dashboard-layout .walk-in-credentials-modal {
+    max-height: calc(100vh - 24px);
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .dashboard-layout .walk-in-credentials-modal .walk-in-credential-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+  }
+
+  .dashboard-layout
+    .walk-in-credentials-modal
+    .walk-in-credential-actions
+    button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   PHASE 9 — CLINIC DOCUMENT EXPIRATION NOTIFICATIONS
+   ========================================================= */
+
+.clinic-verification-upload input[type="date"] {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 8px;
+  box-sizing: border-box;
+}
+
+.document-expiration-section {
+  margin-top: 22px;
+}
+
+.document-expiration-list {
+  display: grid;
+  gap: 12px;
+}
+
+.document-expiration-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 12px;
+  background: var(--clinic-surface-elevated);
+  box-sizing: border-box;
+}
+
+.document-expiration-item > div {
+  min-width: 0;
+}
+
+.document-expiration-item p {
+  margin: 5px 0 0;
+  color: var(--clinic-muted-text);
+}
+
+.document-expiration-date {
+  display: grid;
+  gap: 5px;
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.document-expiration-date span {
+  color: var(--clinic-muted-text);
+}
+
+.document-expiration-critical {
+  border-color: #dc2626;
+  background: rgba(127, 29, 29, 0.22);
+}
+
+.document-expiration-critical .document-expiration-date strong {
+  color: #fca5a5;
+}
+
+.document-expiration-warning {
+  border-color: #d97706;
+  background: rgba(120, 53, 15, 0.2);
+}
+
+.document-expiration-warning .document-expiration-date strong {
+  color: #fcd34d;
+}
+
+.document-expiration-notice {
+  border-color: var(--clinic-primary);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary) 9%,
+    var(--clinic-surface-elevated)
+  );
+}
+
+.document-expiration-notice .document-expiration-date strong {
+  color: var(--clinic-heading-text);
+}
+
+@media (max-width: 700px) {
+  .document-expiration-item {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .document-expiration-date {
+    width: 100%;
+    text-align: left;
+  }
+}
+
+/* =========================================================
+   PHASE 10 — VERIFICATION DOCUMENT RENEWALS
+   ========================================================= */
+
+.document-renewal-button {
+  width: auto;
+  margin-top: 8px;
+}
+
+.document-renewal-rejection {
+  display: block;
+  max-width: 360px;
+  margin-top: 6px;
+  color: #fecaca;
+  line-height: 1.4;
+}
+
+.document-renewal-modal,
+.admin-document-renewal-review-modal {
+  width: min(620px, calc(100vw - 32px));
+  max-width: 620px;
+  max-height: calc(100vh - 32px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.admin-document-renewals-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-renewal-filter-card {
+  width: min(320px, 100%);
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid var(--dg-border);
+  border-radius: 12px;
+  background: var(--dg-surface-soft);
+  box-sizing: border-box;
+}
+
+.admin-renewal-list {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-renewal-card {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--dg-border);
+  border-radius: 14px;
+  background: var(--dg-surface-soft);
+  box-sizing: border-box;
+}
+
+.admin-renewal-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.admin-renewal-card-header h3,
+.admin-renewal-card-header p {
+  margin: 0;
+}
+
+.admin-renewal-card-header p {
+  margin-top: 6px;
+  color: var(--dg-muted);
+}
+
+.admin-renewal-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-renewal-summary-grid > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--dg-border);
+  border-radius: 10px;
+  background: var(--dg-surface);
+}
+
+.admin-renewal-summary-grid span {
+  color: var(--dg-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.admin-renewal-summary-grid strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-renewal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+@media (max-width: 1000px) {
+  .admin-renewal-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .admin-renewal-card-header,
+  .admin-renewal-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-renewal-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-renewal-actions button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   PHASE 10B — CLINIC OWNER DOCUMENT RENEWAL MODAL FIX
+   ========================================================= */
+
+.dashboard-layout .modal-overlay:has(.document-renewal-modal) {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+  background: rgba(2, 6, 23, 0.76);
+  -webkit-backdrop-filter: blur(4px);
+          backdrop-filter: blur(4px);
+}
+
+.dashboard-layout .document-renewal-modal {
+  display: block;
+  width: min(640px, 100%);
+  max-width: 640px;
+  max-height: calc(100vh - 40px);
+  margin: auto;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  color: var(--clinic-heading-text);
+  background: var(--clinic-surface-elevated);
+  border: 1px solid var(--clinic-primary);
+  border-radius: 20px;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42);
+  box-sizing: border-box;
+}
+
+.dashboard-layout .document-renewal-modal .modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0;
+  padding: 26px 28px 20px;
+  border-bottom: 1px solid
+    color-mix(in srgb, var(--clinic-primary) 40%, transparent);
+}
+
+.dashboard-layout .document-renewal-modal .modal-header > div {
+  min-width: 0;
+}
+
+.dashboard-layout .document-renewal-modal .modal-header h3 {
+  margin: 0;
+  color: var(--clinic-heading-text);
+  font-size: 1.45rem;
+  line-height: 1.25;
+}
+
+.dashboard-layout .document-renewal-modal .modal-header p {
+  margin: 8px 0 0;
+  color: var(--clinic-muted-text);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-layout .document-renewal-modal .modal-close-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  color: var(--clinic-heading-text);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary) 10%,
+    var(--clinic-surface)
+  );
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dashboard-layout
+  .document-renewal-modal
+  .modal-close-button:hover:not(:disabled) {
+  border-color: var(--clinic-primary);
+}
+
+.dashboard-layout .document-renewal-modal form {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
+  padding: 22px 28px 0;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .document-renewal-modal .info-message,
+.dashboard-layout .document-renewal-modal .error-message {
+  width: 100%;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .document-renewal-modal .form-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.dashboard-layout .document-renewal-modal .form-group label {
+  display: block;
+  margin: 0;
+  color: var(--clinic-heading-text);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.dashboard-layout .document-renewal-modal .form-group small {
+  display: block;
+  margin: 0;
+  color: var(--clinic-muted-text);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.dashboard-layout .document-renewal-modal input,
+.dashboard-layout .document-renewal-modal textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  color: var(--clinic-input-text);
+  background: var(--clinic-input-background);
+  border: 1px solid var(--clinic-primary);
+  border-radius: 12px;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .document-renewal-modal input[type="date"] {
+  min-height: 48px;
+  padding: 0 14px;
+}
+
+.dashboard-layout .document-renewal-modal textarea {
+  min-height: 112px;
+  padding: 12px 14px;
+  resize: vertical;
+}
+
+.dashboard-layout .document-renewal-modal input[type="file"] {
+  min-height: 50px;
+  padding: 7px;
+  cursor: pointer;
+}
+
+.dashboard-layout
+  .document-renewal-modal
+  input[type="file"]::file-selector-button {
+  min-height: 34px;
+  margin-right: 12px;
+  padding: 7px 12px;
+  color: var(--clinic-heading-text);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary) 13%,
+    var(--clinic-surface)
+  );
+  border: 1px solid var(--clinic-primary);
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dashboard-layout .document-renewal-modal input:focus,
+.dashboard-layout .document-renewal-modal textarea:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary) 22%, transparent);
+}
+
+.dashboard-layout .document-renewal-modal .modal-actions {
+  position: -webkit-sticky;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  width: calc(100% + 56px);
+  margin: 2px -28px 0;
+  padding: 18px 28px;
+  background: var(--clinic-surface-elevated);
+  border-top: 1px solid
+    color-mix(in srgb, var(--clinic-primary) 36%, transparent);
+  box-sizing: border-box;
+}
+
+.dashboard-layout .document-renewal-modal .modal-actions button {
+  min-height: 44px;
+  width: auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 680px) {
+  .dashboard-layout .modal-overlay:has(.document-renewal-modal) {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .dashboard-layout .document-renewal-modal {
+    max-height: calc(100vh - 24px);
+    border-radius: 16px;
+  }
+
+  .dashboard-layout .document-renewal-modal .modal-header {
+    padding: 20px 20px 16px;
+  }
+
+  .dashboard-layout .document-renewal-modal form {
+    padding: 18px 20px 0;
+  }
+
+  .dashboard-layout .document-renewal-modal .modal-actions {
+    align-items: stretch;
+    flex-direction: column-reverse;
+    width: calc(100% + 40px);
+    margin-left: -20px;
+    margin-right: -20px;
+    padding: 16px 20px;
+  }
+
+  .dashboard-layout .document-renewal-modal .modal-actions button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   PHASE 10G — ADMIN DOCUMENT RENEWAL STATUS FILTER FIX
+   ========================================================= */
+
+.admin-document-renewals-page .admin-renewal-filter-card {
+  display: block;
+  width: min(360px, 100%);
+  margin: 22px 0;
+  padding: 18px;
+  border: 1px solid var(--dg-border);
+  border-radius: 14px;
+  background: var(--dg-surface-soft);
+  box-sizing: border-box;
+}
+
+.admin-document-renewals-page .admin-renewal-filter-card .form-group {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  width: 100%;
+  margin: 0;
+}
+
+.admin-document-renewals-page .admin-renewal-filter-card .form-group label {
+  display: block;
+  margin: 0;
+  color: var(--dg-text);
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.admin-document-renewals-page .admin-renewal-filter-card .form-group select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 46px;
+  margin: 0;
+  padding: 0 42px 0 14px;
+  color: var(--dg-text);
+  background-color: var(--dg-surface);
+  border: 1px solid var(--dg-border);
+  border-radius: 10px;
+  font: inherit;
+  line-height: 1;
+  box-sizing: border-box;
+  cursor: pointer;
+  -webkit-appearance: auto;
+     -moz-appearance: auto;
+          appearance: auto;
+}
+
+.admin-document-renewals-page
+  .admin-renewal-filter-card
+  .form-group
+  select:focus {
+  outline: none;
+  border-color: var(--clinic-primary, #22d3ee);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 22%, transparent);
+}
+
+@media (max-width: 560px) {
+  .admin-document-renewals-page .admin-renewal-filter-card {
+    width: 100%;
+  }
 }

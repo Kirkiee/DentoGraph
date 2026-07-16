@@ -38,6 +38,8 @@ function ClinicRegister() {
     services: [],
     opening_hours: "",
     operating_hours_schedule: createDefaultClinicOperatingHours(),
+    business_permit_expiration_date: "",
+    owner_government_id_expiration_date: "",
   });
 
   const [verificationFiles, setVerificationFiles] = useState({
@@ -379,6 +381,28 @@ function ClinicRegister() {
       return;
     }
 
+    if (!formData.business_permit_expiration_date) {
+      setError("Business permit expiration date is required.");
+      return;
+    }
+
+    if (!formData.owner_government_id_expiration_date) {
+      setError("Clinic Owner government ID expiration date is required.");
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    if (formData.business_permit_expiration_date < today) {
+      setError("The selected business permit is already expired.");
+      return;
+    }
+
+    if (formData.owner_government_id_expiration_date < today) {
+      setError("The selected Clinic Owner government ID is already expired.");
+      return;
+    }
+
     if (!agree) {
       setError("Please agree to the Terms of Service and Privacy Policy.");
       return;
@@ -421,6 +445,14 @@ function ClinicRegister() {
       registrationPayload.append(
         "owner_government_id",
         verificationFiles.owner_government_id,
+      );
+      registrationPayload.append(
+        "business_permit_expiration_date",
+        formData.business_permit_expiration_date,
+      );
+      registrationPayload.append(
+        "owner_government_id_expiration_date",
+        formData.owner_government_id_expiration_date,
       );
 
       if (verificationFiles.clinic_license) {
@@ -770,15 +802,20 @@ function ClinicRegister() {
               </div>
 
               <div className="clinic-verification-grid">
-                <div className="clinic-verification-upload">
-                  <label htmlFor="business_registration">
-                    Business Registration{" "}
-                    <span className="auth-required">*</span>
-                  </label>
-                  <small>
-                    SEC, DTI, CDA, or another applicable business registration
-                    document.
-                  </small>
+                <div className="clinic-verification-upload clinic-verification-upload--no-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">01</span>
+                    <div>
+                      <label htmlFor="business_registration">
+                        Business Registration{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <small>
+                        SEC, DTI, CDA, or another applicable business
+                        registration document.
+                      </small>
+                    </div>
+                  </div>
                   <input
                     ref={businessRegistrationRef}
                     id="business_registration"
@@ -794,6 +831,9 @@ function ClinicRegister() {
                     disabled={loading}
                     required
                   />
+                  <div className="clinic-verification-expiry-not-required">
+                    No expiration date required
+                  </div>
                   {verificationFiles.business_registration && (
                     <div className="clinic-verification-file-selected">
                       <span>
@@ -808,15 +848,20 @@ function ClinicRegister() {
                   )}
                 </div>
 
-                <div className="clinic-verification-upload">
-                  <label htmlFor="business_permit">
-                    Current Business / Mayor's Permit{" "}
-                    <span className="auth-required">*</span>
-                  </label>
-                  <small>
-                    Upload the current permit showing that the clinic is allowed
-                    to operate at the registered address.
-                  </small>
+                <div className="clinic-verification-upload clinic-verification-upload--with-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">02</span>
+                    <div>
+                      <label htmlFor="business_permit">
+                        Current Business / Mayor's Permit{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <small>
+                        Upload the current permit showing that the clinic is
+                        allowed to operate at the registered address.
+                      </small>
+                    </div>
+                  </div>
                   <input
                     ref={businessPermitRef}
                     id="business_permit"
@@ -837,17 +882,43 @@ function ClinicRegister() {
                       </small>
                     </div>
                   )}
+
+                  <div className="clinic-verification-expiry-block">
+                    <label htmlFor="business_permit_expiration_date">
+                      Permit Expiration Date{" "}
+                      <span className="auth-required">*</span>
+                    </label>
+                    <input
+                      id="business_permit_expiration_date"
+                      name="business_permit_expiration_date"
+                      type="date"
+                      value={formData.business_permit_expiration_date}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={handleChange}
+                      disabled={loading}
+                      required
+                    />
+                    <small>
+                      DentoGraph will notify the Clinic Owner beginning 90 days
+                      before this permit expires.
+                    </small>
+                  </div>
                 </div>
 
-                <div className="clinic-verification-upload">
-                  <label htmlFor="owner_government_id">
-                    Clinic Owner Government-Issued ID{" "}
-                    <span className="auth-required">*</span>
-                  </label>
-                  <small>
-                    Upload a clear copy of a valid government-issued ID
-                    belonging to the registering Clinic Owner.
-                  </small>
+                <div className="clinic-verification-upload clinic-verification-upload--with-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">03</span>
+                    <div>
+                      <label htmlFor="owner_government_id">
+                        Clinic Owner Government-Issued ID{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <small>
+                        Upload a clear copy of a valid government-issued ID
+                        belonging to the registering Clinic Owner.
+                      </small>
+                    </div>
+                  </div>
                   <input
                     ref={ownerGovernmentIdRef}
                     id="owner_government_id"
@@ -870,19 +941,45 @@ function ClinicRegister() {
                       </small>
                     </div>
                   )}
+
+                  <div className="clinic-verification-expiry-block">
+                    <label htmlFor="owner_government_id_expiration_date">
+                      Government ID Expiration Date{" "}
+                      <span className="auth-required">*</span>
+                    </label>
+                    <input
+                      id="owner_government_id_expiration_date"
+                      name="owner_government_id_expiration_date"
+                      type="date"
+                      value={formData.owner_government_id_expiration_date}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={handleChange}
+                      disabled={loading}
+                      required
+                    />
+                    <small>
+                      DentoGraph will notify the Clinic Owner beginning 90 days
+                      before this ID expires.
+                    </small>
+                  </div>
                 </div>
 
-                <div className="clinic-verification-upload">
-                  <label htmlFor="clinic_license">
-                    Clinic License / Accreditation
-                    <span className="clinic-verification-optional">
-                      Optional
-                    </span>
-                  </label>
-                  <small>
-                    Upload an operating license, accreditation, or another
-                    supporting clinic document when available.
-                  </small>
+                <div className="clinic-verification-upload clinic-verification-upload--no-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">04</span>
+                    <div>
+                      <label htmlFor="clinic_license">
+                        Clinic License / Accreditation
+                        <span className="clinic-verification-optional">
+                          Optional
+                        </span>
+                      </label>
+                      <small>
+                        Upload an operating license, accreditation, or another
+                        supporting clinic document when available.
+                      </small>
+                    </div>
+                  </div>
                   <input
                     ref={clinicLicenseRef}
                     id="clinic_license"
@@ -894,6 +991,9 @@ function ClinicRegister() {
                     }
                     disabled={loading}
                   />
+                  <div className="clinic-verification-expiry-not-required">
+                    Expiration date not required in registration
+                  </div>
                   {verificationFiles.clinic_license && (
                     <div className="clinic-verification-file-selected">
                       <span>{verificationFiles.clinic_license.name}</span>

@@ -24,6 +24,7 @@ const reportRoutes = require("./routes/reportRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
 const paymongoRoutes = require("./routes/paymongoRoutes");
 const arSimulationRoutes = require("./routes/arSimulationRoutes");
+const walkInPatientRoutes = require("./routes/walkInPatientRoutes");
 
 const app = express();
 
@@ -313,6 +314,7 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/payments", paymongoRoutes);
 app.use("/api/ar-simulations", arSimulationRoutes);
+app.use("/api/walk-in-patients", walkInPatientRoutes);
 
 // ===============================
 // 404 HANDLER

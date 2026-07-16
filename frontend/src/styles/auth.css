@@ -1968,7 +1968,7 @@ body.dark-mode .password-visibility-button {
 /* Checkbox outline follows the clinic primary color. */
 .clinic-hours-open-toggle input[type="checkbox"] {
   -moz-appearance: none;
-       appearance: none;
+  appearance: none;
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
@@ -2044,7 +2044,7 @@ body.dark-mode .password-visibility-button {
   mask-position: center;
   mask-size: contain;
   -webkit-filter: none;
-          filter: none;
+  filter: none;
 }
 
 /* Keep disabled controls readable while preserving the clinic color. */
@@ -2052,4 +2052,187 @@ body.dark-mode .password-visibility-button {
 .clinic-hours-time-fields input[type="time"]:disabled {
   opacity: 0.58;
   cursor: not-allowed;
+}
+
+/* =========================================================
+   PHASE 10I — CLINIC VERIFICATION DOCUMENT CARD REFINEMENT
+   Append at the bottom of frontend/src/styles/auth.css
+   ========================================================= */
+
+.clinic-verification-grid {
+  align-items: stretch;
+  gap: 18px;
+}
+
+.clinic-verification-upload {
+  position: relative;
+  display: flex;
+  min-height: 292px;
+  padding: 18px;
+  gap: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.72),
+    rgba(2, 6, 23, 0.52)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.clinic-verification-upload:hover {
+  border-color: rgba(45, 212, 191, 0.5);
+}
+
+.clinic-verification-card-header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+}
+
+.clinic-verification-card-header > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.clinic-verification-card-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(45, 212, 191, 0.42);
+  border-radius: 10px;
+  color: #5eead4;
+  background: rgba(13, 148, 136, 0.1);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.clinic-verification-card-header label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.clinic-verification-card-header small {
+  min-height: 0;
+  margin: 0;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.clinic-verification-upload input[type="file"] {
+  min-height: 52px;
+  padding: 9px;
+  border: 1px dashed rgba(45, 212, 191, 0.42);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.38);
+}
+
+.clinic-verification-upload input[type="file"]::file-selector-button {
+  min-height: 34px;
+  margin-right: 10px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+.clinic-verification-expiry-block {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding: 13px;
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  border-radius: 12px;
+  background: rgba(13, 148, 136, 0.065);
+}
+
+.clinic-verification-expiry-block label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.clinic-verification-expiry-block input[type="date"] {
+  width: 100%;
+  min-height: 43px;
+  padding: 9px 11px;
+  box-sizing: border-box;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 10px;
+  color: var(--auth-text, #f8fafc);
+  background: rgba(2, 6, 23, 0.72);
+  color-scheme: dark;
+}
+
+.clinic-verification-expiry-block small {
+  min-height: 0;
+  margin: 0;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.clinic-verification-expiry-not-required {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  color: #cbd5e1;
+  background: rgba(100, 116, 139, 0.1);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.clinic-verification-upload--no-expiry .clinic-verification-file-selected,
+.clinic-verification-upload--with-expiry .clinic-verification-file-selected {
+  margin-top: 0;
+}
+
+.clinic-verification-optional {
+  margin-left: 2px;
+}
+
+@media (max-width: 760px) {
+  .clinic-verification-upload {
+    min-height: 0;
+  }
+
+  .clinic-verification-expiry-not-required,
+  .clinic-verification-expiry-block {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .clinic-verification-upload {
+    padding: 15px;
+  }
+
+  .clinic-verification-card-header {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .clinic-verification-card-number {
+    width: 30px;
+    height: 30px;
+  }
 }

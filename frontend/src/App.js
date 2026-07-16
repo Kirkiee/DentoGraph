@@ -25,6 +25,7 @@ import ClinicOwnerSubscription from "./pages/ClinicOwnerSubscription";
 import ClinicOwnerPaymentSuccess from "./pages/ClinicOwnerPaymentSuccess";
 import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
 import ClinicOwnerPaymentCancel from "./pages/ClinicOwnerPaymentCancel";
+import WalkInPatientRegistration from "./pages/WalkInPatientRegistration";
 
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminProfile from "./pages/AdminProfile";
@@ -35,6 +36,7 @@ import AssistantDashboard from "./pages/AssistantDashboard";
 import AdminUsers from "./pages/AdminUsers";
 import AdminStaffCredentials from "./pages/AdminStaffCredentials";
 import AdminClinics from "./pages/AdminClinics";
+import AdminDocumentRenewals from "./pages/AdminDocumentRenewals";
 import AdminSubscriptions from "./pages/AdminSubscriptions";
 import AdminReports from "./pages/AdminReports";
 import AdminDentalRecords from "./pages/AdminDentalRecords";
@@ -162,6 +164,15 @@ function App() {
         />
 
         <Route
+          path="/admin/document-renewals"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminDocumentRenewals />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/admin/clinic-locations"
           element={<Navigate to="/admin/clinics" />}
         />
@@ -272,6 +283,15 @@ function App() {
         />
 
         <Route
+          path="/clinic-owner/walk-in-registration"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <WalkInPatientRegistration />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/clinic-owner/profile"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
@@ -358,6 +378,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Dentist"]}>
               <DentistAppointments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/walk-in-registration"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <WalkInPatientRegistration />
             </ProtectedRoute>
           }
         />
@@ -529,6 +558,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantAppointments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/walk-in-registration"
+          element={
+            <ProtectedRoute allowedRoles={assistantRoles}>
+              <WalkInPatientRegistration />
             </ProtectedRoute>
           }
         />

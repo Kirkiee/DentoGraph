@@ -14,6 +14,18 @@ function ClinicOwnerDashboard() {
   const [aggregateClinic, setAggregateClinic] = useState(null);
   const [aggregateUsage, setAggregateUsage] = useState(null);
   const [reportSummary, setReportSummary] = useState(null);
+  const [documentExpirationNotifications, setDocumentExpirationNotifications] =
+    useState([]);
+  const [documentExpirationSummary, setDocumentExpirationSummary] =
+    useState(null);
+  const [showRenewalModal, setShowRenewalModal] = useState(false);
+  const [selectedRenewalDocument, setSelectedRenewalDocument] = useState(null);
+  const [renewalFile, setRenewalFile] = useState(null);
+  const [renewalExpirationDate, setRenewalExpirationDate] = useState("");
+  const [renewalRemarks, setRenewalRemarks] = useState("");
+  const [submittingRenewal, setSubmittingRenewal] = useState(false);
+  const [renewalMessage, setRenewalMessage] = useState("");
+  const [renewalError, setRenewalError] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -67,12 +79,17 @@ function ClinicOwnerDashboard() {
 
       setError("");
 
-      const [locationsResponse, usageResponse, reportResponse] =
-        await Promise.all([
-          API.get("/api/clinics/owner/locations"),
-          API.get("/api/clinics/owner/usage"),
-          API.get("/api/reports/clinic-owner-summary"),
-        ]);
+      const [
+        locationsResponse,
+        usageResponse,
+        reportResponse,
+        documentExpirationResponse,
+      ] = await Promise.all([
+        API.get("/api/clinics/owner/locations"),
+        API.get("/api/clinics/owner/usage"),
+        API.get("/api/reports/clinic-owner-summary"),
+        API.get("/api/clinics/owner/document-expirations"),
+      ]);
 
       const locations =
         locationsResponse.data.locations ||
@@ -84,6 +101,14 @@ function ClinicOwnerDashboard() {
       setAggregateClinic(usageResponse.data.clinic || null);
       setAggregateUsage(usageResponse.data.usage || null);
       setReportSummary(reportResponse.data || null);
+      setDocumentExpirationNotifications(
+        Array.isArray(documentExpirationResponse.data?.notifications)
+          ? documentExpirationResponse.data.notifications
+          : [],
+      );
+      setDocumentExpirationSummary(
+        documentExpirationResponse.data?.summary || null,
+      );
 
       if (locations.length > 0) {
         setSelectedClinicId((currentClinicId) => {
@@ -110,6 +135,8 @@ function ClinicOwnerDashboard() {
       setSelectedLocationUsage(null);
       setAggregateClinic(null);
       setAggregateUsage(null);
+      setDocumentExpirationNotifications([]);
+      setDocumentExpirationSummary(null);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -195,6 +222,100 @@ function ClinicOwnerDashboard() {
     if (percent >= 80) return "status-badge status-pending";
 
     return "status-badge status-completed";
+  };
+
+  const getDocumentExpirationMessage = (notification) => {
+    const daysRemaining = Number(notification.days_remaining);
+
+    if (notification.expiration_status === "MISSING") {
+      return "Expiration date is missing. Update the verification document.";
+    }
+
+    if (notification.expiration_status === "EXPIRED") {
+      return `Expired ${Math.abs(daysRemaining)} day${
+        Math.abs(daysRemaining) === 1 ? "" : "s"
+      } ago.`;
+    }
+
+    if (daysRemaining === 0) {
+      return "Expires today.";
+    }
+
+    return `Expires in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}.`;
+  };
+
+  const getDocumentExpirationClass = (status) => {
+    if (status === "EXPIRED" || status === "CRITICAL") {
+      return "document-expiration-item document-expiration-critical";
+    }
+
+    if (status === "WARNING") {
+      return "document-expiration-item document-expiration-warning";
+    }
+
+    return "document-expiration-item document-expiration-notice";
+  };
+
+  const openRenewalModal = (notification) => {
+    if (notification.renewal_status === "Pending") return;
+
+    setSelectedRenewalDocument(notification);
+    setRenewalFile(null);
+    setRenewalExpirationDate("");
+    setRenewalRemarks("");
+    setRenewalError("");
+    setRenewalMessage("");
+    setShowRenewalModal(true);
+  };
+
+  const closeRenewalModal = () => {
+    if (submittingRenewal) return;
+    setShowRenewalModal(false);
+    setSelectedRenewalDocument(null);
+    setRenewalFile(null);
+    setRenewalExpirationDate("");
+    setRenewalRemarks("");
+    setRenewalError("");
+  };
+
+  const submitDocumentRenewal = async (event) => {
+    event.preventDefault();
+
+    if (!selectedRenewalDocument || !renewalFile || !renewalExpirationDate) {
+      setRenewalError("Select a replacement document and its expiration date.");
+      return;
+    }
+
+    try {
+      setSubmittingRenewal(true);
+      setRenewalError("");
+      setRenewalMessage("");
+
+      const formData = new FormData();
+      formData.append("clinic_id", selectedRenewalDocument.clinic_id);
+      formData.append("replacement_document", renewalFile);
+      formData.append("proposed_expiration_date", renewalExpirationDate);
+      formData.append("owner_remarks", renewalRemarks.trim());
+
+      const response = await API.post(
+        `/api/clinics/owner/document-renewals/${selectedRenewalDocument.document_type}`,
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } },
+      );
+
+      setRenewalMessage(
+        response.data?.message || "Document renewal submitted.",
+      );
+      setShowRenewalModal(false);
+      setSelectedRenewalDocument(null);
+      await fetchDashboardData(true);
+    } catch (err) {
+      setRenewalError(
+        err.response?.data?.error || "Unable to submit the document renewal.",
+      );
+    } finally {
+      setSubmittingRenewal(false);
+    }
   };
 
   const renderLoadingState = () => {
@@ -375,6 +496,10 @@ function ClinicOwnerDashboard() {
           </div>
         )}
 
+        {renewalMessage && (
+          <div className="success-message">{renewalMessage}</div>
+        )}
+
         {loading ? (
           renderLoadingState()
         ) : clinicLocations.length === 0 ? (
@@ -397,6 +522,80 @@ function ClinicOwnerDashboard() {
               aggregated across all locations because the subscription is shared
               under one Clinic Owner account.
             </div>
+
+            {documentExpirationNotifications.length > 0 && (
+              <section className="patient-dashboard-section document-expiration-section">
+                <div className="appointments-header">
+                  <div>
+                    <h2>Document Expiration Notifications</h2>
+                    <p>
+                      Renew expiring verification documents to keep clinic
+                      information current and support safe clinic operations.
+                    </p>
+                  </div>
+
+                  <span className="status-badge status-pending">
+                    {documentExpirationSummary?.total_notifications ||
+                      documentExpirationNotifications.length}{" "}
+                    Alert
+                    {(documentExpirationSummary?.total_notifications ||
+                      documentExpirationNotifications.length) === 1
+                      ? ""
+                      : "s"}
+                  </span>
+                </div>
+
+                <div className="document-expiration-list">
+                  {documentExpirationNotifications.map((notification) => (
+                    <article
+                      className={getDocumentExpirationClass(
+                        notification.expiration_status,
+                      )}
+                      key={`${notification.clinic_id}-${notification.document_type}`}
+                    >
+                      <div>
+                        <strong>{notification.document_label}</strong>
+                        <p>{notification.clinic_name}</p>
+                      </div>
+
+                      <div className="document-expiration-date">
+                        <span>
+                          {notification.expiration_date
+                            ? formatDate(notification.expiration_date)
+                            : "Date missing"}
+                        </span>
+                        <strong>
+                          {getDocumentExpirationMessage(notification)}
+                        </strong>
+
+                        {notification.renewal_status === "Pending" ? (
+                          <span className="status-badge status-pending">
+                            Renewal Pending Admin Approval
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="secondary-button document-renewal-button"
+                            onClick={() => openRenewalModal(notification)}
+                          >
+                            {notification.renewal_status === "Rejected"
+                              ? "Resubmit Renewal"
+                              : "Update Document"}
+                          </button>
+                        )}
+
+                        {notification.renewal_status === "Rejected" &&
+                          notification.rejection_reason && (
+                            <small className="document-renewal-rejection">
+                              Rejected: {notification.rejection_reason}
+                            </small>
+                          )}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <div className="patient-dashboard-summary-grid">
               {summaryCards.map((card) => (
@@ -806,6 +1005,102 @@ function ClinicOwnerDashboard() {
               </div>
             </div>
           </>
+        )}
+
+        {showRenewalModal && selectedRenewalDocument && (
+          <div className="modal-overlay">
+            <div className="modal-card document-renewal-modal">
+              <div className="modal-header">
+                <div>
+                  <h3>Update Verification Document</h3>
+                  <p>
+                    {selectedRenewalDocument.document_label} ·{" "}
+                    {selectedRenewalDocument.clinic_name}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="modal-close-button"
+                  onClick={closeRenewalModal}
+                  disabled={submittingRenewal}
+                  aria-label="Close renewal form"
+                >
+                  ×
+                </button>
+              </div>
+
+              <form onSubmit={submitDocumentRenewal}>
+                <div className="info-message">
+                  The currently approved document remains active until an
+                  Administrator approves this replacement.
+                </div>
+
+                <div className="form-group">
+                  <label>Replacement Document *</label>
+                  <input
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      setRenewalFile(event.target.files?.[0] || null)
+                    }
+                    disabled={submittingRenewal}
+                    required
+                  />
+                  <small>PDF, JPG, JPEG, PNG, or WEBP. Maximum 10 MB.</small>
+                </div>
+
+                <div className="form-group">
+                  <label>New Expiration Date *</label>
+                  <input
+                    type="date"
+                    value={renewalExpirationDate}
+                    min={new Date().toISOString().split("T")[0]}
+                    onChange={(event) =>
+                      setRenewalExpirationDate(event.target.value)
+                    }
+                    disabled={submittingRenewal}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Remarks</label>
+                  <textarea
+                    value={renewalRemarks}
+                    onChange={(event) => setRenewalRemarks(event.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    placeholder="Optional note for the Administrator"
+                    disabled={submittingRenewal}
+                  />
+                </div>
+
+                {renewalError && (
+                  <div className="error-message">{renewalError}</div>
+                )}
+
+                <div className="modal-actions">
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={closeRenewalModal}
+                    disabled={submittingRenewal}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={submittingRenewal}
+                  >
+                    {submittingRenewal
+                      ? "Submitting..."
+                      : "Submit for Admin Approval"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
         )}
       </div>
     </DashboardLayout>

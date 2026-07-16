@@ -784,6 +784,62 @@ const runClinicVerificationUpload = (req, res, next) => {
 };
 
 // ===============================
+// VERIFICATION DOCUMENT RENEWAL UPLOADS
+// ===============================
+
+const uploadClinicVerificationRenewal = multer({
+  storage: clinicVerificationStorage,
+  fileFilter: clinicVerificationFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 1,
+  },
+}).single("replacement_document");
+
+const runClinicVerificationRenewalUpload = (req, res, next) => {
+  uploadClinicVerificationRenewal(req, res, (err) => {
+    if (!err) {
+      next();
+      return;
+    }
+
+    if (req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({
+        error:
+          err.code === "LIMIT_FILE_SIZE"
+            ? "The replacement document must not exceed 10 MB."
+            : "Unable to upload the replacement verification document.",
+      });
+    }
+
+    return res.status(400).json({
+      error: err.message || "Invalid replacement verification document.",
+    });
+  });
+};
+
+const verificationRenewalDocumentMap = {
+  BUSINESS_PERMIT: {
+    label: "Business / Mayor's Permit",
+    path: "business_permit_path",
+    originalName: "business_permit_original_name",
+    mimeType: "business_permit_mime_type",
+    expirationDate: "business_permit_expiration_date",
+  },
+  OWNER_GOVERNMENT_ID: {
+    label: "Clinic Owner Government-Issued ID",
+    path: "owner_government_id_path",
+    originalName: "owner_government_id_original_name",
+    mimeType: "owner_government_id_mime_type",
+    expirationDate: "owner_government_id_expiration_date",
+  },
+};
+
+// ===============================
 // HELPER FUNCTIONS
 // ===============================
 
@@ -794,6 +850,32 @@ const normalizeNullable = (value) => {
 
 const cleanText = (value) => {
   return String(value || "").trim();
+};
+
+const normalizeExpirationDate = (value) => {
+  const cleanValue = cleanText(value);
+
+  if (!cleanValue) return null;
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) {
+    return null;
+  }
+
+  const parsed = new Date(`${cleanValue}T00:00:00+08:00`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return cleanValue;
+};
+
+const isExpirationDateInPast = (dateValue) => {
+  const parsed = new Date(`${dateValue}T23:59:59+08:00`);
+
+  if (Number.isNaN(parsed.getTime())) return true;
+
+  return parsed.getTime() < Date.now();
 };
 
 const normalizeHexColor = (value, fallback) => {
@@ -1261,6 +1343,8 @@ router.post(
       contact_number,
       opening_hours,
       operating_hours_schedule,
+      business_permit_expiration_date,
+      owner_government_id_expiration_date,
     } = req.body || {};
 
     const uploadedFiles = getUploadedClinicVerificationFiles(req);
@@ -1283,6 +1367,12 @@ router.post(
     const normalizedLatitude = normalizeNumber(latitude);
     const normalizedLongitude = normalizeNumber(longitude);
     const passwordError = validatePasswordStrength(password);
+    const normalizedBusinessPermitExpirationDate = normalizeExpirationDate(
+      business_permit_expiration_date,
+    );
+    const normalizedOwnerGovernmentIdExpirationDate = normalizeExpirationDate(
+      owner_government_id_expiration_date,
+    );
 
     const failRegistration = (status, payload) => {
       deleteUploadedClinicVerificationFiles(req);
@@ -1349,6 +1439,30 @@ router.post(
       return failRegistration(400, {
         error:
           "Business registration, current business permit, and Clinic Owner government ID are required.",
+      });
+    }
+
+    if (!normalizedBusinessPermitExpirationDate) {
+      return failRegistration(400, {
+        error: "Enter a valid business permit expiration date.",
+      });
+    }
+
+    if (!normalizedOwnerGovernmentIdExpirationDate) {
+      return failRegistration(400, {
+        error: "Enter a valid Clinic Owner government ID expiration date.",
+      });
+    }
+
+    if (isExpirationDateInPast(normalizedBusinessPermitExpirationDate)) {
+      return failRegistration(400, {
+        error: "The submitted business permit is already expired.",
+      });
+    }
+
+    if (isExpirationDateInPast(normalizedOwnerGovernmentIdExpirationDate)) {
+      return failRegistration(400, {
+        error: "The submitted Clinic Owner government ID is already expired.",
       });
     }
 
@@ -1504,9 +1618,11 @@ router.post(
            business_permit_path,
            business_permit_original_name,
            business_permit_mime_type,
+           business_permit_expiration_date,
            owner_government_id_path,
            owner_government_id_original_name,
            owner_government_id_mime_type,
+           owner_government_id_expiration_date,
            clinic_license_path,
            clinic_license_original_name,
            clinic_license_mime_type,
@@ -1515,9 +1631,9 @@ router.post(
          VALUES (
            $1, $2,
            $3, $4, $5,
-           $6, $7, $8,
-           $9, $10, $11,
-           $12, $13, $14,
+           $6, $7, $8, $9,
+           $10, $11, $12, $13,
+           $14, $15, $16,
            'Pending'
          )
          RETURNING application_id, verification_status, submitted_at`,
@@ -1530,9 +1646,11 @@ router.post(
           toStoredClinicVerificationPath(uploadedFiles.business_permit),
           uploadedFiles.business_permit.originalname,
           uploadedFiles.business_permit.mimetype,
+          normalizedBusinessPermitExpirationDate,
           toStoredClinicVerificationPath(uploadedFiles.owner_government_id),
           uploadedFiles.owner_government_id.originalname,
           uploadedFiles.owner_government_id.mimetype,
+          normalizedOwnerGovernmentIdExpirationDate,
           toStoredClinicVerificationPath(uploadedFiles.clinic_license),
           uploadedFiles.clinic_license?.originalname || null,
           uploadedFiles.clinic_license?.mimetype || null,
@@ -1641,7 +1759,9 @@ router.get(
             a.reviewed_at,
             a.business_registration_original_name,
             a.business_permit_original_name,
+            a.business_permit_expiration_date,
             a.owner_government_id_original_name,
+            a.owner_government_id_expiration_date,
             a.clinic_license_original_name,
             c.clinic_name,
             c.address,
@@ -2564,6 +2684,707 @@ router.put(
       });
     } finally {
       client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: SUBMIT VERIFICATION DOCUMENT RENEWAL
+// ===============================
+
+router.post(
+  "/owner/document-renewals/:document_type",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  runClinicVerificationRenewalUpload,
+  async (req, res) => {
+    const documentType = cleanText(req.params.document_type).toUpperCase();
+    const documentFields = verificationRenewalDocumentMap[documentType];
+    const clinicId = Number(req.body.clinic_id);
+    const proposedExpirationDate = normalizeExpirationDate(
+      req.body.proposed_expiration_date,
+    );
+    const ownerRemarks = cleanText(req.body.owner_remarks);
+
+    const deleteNewUpload = () => {
+      if (req.file?.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    };
+
+    if (!documentFields) {
+      deleteNewUpload();
+      return res
+        .status(400)
+        .json({ error: "Invalid verification document type." });
+    }
+
+    if (!Number.isInteger(clinicId) || clinicId <= 0) {
+      deleteNewUpload();
+      return res.status(400).json({ error: "Select a valid clinic location." });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: "Select the replacement verification document.",
+      });
+    }
+
+    if (!proposedExpirationDate) {
+      deleteNewUpload();
+      return res.status(400).json({
+        error: "Enter a valid replacement document expiration date.",
+      });
+    }
+
+    if (isExpirationDateInPast(proposedExpirationDate)) {
+      deleteNewUpload();
+      return res.status(400).json({
+        error: "The replacement document must not already be expired.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const applicationResult = await client.query(
+        `SELECT
+            a.application_id,
+            a.clinic_id,
+            a.owner_user_id,
+            a.${documentFields.path} AS current_document_path,
+            a.${documentFields.originalName} AS current_document_original_name,
+            a.${documentFields.mimeType} AS current_document_mime_type,
+            a.${documentFields.expirationDate} AS current_expiration_date,
+            c.clinic_name,
+            c.status AS clinic_status
+         FROM public.clinic_verification_applications a
+         JOIN public.clinics c
+           ON c.clinic_id = a.clinic_id
+         WHERE a.clinic_id = $1
+           AND a.owner_user_id = $2
+           AND a.verification_status = 'Approved'
+         ORDER BY a.reviewed_at DESC NULLS LAST, a.application_id DESC
+         LIMIT 1
+         FOR UPDATE OF a, c`,
+        [clinicId, req.user.user_id],
+      );
+
+      if (applicationResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        deleteNewUpload();
+        return res.status(404).json({
+          error: "No approved clinic verification application was found.",
+        });
+      }
+
+      const application = applicationResult.rows[0];
+
+      if (application.clinic_status === "Pending Review") {
+        await client.query("ROLLBACK");
+        deleteNewUpload();
+        return res.status(409).json({
+          error:
+            "The clinic is still awaiting its original verification review.",
+        });
+      }
+
+      const pendingResult = await client.query(
+        `SELECT renewal_id
+         FROM public.clinic_verification_document_renewals
+         WHERE clinic_id = $1
+           AND document_type = $2
+           AND status = 'Pending'
+         LIMIT 1`,
+        [clinicId, documentType],
+      );
+
+      if (pendingResult.rows.length > 0) {
+        await client.query("ROLLBACK");
+        deleteNewUpload();
+        return res.status(409).json({
+          error:
+            "A renewal for this document is already awaiting Administrator review.",
+        });
+      }
+
+      const renewalResult = await client.query(
+        `INSERT INTO public.clinic_verification_document_renewals
+         (
+           application_id,
+           clinic_id,
+           owner_user_id,
+           document_type,
+           previous_document_path,
+           previous_document_original_name,
+           previous_document_mime_type,
+           previous_expiration_date,
+           replacement_document_path,
+           replacement_document_original_name,
+           replacement_document_mime_type,
+           proposed_expiration_date,
+           owner_remarks,
+           status,
+           submitted_by
+         )
+         VALUES
+         ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Pending', $14)
+         RETURNING *`,
+        [
+          application.application_id,
+          clinicId,
+          req.user.user_id,
+          documentType,
+          application.current_document_path,
+          application.current_document_original_name,
+          application.current_document_mime_type,
+          application.current_expiration_date,
+          toStoredClinicVerificationPath(req.file),
+          req.file.originalname,
+          req.file.mimetype,
+          proposedExpirationDate,
+          ownerRemarks || null,
+          req.user.user_id,
+        ],
+      );
+
+      await client.query("COMMIT");
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "SUBMIT_VERIFICATION_DOCUMENT_RENEWAL",
+        module: "Clinic Verification Renewal",
+        description: `Submitted ${documentFields.label} renewal for ${application.clinic_name}.`,
+        ip_address: req.ip,
+      }).catch((auditError) => {
+        console.error("Document renewal audit log error:", auditError.message);
+      });
+
+      return res.status(201).json({
+        message: `${documentFields.label} renewal submitted for Administrator approval. The currently approved document remains active until this renewal is approved.`,
+        renewal: renewalResult.rows[0],
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      deleteNewUpload();
+
+      console.error("Submit document renewal error:", err.message);
+
+      if (err.code === "23505") {
+        return res.status(409).json({
+          error: "A pending renewal already exists for this document.",
+        });
+      }
+
+      return res.status(500).json({
+        error: "Unable to submit the verification document renewal.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// CLINIC OWNER: LIST OWN DOCUMENT RENEWALS
+router.get(
+  "/owner/document-renewals",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT
+            r.renewal_id,
+            r.application_id,
+            r.clinic_id,
+            c.clinic_name,
+            r.document_type,
+            CASE
+              WHEN r.document_type = 'BUSINESS_PERMIT'
+                THEN 'Business / Mayor''s Permit'
+              ELSE 'Clinic Owner Government-Issued ID'
+            END AS document_label,
+            r.previous_expiration_date,
+            r.proposed_expiration_date,
+            r.owner_remarks,
+            r.status,
+            r.submitted_at,
+            r.reviewed_at,
+            r.rejection_reason,
+            reviewer.name AS reviewed_by_name
+         FROM public.clinic_verification_document_renewals r
+         JOIN public.clinics c ON c.clinic_id = r.clinic_id
+         LEFT JOIN public.users reviewer ON reviewer.user_id = r.reviewed_by
+         WHERE r.owner_user_id = $1
+         ORDER BY r.submitted_at DESC`,
+        [req.user.user_id],
+      );
+
+      return res.status(200).json({
+        message: "Verification document renewals retrieved successfully.",
+        renewals: result.rows,
+      });
+    } catch (err) {
+      console.error("Get owner document renewals error:", err.message);
+      return res.status(500).json({
+        error: "Unable to retrieve verification document renewals.",
+      });
+    }
+  },
+);
+
+// ADMIN: LIST DOCUMENT RENEWAL REQUESTS
+router.get(
+  "/admin/document-renewals",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const requestedStatus = cleanText(req.query.status || "Pending");
+    const allowedStatuses = [
+      "All",
+      "Pending",
+      "Approved",
+      "Rejected",
+      "Cancelled",
+    ];
+
+    if (!allowedStatuses.includes(requestedStatus)) {
+      return res.status(400).json({ error: "Invalid renewal status filter." });
+    }
+
+    try {
+      const values = [];
+      let statusCondition = "";
+
+      if (requestedStatus !== "All") {
+        values.push(requestedStatus);
+        statusCondition = `WHERE r.status = $${values.length}`;
+      }
+
+      const result = await pool.query(
+        `SELECT
+            r.renewal_id,
+            r.application_id,
+            r.clinic_id,
+            r.owner_user_id,
+            r.document_type,
+            CASE
+              WHEN r.document_type = 'BUSINESS_PERMIT'
+                THEN 'Business / Mayor''s Permit'
+              ELSE 'Clinic Owner Government-Issued ID'
+            END AS document_label,
+            r.previous_document_original_name,
+            r.previous_expiration_date,
+            r.replacement_document_original_name,
+            r.proposed_expiration_date,
+            r.owner_remarks,
+            r.status,
+            r.submitted_at,
+            r.reviewed_at,
+            r.rejection_reason,
+            c.clinic_name,
+            c.address,
+            owner.name AS owner_name,
+            owner.email AS owner_email,
+            submitter.name AS submitted_by_name,
+            reviewer.name AS reviewed_by_name
+         FROM public.clinic_verification_document_renewals r
+         JOIN public.clinics c ON c.clinic_id = r.clinic_id
+         JOIN public.users owner ON owner.user_id = r.owner_user_id
+         JOIN public.users submitter ON submitter.user_id = r.submitted_by
+         LEFT JOIN public.users reviewer ON reviewer.user_id = r.reviewed_by
+         ${statusCondition}
+         ORDER BY
+           CASE WHEN r.status = 'Pending' THEN 0 ELSE 1 END,
+           r.submitted_at DESC`,
+        values,
+      );
+
+      return res.status(200).json({
+        message:
+          "Verification document renewal requests retrieved successfully.",
+        status_filter: requestedStatus,
+        renewals: result.rows,
+      });
+    } catch (err) {
+      console.error("Get admin document renewals error:", err.message);
+      return res.status(500).json({
+        error: "Unable to retrieve verification document renewal requests.",
+      });
+    }
+  },
+);
+
+// ADMIN: OPEN CURRENT OR REPLACEMENT DOCUMENT
+router.get(
+  "/admin/document-renewals/:renewal_id/document/:version",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const renewalId = Number(req.params.renewal_id);
+    const version = cleanText(req.params.version).toLowerCase();
+
+    if (!Number.isInteger(renewalId) || renewalId <= 0) {
+      return res.status(400).json({ error: "Invalid document renewal ID." });
+    }
+
+    if (!["current", "replacement"].includes(version)) {
+      return res.status(400).json({ error: "Invalid document version." });
+    }
+
+    try {
+      const result = await pool.query(
+        `SELECT
+            CASE WHEN $2 = 'current'
+              THEN previous_document_path
+              ELSE replacement_document_path
+            END AS document_path,
+            CASE WHEN $2 = 'current'
+              THEN previous_document_original_name
+              ELSE replacement_document_original_name
+            END AS original_name,
+            CASE WHEN $2 = 'current'
+              THEN previous_document_mime_type
+              ELSE replacement_document_mime_type
+            END AS mime_type
+         FROM public.clinic_verification_document_renewals
+         WHERE renewal_id = $1`,
+        [renewalId, version],
+      );
+
+      if (result.rows.length === 0) {
+        return res
+          .status(404)
+          .json({ error: "Document renewal was not found." });
+      }
+
+      const document = result.rows[0];
+
+      if (!document.document_path) {
+        return res
+          .status(404)
+          .json({ error: "This document version is unavailable." });
+      }
+
+      const absolutePath = path.join(__dirname, "..", document.document_path);
+
+      if (!fs.existsSync(absolutePath)) {
+        return res
+          .status(404)
+          .json({ error: "The document file was not found." });
+      }
+
+      res.setHeader(
+        "Content-Type",
+        document.mime_type || "application/octet-stream",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename*=UTF-8''${encodeURIComponent(document.original_name || "verification-document")}`,
+      );
+      res.setHeader("Cache-Control", "private, no-store");
+
+      return res.sendFile(absolutePath);
+    } catch (err) {
+      console.error("Open renewal document error:", err.message);
+      return res
+        .status(500)
+        .json({ error: "Unable to open the renewal document." });
+    }
+  },
+);
+
+// ADMIN: APPROVE OR REJECT DOCUMENT RENEWAL
+router.put(
+  "/admin/document-renewals/:renewal_id/review",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const renewalId = Number(req.params.renewal_id);
+    const decision = cleanText(req.body.decision);
+    const rejectionReason = cleanText(req.body.rejection_reason);
+
+    if (!Number.isInteger(renewalId) || renewalId <= 0) {
+      return res.status(400).json({ error: "Invalid document renewal ID." });
+    }
+
+    if (!["Approved", "Rejected"].includes(decision)) {
+      return res
+        .status(400)
+        .json({ error: "Decision must be Approved or Rejected." });
+    }
+
+    if (decision === "Rejected" && rejectionReason.length < 5) {
+      return res.status(400).json({
+        error: "Enter a clear rejection reason with at least 5 characters.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const renewalResult = await client.query(
+        `SELECT r.*, c.clinic_name, owner.name AS owner_name
+         FROM public.clinic_verification_document_renewals r
+         JOIN public.clinics c ON c.clinic_id = r.clinic_id
+         JOIN public.users owner ON owner.user_id = r.owner_user_id
+         WHERE r.renewal_id = $1
+         FOR UPDATE OF r`,
+        [renewalId],
+      );
+
+      if (renewalResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res
+          .status(404)
+          .json({ error: "Document renewal was not found." });
+      }
+
+      const renewal = renewalResult.rows[0];
+      const documentFields =
+        verificationRenewalDocumentMap[renewal.document_type];
+
+      if (!documentFields) {
+        throw new Error("Unsupported renewal document type.");
+      }
+
+      if (renewal.status !== "Pending") {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error: `This renewal has already been ${renewal.status.toLowerCase()}.`,
+        });
+      }
+
+      if (decision === "Approved") {
+        await client.query(
+          `UPDATE public.clinic_verification_applications
+           SET ${documentFields.path} = $1,
+               ${documentFields.originalName} = $2,
+               ${documentFields.mimeType} = $3,
+               ${documentFields.expirationDate} = $4
+           WHERE application_id = $5
+             AND clinic_id = $6
+             AND owner_user_id = $7
+             AND verification_status = 'Approved'`,
+          [
+            renewal.replacement_document_path,
+            renewal.replacement_document_original_name,
+            renewal.replacement_document_mime_type,
+            renewal.proposed_expiration_date,
+            renewal.application_id,
+            renewal.clinic_id,
+            renewal.owner_user_id,
+          ],
+        );
+
+        await client.query(
+          `UPDATE public.clinic_verification_document_renewals
+           SET status = 'Approved',
+               reviewed_by = $1,
+               reviewed_at = CURRENT_TIMESTAMP,
+               rejection_reason = NULL
+           WHERE renewal_id = $2`,
+          [req.user.user_id, renewalId],
+        );
+      } else {
+        await client.query(
+          `UPDATE public.clinic_verification_document_renewals
+           SET status = 'Rejected',
+               reviewed_by = $1,
+               reviewed_at = CURRENT_TIMESTAMP,
+               rejection_reason = $2
+           WHERE renewal_id = $3`,
+          [req.user.user_id, rejectionReason, renewalId],
+        );
+      }
+
+      await client.query("COMMIT");
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action:
+          decision === "Approved"
+            ? "APPROVE_VERIFICATION_DOCUMENT_RENEWAL"
+            : "REJECT_VERIFICATION_DOCUMENT_RENEWAL",
+        module: "Clinic Verification Renewal",
+        description:
+          decision === "Approved"
+            ? `Approved ${documentFields.label} renewal for ${renewal.clinic_name}, owned by ${renewal.owner_name}.`
+            : `Rejected ${documentFields.label} renewal for ${renewal.clinic_name}. Reason: ${rejectionReason}`,
+        ip_address: req.ip,
+      }).catch((auditError) => {
+        console.error(
+          "Review document renewal audit log error:",
+          auditError.message,
+        );
+      });
+
+      return res.status(200).json({
+        message:
+          decision === "Approved"
+            ? `${documentFields.label} renewal approved. The replacement document is now the active approved document.`
+            : `${documentFields.label} renewal rejected. The currently approved document remains unchanged.`,
+        renewal_id: renewalId,
+        status: decision,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("Review document renewal error:", err.message);
+      return res.status(500).json({
+        error: "Unable to review the verification document renewal.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: DOCUMENT EXPIRATION NOTIFICATIONS
+// Returns the latest verification application for every owned location.
+// ===============================
+
+router.get(
+  "/owner/document-expirations",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `WITH latest_application AS (
+           SELECT DISTINCT ON (a.clinic_id)
+             a.application_id,
+             a.clinic_id,
+             a.verification_status,
+             a.business_permit_expiration_date,
+             a.owner_government_id_expiration_date,
+             a.submitted_at
+           FROM public.clinic_verification_applications a
+           JOIN public.clinics owned ON owned.clinic_id = a.clinic_id
+           WHERE owned.owner_user_id = $1
+             AND a.verification_status = 'Approved'
+           ORDER BY a.clinic_id, a.reviewed_at DESC NULLS LAST, a.application_id DESC
+         ),
+         documents AS (
+           SELECT
+             c.clinic_id,
+             c.clinic_name,
+             la.application_id,
+             la.verification_status,
+             document.document_type,
+             document.document_label,
+             document.expiration_date,
+             CASE
+               WHEN document.expiration_date IS NULL THEN NULL
+               ELSE (document.expiration_date - CURRENT_DATE)
+             END AS days_remaining
+           FROM public.clinics c
+           LEFT JOIN latest_application la ON la.clinic_id = c.clinic_id
+           CROSS JOIN LATERAL (
+             VALUES
+               ('BUSINESS_PERMIT', 'Business / Mayor''s Permit', la.business_permit_expiration_date),
+               ('OWNER_GOVERNMENT_ID', 'Clinic Owner Government-Issued ID', la.owner_government_id_expiration_date)
+           ) AS document(document_type, document_label, expiration_date)
+           WHERE c.owner_user_id = $1
+         ),
+         latest_renewal AS (
+           SELECT DISTINCT ON (r.clinic_id, r.document_type)
+             r.renewal_id,
+             r.clinic_id,
+             r.document_type,
+             r.status AS renewal_status,
+             r.proposed_expiration_date,
+             r.submitted_at AS renewal_submitted_at,
+             r.reviewed_at AS renewal_reviewed_at,
+             r.rejection_reason
+           FROM public.clinic_verification_document_renewals r
+           WHERE r.owner_user_id = $1
+           ORDER BY r.clinic_id, r.document_type, r.submitted_at DESC, r.renewal_id DESC
+         )
+         SELECT
+           d.*,
+           lr.renewal_id,
+           lr.renewal_status,
+           lr.proposed_expiration_date,
+           lr.renewal_submitted_at,
+           lr.renewal_reviewed_at,
+           lr.rejection_reason,
+           CASE
+             WHEN d.expiration_date IS NULL THEN 'MISSING'
+             WHEN d.days_remaining < 0 THEN 'EXPIRED'
+             WHEN d.days_remaining <= 30 THEN 'CRITICAL'
+             WHEN d.days_remaining <= 60 THEN 'WARNING'
+             WHEN d.days_remaining <= 90 THEN 'NOTICE'
+             ELSE 'VALID'
+           END AS expiration_status
+         FROM documents d
+         LEFT JOIN latest_renewal lr
+           ON lr.clinic_id = d.clinic_id
+          AND lr.document_type = d.document_type
+         ORDER BY
+           CASE
+             WHEN d.expiration_date IS NULL THEN 0
+             WHEN d.days_remaining < 0 THEN 1
+             WHEN d.days_remaining <= 30 THEN 2
+             WHEN d.days_remaining <= 60 THEN 3
+             WHEN d.days_remaining <= 90 THEN 4
+             ELSE 5
+           END,
+           d.clinic_name,
+           d.document_label`,
+        [req.user.user_id],
+      );
+
+      const notifications = result.rows.filter((item) => {
+        return (
+          item.expiration_status !== "VALID" ||
+          item.renewal_status === "Pending" ||
+          item.renewal_status === "Rejected"
+        );
+      });
+
+      return res.status(200).json({
+        message: "Document expiration notifications retrieved successfully.",
+        notification_window_days: 90,
+        notifications,
+        documents: result.rows,
+        summary: {
+          total_notifications: notifications.length,
+          expired: notifications.filter(
+            (item) => item.expiration_status === "EXPIRED",
+          ).length,
+          critical: notifications.filter(
+            (item) => item.expiration_status === "CRITICAL",
+          ).length,
+          warning: notifications.filter(
+            (item) => item.expiration_status === "WARNING",
+          ).length,
+          notice: notifications.filter(
+            (item) => item.expiration_status === "NOTICE",
+          ).length,
+          missing: notifications.filter(
+            (item) => item.expiration_status === "MISSING",
+          ).length,
+          renewal_pending: notifications.filter(
+            (item) => item.renewal_status === "Pending",
+          ).length,
+          renewal_rejected: notifications.filter(
+            (item) => item.renewal_status === "Rejected",
+          ).length,
+        },
+      });
+    } catch (err) {
+      console.error(
+        "Get clinic document expiration notifications error:",
+        err.message,
+      );
+      return res.status(500).json({
+        error: "Unable to retrieve document expiration notifications.",
+      });
     }
   },
 );
