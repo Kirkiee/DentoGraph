@@ -100,50 +100,163 @@ const getDentitionLabel = (dentitionType) => {
   return "Adult / Permanent Teeth";
 };
 
-const getDentistProfile = async (user_id) => {
-  const result = await pool.query(
-    `SELECT dentist_id, clinic_id
-     FROM public.dentists
-     WHERE user_id = $1`,
+const getDentistProfile = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT
+        d.dentist_id,
+        d.clinic_id,
+        d.status AS dentist_status,
+        c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id
+     FROM public.dentists d
+     LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     WHERE d.user_id = $1
+     LIMIT 1`,
     [user_id],
   );
 
   return result.rows[0] || null;
 };
 
-const getDentistProfileByDentistId = async (dentist_id) => {
-  const result = await pool.query(
-    `SELECT dentist_id, clinic_id
-     FROM public.dentists
-     WHERE dentist_id = $1`,
+const getDentistProfileByDentistId = async (dentist_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT
+        d.dentist_id,
+        d.clinic_id,
+        d.status AS dentist_status,
+        c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id
+     FROM public.dentists d
+     LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     WHERE d.dentist_id = $1
+     LIMIT 1`,
     [dentist_id],
   );
 
   return result.rows[0] || null;
 };
 
-const getAssistantProfile = async (user_id) => {
-  const result = await pool.query(
-    `SELECT assistant_id, clinic_id
-     FROM public.assistants
-     WHERE user_id = $1`,
+const getAssistantProfile = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT
+        a.assistant_id,
+        a.clinic_id,
+        a.status AS assistant_status,
+        c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id
+     FROM public.assistants a
+     LEFT JOIN public.clinics c ON a.clinic_id = c.clinic_id
+     WHERE a.user_id = $1
+     LIMIT 1`,
     [user_id],
   );
 
   return result.rows[0] || null;
 };
 
-const getPatientProfile = async (user_id) => {
-  const result = await pool.query(
-    `SELECT 
-        patient_id,
-        dentition_type
-     FROM public.patients
-     WHERE user_id = $1`,
+const getPatientProfile = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT
+        p.patient_id,
+        p.clinic_id,
+        p.dentition_type,
+        c.clinic_name,
+        c.status AS clinic_status,
+        c.owner_user_id
+     FROM public.patients p
+     LEFT JOIN public.clinics c ON p.clinic_id = c.clinic_id
+     WHERE p.user_id = $1
+     LIMIT 1`,
     [user_id],
   );
 
   return result.rows[0] || null;
+};
+
+const validateStaffClinicContext = (profile, roleLabel) => {
+  if (!profile) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: `${roleLabel} profile not found.`,
+    };
+  }
+
+  if (!profile.clinic_id) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error: `${roleLabel} is not assigned to a clinic location.`,
+    };
+  }
+
+  const statusField =
+    roleLabel === "Dentist" ? profile.dentist_status : profile.assistant_status;
+
+  if (statusField !== "Active") {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: `${roleLabel} account is currently inactive.`,
+    };
+  }
+
+  if (!profile.clinic_name) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: "Assigned clinic location no longer exists.",
+    };
+  }
+
+  if (profile.clinic_status !== "Active") {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: "Assigned clinic location is currently inactive.",
+    };
+  }
+
+  return { allowed: true };
+};
+
+const validatePatientClinicContext = (patient) => {
+  if (!patient) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: "Patient profile not found.",
+    };
+  }
+
+  if (!patient.clinic_id) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error: "Patient account is not assigned to a clinic location.",
+    };
+  }
+
+  if (!patient.clinic_name) {
+    return {
+      allowed: false,
+      statusCode: 404,
+      error: "Assigned clinic location no longer exists.",
+    };
+  }
+
+  if (patient.clinic_status !== "Active") {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error: "Assigned clinic location is currently inactive.",
+    };
+  }
+
+  return { allowed: true };
 };
 
 const getActorInfo = async (user_id) => {
@@ -209,16 +322,20 @@ const addToothStatusHistory = async ({
 
 const getDentalRecordBaseQuery = () => {
   return `
-    SELECT 
+    SELECT
       dr.record_id,
       dr.patient_id,
       patient_user.name AS patient_name,
       patient_user.email AS patient_email,
       p.dentition_type AS dentition_type,
+      p.clinic_id AS patient_clinic_id,
+      patient_clinic.clinic_name AS patient_clinic_name,
       dr.dentist_id,
       dentist_user.name AS dentist_name,
       d.clinic_id,
       c.clinic_name,
+      d.status AS dentist_status,
+      c.status AS clinic_status,
       dr.date_created,
       dr.last_updated,
       COALESCE(dr.status, 'Active') AS status,
@@ -230,6 +347,7 @@ const getDentalRecordBaseQuery = () => {
     JOIN public.dentists d ON dr.dentist_id = d.dentist_id
     JOIN public.users dentist_user ON d.user_id = dentist_user.user_id
     LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+    LEFT JOIN public.clinics patient_clinic ON p.clinic_id = patient_clinic.clinic_id
   `;
 };
 
@@ -254,21 +372,19 @@ const getAccessibleRecord = async (req, record_id) => {
 
   if (role === "Dentist") {
     const dentist = await getDentistProfile(user_id);
+    const context = validateStaffClinicContext(dentist, "Dentist");
 
-    if (!dentist) {
-      return {
-        allowed: false,
-        record: null,
-        error: "Dentist profile not found",
-        statusCode: 404,
-      };
+    if (!context.allowed) {
+      return { ...context, record: null };
     }
 
     const result = await pool.query(
       `${getDentalRecordBaseQuery()}
        WHERE dr.record_id = $1
-       AND dr.dentist_id = $2`,
-      [record_id, dentist.dentist_id],
+       AND dr.dentist_id = $2
+       AND d.clinic_id = $3
+       AND p.clinic_id = $3`,
+      [record_id, dentist.dentist_id, dentist.clinic_id],
     );
 
     return {
@@ -276,7 +392,7 @@ const getAccessibleRecord = async (req, record_id) => {
       record: result.rows[0] || null,
       error:
         result.rows.length === 0
-          ? "Dental record not found or not assigned to this dentist"
+          ? "Dental record not found, not assigned to this dentist, or has an invalid cross-clinic assignment."
           : null,
       statusCode: result.rows.length === 0 ? 403 : 200,
     };
@@ -284,29 +400,17 @@ const getAccessibleRecord = async (req, record_id) => {
 
   if (isAssistantRole(role)) {
     const assistant = await getAssistantProfile(user_id);
+    const context = validateStaffClinicContext(assistant, "Assistant");
 
-    if (!assistant) {
-      return {
-        allowed: false,
-        record: null,
-        error: "Assistant profile not found",
-        statusCode: 404,
-      };
-    }
-
-    if (!assistant.clinic_id) {
-      return {
-        allowed: false,
-        record: null,
-        error: "Assistant is not assigned to a clinic",
-        statusCode: 400,
-      };
+    if (!context.allowed) {
+      return { ...context, record: null };
     }
 
     const result = await pool.query(
       `${getDentalRecordBaseQuery()}
        WHERE dr.record_id = $1
-       AND d.clinic_id = $2`,
+       AND d.clinic_id = $2
+       AND p.clinic_id = $2`,
       [record_id, assistant.clinic_id],
     );
 
@@ -315,7 +419,7 @@ const getAccessibleRecord = async (req, record_id) => {
       record: result.rows[0] || null,
       error:
         result.rows.length === 0
-          ? "Dental record not found or not under assistant assigned clinic"
+          ? "Dental record not found or not under the assistant's assigned clinic location."
           : null,
       statusCode: result.rows.length === 0 ? 403 : 200,
     };
@@ -323,21 +427,19 @@ const getAccessibleRecord = async (req, record_id) => {
 
   if (role === "Patient") {
     const patient = await getPatientProfile(user_id);
+    const context = validatePatientClinicContext(patient);
 
-    if (!patient) {
-      return {
-        allowed: false,
-        record: null,
-        error: "Patient profile not found",
-        statusCode: 404,
-      };
+    if (!context.allowed) {
+      return { ...context, record: null };
     }
 
     const result = await pool.query(
       `${getDentalRecordBaseQuery()}
        WHERE dr.record_id = $1
-       AND dr.patient_id = $2`,
-      [record_id, patient.patient_id],
+       AND dr.patient_id = $2
+       AND p.clinic_id = $3
+       AND d.clinic_id = $3`,
+      [record_id, patient.patient_id, patient.clinic_id],
     );
 
     return {
@@ -345,7 +447,7 @@ const getAccessibleRecord = async (req, record_id) => {
       record: result.rows[0] || null,
       error:
         result.rows.length === 0
-          ? "Dental record not found or does not belong to this patient"
+          ? "Dental record not found, does not belong to this patient, or has an invalid clinic assignment."
           : null,
       statusCode: result.rows.length === 0 ? 403 : 200,
     };
@@ -364,14 +466,15 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
     return {
       allowed: false,
       error:
-        "Dentist is not assigned to a clinic. Cannot validate subscription limits.",
+        "Dentist is not assigned to a clinic location. Subscription limits cannot be validated.",
     };
   }
 
   const clinicPlanResult = await pool.query(
-    `SELECT 
+    `SELECT
         c.clinic_id,
         c.clinic_name,
+        c.owner_user_id,
         c.subscription_plan_id,
         c.subscription_end_date,
         c.subscription_status,
@@ -388,21 +491,30 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
   if (clinicPlanResult.rows.length === 0) {
     return {
       allowed: false,
-      error: "Clinic not found. Cannot validate subscription limits.",
+      error:
+        "Clinic location not found. Subscription limits cannot be validated.",
     };
   }
 
   const clinic = clinicPlanResult.rows[0];
 
+  if (!clinic.owner_user_id) {
+    return {
+      allowed: false,
+      error:
+        "Clinic location is not linked to a Clinic Owner account. Shared subscription limits cannot be validated.",
+    };
+  }
+
   const isExpiredByDate =
     clinic.subscription_end_date &&
     new Date(clinic.subscription_end_date) < new Date();
 
-  if (clinic.subscription_status === "Expired" || isExpiredByDate) {
+  if (clinic.subscription_status !== "Active" || isExpiredByDate) {
     return {
       allowed: false,
       error:
-        "Your clinic subscription has expired. Please ask the Clinic Owner to renew or change the subscription plan.",
+        "The shared Clinic Owner subscription is inactive or expired. Please ask the Clinic Owner to renew or change the plan.",
     };
   }
 
@@ -410,7 +522,7 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
     return {
       allowed: false,
       error:
-        "This clinic has no subscription plan assigned. Please assign a plan before creating dental records.",
+        "The Clinic Owner account has no shared subscription plan assigned.",
     };
   }
 
@@ -418,9 +530,12 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
     `SELECT COUNT(*)::int AS count
      FROM public.dental_records dr
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-     WHERE d.clinic_id = $1
+     JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     JOIN public.patients p ON dr.patient_id = p.patient_id
+     WHERE c.owner_user_id = $1
+     AND p.clinic_id = d.clinic_id
      AND COALESCE(dr.status, 'Active') = 'Active'`,
-    [clinic_id],
+    [clinic.owner_user_id],
   );
 
   const currentRecords = recordCountResult.rows[0].count;
@@ -429,7 +544,7 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
   if (maxRecords !== null && currentRecords >= maxRecords) {
     return {
       allowed: false,
-      error: `${clinic.clinic_name} has reached the dental record limit for the ${clinic.plan_name} plan. Limit: ${maxRecords}.`,
+      error: `The Clinic Owner account has reached the shared dental record limit for the ${clinic.plan_name} plan. Limit: ${maxRecords}.`,
     };
   }
 
@@ -437,23 +552,27 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
     `SELECT dr.record_id
      FROM public.dental_records dr
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-     WHERE d.clinic_id = $1
+     JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     JOIN public.patients p ON dr.patient_id = p.patient_id
+     WHERE c.owner_user_id = $1
      AND dr.patient_id = $2
+     AND p.clinic_id = d.clinic_id
      AND COALESCE(dr.status, 'Active') = 'Active'
      LIMIT 1`,
-    [clinic_id, patient_id],
+    [clinic.owner_user_id, patient_id],
   );
 
-  const patientAlreadyCounted = patientAlreadyCountedResult.rows.length > 0;
-
-  if (!patientAlreadyCounted) {
+  if (patientAlreadyCountedResult.rows.length === 0) {
     const patientCountResult = await pool.query(
       `SELECT COUNT(DISTINCT dr.patient_id)::int AS count
        FROM public.dental_records dr
        JOIN public.dentists d ON dr.dentist_id = d.dentist_id
-       WHERE d.clinic_id = $1
+       JOIN public.clinics c ON d.clinic_id = c.clinic_id
+       JOIN public.patients p ON dr.patient_id = p.patient_id
+       WHERE c.owner_user_id = $1
+       AND p.clinic_id = d.clinic_id
        AND COALESCE(dr.status, 'Active') = 'Active'`,
-      [clinic_id],
+      [clinic.owner_user_id],
     );
 
     const currentPatients = patientCountResult.rows[0].count;
@@ -462,7 +581,7 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
     if (maxPatients !== null && currentPatients >= maxPatients) {
       return {
         allowed: false,
-        error: `${clinic.clinic_name} has reached the patient limit for the ${clinic.plan_name} plan. Limit: ${maxPatients}.`,
+        error: `The Clinic Owner account has reached the shared patient limit for the ${clinic.plan_name} plan. Limit: ${maxPatients}.`,
       };
     }
   }
@@ -470,6 +589,7 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
   return {
     allowed: true,
     error: null,
+    owner_user_id: clinic.owner_user_id,
   };
 };
 
@@ -503,9 +623,13 @@ const validateDentalRecordCreationPolicy = async ({ patient_id, dentist }) => {
         p.address,
         p.gender,
         p.medical_history,
-        p.dentition_type
+        p.dentition_type,
+        p.clinic_id,
+        c.clinic_name,
+        c.status AS clinic_status
      FROM public.patients p
      JOIN public.users u ON p.user_id = u.user_id
+     LEFT JOIN public.clinics c ON p.clinic_id = c.clinic_id
      WHERE p.patient_id = $1`,
     [patient_id],
   );
@@ -519,7 +643,41 @@ const validateDentalRecordCreationPolicy = async ({ patient_id, dentist }) => {
     };
   }
 
+  const dentistContext = validateStaffClinicContext(dentist, "Dentist");
+
+  if (!dentistContext.allowed) {
+    return dentistContext;
+  }
+
   const patient = patientResult.rows[0];
+
+  if (!patient.clinic_id) {
+    return {
+      allowed: false,
+      statusCode: 400,
+      error:
+        "Dental Record Creation Policy: Patient must be assigned to a clinic location.",
+    };
+  }
+
+  if (patient.clinic_status !== "Active") {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error:
+        "Dental Record Creation Policy: Patient's assigned clinic location is inactive.",
+    };
+  }
+
+  if (Number(patient.clinic_id) !== Number(dentist.clinic_id)) {
+    return {
+      allowed: false,
+      statusCode: 403,
+      error:
+        "Dental Record Creation Policy: Patient and dentist must belong to the same clinic location.",
+    };
+  }
+
   const normalizedDentitionType = normalizeDentitionType(
     patient.dentition_type,
   );
@@ -713,11 +871,11 @@ router.get(
   async (req, res) => {
     const role = req.user.role;
     const user_id = req.user.user_id;
-    const { status } = req.query;
-    const selectedStatus = status || "Active";
+    const selectedStatus = req.query.status || "Active";
 
     try {
       let records;
+      let assignedClinic = null;
 
       if (role === "Admin") {
         if (selectedStatus === "All") {
@@ -735,34 +893,43 @@ router.get(
         }
       } else if (role === "Dentist") {
         const dentist = await getDentistProfile(user_id);
+        const context = validateStaffClinicContext(dentist, "Dentist");
 
-        if (!dentist) {
-          return res.status(404).json({ error: "Dentist profile not found" });
+        if (!context.allowed) {
+          return res.status(context.statusCode).json({ error: context.error });
         }
+
+        assignedClinic = {
+          clinic_id: dentist.clinic_id,
+          clinic_name: dentist.clinic_name,
+        };
 
         records = await pool.query(
           `${getDentalRecordBaseQuery()}
            WHERE dr.dentist_id = $1
+           AND d.clinic_id = $2
+           AND p.clinic_id = $2
            AND COALESCE(dr.status, 'Active') = 'Active'
            ORDER BY dr.record_id DESC`,
-          [dentist.dentist_id],
+          [dentist.dentist_id, dentist.clinic_id],
         );
-      } else if (isAssistantRole(role)) {
+      } else {
         const assistant = await getAssistantProfile(user_id);
+        const context = validateStaffClinicContext(assistant, "Assistant");
 
-        if (!assistant) {
-          return res.status(404).json({ error: "Assistant profile not found" });
+        if (!context.allowed) {
+          return res.status(context.statusCode).json({ error: context.error });
         }
 
-        if (!assistant.clinic_id) {
-          return res.status(400).json({
-            error: "Assistant is not assigned to a clinic",
-          });
-        }
+        assignedClinic = {
+          clinic_id: assistant.clinic_id,
+          clinic_name: assistant.clinic_name,
+        };
 
         records = await pool.query(
           `${getDentalRecordBaseQuery()}
            WHERE d.clinic_id = $1
+           AND p.clinic_id = $1
            AND COALESCE(dr.status, 'Active') = 'Active'
            ORDER BY dr.record_id DESC`,
           [assistant.clinic_id],
@@ -771,6 +938,8 @@ router.get(
 
       res.status(200).json({
         message: "Dental records retrieved successfully",
+        assigned_clinic_id: assignedClinic?.clinic_id || null,
+        assigned_clinic_name: assignedClinic?.clinic_name || null,
         dental_records: records.rows,
       });
     } catch (err) {
@@ -807,8 +976,10 @@ router.get(
       } else if (role === "Dentist") {
         const dentist = await getDentistProfile(user_id);
 
-        if (!dentist) {
-          return res.status(404).json({ error: "Dentist profile not found" });
+        const context = validateStaffClinicContext(dentist, "Dentist");
+
+        if (!context.allowed) {
+          return res.status(context.statusCode).json({ error: context.error });
         }
 
         patients = await pool.query(
@@ -817,26 +988,27 @@ router.get(
               p.user_id,
               u.name AS patient_name,
               u.email,
-              p.dentition_type
+              p.dentition_type,
+              p.clinic_id,
+              c.clinic_name
            FROM public.appointments a
            JOIN public.patients p ON a.patient_id = p.patient_id
            JOIN public.users u ON p.user_id = u.user_id
+           JOIN public.clinics c ON p.clinic_id = c.clinic_id
            WHERE a.dentist_id = $1
+           AND p.clinic_id = $2
+           AND c.status = 'Active'
            AND a.status IN ('Pending', 'Scheduled', 'Completed')
            ORDER BY u.name ASC`,
-          [dentist.dentist_id],
+          [dentist.dentist_id, dentist.clinic_id],
         );
       } else if (isAssistantRole(role)) {
         const assistant = await getAssistantProfile(user_id);
 
-        if (!assistant) {
-          return res.status(404).json({ error: "Assistant profile not found" });
-        }
+        const context = validateStaffClinicContext(assistant, "Assistant");
 
-        if (!assistant.clinic_id) {
-          return res.status(400).json({
-            error: "Assistant is not assigned to a clinic",
-          });
+        if (!context.allowed) {
+          return res.status(context.statusCode).json({ error: context.error });
         }
 
         patients = await pool.query(
@@ -845,12 +1017,17 @@ router.get(
               p.user_id,
               u.name AS patient_name,
               u.email,
-              p.dentition_type
+              p.dentition_type,
+              p.clinic_id,
+              c.clinic_name
            FROM public.appointments a
            JOIN public.patients p ON a.patient_id = p.patient_id
            JOIN public.users u ON p.user_id = u.user_id
            JOIN public.dentists d ON a.dentist_id = d.dentist_id
+           JOIN public.clinics c ON d.clinic_id = c.clinic_id
            WHERE d.clinic_id = $1
+           AND p.clinic_id = $1
+           AND c.status = 'Active'
            AND a.status IN ('Pending', 'Scheduled', 'Completed')
            ORDER BY u.name ASC`,
           [assistant.clinic_id],
@@ -897,8 +1074,10 @@ router.get(
       } else if (role === "Dentist") {
         const dentist = await getDentistProfile(user_id);
 
-        if (!dentist) {
-          return res.status(404).json({ error: "Dentist profile not found" });
+        const context = validateStaffClinicContext(dentist, "Dentist");
+
+        if (!context.allowed) {
+          return res.status(context.statusCode).json({ error: context.error });
         }
 
         dentists = await pool.query(
@@ -913,20 +1092,18 @@ router.get(
            JOIN public.users u ON d.user_id = u.user_id
            LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
            WHERE d.dentist_id = $1
+           AND d.status = 'Active'
+           AND c.status = 'Active'
            ORDER BY u.name ASC`,
           [dentist.dentist_id],
         );
       } else if (isAssistantRole(role)) {
         const assistant = await getAssistantProfile(user_id);
 
-        if (!assistant) {
-          return res.status(404).json({ error: "Assistant profile not found" });
-        }
+        const context = validateStaffClinicContext(assistant, "Assistant");
 
-        if (!assistant.clinic_id) {
-          return res.status(400).json({
-            error: "Assistant is not assigned to a clinic",
-          });
+        if (!context.allowed) {
+          return res.status(context.statusCode).json({ error: context.error });
         }
 
         dentists = await pool.query(
@@ -941,6 +1118,8 @@ router.get(
            JOIN public.users u ON d.user_id = u.user_id
            LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
            WHERE d.clinic_id = $1
+           AND d.status = 'Active'
+           AND c.status = 'Active'
            ORDER BY u.name ASC`,
           [assistant.clinic_id],
         );
@@ -963,32 +1142,35 @@ router.get(
   authenticateToken,
   authorizeRoles("Patient"),
   async (req, res) => {
-    const user_id = req.user.user_id;
-
     try {
-      const patient = await getPatientProfile(user_id);
+      const patient = await getPatientProfile(req.user.user_id);
+      const context = validatePatientClinicContext(patient);
 
-      if (!patient) {
-        return res.status(404).json({ error: "Patient profile not found" });
+      if (!context.allowed) {
+        return res.status(context.statusCode).json({ error: context.error });
       }
 
       const records = await pool.query(
         `${getDentalRecordBaseQuery()}
          WHERE dr.patient_id = $1
+         AND p.clinic_id = $2
+         AND d.clinic_id = $2
          AND COALESCE(dr.status, 'Active') = 'Active'
          ORDER BY dr.date_created DESC`,
-        [patient.patient_id],
+        [patient.patient_id, patient.clinic_id],
       );
 
       res.status(200).json({
         message: "Patient dental records retrieved successfully",
+        assigned_clinic_id: patient.clinic_id,
+        assigned_clinic_name: patient.clinic_name,
         dental_records: records.rows,
       });
     } catch (err) {
       console.error("Get patient dental records error:", err.message);
-      res
-        .status(500)
-        .json({ error: "Error retrieving patient dental records" });
+      res.status(500).json({
+        error: "Error retrieving patient dental records",
+      });
     }
   },
 );

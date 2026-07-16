@@ -33,9 +33,20 @@ router.post(
       gender,
       medical_history,
       dentition_type,
+      clinic_id,
     } = req.body || {};
 
     const normalizedDentitionType = normalizeDentitionType(dentition_type);
+    const normalizedClinicId =
+      clinic_id !== undefined && clinic_id !== null && clinic_id !== ""
+        ? Number(clinic_id)
+        : null;
+
+    if (normalizedClinicId && Number.isNaN(normalizedClinicId)) {
+      return res.status(400).json({
+        error: "Invalid clinic selected.",
+      });
+    }
 
     if (!normalizedDentitionType) {
       return res.status(400).json({
@@ -59,6 +70,7 @@ router.post(
         `INSERT INTO public.patients
          (
            user_id,
+           clinic_id,
            contact_number,
            date_of_birth,
            address,
@@ -66,10 +78,11 @@ router.post(
            medical_history,
            dentition_type
          )
-         VALUES ($1, $2, $3::date, $4, $5, $6, $7)
+         VALUES ($1, $2, $3, $4::date, $5, $6, $7, $8)
          RETURNING 
            patient_id,
            user_id,
+           clinic_id,
            contact_number,
            TO_CHAR(date_of_birth::date, 'YYYY-MM-DD') AS date_of_birth,
            address,
@@ -78,6 +91,7 @@ router.post(
            COALESCE(dentition_type, 'Adult') AS dentition_type`,
         [
           user_id,
+          normalizedClinicId,
           contact_number || null,
           date_of_birth || null,
           address || null,
@@ -111,6 +125,8 @@ router.get(
         `SELECT 
           p.patient_id,
           p.user_id,
+          p.clinic_id,
+          c.clinic_name,
           u.name,
           u.email,
           u.status AS account_status,
@@ -122,6 +138,7 @@ router.get(
           COALESCE(p.dentition_type, 'Adult') AS dentition_type
        FROM public.patients p
        JOIN public.users u ON p.user_id = u.user_id
+       LEFT JOIN public.clinics c ON p.clinic_id = c.clinic_id
        WHERE p.user_id = $1`,
         [user_id],
       );
@@ -235,6 +252,8 @@ router.put(
         `SELECT 
           p.patient_id,
           p.user_id,
+          p.clinic_id,
+          c.clinic_name,
           u.name,
           u.email,
           u.status AS account_status,
@@ -246,6 +265,7 @@ router.put(
           COALESCE(p.dentition_type, 'Adult') AS dentition_type
        FROM public.patients p
        JOIN public.users u ON p.user_id = u.user_id
+       LEFT JOIN public.clinics c ON p.clinic_id = c.clinic_id
        WHERE p.user_id = $1`,
         [user_id],
       );
@@ -283,6 +303,8 @@ router.get(
         `SELECT 
           p.patient_id,
           p.user_id,
+          p.clinic_id,
+          c.clinic_name,
           u.name,
           u.email,
           u.status AS account_status,
@@ -294,6 +316,7 @@ router.get(
           COALESCE(p.dentition_type, 'Adult') AS dentition_type
        FROM public.patients p
        JOIN public.users u ON p.user_id = u.user_id
+       LEFT JOIN public.clinics c ON p.clinic_id = c.clinic_id
        ORDER BY p.patient_id`,
       );
 

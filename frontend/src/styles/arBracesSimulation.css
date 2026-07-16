@@ -844,3 +844,250 @@ body.dark-mode .ar-toggle-row {
     grid-template-columns: 1fr;
   }
 }
+
+/* =========================================================
+   CLINIC BRANDING OVERRIDES
+   Keep this section at the very end of arBracesSimulation.css.
+   ========================================================= */
+
+/* Camera frame stays dark for video visibility, but its border follows the clinic. */
+.ar-camera-frame,
+.ar-xray-style-frame,
+.ar-saved-preview,
+body.dark-mode .ar-camera-frame,
+body.dark-mode .ar-xray-style-frame,
+body.dark-mode .ar-saved-preview {
+  background: #000000;
+  border-color: var(--clinic-border) !important;
+}
+
+/* Camera placeholder branding. */
+.ar-placeholder-icon {
+  background: linear-gradient(
+    135deg,
+    var(--clinic-primary),
+    var(--clinic-secondary)
+  ) !important;
+  color: var(--clinic-primary-text) !important;
+  box-shadow: 0 12px 24px
+    color-mix(in srgb, var(--clinic-primary) 34%, transparent) !important;
+}
+
+.ar-camera-placeholder h3 {
+  color: var(--clinic-heading-text) !important;
+}
+
+.ar-camera-placeholder p {
+  color: var(--clinic-muted-text) !important;
+}
+
+/* Braces style cards use the selected clinic's surfaces and text colors. */
+.brace-style-card {
+  background: var(--clinic-surface-elevated) !important;
+  border-color: var(--clinic-border) !important;
+  color: var(--clinic-heading-text) !important;
+}
+
+.brace-style-card .brace-style-text strong {
+  color: var(--clinic-heading-text) !important;
+}
+
+.brace-style-card .brace-style-text small {
+  color: var(--clinic-muted-text) !important;
+}
+
+.brace-style-card:hover:not(:disabled) {
+  border-color: var(--clinic-primary) !important;
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary) 10%,
+    var(--clinic-surface-elevated)
+  ) !important;
+  box-shadow: 0 12px 28px
+    color-mix(in srgb, var(--clinic-primary) 20%, transparent) !important;
+}
+
+.brace-style-card.selected {
+  border-color: var(--clinic-primary) !important;
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary) 22%,
+    var(--clinic-surface-elevated)
+  ) !important;
+  box-shadow: 0 14px 32px
+    color-mix(in srgb, var(--clinic-primary) 28%, transparent) !important;
+}
+
+.brace-style-card.selected .brace-style-text strong {
+  color: var(--clinic-heading-text) !important;
+}
+
+.brace-style-card.selected .brace-style-text small {
+  color: var(--clinic-muted-text) !important;
+}
+
+.brace-style-check {
+  background: var(--clinic-primary) !important;
+  color: var(--clinic-primary-text) !important;
+}
+
+/* AR form and history panels follow clinic surfaces. */
+.ar-control-card,
+.ar-review-form,
+.ar-log-section,
+.ar-toggle-row,
+body.dark-mode .ar-control-card,
+body.dark-mode .ar-review-form,
+body.dark-mode .ar-log-section,
+body.dark-mode .ar-toggle-row {
+  background: var(--clinic-surface-elevated) !important;
+  border-color: var(--clinic-border) !important;
+}
+
+.ar-control-group label,
+.ar-review-form label,
+.ar-toggle-row label,
+body.dark-mode .ar-control-group label,
+body.dark-mode .ar-review-form label {
+  color: var(--clinic-heading-text) !important;
+}
+
+.ar-review-form select,
+.ar-review-form textarea,
+body.dark-mode .ar-review-form select,
+body.dark-mode .ar-review-form textarea {
+  background: var(--clinic-input-background) !important;
+  border-color: var(--clinic-border) !important;
+  color: var(--clinic-input-text) !important;
+}
+
+.ar-review-form select:focus,
+.ar-review-form textarea:focus {
+  border-color: var(--clinic-primary) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary) 24%, transparent) !important;
+}
+
+/* Tracking warning uses the clinic secondary color. */
+.ar-tracking-warning {
+  background: color-mix(
+    in srgb,
+    var(--clinic-secondary) 88%,
+    transparent
+  ) !important;
+  color: var(--clinic-secondary-text) !important;
+}
+
+/* =========================================================
+   AR SNAPSHOT + PROGRESS FEEDBACK
+   ========================================================= */
+
+.ar-operation-progress {
+  margin: 16px 0 20px;
+  padding: 15px 16px;
+  border: 1px solid var(--clinic-primary, var(--dg-primary));
+  border-radius: 14px;
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 10%,
+    var(--clinic-surface-elevated, var(--dg-card-bg))
+  );
+}
+
+.ar-operation-progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--clinic-heading-text, var(--dg-text));
+}
+
+.ar-operation-progress-header strong {
+  font-size: 0.95rem;
+}
+
+.ar-operation-progress-header span {
+  color: var(--clinic-primary, var(--dg-primary));
+  font-weight: 900;
+}
+
+.ar-operation-progress-track {
+  width: 100%;
+  height: 10px;
+  margin-top: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 16%,
+    var(--clinic-surface, var(--dg-bg))
+  );
+}
+
+.ar-operation-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(
+    90deg,
+    var(--clinic-primary, var(--dg-primary)),
+    var(
+      --clinic-secondary,
+      var(--dg-secondary, var(--clinic-primary, var(--dg-primary)))
+    )
+  );
+  transition: width 220ms ease;
+}
+
+.ar-operation-progress p {
+  margin: 9px 0 0;
+  color: var(--clinic-muted-text, var(--dg-muted));
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.ar-latest-snapshot-card {
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid var(--clinic-primary, var(--dg-primary));
+  border-radius: 16px;
+  background: var(--clinic-surface-elevated, var(--dg-card-bg));
+}
+
+.ar-latest-snapshot-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.ar-latest-snapshot-header h3 {
+  margin: 0 0 5px;
+  color: var(--clinic-heading-text, var(--dg-text));
+}
+
+.ar-latest-snapshot-header p {
+  margin: 0;
+  color: var(--clinic-muted-text, var(--dg-muted));
+}
+
+.ar-latest-snapshot-image {
+  display: block;
+  width: 100%;
+  max-height: 620px;
+  -o-object-fit: contain;
+     object-fit: contain;
+  border: 1px solid var(--clinic-primary, var(--dg-primary));
+  border-radius: 14px;
+  background: #000000;
+}
+
+@media (max-width: 700px) {
+  .ar-latest-snapshot-header {
+    flex-direction: column;
+  }
+
+  .ar-latest-snapshot-header .secondary-button {
+    width: 100%;
+  }
+}

@@ -8,6 +8,7 @@ function DentistDashboard() {
 
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
   const token = localStorage.getItem("token");
@@ -25,9 +26,14 @@ function DentistDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       setError("");
 
       const response = await API.get("/api/dashboard/dentist", authHeaders);
@@ -38,12 +44,32 @@ function DentistDashboard() {
       );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   const formatDate = (dateValue) => {
     if (!dateValue) return "N/A";
-    return new Date(dateValue).toLocaleString();
+
+    return new Date(dateValue).toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const getStatusClass = (status) => {
+    const normalizedStatus = String(status || "").toLowerCase();
+
+    if (normalizedStatus === "pending") return "status-pending";
+    if (normalizedStatus === "scheduled") return "status-scheduled";
+    if (normalizedStatus === "completed") return "status-completed";
+    if (normalizedStatus === "cancelled") return "status-cancelled";
+
+    return "status-scheduled";
   };
 
   const dentist = dashboardData?.dentist || {};
@@ -53,6 +79,105 @@ function DentistDashboard() {
   const patients = dashboardData?.patients || {};
   const upcomingAppointments = dashboardData?.upcoming_appointments || [];
 
+  const summaryCards = [
+    {
+      label: "Total Appointments",
+      value: appointments.total_appointments || 0,
+      description: "All appointments assigned to you.",
+    },
+    {
+      label: "Pending",
+      value: appointments.pending_appointments || 0,
+      description: "Patient appointments waiting for action.",
+    },
+    {
+      label: "Scheduled",
+      value: appointments.scheduled_appointments || 0,
+      description: "Confirmed appointments on your schedule.",
+    },
+    {
+      label: "Completed",
+      value: appointments.completed_appointments || 0,
+      description: "Finished dental consultations.",
+    },
+    {
+      label: "Reschedule Requests",
+      value: appointments.reschedule_requests || 0,
+      description: "Requests from patients waiting for review.",
+    },
+    {
+      label: "Unique Patients",
+      value: patients.total_patients || 0,
+      description: "Patients connected to your appointments.",
+    },
+    {
+      label: "Active Records",
+      value: dentalRecords.active_records || 0,
+      description: "Active dental records handled by you.",
+    },
+    {
+      label: "X-rays Uploaded",
+      value: xrays.total_xrays || 0,
+      description: "X-ray files connected to your dental records.",
+    },
+  ];
+
+  const quickActions = [
+    {
+      title: "Appointments",
+      description:
+        "Review, schedule, complete, or cancel patient appointments.",
+      buttonLabel: "View Appointments",
+      className: "primary-button",
+      path: "/dentist/appointments",
+    },
+    {
+      title: "Dental Records",
+      description: "Open patient records and update treatment information.",
+      buttonLabel: "Open Records",
+      className: "secondary-button",
+      path: "/dentist/dental-records",
+    },
+    {
+      title: "X-rays",
+      description: "View uploaded X-rays and AI-assisted review results.",
+      buttonLabel: "View X-rays",
+      className: "secondary-button",
+      path: "/dentist/xrays",
+    },
+    {
+      title: "Profile",
+      description: "Manage your dentist profile and clinic assignment details.",
+      buttonLabel: "My Profile",
+      className: "secondary-button",
+      path: "/dentist/profile",
+    },
+  ];
+
+  const renderLoadingState = () => {
+    return (
+      <>
+        <div className="patient-dashboard-summary-grid">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div className="patient-dashboard-card loading-card" key={index}>
+              <div className="loading-line loading-title"></div>
+              <div className="loading-line loading-number"></div>
+              <div className="loading-line loading-text"></div>
+            </div>
+          ))}
+        </div>
+
+        <div className="patient-dashboard-section">
+          <div className="loading-panel">
+            <div className="loading-line loading-title"></div>
+            <div className="loading-line loading-text"></div>
+            <div className="loading-line loading-text"></div>
+          </div>
+        </div>
+      </>
+    );
+  };
+
   return (
     <DashboardLayout role="Dentist">
       <div className="appointments-list-card">
@@ -60,24 +185,37 @@ function DentistDashboard() {
           <div>
             <h2>Dentist Dashboard</h2>
             <p>
-              Welcome back, Dr. {user?.name || "Dentist"}. Here is your live
-              appointment, patient, dental record, and X-ray summary.
+              Welcome back, Dr. {user?.name || "Dentist"}. View your clinic
+              assignment, appointments, patients, dental records, and X-rays.
             </p>
           </div>
 
           <button
             className="secondary-button"
-            onClick={fetchDashboardData}
-            disabled={loading}
+            onClick={() => fetchDashboardData(true)}
+            disabled={loading || refreshing}
           >
-            {loading ? "Refreshing..." : "Refresh"}
+            {refreshing ? "Refreshing..." : "Refresh"}
           </button>
         </div>
 
-        {error && <div className="error-message">{error}</div>}
+        {error && (
+          <div className="error-message">
+            <strong>Unable to load dashboard.</strong>
+            <p>{error}</p>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => fetchDashboardData(true)}
+              disabled={refreshing}
+            >
+              Try Again
+            </button>
+          </div>
+        )}
 
         {loading ? (
-          <p>Loading dashboard...</p>
+          renderLoadingState()
         ) : !dashboardData ? (
           <div className="empty-state">
             <h3>No dashboard data found</h3>
@@ -89,7 +227,14 @@ function DentistDashboard() {
               <div className="appointment-info">
                 <div className="appointment-title-row">
                   <h3>Clinic Assignment</h3>
-                  <span className="status-badge status-scheduled">
+
+                  <span
+                    className={`status-badge ${
+                      dentist.clinic_name
+                        ? "status-scheduled"
+                        : "status-cancelled"
+                    }`}
+                  >
                     {dentist.clinic_name || "No assigned clinic"}
                   </span>
                 </div>
@@ -102,107 +247,75 @@ function DentistDashboard() {
                   <strong>Clinic:</strong>{" "}
                   {dentist.clinic_name || "No assigned clinic"}
                 </p>
+
+                {!dentist.clinic_name && (
+                  <div className="info-message" style={{ marginTop: "12px" }}>
+                    You are not assigned to a clinic yet. Please contact the
+                    clinic owner or system administrator.
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
-              <div className="dashboard-card">
-                <h3>Total Appointments</h3>
-                <strong>{appointments.total_appointments || 0}</strong>
-              </div>
-
-              <div className="dashboard-card">
-                <h3>Pending</h3>
-                <strong>{appointments.pending_appointments || 0}</strong>
-              </div>
-
-              <div className="dashboard-card">
-                <h3>Scheduled</h3>
-                <strong>{appointments.scheduled_appointments || 0}</strong>
-              </div>
-
-              <div className="dashboard-card">
-                <h3>Completed</h3>
-                <strong>{appointments.completed_appointments || 0}</strong>
-              </div>
+            <div className="patient-dashboard-summary-grid">
+              {summaryCards.map((card) => (
+                <div className="patient-dashboard-card" key={card.label}>
+                  <span>{card.label}</span>
+                  <strong>{card.value}</strong>
+                  <p>{card.description}</p>
+                </div>
+              ))}
             </div>
 
-            <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
-              <div className="dashboard-card">
-                <h3>Reschedule Requests</h3>
-                <strong>{appointments.reschedule_requests || 0}</strong>
-              </div>
-
-              <div className="dashboard-card">
-                <h3>Unique Patients</h3>
-                <strong>{patients.total_patients || 0}</strong>
-              </div>
-
-              <div className="dashboard-card">
-                <h3>Active Records</h3>
-                <strong>{dentalRecords.active_records || 0}</strong>
-              </div>
-
-              <div className="dashboard-card">
-                <h3>X-rays Uploaded</h3>
-                <strong>{xrays.total_xrays || 0}</strong>
-              </div>
-            </div>
-
-            <div className="report-section">
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
                   <h2>Quick Actions</h2>
-                  <p>Open your main dentist modules directly.</p>
+                  <p>Open the dentist modules commonly used during demos.</p>
                 </div>
               </div>
 
-              <div
-                className="appointment-actions"
-                style={{ flexDirection: "row", flexWrap: "wrap" }}
-              >
-                <button
-                  className="primary-button"
-                  onClick={() => navigate("/dentist/appointments")}
-                >
-                  View Appointments
-                </button>
+              <div className="patient-quick-action-grid">
+                {quickActions.map((action) => (
+                  <div className="patient-quick-action-card" key={action.title}>
+                    <div>
+                      <h3>{action.title}</h3>
+                      <p>{action.description}</p>
+                    </div>
 
-                <button
-                  className="secondary-button"
-                  onClick={() => navigate("/dentist/dental-records")}
-                >
-                  Dental Records
-                </button>
-
-                <button
-                  className="secondary-button"
-                  onClick={() => navigate("/dentist/xrays")}
-                >
-                  X-rays
-                </button>
-
-                <button
-                  className="secondary-button"
-                  onClick={() => navigate("/dentist/profile")}
-                >
-                  My Profile
-                </button>
+                    <button
+                      className={action.className}
+                      onClick={() => navigate(action.path)}
+                    >
+                      {action.buttonLabel}
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="report-section">
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
                   <h2>Upcoming Appointments</h2>
                   <p>Your latest pending and scheduled patient appointments.</p>
                 </div>
+
+                <button
+                  className="secondary-button"
+                  onClick={() => navigate("/dentist/appointments")}
+                >
+                  Manage Appointments
+                </button>
               </div>
 
               {upcomingAppointments.length === 0 ? (
                 <div className="empty-state">
                   <h3>No upcoming appointments</h3>
-                  <p>Pending and scheduled appointments will appear here.</p>
+                  <p>
+                    Pending and scheduled appointments assigned to you will
+                    appear here.
+                  </p>
                 </div>
               ) : (
                 <div className="appointments-list">
@@ -218,8 +331,12 @@ function DentistDashboard() {
                               "Dental Consultation"}
                           </h3>
 
-                          <span className="status-badge status-scheduled">
-                            {appointment.status}
+                          <span
+                            className={`status-badge ${getStatusClass(
+                              appointment.status,
+                            )}`}
+                          >
+                            {appointment.status || "Scheduled"}
                           </span>
                         </div>
 
@@ -232,6 +349,15 @@ function DentistDashboard() {
                           <strong>Date:</strong>{" "}
                           {formatDate(appointment.appointment_date)}
                         </p>
+                      </div>
+
+                      <div className="appointment-actions">
+                        <button
+                          className="secondary-button"
+                          onClick={() => navigate("/dentist/appointments")}
+                        >
+                          Open Appointment
+                        </button>
                       </div>
                     </div>
                   ))}

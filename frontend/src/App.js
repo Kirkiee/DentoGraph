@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -18,6 +18,7 @@ import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
 import ClinicOwnerStaff from "./pages/ClinicOwnerStaff";
 import ClinicOwnerProfile from "./pages/ClinicOwnerProfile";
+import ClinicOwnerBranding from "./pages/ClinicOwnerBranding";
 import ClinicOwnerSubscription from "./pages/ClinicOwnerSubscription";
 import ClinicOwnerPaymentSuccess from "./pages/ClinicOwnerPaymentSuccess";
 import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
@@ -69,26 +70,14 @@ import AssistantXrays from "./pages/AssistantXrays";
 import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem("dentograph-theme") || "light";
-  });
-
   useEffect(() => {
-    document.body.classList.remove("light-mode", "dark-mode");
-    document.body.classList.add(theme === "dark" ? "dark-mode" : "light-mode");
-    localStorage.setItem("dentograph-theme", theme);
-  }, [theme]);
+    document.documentElement.classList.remove("light-mode");
+    document.documentElement.classList.add("dark-mode");
 
-  useEffect(() => {
-    const handleThemeChange = () => {
-      setTheme(localStorage.getItem("dentograph-theme") || "light");
-    };
+    document.body.classList.remove("light-mode");
+    document.body.classList.add("dark-mode");
 
-    window.addEventListener("dentograph-theme-change", handleThemeChange);
-
-    return () => {
-      window.removeEventListener("dentograph-theme-change", handleThemeChange);
-    };
+    localStorage.setItem("dentograph-theme", "dark");
   }, []);
 
   const assistantRoles = ["Assistant", "Dental Assistant"];
@@ -159,6 +148,11 @@ function App() {
         />
 
         <Route
+          path="/admin/clinic-locations"
+          element={<Navigate to="/admin/clinics" />}
+        />
+
+        <Route
           path="/admin/subscriptions"
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
@@ -168,12 +162,22 @@ function App() {
         />
 
         <Route
+          path="/admin/shared-subscriptions"
+          element={<Navigate to="/admin/subscriptions" />}
+        />
+
+        <Route
           path="/admin/reports"
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminReports />
             </ProtectedRoute>
           }
+        />
+
+        <Route
+          path="/admin/reports-analytics"
+          element={<Navigate to="/admin/reports" />}
         />
 
         <Route
@@ -231,6 +235,11 @@ function App() {
         />
 
         <Route
+          path="/admin/subscription-payments"
+          element={<Navigate to="/admin/payments" />}
+        />
+
+        <Route
           path="/clinic-owner/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
@@ -258,12 +267,31 @@ function App() {
         />
 
         <Route
+          path="/clinic-owner/branding"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerBranding />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/locations"
+          element={<Navigate to="/clinic-owner/profile" />}
+        />
+
+        <Route
           path="/clinic-owner/subscription"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerSubscription />
             </ProtectedRoute>
           }
+        />
+
+        <Route
+          path="/clinic-owner/shared-subscription"
+          element={<Navigate to="/clinic-owner/subscription" />}
         />
 
         <Route
@@ -350,7 +378,7 @@ function App() {
         <Route
           path="/dentist/dental-records/:recordId/ar-simulations"
           element={
-            <ProtectedRoute allowedRoles={["Dentist", "dentist"]}>
+            <ProtectedRoute allowedRoles={["Dentist"]}>
               <DentistARSimulations />
             </ProtectedRoute>
           }

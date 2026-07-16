@@ -162,20 +162,54 @@ function AdminUsers() {
     }
 
     if (searchTerm.trim() !== "") {
-      const term = searchTerm.toLowerCase();
+      const term = searchTerm.trim().toLowerCase();
 
-      filtered = filtered.filter(
-        (user) =>
+      filtered = filtered.filter((user) => {
+        return (
           user.name?.toLowerCase().includes(term) ||
           user.email?.toLowerCase().includes(term) ||
           user.role_name?.toLowerCase().includes(term) ||
           user.dentist_clinic_name?.toLowerCase().includes(term) ||
           user.assistant_clinic_name?.toLowerCase().includes(term) ||
-          String(user.user_id).includes(term),
-      );
+          user.patient_clinic_name?.toLowerCase().includes(term) ||
+          user.owner_clinic_name?.toLowerCase().includes(term) ||
+          user.owner_email?.toLowerCase().includes(term) ||
+          String(user.user_id).includes(term)
+        );
+      });
     }
 
     setFilteredUsers(filtered);
+  };
+
+  const isValidEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
+  };
+
+  const validatePasswordStrength = (password) => {
+    const value = String(password || "");
+
+    if (value.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+
+    if (!/[A-Z]/.test(value)) {
+      return "Password must contain at least one uppercase letter.";
+    }
+
+    if (!/[a-z]/.test(value)) {
+      return "Password must contain at least one lowercase letter.";
+    }
+
+    if (!/[0-9]/.test(value)) {
+      return "Password must contain at least one number.";
+    }
+
+    if (!/[^A-Za-z0-9]/.test(value)) {
+      return "Password must contain at least one special character.";
+    }
+
+    return null;
   };
 
   const getSelectedCreateRoleName = () => {
@@ -254,6 +288,58 @@ function AdminUsers() {
     };
   };
 
+  const getAssignedClinicName = (user) => {
+    if (user.dentist_clinic_name) return user.dentist_clinic_name;
+    if (user.assistant_clinic_name) return user.assistant_clinic_name;
+    if (user.patient_clinic_name) return user.patient_clinic_name;
+    if (user.owner_clinic_name) return user.owner_clinic_name;
+
+    if (user.role_name === "Clinic Owner") {
+      return "Owner account / locations managed separately";
+    }
+
+    if (user.role_name === "Patient") {
+      return "No assigned clinic location";
+    }
+
+    if (user.role_name === "Admin") {
+      return "System admin";
+    }
+
+    return "No assigned clinic location";
+  };
+
+  const getClinicLinkType = (user) => {
+    if (user.role_name === "Clinic Owner") return "Owner Account";
+    if (user.role_name === "Dentist") return "Dentist Location";
+    if (
+      user.role_name === "Assistant" ||
+      user.role_name === "Dental Assistant"
+    ) {
+      return "Assistant Location";
+    }
+    if (user.role_name === "Patient") return "Patient Location";
+    if (user.role_name === "Admin") return "System";
+    return "Unassigned";
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
   const openCreateModal = () => {
     resetCreateForm();
     setMessage("");
@@ -263,6 +349,8 @@ function AdminUsers() {
   };
 
   const closeCreateModal = () => {
+    if (creating) return;
+
     setShowCreateModal(false);
     resetCreateForm();
     setCreateModalError("");
@@ -304,21 +392,32 @@ function AdminUsers() {
   const handleCreateUser = async (e) => {
     e.preventDefault();
 
-    if (
-      !createForm.name ||
-      !createForm.email ||
-      !createForm.password ||
-      !createForm.role_id
-    ) {
+    const cleanName = createForm.name.trim();
+    const cleanEmail = createForm.email.trim().toLowerCase();
+    const cleanPassword = createForm.password;
+
+    if (!cleanName || !cleanEmail || !cleanPassword || !createForm.role_id) {
       setCreateModalError("Please complete all required fields.");
+      return;
+    }
+
+    if (!isValidEmail(cleanEmail)) {
+      setCreateModalError("Please enter a valid email address.");
+      return;
+    }
+
+    const passwordError = validatePasswordStrength(cleanPassword);
+
+    if (passwordError) {
+      setCreateModalError(passwordError);
       return;
     }
 
     if (
       isCreateDentist &&
-      (!createForm.license_number ||
-        !createForm.specialization ||
-        !createForm.availability)
+      (!createForm.license_number.trim() ||
+        !createForm.specialization.trim() ||
+        !createForm.availability.trim())
     ) {
       setCreateModalError("Please complete the dentist profile fields.");
       return;
@@ -326,7 +425,7 @@ function AdminUsers() {
 
     if (
       isCreateAssistant &&
-      (!createForm.license_number || !createForm.availability)
+      (!createForm.license_number.trim() || !createForm.availability.trim())
     ) {
       setCreateModalError("Please complete the assistant profile fields.");
       return;
@@ -339,24 +438,24 @@ function AdminUsers() {
       setCreateModalError("");
 
       const payload = {
-        name: createForm.name,
-        email: createForm.email,
-        password: createForm.password,
+        name: cleanName,
+        email: cleanEmail,
+        password: cleanPassword,
         role_id: Number(createForm.role_id),
       };
 
       if (isCreateDentist) {
-        payload.license_number = createForm.license_number;
-        payload.specialization = createForm.specialization;
-        payload.availability = createForm.availability;
+        payload.license_number = createForm.license_number.trim();
+        payload.specialization = createForm.specialization.trim();
+        payload.availability = createForm.availability.trim();
         payload.clinic_id = createForm.clinic_id
           ? Number(createForm.clinic_id)
           : null;
       }
 
       if (isCreateAssistant) {
-        payload.license_number = createForm.license_number;
-        payload.availability = createForm.availability;
+        payload.license_number = createForm.license_number.trim();
+        payload.availability = createForm.availability.trim();
         payload.clinic_id = createForm.clinic_id
           ? Number(createForm.clinic_id)
           : null;
@@ -386,6 +485,8 @@ function AdminUsers() {
   };
 
   const closeStatusModal = () => {
+    if (updating) return;
+
     setShowStatusModal(false);
     setSelectedUser(null);
     setSelectedStatus("");
@@ -436,6 +537,8 @@ function AdminUsers() {
   };
 
   const closeRoleModal = () => {
+    if (updating) return;
+
     setShowRoleModal(false);
     setSelectedUser(null);
     setSelectedRoleId("");
@@ -453,9 +556,9 @@ function AdminUsers() {
 
     if (
       isChangeDentist &&
-      (!roleProfileForm.license_number ||
-        !roleProfileForm.specialization ||
-        !roleProfileForm.availability)
+      (!roleProfileForm.license_number.trim() ||
+        !roleProfileForm.specialization.trim() ||
+        !roleProfileForm.availability.trim())
     ) {
       setRoleModalError("Please complete the dentist profile fields.");
       return;
@@ -463,7 +566,8 @@ function AdminUsers() {
 
     if (
       isChangeAssistant &&
-      (!roleProfileForm.license_number || !roleProfileForm.availability)
+      (!roleProfileForm.license_number.trim() ||
+        !roleProfileForm.availability.trim())
     ) {
       setRoleModalError("Please complete the assistant profile fields.");
       return;
@@ -480,17 +584,17 @@ function AdminUsers() {
       };
 
       if (isChangeDentist) {
-        payload.license_number = roleProfileForm.license_number;
-        payload.specialization = roleProfileForm.specialization;
-        payload.availability = roleProfileForm.availability;
+        payload.license_number = roleProfileForm.license_number.trim();
+        payload.specialization = roleProfileForm.specialization.trim();
+        payload.availability = roleProfileForm.availability.trim();
         payload.clinic_id = roleProfileForm.clinic_id
           ? Number(roleProfileForm.clinic_id)
           : null;
       }
 
       if (isChangeAssistant) {
-        payload.license_number = roleProfileForm.license_number;
-        payload.availability = roleProfileForm.availability;
+        payload.license_number = roleProfileForm.license_number.trim();
+        payload.availability = roleProfileForm.availability.trim();
         payload.clinic_id = roleProfileForm.clinic_id
           ? Number(roleProfileForm.clinic_id)
           : null;
@@ -554,37 +658,42 @@ function AdminUsers() {
   const inactiveUsers = users.filter(
     (user) => user.status === "Inactive",
   ).length;
-  const adminUsers = users.filter((user) => user.role_name === "Admin").length;
-
   const verifiedUsers = users.filter((user) =>
     Boolean(user.email_verified),
   ).length;
-
   const unverifiedUsers = users.filter(
     (user) => !Boolean(user.email_verified),
+  ).length;
+  const clinicOwnerUsers = users.filter(
+    (user) => user.role_name === "Clinic Owner",
   ).length;
 
   return (
     <DashboardLayout role="Admin">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card admin-users-page">
         <div className="appointments-header">
           <div>
             <h2>User Management</h2>
             <p>
-              View users, create accounts, manage account status, update user
-              roles, and monitor email verification.
+              Manage login accounts separately from clinic locations. Staff and
+              patients must be linked to the correct clinic location, while
+              Clinic Owners manage one or more locations under a shared account.
             </p>
           </div>
 
           <div className="appointment-actions" style={{ flexDirection: "row" }}>
-            <button className="primary-button" onClick={openCreateModal}>
+            <button
+              className="primary-button"
+              onClick={openCreateModal}
+              disabled={loading || creating || updating}
+            >
               Create User
             </button>
 
             <button
               className="secondary-button"
               onClick={fetchUsers}
-              disabled={loading}
+              disabled={loading || creating || updating}
             >
               {loading ? "Refreshing..." : "Refresh"}
             </button>
@@ -594,187 +703,249 @@ function AdminUsers() {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
-          <div className="dashboard-card">
-            <h3>Total Users</h3>
-            <strong>{totalUsers}</strong>
+        <div className="admin-users-section">
+          <div className="appointments-header">
+            <div>
+              <h2>User Summary</h2>
+              <p>Quick overview of system user accounts.</p>
+            </div>
           </div>
 
-          <div className="dashboard-card">
-            <h3>Active</h3>
-            <strong>{activeUsers}</strong>
-          </div>
+          <div className="admin-users-summary-grid">
+            <div className="admin-users-summary-card">
+              <span>Total Users</span>
+              <strong>{totalUsers}</strong>
+              <p>All registered accounts</p>
+            </div>
 
-          <div className="dashboard-card">
-            <h3>Inactive</h3>
-            <strong>{inactiveUsers}</strong>
-          </div>
+            <div className="admin-users-summary-card">
+              <span>Active Users</span>
+              <strong>{activeUsers}</strong>
+              <p>Can access the system</p>
+            </div>
 
-          <div className="dashboard-card">
-            <h3>Admins</h3>
-            <strong>{adminUsers}</strong>
-          </div>
+            <div className="admin-users-summary-card">
+              <span>Inactive Users</span>
+              <strong>{inactiveUsers}</strong>
+              <p>Access disabled</p>
+            </div>
 
-          <div className="dashboard-card">
-            <h3>Verified Emails</h3>
-            <strong>{verifiedUsers}</strong>
-          </div>
+            <div className="admin-users-summary-card">
+              <span>Verified Emails</span>
+              <strong>{verifiedUsers}</strong>
+              <p>Email-confirmed accounts</p>
+            </div>
 
-          <div className="dashboard-card">
-            <h3>Unverified Emails</h3>
-            <strong>{unverifiedUsers}</strong>
-          </div>
-        </div>
+            <div className="admin-users-summary-card">
+              <span>Unverified Emails</span>
+              <strong>{unverifiedUsers}</strong>
+              <p>Need email verification</p>
+            </div>
 
-        <div className="appointment-filters">
-          <div className="form-group">
-            <label>Search</label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by name, email, role, clinic, or user ID"
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Role</label>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-            >
-              <option value="All">All Roles</option>
-              {roles.map((role) => (
-                <option key={role.role_id} value={role.role_name}>
-                  {role.role_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-            >
-              <option value="All">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Email Verification</label>
-            <select
-              value={verificationFilter}
-              onChange={(e) => setVerificationFilter(e.target.value)}
-            >
-              <option value="All">All</option>
-              <option value="Verified">Verified</option>
-              <option value="Unverified">Unverified</option>
-            </select>
+            <div className="admin-users-summary-card">
+              <span>Clinic Owners</span>
+              <strong>{clinicOwnerUsers}</strong>
+              <p>SaaS client accounts</p>
+            </div>
           </div>
         </div>
 
-        {loading ? (
-          <p>Loading users...</p>
-        ) : filteredUsers.length === 0 ? (
-          <div className="empty-state">
-            <h3>No users found</h3>
-            <p>Users will appear here once accounts are registered.</p>
+        <div className="admin-users-section">
+          <div className="appointments-header">
+            <div>
+              <h2>User Filters</h2>
+              <p>
+                Search and filter users by role, status, verification, or
+                assigned clinic location.
+              </p>
+            </div>
           </div>
-        ) : (
-          <div className="appointments-list">
-            {filteredUsers.map((user) => (
-              <div className="appointment-item" key={user.user_id}>
-                <div className="appointment-info">
-                  <div className="appointment-title-row">
-                    <h3>{user.name}</h3>
 
-                    <span className={getStatusClass(user.status)}>
-                      {user.status}
-                    </span>
-
-                    <span className="status-badge status-scheduled">
-                      {user.role_name || "No Role"}
-                    </span>
-
-                    <span
-                      className={getEmailVerificationClass(user.email_verified)}
-                    >
-                      {user.email_verified
-                        ? "Verified Email"
-                        : "Unverified Email"}
-                    </span>
-                  </div>
-
-                  <p>
-                    <strong>User ID:</strong> {user.user_id}
-                  </p>
-
-                  <p>
-                    <strong>Email:</strong> {user.email}
-                  </p>
-
-                  <p>
-                    <strong>Email Verification:</strong>{" "}
-                    {user.email_verified ? "Verified" : "Unverified"}
-                  </p>
-
-                  {user.dentist_clinic_name && (
-                    <p>
-                      <strong>Dentist Clinic:</strong>{" "}
-                      {user.dentist_clinic_name}
-                    </p>
-                  )}
-
-                  {user.assistant_clinic_name && (
-                    <p>
-                      <strong>Assistant Clinic:</strong>{" "}
-                      {user.assistant_clinic_name}
-                    </p>
-                  )}
-
-                  <p>
-                    <strong>Created:</strong>{" "}
-                    {user.created_at
-                      ? new Date(user.created_at).toLocaleString()
-                      : "N/A"}
-                  </p>
+          <div className="admin-users-filter-card">
+            <div className="appointment-form">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Search</label>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search by name, email, role, clinic location, owner, or user ID"
+                    disabled={loading}
+                  />
                 </div>
 
-                <div className="appointment-actions">
-                  <button
-                    className="secondary-button"
-                    disabled={updating}
-                    onClick={() => openRoleModal(user)}
+                <div className="form-group">
+                  <label>Role</label>
+                  <select
+                    value={roleFilter}
+                    onChange={(e) => setRoleFilter(e.target.value)}
+                    disabled={loading}
                   >
-                    Change Role
-                  </button>
+                    <option value="All">All Roles</option>
+                    {roles.map((role) => (
+                      <option key={role.role_id} value={role.role_name}>
+                        {role.role_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                  {user.status === "Active" ? (
-                    <button
-                      className="danger-button"
-                      disabled={updating}
-                      onClick={() => openStatusModal(user, "Inactive")}
-                    >
-                      Deactivate
-                    </button>
-                  ) : (
-                    <button
-                      className="secondary-button"
-                      disabled={updating}
-                      onClick={() => openStatusModal(user, "Active")}
-                    >
-                      Activate
-                    </button>
-                  )}
+                <div className="form-group">
+                  <label>Status</label>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    disabled={loading}
+                  >
+                    <option value="All">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Email Verification</label>
+                  <select
+                    value={verificationFilter}
+                    onChange={(e) => setVerificationFilter(e.target.value)}
+                    disabled={loading}
+                  >
+                    <option value="All">All</option>
+                    <option value="Verified">Verified</option>
+                    <option value="Unverified">Unverified</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Visible Records</label>
+                  <input
+                    type="text"
+                    value={`${filteredUsers.length} of ${users.length}`}
+                    disabled
+                  />
                 </div>
               </div>
-            ))}
+            </div>
           </div>
-        )}
+        </div>
+
+        <div className="admin-users-section">
+          <div className="appointments-header">
+            <div>
+              <h2>User Accounts</h2>
+              <p>
+                Detailed list of login accounts, assigned roles, verification,
+                and clinic links.
+              </p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="payment-loading-card">
+              <p>Loading users...</p>
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="empty-state">
+              <h3>No users found</h3>
+              <p>Users will appear here once accounts are registered.</p>
+            </div>
+          ) : (
+            <div className="payment-table-wrapper admin-users-table-wrapper">
+              <table className="payment-table admin-users-table">
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Clinic Location Link</th>
+                    <th>Status</th>
+                    <th>Email Verification</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {filteredUsers.map((user) => (
+                    <tr key={user.user_id}>
+                      <td>
+                        <strong>{user.name}</strong>
+                        <br />
+                        <span className="admin-users-email-text">
+                          {user.email}
+                        </span>
+                        <br />
+                        <span className="muted-text">ID: {user.user_id}</span>
+                      </td>
+
+                      <td>
+                        <span className="status-badge status-scheduled">
+                          {user.role_name || "No Role"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <strong>{getAssignedClinicName(user)}</strong>
+                        <br />
+                        <span className="muted-text">
+                          {getClinicLinkType(user)}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span className={getStatusClass(user.status)}>
+                          {user.status || "Pending"}
+                        </span>
+                      </td>
+
+                      <td>
+                        <span
+                          className={getEmailVerificationClass(
+                            user.email_verified,
+                          )}
+                        >
+                          {user.email_verified ? "Verified" : "Unverified"}
+                        </span>
+                      </td>
+
+                      <td>{formatDate(user.created_at)}</td>
+
+                      <td>
+                        <div className="admin-users-table-actions">
+                          <button
+                            className="secondary-button"
+                            disabled={updating}
+                            onClick={() => openRoleModal(user)}
+                          >
+                            Role
+                          </button>
+
+                          {user.status === "Active" ? (
+                            <button
+                              className="danger-button"
+                              disabled={updating}
+                              onClick={() => openStatusModal(user, "Inactive")}
+                            >
+                              Deactivate
+                            </button>
+                          ) : (
+                            <button
+                              className="primary-button"
+                              disabled={updating}
+                              onClick={() => openStatusModal(user, "Active")}
+                            >
+                              Activate
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {showCreateModal && (
@@ -784,8 +955,9 @@ function AdminUsers() {
               <div>
                 <h3>Create User Account</h3>
                 <p>
-                  Create a new account and provide role-specific details when
-                  needed.
+                  Create a login account. Dentist and assistant accounts should
+                  be linked to a specific clinic location, while Clinic Owner
+                  accounts manage locations separately.
                 </p>
               </div>
 
@@ -793,6 +965,7 @@ function AdminUsers() {
                 type="button"
                 className="modal-close-button"
                 onClick={closeCreateModal}
+                disabled={creating}
               >
                 ×
               </button>
@@ -807,26 +980,40 @@ function AdminUsers() {
                 <div className="error-message">{createModalError}</div>
               )}
 
+              <div className="info-message">
+                Fields marked with <span className="auth-required">*</span> are
+                required. Staff accounts must verify their email before logging
+                in.
+              </div>
+
               <div className="form-group">
-                <label>Name</label>
+                <label>
+                  Name
+                  <span className="auth-required">*</span>
+                </label>
                 <input
                   type="text"
                   name="name"
                   value={createForm.name}
                   onChange={handleCreateChange}
                   placeholder="Enter full name"
+                  disabled={creating}
                   required
                 />
               </div>
 
               <div className="form-group">
-                <label>Email</label>
+                <label>
+                  Email
+                  <span className="auth-required">*</span>
+                </label>
                 <input
                   type="email"
                   name="email"
                   value={createForm.email}
                   onChange={handleCreateChange}
                   placeholder="Enter email address"
+                  disabled={creating}
                   required
                 />
               </div>
@@ -844,11 +1031,15 @@ function AdminUsers() {
               />
 
               <div className="form-group">
-                <label>Role</label>
+                <label>
+                  Role
+                  <span className="auth-required">*</span>
+                </label>
                 <select
                   name="role_id"
                   value={createForm.role_id}
                   onChange={handleCreateChange}
+                  disabled={creating}
                   required
                 >
                   <option value="">Select Role</option>
@@ -862,13 +1053,14 @@ function AdminUsers() {
 
               {(isCreateDentist || isCreateAssistant) && (
                 <div className="form-group">
-                  <label>Clinic</label>
+                  <label>Clinic Location Assignment</label>
                   <select
                     name="clinic_id"
                     value={createForm.clinic_id}
                     onChange={handleCreateChange}
+                    disabled={creating}
                   >
-                    <option value="">No assigned clinic</option>
+                    <option value="">No assigned clinic location</option>
                     {clinics
                       .filter((clinic) => clinic.status === "Active")
                       .map((clinic) => (
@@ -877,43 +1069,59 @@ function AdminUsers() {
                         </option>
                       ))}
                   </select>
+                  <small>
+                    Assign staff to the specific clinic location where they will
+                    work. Clinic records remain separate from user accounts.
+                  </small>
                 </div>
               )}
 
               {isCreateDentist && (
                 <>
                   <div className="form-group">
-                    <label>License Number</label>
+                    <label>
+                      License Number
+                      <span className="auth-required">*</span>
+                    </label>
                     <input
                       type="text"
                       name="license_number"
                       value={createForm.license_number}
                       onChange={handleCreateChange}
                       placeholder="Example: DEN-001"
+                      disabled={creating}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Specialization</label>
+                    <label>
+                      Specialization
+                      <span className="auth-required">*</span>
+                    </label>
                     <input
                       type="text"
                       name="specialization"
                       value={createForm.specialization}
                       onChange={handleCreateChange}
                       placeholder="Example: General Dentistry"
+                      disabled={creating}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Availability</label>
+                    <label>
+                      Availability
+                      <span className="auth-required">*</span>
+                    </label>
                     <textarea
                       name="availability"
                       value={createForm.availability}
                       onChange={handleCreateChange}
                       placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
                       rows="3"
+                      disabled={creating}
                       required
                     />
                   </div>
@@ -923,25 +1131,33 @@ function AdminUsers() {
               {isCreateAssistant && (
                 <>
                   <div className="form-group">
-                    <label>License Number</label>
+                    <label>
+                      License Number
+                      <span className="auth-required">*</span>
+                    </label>
                     <input
                       type="text"
                       name="license_number"
                       value={createForm.license_number}
                       onChange={handleCreateChange}
                       placeholder="Example: AST-001"
+                      disabled={creating}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Availability</label>
+                    <label>
+                      Availability
+                      <span className="auth-required">*</span>
+                    </label>
                     <textarea
                       name="availability"
                       value={createForm.availability}
                       onChange={handleCreateChange}
                       placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
                       rows="3"
+                      disabled={creating}
                       required
                     />
                   </div>
@@ -953,6 +1169,7 @@ function AdminUsers() {
                   type="button"
                   className="secondary-button"
                   onClick={closeCreateModal}
+                  disabled={creating}
                 >
                   Cancel
                 </button>
@@ -986,6 +1203,7 @@ function AdminUsers() {
                 type="button"
                 className="modal-close-button"
                 onClick={closeStatusModal}
+                disabled={updating}
               >
                 ×
               </button>
@@ -1000,19 +1218,15 @@ function AdminUsers() {
                 <div className="error-message">{statusModalError}</div>
               )}
 
-              <div className="form-group">
-                <label>Name</label>
-                <input type="text" value={selectedUser?.name || ""} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>Email</label>
-                <input type="text" value={selectedUser?.email || ""} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>New Status</label>
-                <input type="text" value={selectedStatus} disabled />
+              <div className="info-message">
+                <strong>User:</strong> {selectedUser?.name || "N/A"}
+                <br />
+                <strong>Email:</strong> {selectedUser?.email || "N/A"}
+                <br />
+                <strong>Current Role:</strong>{" "}
+                {selectedUser?.role_name || "No Role"}
+                <br />
+                <strong>New Status:</strong> {selectedStatus}
               </div>
 
               <div className="modal-actions">
@@ -1020,6 +1234,7 @@ function AdminUsers() {
                   type="button"
                   className="secondary-button"
                   onClick={closeStatusModal}
+                  disabled={updating}
                 >
                   Go Back
                 </button>
@@ -1048,7 +1263,8 @@ function AdminUsers() {
               <div>
                 <h3>Change User Role</h3>
                 <p>
-                  Select a new role and provide profile details when needed.
+                  Select a new role. Dentist and assistant roles should be
+                  linked to a specific clinic location.
                 </p>
               </div>
 
@@ -1056,6 +1272,7 @@ function AdminUsers() {
                 type="button"
                 className="modal-close-button"
                 onClick={closeRoleModal}
+                disabled={updating}
               >
                 ×
               </button>
@@ -1070,22 +1287,28 @@ function AdminUsers() {
                 <div className="error-message">{roleModalError}</div>
               )}
 
-              <div className="form-group">
-                <label>Name</label>
-                <input type="text" value={selectedUser?.name || ""} disabled />
+              <div className="info-message">
+                <strong>User:</strong> {selectedUser?.name || "N/A"}
+                <br />
+                <strong>Email:</strong> {selectedUser?.email || "N/A"}
+                <br />
+                <strong>Current Role:</strong>{" "}
+                {selectedUser?.role_name || "No Role"}
+                <br />
+                <strong>Current Clinic Location Link:</strong>{" "}
+                {selectedUser ? getAssignedClinicName(selectedUser) : "N/A"}
               </div>
 
               <div className="form-group">
-                <label>Email</label>
-                <input type="text" value={selectedUser?.email || ""} disabled />
-              </div>
-
-              <div className="form-group">
-                <label>Role</label>
+                <label>
+                  New Role
+                  <span className="auth-required">*</span>
+                </label>
                 <select
                   value={selectedRoleId}
                   onChange={handleRoleChangeInModal}
                   required
+                  disabled={updating}
                 >
                   <option value="">Select Role</option>
                   {roles.map((role) => (
@@ -1098,13 +1321,14 @@ function AdminUsers() {
 
               {(isChangeDentist || isChangeAssistant) && (
                 <div className="form-group">
-                  <label>Clinic</label>
+                  <label>Clinic Location Assignment</label>
                   <select
                     name="clinic_id"
                     value={roleProfileForm.clinic_id}
                     onChange={handleRoleProfileChange}
+                    disabled={updating}
                   >
-                    <option value="">No assigned clinic</option>
+                    <option value="">No assigned clinic location</option>
                     {clinics
                       .filter((clinic) => clinic.status === "Active")
                       .map((clinic) => (
@@ -1119,37 +1343,49 @@ function AdminUsers() {
               {isChangeDentist && (
                 <>
                   <div className="form-group">
-                    <label>License Number</label>
+                    <label>
+                      License Number
+                      <span className="auth-required">*</span>
+                    </label>
                     <input
                       type="text"
                       name="license_number"
                       value={roleProfileForm.license_number}
                       onChange={handleRoleProfileChange}
                       placeholder="Example: DEN-001"
+                      disabled={updating}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Specialization</label>
+                    <label>
+                      Specialization
+                      <span className="auth-required">*</span>
+                    </label>
                     <input
                       type="text"
                       name="specialization"
                       value={roleProfileForm.specialization}
                       onChange={handleRoleProfileChange}
                       placeholder="Example: General Dentistry"
+                      disabled={updating}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Availability</label>
+                    <label>
+                      Availability
+                      <span className="auth-required">*</span>
+                    </label>
                     <textarea
                       name="availability"
                       value={roleProfileForm.availability}
                       onChange={handleRoleProfileChange}
                       placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
                       rows="3"
+                      disabled={updating}
                       required
                     />
                   </div>
@@ -1159,25 +1395,33 @@ function AdminUsers() {
               {isChangeAssistant && (
                 <>
                   <div className="form-group">
-                    <label>License Number</label>
+                    <label>
+                      License Number
+                      <span className="auth-required">*</span>
+                    </label>
                     <input
                       type="text"
                       name="license_number"
                       value={roleProfileForm.license_number}
                       onChange={handleRoleProfileChange}
                       placeholder="Example: AST-001"
+                      disabled={updating}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label>Availability</label>
+                    <label>
+                      Availability
+                      <span className="auth-required">*</span>
+                    </label>
                     <textarea
                       name="availability"
                       value={roleProfileForm.availability}
                       onChange={handleRoleProfileChange}
                       placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
                       rows="3"
+                      disabled={updating}
                       required
                     />
                   </div>
@@ -1189,6 +1433,7 @@ function AdminUsers() {
                   type="button"
                   className="secondary-button"
                   onClick={closeRoleModal}
+                  disabled={updating}
                 >
                   Cancel
                 </button>

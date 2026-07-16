@@ -158,6 +158,8 @@ function AdminClinics() {
           clinic.address?.toLowerCase().includes(term) ||
           clinic.contact_number?.toLowerCase().includes(term) ||
           clinic.services?.toLowerCase().includes(term) ||
+          clinic.owner_name?.toLowerCase().includes(term) ||
+          clinic.owner_email?.toLowerCase().includes(term) ||
           clinic.plan_name?.toLowerCase().includes(term),
       );
     }
@@ -454,13 +456,13 @@ function AdminClinics() {
 
   return (
     <DashboardLayout role="Admin">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card admin-clinics-page">
         <div className="appointments-header">
           <div>
             <h2>Clinic Management</h2>
             <p>
-              Manage clinic branches, map coordinates, services, subscription
-              plans, contact details, and availability status.
+              Manage clinic locations, clinic owners, shared subscription
+              details, map coordinates, contact details, and status.
             </p>
           </div>
 
@@ -483,8 +485,9 @@ function AdminClinics() {
         </div>
 
         <div className="info-message">
-          Clinics with active status and valid latitude/longitude coordinates
-          will appear in Patient Clinic Discovery and on the real-time map.
+          Each row represents a clinic location. Subscription plans are shared
+          under the Clinic Owner account when the location has an assigned
+          owner.
         </div>
 
         {message && <div className="success-message">{message}</div>}
@@ -492,22 +495,22 @@ function AdminClinics() {
 
         <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
           <div className="dashboard-card">
-            <h3>Total Clinics</h3>
+            <h3>Clinic Locations</h3>
             <strong>{totalClinics}</strong>
           </div>
 
           <div className="dashboard-card">
-            <h3>Active Clinics</h3>
+            <h3>Active Locations</h3>
             <strong>{activeClinics}</strong>
           </div>
 
           <div className="dashboard-card">
-            <h3>Inactive Clinics</h3>
+            <h3>Inactive Locations</h3>
             <strong>{inactiveClinics}</strong>
           </div>
 
           <div className="dashboard-card">
-            <h3>Mapped Clinics</h3>
+            <h3>Mapped Locations</h3>
             <strong>{mappedClinics}</strong>
           </div>
         </div>
@@ -519,7 +522,7 @@ function AdminClinics() {
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search clinic, address, service, contact, or plan"
+              placeholder="Search location, owner, address, service, contact, or plan"
             />
           </div>
 
@@ -596,116 +599,169 @@ function AdminClinics() {
           </div>
         </div>
 
-        {loading ? (
-          <p>Loading clinics...</p>
-        ) : filteredClinics.length === 0 ? (
-          <div className="empty-state">
-            <h3>No clinics found</h3>
-            <p>Add a clinic branch to start managing clinic information.</p>
+        <div className="admin-clinics-table-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Clinic Location List</h2>
+              <p>
+                Scan clinic locations in table form. Use Edit for full details
+                and View Usage for subscription limit checks.
+              </p>
+            </div>
+
+            <span className="status-badge status-scheduled">
+              {filteredClinics.length} shown
+            </span>
           </div>
-        ) : (
-          <div className="appointments-list">
-            {filteredClinics.map((clinic) => (
-              <div className="appointment-item" key={clinic.clinic_id}>
-                <div className="appointment-info">
-                  <div className="appointment-title-row">
-                    <h3>{clinic.clinic_name}</h3>
 
-                    <span className={getStatusClass(clinic.status)}>
-                      {clinic.status}
-                    </span>
-                  </div>
+          {loading ? (
+            <div className="payment-loading-card">
+              <p>Loading clinic locations...</p>
+            </div>
+          ) : filteredClinics.length === 0 ? (
+            <div className="empty-state">
+              <h3>No clinic locations found</h3>
+              <p>Add a clinic location to start managing clinic information.</p>
+            </div>
+          ) : (
+            <div className="payment-table-wrapper admin-clinics-table-wrapper">
+              <table className="payment-table admin-clinics-table">
+                <thead>
+                  <tr>
+                    <th>Clinic Location</th>
+                    <th>Owner</th>
+                    <th>Shared Plan</th>
+                    <th>Contact</th>
+                    <th>Map</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
 
-                  <p>
-                    <strong>Clinic ID:</strong> {clinic.clinic_id}
-                  </p>
+                <tbody>
+                  {filteredClinics.map((clinic) => (
+                    <tr key={clinic.clinic_id}>
+                      <td>
+                        <strong>
+                          {clinic.clinic_name || "Clinic Location"}
+                        </strong>
+                        <br />
+                        <span className="muted-text">
+                          ID: {clinic.clinic_id}
+                        </span>
+                        <br />
+                        <span className="muted-text">
+                          {clinic.address || "No address provided"}
+                        </span>
+                      </td>
 
-                  <p>
-                    <strong>Address:</strong>{" "}
-                    {clinic.address || "No address provided"}
-                  </p>
+                      <td>
+                        <strong>
+                          {clinic.owner_name || "No owner assigned"}
+                        </strong>
+                        <br />
+                        <span className="muted-text">
+                          {clinic.owner_email || "N/A"}
+                        </span>
+                      </td>
 
-                  <p>
-                    <strong>Coordinates:</strong>{" "}
-                    {clinic.latitude && clinic.longitude
-                      ? `${clinic.latitude}, ${clinic.longitude}`
-                      : "No coordinates provided"}
-                  </p>
+                      <td>
+                        <strong>
+                          {clinic.plan_name || "No plan assigned"}
+                        </strong>
+                        <br />
+                        <span className="muted-text">
+                          {clinic.owner_user_id
+                            ? "Shared owner subscription"
+                            : "Standalone location"}
+                        </span>
+                      </td>
 
-                  <p>
-                    <strong>Services:</strong>{" "}
-                    {clinic.services || "No services listed"}
-                  </p>
+                      <td>
+                        <strong>{clinic.contact_number || "No contact"}</strong>
+                        <br />
+                        <span className="muted-text">
+                          {clinic.opening_hours || "No opening hours"}
+                        </span>
+                      </td>
 
-                  <p>
-                    <strong>Contact:</strong>{" "}
-                    {clinic.contact_number || "No contact provided"}
-                  </p>
+                      <td>
+                        {clinic.latitude && clinic.longitude ? (
+                          <>
+                            <span className="status-badge status-completed">
+                              Mapped
+                            </span>
+                            <br />
+                            <span className="muted-text">
+                              {clinic.latitude}, {clinic.longitude}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="status-badge status-pending">
+                            No coordinates
+                          </span>
+                        )}
+                      </td>
 
-                  <p>
-                    <strong>Opening Hours:</strong>{" "}
-                    {clinic.opening_hours || "No opening hours provided"}
-                  </p>
+                      <td>
+                        <span className={getStatusClass(clinic.status)}>
+                          {clinic.status || "Active"}
+                        </span>
+                      </td>
 
-                  <p>
-                    <strong>Subscription Plan:</strong>{" "}
-                    {clinic.plan_name || "No plan assigned"}
-                  </p>
+                      <td>
+                        <div className="payment-table-actions admin-clinics-actions">
+                          <button
+                            className="secondary-button"
+                            onClick={() => openEditModal(clinic)}
+                          >
+                            Edit
+                          </button>
 
-                  <p>
-                    <strong>Created:</strong>{" "}
-                    {clinic.created_at
-                      ? new Date(clinic.created_at).toLocaleString()
-                      : "N/A"}
-                  </p>
-                </div>
+                          <button
+                            className="secondary-button"
+                            onClick={() => openUsageModal(clinic)}
+                          >
+                            Usage
+                          </button>
 
-                <div className="appointment-actions">
-                  <button
-                    className="secondary-button"
-                    onClick={() => openEditModal(clinic)}
-                  >
-                    Edit
-                  </button>
+                          <a
+                            className="secondary-button"
+                            href={getMapSearchLink(clinic)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Map
+                          </a>
 
-                  <button
-                    className="secondary-button"
-                    onClick={() => openUsageModal(clinic)}
-                  >
-                    View Usage
-                  </button>
-
-                  <a
-                    className="secondary-button"
-                    href={getMapSearchLink(clinic)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View Map
-                  </a>
-
-                  {clinic.status === "Active" ? (
-                    <button
-                      className="danger-button"
-                      disabled={updatingStatus}
-                      onClick={() => openStatusModal(clinic, "Inactive")}
-                    >
-                      Deactivate
-                    </button>
-                  ) : (
-                    <button
-                      className="primary-button"
-                      disabled={updatingStatus}
-                      onClick={() => openStatusModal(clinic, "Active")}
-                    >
-                      Activate
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                          {clinic.status === "Active" ? (
+                            <button
+                              className="danger-button"
+                              disabled={updatingStatus}
+                              onClick={() =>
+                                openStatusModal(clinic, "Inactive")
+                              }
+                            >
+                              Deactivate
+                            </button>
+                          ) : (
+                            <button
+                              className="primary-button"
+                              disabled={updatingStatus}
+                              onClick={() => openStatusModal(clinic, "Active")}
+                            >
+                              Activate
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       {showClinicModal && (
@@ -713,11 +769,15 @@ function AdminClinics() {
           <div className="modal-card">
             <div className="modal-header">
               <div>
-                <h3>{selectedClinic ? "Edit Clinic" : "Add Clinic"}</h3>
+                <h3>
+                  {selectedClinic
+                    ? "Edit Clinic Location"
+                    : "Add Clinic Location"}
+                </h3>
                 <p>
                   {selectedClinic
-                    ? "Update clinic branch information, map coordinates, and subscription plan."
-                    : "Create a new clinic branch record for discovery and map display."}
+                    ? "Update clinic location information, map coordinates, and shared plan assignment."
+                    : "Create a new clinic location record for discovery and map display."}
                 </p>
               </div>
 
@@ -815,7 +875,7 @@ function AdminClinics() {
               </div>
 
               <div className="form-group">
-                <label>Subscription Plan</label>
+                <label>Shared Subscription Plan</label>
                 <select
                   name="subscription_plan_id"
                   value={clinicForm.subscription_plan_id}
@@ -1122,8 +1182,8 @@ function AdminClinics() {
 
                   <div className="info-message">
                     These values are calculated from the current database
-                    records and are used to enforce the clinic’s subscription
-                    limits.
+                    records and are used to enforce the shared subscription
+                    limits for this clinic location.
                   </div>
 
                   <div className="modal-actions">

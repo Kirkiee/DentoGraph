@@ -23,7 +23,7 @@ const RECORD_SOURCE_OPTIONS = [
 
 const formatSubscriptionError = (errorMessage, fallbackMessage) => {
   const backendError = errorMessage || fallbackMessage;
-  const lowerError = backendError.toLowerCase();
+  const lowerError = String(backendError).toLowerCase();
 
   if (
     lowerError.includes("limit") ||
@@ -40,6 +40,10 @@ function DentistDentalRecords() {
   const navigate = useNavigate();
 
   const [records, setRecords] = useState([]);
+  const [assignedClinic, setAssignedClinic] = useState({
+    clinic_id: null,
+    clinic_name: "",
+  });
   const [patients, setPatients] = useState([]);
   const [selectedPatientId, setSelectedPatientId] = useState("");
 
@@ -47,9 +51,12 @@ function DentistDentalRecords() {
   const [sourceNotes, setSourceNotes] = useState("");
 
   const [loading, setLoading] = useState(true);
+  const [loadingPatients, setLoadingPatients] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [archiving, setArchiving] = useState(false);
 
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
 
@@ -71,23 +78,57 @@ function DentistDentalRecords() {
   };
 
   useEffect(() => {
-    fetchRecords();
-    fetchPatients();
+    fetchInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchRecords = async () => {
+  useEffect(() => {
+    if (showArchiveModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showArchiveModal]);
+
+  const fetchInitialData = async () => {
     try {
       setLoading(true);
+      setLoadingPatients(true);
+      setError("");
+      setPolicyError(null);
+
+      await Promise.all([fetchRecords(false), fetchPatients()]);
+    } finally {
+      setLoading(false);
+      setLoadingPatients(false);
+    }
+  };
+
+  const fetchRecords = async (manageLoading = true) => {
+    try {
+      if (manageLoading) {
+        setRefreshing(true);
+      }
+
       setError("");
       setPolicyError(null);
 
       const response = await API.get("/api/dental-records", authHeaders);
       setRecords(response.data.dental_records || []);
+      setAssignedClinic({
+        clinic_id: response.data.assigned_clinic_id || null,
+        clinic_name: response.data.assigned_clinic_name || "",
+      });
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load dental records.");
     } finally {
-      setLoading(false);
+      if (manageLoading) {
+        setRefreshing(false);
+      }
     }
   };
 
@@ -104,11 +145,21 @@ function DentistDentalRecords() {
     }
   };
 
+  const refreshPage = async () => {
+    setRefreshing(true);
+
+    try {
+      await Promise.all([fetchRecords(false), fetchPatients()]);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const getPatientDentitionLabel = (dentitionType) => {
     if (dentitionType === "Child") return "Child / Primary Teeth";
     if (dentitionType === "Adult") return "Adult / Permanent Teeth";
 
-    return "Dentition type not set";
+    return "Dental chart type not set";
   };
 
   const getPatientOptionLabel = (patient) => {
@@ -242,7 +293,8 @@ function DentistDentalRecords() {
         response.data.message || "Dental record created successfully.",
       );
       resetCreateForm();
-      fetchRecords();
+      setShowCreateForm(false);
+      fetchRecords(true);
     } catch (err) {
       const responseData = err.response?.data;
       const formattedError = formatSubscriptionError(
@@ -301,7 +353,7 @@ function DentistDentalRecords() {
 
       setMessage(`Record #${selectedRecord.record_id} archived successfully.`);
       closeArchiveModal();
-      fetchRecords();
+      fetchRecords(true);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to archive dental record.");
     } finally {
@@ -396,6 +448,32 @@ function DentistDentalRecords() {
     return result;
   }, [records, searchTerm, statusFilter, sourceFilter, sortBy]);
 
+  const recordSummary = useMemo(() => {
+    return {
+      total: records.length,
+      active: records.filter((record) => getRecordStatus(record) === "Active")
+        .length,
+      archived: records.filter(
+        (record) => getRecordStatus(record) === "Archived",
+      ).length,
+      oldImported: records.filter((record) => {
+        const source = record.record_source || "NEW_SYSTEM_RECORD";
+        return (
+          source === "OLD_ENCODED_RECORD" ||
+          source === "SCANNED_OLD_RECORD" ||
+          source === "PDA_BASED_RECORD"
+        );
+      }).length,
+    };
+  }, [records]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setSourceFilter("All");
+    setSortBy("newest");
+  };
+
   const recordCountText = () => {
     if (loading) return "Loading records...";
 
@@ -412,208 +490,320 @@ function DentistDentalRecords() {
     return `${filteredAndSortedRecords.length} of ${records.length} dental records shown.`;
   };
 
+  const renderLoadingState = () => {
+    return (
+      <div className="appointments-list">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div className="appointment-item loading-card" key={index}>
+            <div className="appointment-info">
+              <div className="loading-line loading-title"></div>
+              <div className="loading-line loading-text"></div>
+              <div className="loading-line loading-text"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout role="Dentist">
-      <div className="appointments-layout">
-        <div className="appointment-form-card">
-          <h2>Create Dental Record</h2>
-          <p>
-            Select a patient to create a new dental record. This record can
-            later contain tooth details, treatments, X-rays, previous records,
-            uploaded documents, and clinical notes.
-          </p>
-
-          <div className="info-message" style={{ marginBottom: "16px" }}>
-            <strong>Dental Record Creation Policy:</strong>
-            <br />A dental record can only be created for an existing patient
-            profile with Adult/Child dentition type set. The dentist must have
-            an appointment connection with the patient, and only one active
-            dental record is allowed per patient per clinic. Archived records
-            cannot be modified.
+      <div className="appointments-list-card">
+        <div className="appointments-header">
+          <div>
+            <h2>Dental Records</h2>
+            <p>
+              Create, search, review, and manage dental records for patients
+              under your assigned dentist account.
+            </p>
           </div>
 
-          {selectedPatient && (
-            <div className="info-message" style={{ marginBottom: "16px" }}>
-              <strong>Selected Patient:</strong> {selectedPatient.patient_name}
-              <br />
-              <strong>Email:</strong> {selectedPatient.email}
-              <br />
-              <strong>Dentition Type:</strong>{" "}
-              {getPatientDentitionLabel(selectedPatient.dentition_type)}
-              {!selectedPatient.dentition_type && (
-                <>
-                  <br />
-                  <strong>Action Needed:</strong> This patient must update their
-                  profile and select Adult or Child before a dental record can
-                  be created.
-                </>
-              )}
-            </div>
-          )}
-
-          {message && <div className="success-message">{message}</div>}
-          {error && <div className="error-message">{error}</div>}
-
-          {policyError && (
-            <div className="error-message">
-              <strong>{policyError.message}</strong>
-
-              {policyError.existingRecord && (
-                <div style={{ marginTop: "10px" }}>
-                  <p>
-                    <strong>Existing Active Record:</strong> Record #
-                    {policyError.existingRecord.record_id}
-                  </p>
-
-                  <p>
-                    <strong>Assigned Dentist:</strong>{" "}
-                    {policyError.existingRecord.dentist_name || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Clinic:</strong>{" "}
-                    {policyError.existingRecord.clinic_name || "N/A"}
-                  </p>
-
-                  <p>
-                    <strong>Status:</strong>{" "}
-                    {policyError.existingRecord.status || "Active"}
-                  </p>
-
-                  <p>
-                    <strong>Record Source:</strong>{" "}
-                    {getRecordSourceLabel(
-                      policyError.existingRecord.record_source,
-                    )}
-                  </p>
-
-                  <button
-                    type="button"
-                    className="secondary-button"
-                    onClick={() =>
-                      navigate(
-                        `/dentist/dental-records/${policyError.existingRecord.record_id}`,
-                      )
-                    }
-                    style={{ marginTop: "8px" }}
-                  >
-                    Open Existing Record
-                  </button>
-                </div>
-              )}
-
-              {policyError.policy?.rules?.length > 0 && (
-                <div style={{ marginTop: "10px" }}>
-                  <strong>{policyError.policy.name || "Policy Rules"}:</strong>
-
-                  <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
-                    {policyError.policy.rules.map((rule, index) => (
-                      <li key={index}>{rule}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          <form className="appointment-form" onSubmit={handleCreateRecord}>
-            <div className="form-group">
-              <label>Patient</label>
-              <select
-                value={selectedPatientId}
-                onChange={(e) => {
-                  setSelectedPatientId(e.target.value);
-                  setMessage("");
-                  setError("");
-                  setPolicyError(null);
-                }}
-                required
-              >
-                <option value="">Select Patient</option>
-                {patients.map((patient) => (
-                  <option key={patient.patient_id} value={patient.patient_id}>
-                    {getPatientOptionLabel(patient)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Record Source</label>
-              <select
-                value={recordSource}
-                onChange={(e) => {
-                  setRecordSource(e.target.value);
-                  setMessage("");
-                  setError("");
-                  setPolicyError(null);
-                }}
-                required
-              >
-                {RECORD_SOURCE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="info-message">
-              <strong>{getRecordSourceLabel(recordSource)}:</strong>{" "}
-              {getRecordSourceDescription(recordSource)}
-            </div>
-
-            <div className="form-group">
-              <label>Source Notes</label>
-              <textarea
-                value={sourceNotes}
-                onChange={(e) => setSourceNotes(e.target.value)}
-                placeholder={
-                  recordSource === "NEW_SYSTEM_RECORD"
-                    ? "Example: New dental record created after today's consultation."
-                    : recordSource === "OLD_ENCODED_RECORD"
-                      ? "Example: Manually encoded from the patient's previous paper record."
-                      : "Example: Based on scanned old record uploaded by clinic staff."
-                }
-                rows="4"
-              />
-            </div>
-
+          <div className="appointment-actions">
             <button
-              type="submit"
               className="primary-button"
-              disabled={creating || !selectedPatientId}
+              type="button"
+              onClick={() => setShowCreateForm((prev) => !prev)}
             >
-              {creating ? "Creating..." : "Create Dental Record"}
+              {showCreateForm ? "Hide Create Form" : "Create Record"}
             </button>
-          </form>
-        </div>
-
-        <div className="appointments-list-card">
-          <div className="appointments-header">
-            <div>
-              <h2>Dental Records</h2>
-              <p>
-                View, search, filter, and sort dental records created for
-                patients under your assigned dentist account.
-              </p>
-            </div>
 
             <button
               className="secondary-button"
-              onClick={fetchRecords}
-              disabled={loading}
+              onClick={refreshPage}
+              disabled={loading || refreshing}
             >
-              {loading ? "Refreshing..." : "Refresh"}
+              {loading || refreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
+        </div>
 
-          <div className="appointment-filters">
+        {assignedClinic.clinic_name && (
+          <div className="info-message">
+            <strong>Assigned Clinic Location:</strong>{" "}
+            {assignedClinic.clinic_name}
+            {assignedClinic.clinic_id
+              ? ` (Clinic ID: ${assignedClinic.clinic_id})`
+              : ""}
+          </div>
+        )}
+
+        {message && <div className="success-message">{message}</div>}
+
+        {error && (
+          <div className="error-message">
+            <strong>Dental record notice</strong>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {policyError && (
+          <div className="error-message">
+            <strong>{policyError.message}</strong>
+
+            {policyError.existingRecord && (
+              <div style={{ marginTop: "10px" }}>
+                <p>
+                  <strong>Existing Active Record:</strong> Record #
+                  {policyError.existingRecord.record_id}
+                </p>
+
+                <p>
+                  <strong>Assigned Dentist:</strong>{" "}
+                  {policyError.existingRecord.dentist_name || "N/A"}
+                </p>
+
+                <p>
+                  <strong>Clinic:</strong>{" "}
+                  {policyError.existingRecord.clinic_name || "N/A"}
+                </p>
+
+                <p>
+                  <strong>Status:</strong>{" "}
+                  {policyError.existingRecord.status || "Active"}
+                </p>
+
+                <p>
+                  <strong>Record Source:</strong>{" "}
+                  {getRecordSourceLabel(
+                    policyError.existingRecord.record_source,
+                  )}
+                </p>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() =>
+                    navigate(
+                      `/dentist/dental-records/${policyError.existingRecord.record_id}`,
+                    )
+                  }
+                  style={{ marginTop: "8px" }}
+                >
+                  Open Existing Record
+                </button>
+              </div>
+            )}
+
+            {policyError.policy?.rules?.length > 0 && (
+              <div style={{ marginTop: "10px" }}>
+                <strong>{policyError.policy.name || "Policy Rules"}:</strong>
+
+                <ul style={{ marginTop: "8px", paddingLeft: "20px" }}>
+                  {policyError.policy.rules.map((rule, index) => (
+                    <li key={index}>{rule}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="patient-dashboard-summary-grid">
+          <div className="patient-dashboard-card">
+            <span>Total Records</span>
+            <strong>{recordSummary.total}</strong>
+            <p>All dental records under your account.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Active</span>
+            <strong>{recordSummary.active}</strong>
+            <p>Records available for normal updates.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Archived</span>
+            <strong>{recordSummary.archived}</strong>
+            <p>Records no longer editable by dentist.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Old / Imported</span>
+            <strong>{recordSummary.oldImported}</strong>
+            <p>Records from old or scanned sources.</p>
+          </div>
+        </div>
+
+        {showCreateForm && (
+          <div className="patient-dashboard-section">
+            <div className="appointments-header">
+              <div>
+                <h2>Create Dental Record</h2>
+                <p>
+                  Select a patient and identify whether this is a new record or
+                  an old/imported record.
+                </p>
+              </div>
+            </div>
+
+            <div className="info-message">
+              <strong>Dental Record Creation Policy:</strong>
+              <br />A dental record can only be created for an existing patient
+              profile with Adult/Child dental chart type set. The dentist must
+              have an appointment connection with the patient, and only one
+              active dental record is allowed per patient per clinic.
+            </div>
+
+            {selectedPatient && (
+              <div className="info-message">
+                <strong>Selected Patient:</strong>{" "}
+                {selectedPatient.patient_name}
+                <br />
+                <strong>Email:</strong> {selectedPatient.email}
+                <br />
+                <strong>Dental Chart Type:</strong>{" "}
+                {getPatientDentitionLabel(selectedPatient.dentition_type)}
+                {!selectedPatient.dentition_type && (
+                  <>
+                    <br />
+                    <strong>Action Needed:</strong> This patient must update
+                    their profile and select Adult or Child before a dental
+                    record can be created.
+                  </>
+                )}
+              </div>
+            )}
+
+            <form
+              className="dentist-record-create-form"
+              onSubmit={handleCreateRecord}
+            >
+              <div className="form-group">
+                <label>Patient</label>
+                <select
+                  value={selectedPatientId}
+                  onChange={(e) => {
+                    setSelectedPatientId(e.target.value);
+                    setMessage("");
+                    setError("");
+                    setPolicyError(null);
+                  }}
+                  disabled={loadingPatients}
+                  required
+                >
+                  <option value="">Select Patient</option>
+                  {patients.map((patient) => (
+                    <option key={patient.patient_id} value={patient.patient_id}>
+                      {getPatientOptionLabel(patient)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Record Source</label>
+                <select
+                  value={recordSource}
+                  onChange={(e) => {
+                    setRecordSource(e.target.value);
+                    setMessage("");
+                    setError("");
+                    setPolicyError(null);
+                  }}
+                  required
+                >
+                  {RECORD_SOURCE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="info-message dentist-record-source-guide">
+                <strong>{getRecordSourceLabel(recordSource)}:</strong>{" "}
+                {getRecordSourceDescription(recordSource)}
+              </div>
+
+              <div className="form-group dentist-record-notes-field">
+                <label>Source Notes</label>
+                <textarea
+                  value={sourceNotes}
+                  onChange={(e) => setSourceNotes(e.target.value)}
+                  placeholder={
+                    recordSource === "NEW_SYSTEM_RECORD"
+                      ? "Example: New dental record created after today's consultation."
+                      : recordSource === "OLD_ENCODED_RECORD"
+                        ? "Example: Manually encoded from the patient's previous paper record."
+                        : "Example: Based on scanned old record uploaded by clinic staff."
+                  }
+                  rows="4"
+                />
+              </div>
+
+              <div className="appointment-actions dentist-record-create-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => {
+                    resetCreateForm();
+                    setShowCreateForm(false);
+                  }}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={creating || !selectedPatientId}
+                >
+                  {creating ? "Creating..." : "Create Dental Record"}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Search and Filter</h2>
+              <p>
+                Search by patient, record ID, dentist, clinic, source, or notes.
+              </p>
+            </div>
+
+            {(searchTerm ||
+              statusFilter !== "All" ||
+              sourceFilter !== "All" ||
+              sortBy !== "newest") && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          <div className="dentist-record-filter-panel">
             <div className="form-group">
               <label>Search Records</label>
               <input
                 type="text"
-                placeholder="Search by patient, dentist, clinic, record ID, or notes..."
+                placeholder="Search patient, clinic, record ID, or notes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 disabled={loading}
@@ -666,11 +856,18 @@ function DentistDentalRecords() {
               </select>
             </div>
           </div>
+        </div>
 
-          <div className="info-message">{recordCountText()}</div>
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Record List</h2>
+              <p>{recordCountText()}</p>
+            </div>
+          </div>
 
           {loading ? (
-            <p>Loading dental records...</p>
+            renderLoadingState()
           ) : records.length === 0 ? (
             <div className="empty-state">
               <h3>No dental records yet</h3>
@@ -683,11 +880,21 @@ function DentistDentalRecords() {
                 Try changing your search, filter, or sorting options to view
                 more records.
               </p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </button>
             </div>
           ) : (
             <div className="appointments-list">
               {filteredAndSortedRecords.map((record) => (
-                <div className="appointment-item" key={record.record_id}>
+                <div
+                  className="appointment-item dentist-record-item"
+                  key={record.record_id}
+                >
                   <div className="appointment-info">
                     <div className="appointment-title-row">
                       <h3>Record #{record.record_id}</h3>
@@ -695,55 +902,60 @@ function DentistDentalRecords() {
                       <span className={getRecordStatusClass(record.status)}>
                         {record.status || "Active"}
                       </span>
-                    </div>
 
-                    <p>
-                      <strong>Patient:</strong>{" "}
-                      {record.patient_name || `Patient ID ${record.patient_id}`}
-                    </p>
-
-                    <p>
-                      <strong>Patient Type:</strong>{" "}
-                      {getPatientDentitionLabel(record.dentition_type)}
-                    </p>
-
-                    <p>
-                      <strong>Record Source:</strong>{" "}
                       <span
                         className={getRecordSourceClass(record.record_source)}
                       >
                         {getRecordSourceLabel(record.record_source)}
                       </span>
-                    </p>
+                    </div>
 
-                    {record.source_notes && (
-                      <p>
-                        <strong>Source Notes:</strong> {record.source_notes}
-                      </p>
-                    )}
+                    <div className="dentist-record-detail-grid">
+                      <div className="dentist-record-left-details">
+                        <p>
+                          <strong>Patient:</strong>{" "}
+                          {record.patient_name ||
+                            `Patient ID ${record.patient_id}`}
+                        </p>
 
-                    <p>
-                      <strong>Dentist:</strong>{" "}
-                      {record.dentist_name || `Dentist ID ${record.dentist_id}`}
-                    </p>
+                        <p>
+                          <strong>Dental Chart Type:</strong>{" "}
+                          {getPatientDentitionLabel(record.dentition_type)}
+                        </p>
 
-                    <p>
-                      <strong>Clinic:</strong>{" "}
-                      {record.clinic_name || "No assigned clinic"}
-                    </p>
+                        <p>
+                          <strong>Dentist:</strong>{" "}
+                          {record.dentist_name ||
+                            `Dentist ID ${record.dentist_id}`}
+                        </p>
 
-                    <p>
-                      <strong>Date Created:</strong>{" "}
-                      {formatDate(record.date_created)}
-                    </p>
+                        <p>
+                          <strong>Clinic:</strong>{" "}
+                          {record.clinic_name || "No assigned clinic"}
+                        </p>
+                      </div>
 
-                    <p>
-                      <strong>Last Updated:</strong>{" "}
-                      {formatDate(record.last_updated)}
-                    </p>
+                      <div className="dentist-record-right-details">
+                        <p>
+                          <strong>Date Created:</strong>{" "}
+                          {formatDate(record.date_created)}
+                        </p>
+
+                        <p>
+                          <strong>Last Updated:</strong>{" "}
+                          {formatDate(record.last_updated)}
+                        </p>
+
+                        {record.source_notes && (
+                          <p>
+                            <strong>Source Notes:</strong> {record.source_notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="appointment-actions">
+                  <div className="appointment-actions dentist-record-actions">
                     <button
                       className="secondary-button"
                       onClick={() =>
@@ -751,6 +963,17 @@ function DentistDentalRecords() {
                       }
                     >
                       View Details
+                    </button>
+
+                    <button
+                      className="primary-button"
+                      onClick={() =>
+                        navigate(
+                          `/dentist/dental-records/${record.record_id}/3d-view`,
+                        )
+                      }
+                    >
+                      3D Chart
                     </button>
 
                     <button
@@ -778,8 +1001,8 @@ function DentistDentalRecords() {
                 <h3>Archive Dental Record</h3>
                 <p>
                   Confirm that you want to archive this dental record. Archived
-                  records will be hidden from the normal records list and cannot
-                  be modified unless restored by an administrator.
+                  records cannot be modified unless restored by an
+                  administrator.
                 </p>
               </div>
 
@@ -824,7 +1047,7 @@ function DentistDentalRecords() {
               </div>
 
               <div className="form-group">
-                <label>Dentition Type</label>
+                <label>Dental Chart Type</label>
                 <input
                   type="text"
                   value={getPatientDentitionLabel(

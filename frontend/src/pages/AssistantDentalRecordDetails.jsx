@@ -947,7 +947,7 @@ function AssistantDentalRecordDetails() {
 
   return (
     <DashboardLayout role="Assistant">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card dental-record-details-page">
         <div className="appointments-header">
           <div>
             <h2>Dental Record Details</h2>

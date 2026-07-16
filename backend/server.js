@@ -1,4 +1,6 @@
-require("dotenv").config({ path: require("path").join(__dirname, ".env") });
+require("dotenv").config({
+  path: require("path").join(__dirname, ".env"),
+});
 
 const express = require("express");
 const cors = require("cors");
@@ -29,12 +31,10 @@ const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isProduction = NODE_ENV === "production";
 
-// Needed when deployed behind Hostinger/proxy
 app.set("trust proxy", 1);
 
 // ===============================
-// DEBUG ENV CHECK
-// Remove these logs after confirming everything works.
+// ENVIRONMENT CHECK
 // ===============================
 
 console.log("Environment:", NODE_ENV);
@@ -43,7 +43,7 @@ console.log("PAYMONGO SECRET EXISTS:", !!process.env.PAYMONGO_SECRET_KEY);
 console.log("FRONTEND_URL:", process.env.FRONTEND_URL);
 
 // ===============================
-// CORS WHITELIST
+// CORS
 // ===============================
 
 const allowedOrigins = [
@@ -57,7 +57,6 @@ const allowedOrigins = [
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Allow Postman, Thunder Client, mobile apps, curl, server-to-server requests
     if (!origin) {
       return callback(null, true);
     }
@@ -67,18 +66,17 @@ const corsOptions = {
     }
 
     console.log("Blocked by CORS:", origin);
+
     return callback(new Error(`Not allowed by CORS: ${origin}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
+  exposedHeaders: ["Content-Length", "Content-Type"],
   optionsSuccessStatus: 204,
 };
 
-// CORS must be before routes
 app.use(cors(corsOptions));
-
-// Express 5 safe preflight handler
 app.options(/.*/, cors(corsOptions));
 
 // ===============================
@@ -87,9 +85,11 @@ app.options(/.*/, cors(corsOptions));
 
 app.use(
   helmet({
-    crossOriginResourcePolicy: false,
+    crossOriginResourcePolicy: {
+      policy: "cross-origin",
+    },
     crossOriginEmbedderPolicy: false,
-  })
+  }),
 );
 
 // ===============================
@@ -102,14 +102,14 @@ app.use(
     verify: (req, res, buf) => {
       req.rawBody = buf.toString();
     },
-  })
+  }),
 );
 
 app.use(
   express.urlencoded({
     extended: true,
     limit: "10mb",
-  })
+  }),
 );
 
 // ===============================
@@ -117,31 +117,61 @@ app.use(
 // ===============================
 
 const uploadsPath = path.join(__dirname, "uploads");
-const xraysPath = path.join(__dirname, "uploads", "xrays");
-const arPath = path.join(__dirname, "uploads", "ar-simulations");
-const documentsPath = path.join(__dirname, "uploads", "patient-documents");
+const xraysPath = path.join(uploadsPath, "xrays");
+const arPath = path.join(uploadsPath, "ar-simulations");
+const documentsPath = path.join(uploadsPath, "patient-documents");
+const clinicBrandingPath = path.join(uploadsPath, "clinic-branding");
 
-[uploadsPath, xraysPath, arPath, documentsPath].forEach((folderPath) => {
+const uploadFolders = [
+  uploadsPath,
+  xraysPath,
+  arPath,
+  documentsPath,
+  clinicBrandingPath,
+];
+
+uploadFolders.forEach((folderPath) => {
   if (!fs.existsSync(folderPath)) {
-    fs.mkdirSync(folderPath, { recursive: true });
+    fs.mkdirSync(folderPath, {
+      recursive: true,
+    });
   }
 });
 
-// Serve uploaded files
+// ===============================
+// STATIC UPLOAD DELIVERY
+// ===============================
+
 app.use(
   "/uploads",
   express.static(uploadsPath, {
     dotfiles: "deny",
     index: false,
+    fallthrough: true,
     maxAge: isProduction ? "1d" : 0,
-    setHeaders: (res) => {
+    immutable: false,
+    setHeaders: (res, filePath) => {
       res.setHeader("X-Content-Type-Options", "nosniff");
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+
+      if (
+        filePath.endsWith(".svg") ||
+        filePath.endsWith(".png") ||
+        filePath.endsWith(".jpg") ||
+        filePath.endsWith(".jpeg") ||
+        filePath.endsWith(".webp")
+      ) {
+        res.setHeader(
+          "Cache-Control",
+          isProduction ? "public, max-age=86400" : "no-store",
+        );
+      }
     },
-  })
+  }),
 );
 
 // ===============================
-// HEALTH CHECK ROUTES
+// HEALTH CHECK
 // ===============================
 
 app.get("/", (req, res) => {
@@ -150,6 +180,7 @@ app.get("/", (req, res) => {
     environment: NODE_ENV,
     frontend_url: process.env.FRONTEND_URL || null,
     paymongo_key_loaded: !!process.env.PAYMONGO_SECRET_KEY,
+    uploads_url: "/uploads",
   });
 });
 
@@ -160,6 +191,13 @@ app.get("/api/health", async (req, res) => {
     res.status(200).json({
       status: "ok",
       database: "connected",
+      uploads: {
+        root: fs.existsSync(uploadsPath),
+        xrays: fs.existsSync(xraysPath),
+        ar_simulations: fs.existsSync(arPath),
+        patient_documents: fs.existsSync(documentsPath),
+        clinic_branding: fs.existsSync(clinicBrandingPath),
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -182,23 +220,38 @@ if (!isProduction) {
       backendDir: __dirname,
       uploadsPath,
       uploadsExists: fs.existsSync(uploadsPath),
+
       xraysPath,
       xraysExists: fs.existsSync(xraysPath),
       xrayFiles: fs.existsSync(xraysPath) ? fs.readdirSync(xraysPath) : [],
+
       arPath,
       arExists: fs.existsSync(arPath),
       arFiles: fs.existsSync(arPath) ? fs.readdirSync(arPath) : [],
+
       documentsPath,
       documentsExists: fs.existsSync(documentsPath),
       documentFiles: fs.existsSync(documentsPath)
         ? fs.readdirSync(documentsPath)
+        : [],
+
+      clinicBrandingPath,
+      clinicBrandingExists: fs.existsSync(clinicBrandingPath),
+      clinicBrandingFiles: fs.existsSync(clinicBrandingPath)
+        ? fs.readdirSync(clinicBrandingPath)
         : [],
     });
   });
 
   app.get("/debug/uploads/:folder/:filename", (req, res) => {
     const { folder, filename } = req.params;
-    const allowedFolders = ["xrays", "ar-simulations", "patient-documents"];
+
+    const allowedFolders = [
+      "xrays",
+      "ar-simulations",
+      "patient-documents",
+      "clinic-branding",
+    ];
 
     if (!allowedFolders.includes(folder)) {
       return res.status(400).json({
@@ -206,22 +259,37 @@ if (!isProduction) {
       });
     }
 
-    const filePath = path.join(__dirname, "uploads", folder, filename);
+    const safeFilename = path.basename(filename);
+    const filePath = path.join(uploadsPath, folder, safeFilename);
 
-    res.json({
+    return res.json({
       found: fs.existsSync(filePath),
       checkedPath: filePath,
+      publicUrl: `/uploads/${folder}/${safeFilename}`,
     });
   });
 
   app.get("/debug/check-xray/:filename", (req, res) => {
-    const filename = req.params.filename;
-    const filePath = path.join(__dirname, "uploads", "xrays", filename);
+    const safeFilename = path.basename(req.params.filename);
+    const filePath = path.join(xraysPath, safeFilename);
 
-    res.json({
-      filename,
+    return res.json({
+      filename: safeFilename,
       checkedPath: filePath,
       exists: fs.existsSync(filePath),
+      publicUrl: `/uploads/xrays/${safeFilename}`,
+    });
+  });
+
+  app.get("/debug/check-clinic-logo/:filename", (req, res) => {
+    const safeFilename = path.basename(req.params.filename);
+    const filePath = path.join(clinicBrandingPath, safeFilename);
+
+    return res.json({
+      filename: safeFilename,
+      checkedPath: filePath,
+      exists: fs.existsSync(filePath),
+      publicUrl: `/uploads/clinic-branding/${safeFilename}`,
     });
   });
 }
@@ -253,6 +321,7 @@ app.use("/api/ar-simulations", arSimulationRoutes);
 app.use((req, res) => {
   res.status(404).json({
     error: "Route not found",
+    method: req.method,
     path: req.originalUrl,
   });
 });
@@ -262,7 +331,7 @@ app.use((req, res) => {
 // ===============================
 
 app.use((err, req, res, next) => {
-  console.error("Server error:", err.message);
+  console.error("Server error:", err);
 
   if (err.message && err.message.includes("Not allowed by CORS")) {
     return res.status(403).json({
@@ -271,7 +340,7 @@ app.use((err, req, res, next) => {
     });
   }
 
-  res.status(err.status || 500).json({
+  return res.status(err.status || 500).json({
     error: isProduction
       ? "Server error. Please try again later."
       : err.message || "Server error.",
@@ -286,4 +355,5 @@ app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${NODE_ENV}`);
   console.log(`Serving uploads from: ${uploadsPath}`);
+  console.log(`Serving clinic branding from: ${clinicBrandingPath}`);
 });

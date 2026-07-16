@@ -36,14 +36,17 @@ function AdminSubscriptions() {
 
   const [planForm, setPlanForm] = useState({
     plan_name: "",
+    plan_tier: "Standard",
     price: "",
     billing_cycle: "Monthly",
+    max_clinics: 1,
     max_dentists: 1,
     max_assistants: 1,
     max_patients: 50,
     max_records: 100,
     max_xrays: 100,
     storage_limit_mb: 500,
+    features: "",
     status: "Active",
   });
 
@@ -92,14 +95,17 @@ function AdminSubscriptions() {
   const resetPlanForm = () => {
     setPlanForm({
       plan_name: "",
+      plan_tier: "Standard",
       price: "",
       billing_cycle: "Monthly",
+      max_clinics: 1,
       max_dentists: 1,
       max_assistants: 1,
       max_patients: 50,
       max_records: 100,
       max_xrays: 100,
       storage_limit_mb: 500,
+      features: "",
       status: "Active",
     });
   };
@@ -113,7 +119,8 @@ function AdminSubscriptions() {
       setPlans(response.data.plans || []);
     } catch (err) {
       setError(
-        err.response?.data?.error || "Unable to load subscription plans.",
+        err.response?.data?.error ||
+          "Unable to load shared subscription plans.",
       );
     } finally {
       setLoading(false);
@@ -143,7 +150,7 @@ function AdminSubscriptions() {
     } catch (err) {
       setError(
         err.response?.data?.error ||
-          "Unable to load clinic subscription monitoring.",
+          "Unable to load clinic owner subscription monitoring.",
       );
     } finally {
       setClinicLoading(false);
@@ -163,8 +170,11 @@ function AdminSubscriptions() {
       filtered = filtered.filter(
         (plan) =>
           plan.plan_name?.toLowerCase().includes(term) ||
+          plan.plan_tier?.toLowerCase().includes(term) ||
           plan.billing_cycle?.toLowerCase().includes(term) ||
+          plan.features?.toLowerCase().includes(term) ||
           String(plan.price || "").includes(term) ||
+          String(plan.max_clinics || "").includes(term) ||
           String(plan.max_dentists || "").includes(term) ||
           String(plan.max_assistants || "").includes(term) ||
           String(plan.max_patients || "").includes(term) ||
@@ -217,14 +227,17 @@ function AdminSubscriptions() {
 
     setPlanForm({
       plan_name: plan.plan_name || "",
+      plan_tier: plan.plan_tier || "Standard",
       price: plan.price || "",
       billing_cycle: plan.billing_cycle || "Monthly",
+      max_clinics: plan.max_clinics ?? 1,
       max_dentists: plan.max_dentists ?? 1,
       max_assistants: plan.max_assistants ?? 1,
       max_patients: plan.max_patients ?? 50,
       max_records: plan.max_records ?? 100,
       max_xrays: plan.max_xrays ?? 100,
       storage_limit_mb: plan.storage_limit_mb ?? 500,
+      features: plan.features || "",
       status: plan.status || "Active",
     });
 
@@ -262,6 +275,7 @@ function AdminSubscriptions() {
     }
 
     const numericFields = [
+      "max_clinics",
       "max_dentists",
       "max_assistants",
       "max_patients",
@@ -275,6 +289,11 @@ function AdminSubscriptions() {
         setModalError("Plan limits cannot be negative.");
         return false;
       }
+    }
+
+    if (Number(planForm.max_clinics || 0) <= 0) {
+      setModalError("Max clinic locations must be at least 1.");
+      return false;
     }
 
     return true;
@@ -295,14 +314,17 @@ function AdminSubscriptions() {
 
       const payload = {
         plan_name: planForm.plan_name,
+        plan_tier: planForm.plan_tier,
         price: Number(planForm.price || 0),
         billing_cycle: planForm.billing_cycle,
+        max_clinics: Number(planForm.max_clinics || 0),
         max_dentists: Number(planForm.max_dentists || 0),
         max_assistants: Number(planForm.max_assistants || 0),
         max_patients: Number(planForm.max_patients || 0),
         max_records: Number(planForm.max_records || 0),
         max_xrays: Number(planForm.max_xrays || 0),
         storage_limit_mb: Number(planForm.storage_limit_mb || 0),
+        features: planForm.features,
         status: planForm.status,
       };
 
@@ -313,10 +335,10 @@ function AdminSubscriptions() {
           authHeaders,
         );
 
-        setMessage("Subscription plan updated successfully.");
+        setMessage("Shared subscription plan updated successfully.");
       } else {
         await API.post("/api/subscriptions", payload, authHeaders);
-        setMessage("Subscription plan created successfully.");
+        setMessage("Shared subscription plan created successfully.");
       }
 
       closePlanModal();
@@ -324,7 +346,7 @@ function AdminSubscriptions() {
       fetchClinicSubscriptions();
     } catch (err) {
       setModalError(
-        err.response?.data?.error || "Unable to save subscription plan.",
+        err.response?.data?.error || "Unable to save shared subscription plan.",
       );
     } finally {
       setSaving(false);
@@ -367,14 +389,14 @@ function AdminSubscriptions() {
         authHeaders,
       );
 
-      setMessage(`Subscription plan marked as ${selectedStatus}.`);
+      setMessage(`Shared subscription plan marked as ${selectedStatus}.`);
       closeStatusModal();
       fetchPlans();
       fetchClinicSubscriptions();
     } catch (err) {
       setModalError(
         err.response?.data?.error ||
-          "Unable to update subscription plan status.",
+          "Unable to update shared subscription plan status.",
       );
     } finally {
       setUpdatingStatus(false);
@@ -418,7 +440,14 @@ function AdminSubscriptions() {
     });
   };
 
+  const formatLimit = (value) => {
+    if (value === null || value === undefined) return "Unlimited";
+    return value;
+  };
+
   const formatStorage = (mb) => {
+    if (mb === null || mb === undefined) return "Unlimited";
+
     const storage = Number(mb || 0);
 
     if (storage >= 1024) {
@@ -455,20 +484,20 @@ function AdminSubscriptions() {
     (plan) => plan.status === "Inactive",
   ).length;
 
-  const totalRecordCapacity = plans.reduce(
-    (sum, plan) => sum + Number(plan.max_records || 0),
+  const totalLocationCapacity = plans.reduce(
+    (sum, plan) => sum + Number(plan.max_clinics || 0),
     0,
   );
 
   return (
     <DashboardLayout role="Admin">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card admin-subscriptions-page">
         <div className="appointments-header">
           <div>
-            <h2>Subscription Management</h2>
+            <h2>Shared Subscription Management</h2>
             <p>
-              Manage subscription plans, monitor clinic subscription status, and
-              review expiration dates.
+              Manage SaaS subscription plans and monitor clinic owner accounts
+              using shared subscriptions across multiple clinic locations.
             </p>
           </div>
 
@@ -491,9 +520,9 @@ function AdminSubscriptions() {
         </div>
 
         <div className="info-message">
-          These plan limits are used by the backend to control how many
-          dentists, assistants, dental records, X-rays, and uploaded files each
-          subscribed clinic can use.
+          These limits are shared across all clinic locations owned by one
+          Clinic Owner account. They are enforced when adding locations, staff,
+          patients, dental records, X-rays, and uploaded files.
         </div>
 
         {message && <div className="success-message">{message}</div>}
@@ -502,18 +531,31 @@ function AdminSubscriptions() {
         <div className="report-section">
           <div className="appointments-header">
             <div>
-              <h2>Clinic Subscription Monitoring</h2>
+              <h2>Clinic Owner Subscription Monitoring</h2>
               <p>
-                Monitor clinic subscription status, expiration dates, days
-                remaining, and subscribed plans.
+                Monitor subscription status, expiration dates, and subscribed
+                plans for clinic owner accounts and their locations.
               </p>
             </div>
           </div>
 
           <div className="dashboard-grid" style={{ marginBottom: "24px" }}>
             <div className="dashboard-card">
-              <h3>Total Clinics</h3>
-              <strong>{subscriptionSummary.total}</strong>
+              <h3>Owner Accounts</h3>
+              <strong>
+                {subscriptionSummary.total_owner_accounts ||
+                  subscriptionSummary.total ||
+                  0}
+              </strong>
+            </div>
+
+            <div className="dashboard-card">
+              <h3>Clinic Locations</h3>
+              <strong>
+                {subscriptionSummary.total_clinic_locations ||
+                  subscriptionSummary.total ||
+                  0}
+              </strong>
             </div>
 
             <div className="dashboard-card">
@@ -539,7 +581,7 @@ function AdminSubscriptions() {
 
           <div className="appointment-filters">
             <div className="form-group">
-              <label>Search Clinics</label>
+              <label>Search Clinic Owners / Locations</label>
               <input
                 type="text"
                 value={clinicSearchTerm}
@@ -565,81 +607,109 @@ function AdminSubscriptions() {
           </div>
 
           {clinicLoading ? (
-            <p>Loading clinic subscriptions...</p>
+            <div className="payment-loading-card">
+              <p>Loading clinic owner subscriptions...</p>
+            </div>
           ) : filteredClinicSubscriptions.length === 0 ? (
             <div className="empty-state">
-              <h3>No clinic subscriptions found</h3>
-              <p>No clinics match the current subscription filter.</p>
+              <h3>No subscriptions found</h3>
+              <p>No records match the current subscription filter.</p>
             </div>
           ) : (
-            <div className="appointments-list">
-              {filteredClinicSubscriptions.map((subscription) => (
-                <div className="appointment-item" key={subscription.clinic_id}>
-                  <div className="appointment-info">
-                    <div className="appointment-title-row">
-                      <h3>{subscription.clinic_name}</h3>
+            <div className="payment-table-wrapper admin-subscription-table-wrapper">
+              <table className="payment-table admin-subscription-table">
+                <thead>
+                  <tr>
+                    <th>Clinic Location</th>
+                    <th>Owner</th>
+                    <th>Location Count</th>
+                    <th>Scope</th>
+                    <th>Shared Plan</th>
+                    <th>Max Locations</th>
+                    <th>Price</th>
+                    <th>Subscription</th>
+                    <th>End Date</th>
+                    <th>Time Remaining</th>
+                    <th>Location Status</th>
+                  </tr>
+                </thead>
 
-                      <span
-                        className={getMonitoringStatusClass(
-                          subscription.monitoring_status,
-                        )}
-                      >
-                        {subscription.monitoring_status}
-                      </span>
-                    </div>
+                <tbody>
+                  {filteredClinicSubscriptions.map((subscription) => (
+                    <tr key={subscription.clinic_id}>
+                      <td>
+                        <strong>
+                          {subscription.clinic_name || "Clinic Location"}
+                        </strong>
+                      </td>
 
-                    <p>
-                      <strong>Owner:</strong>{" "}
-                      {subscription.owner_name || "No owner assigned"}
-                    </p>
+                      <td>
+                        <strong>
+                          {subscription.owner_name || "No owner assigned"}
+                        </strong>
+                        <br />
+                        <span className="muted-text">
+                          {subscription.owner_email || "N/A"}
+                        </span>
+                      </td>
 
-                    <p>
-                      <strong>Owner Email:</strong>{" "}
-                      {subscription.owner_email || "N/A"}
-                    </p>
+                      <td>
+                        <strong>
+                          {subscription.owner_active_location_count ||
+                            subscription.owner_location_count ||
+                            1}
+                        </strong>
+                        <br />
+                        <span className="muted-text">
+                          active of {subscription.owner_location_count || 1}{" "}
+                          total
+                        </span>
+                      </td>
 
-                    <p>
-                      <strong>Current Plan:</strong>{" "}
-                      {subscription.plan_name || "No Plan"}
-                    </p>
+                      <td>
+                        <span className="status-badge status-scheduled">
+                          {subscription.subscription_scope || "Single location"}
+                        </span>
+                      </td>
 
-                    <p>
-                      <strong>Price:</strong>{" "}
-                      {subscription.price !== null &&
-                      subscription.price !== undefined
-                        ? `${formatPrice(subscription.price)} / ${
-                            subscription.billing_cycle || "Monthly"
-                          }`
-                        : "N/A"}
-                    </p>
+                      <td>{subscription.plan_name || "No Plan"}</td>
 
-                    <p>
-                      <strong>Subscription Status:</strong>{" "}
-                      {subscription.subscription_status || "Active"}
-                    </p>
+                      <td>{formatLimit(subscription.max_clinics)}</td>
 
-                    <p>
-                      <strong>Start Date:</strong>{" "}
-                      {formatDate(subscription.subscription_start_date)}
-                    </p>
+                      <td>
+                        {subscription.price !== null &&
+                        subscription.price !== undefined
+                          ? `${formatPrice(subscription.price)} / ${
+                              subscription.billing_cycle || "Monthly"
+                            }`
+                          : "N/A"}
+                      </td>
 
-                    <p>
-                      <strong>End Date:</strong>{" "}
-                      {formatDate(subscription.subscription_end_date)}
-                    </p>
+                      <td>
+                        <span
+                          className={getMonitoringStatusClass(
+                            subscription.monitoring_status,
+                          )}
+                        >
+                          {subscription.monitoring_status}
+                        </span>
+                        <br />
+                        <span className="muted-text">
+                          {subscription.subscription_status || "Active"}
+                        </span>
+                      </td>
 
-                    <p>
-                      <strong>Time Remaining:</strong>{" "}
-                      {formatDaysRemaining(subscription.days_remaining)}
-                    </p>
+                      <td>{formatDate(subscription.subscription_end_date)}</td>
 
-                    <p>
-                      <strong>Clinic Status:</strong>{" "}
-                      {subscription.clinic_status || "Active"}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                      <td>
+                        {formatDaysRemaining(subscription.days_remaining)}
+                      </td>
+
+                      <td>{subscription.clinic_status || "Active"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -647,10 +717,10 @@ function AdminSubscriptions() {
         <div className="report-section">
           <div className="appointments-header">
             <div>
-              <h2>Subscription Plan Management</h2>
+              <h2>Shared Plan Management</h2>
               <p>
                 Create, edit, activate, or deactivate subscription plans and
-                their enforceable limits.
+                their enforceable shared limits.
               </p>
             </div>
           </div>
@@ -672,8 +742,8 @@ function AdminSubscriptions() {
             </div>
 
             <div className="dashboard-card">
-              <h3>Record Capacity</h3>
-              <strong>{totalRecordCapacity}</strong>
+              <h3>Location Capacity</h3>
+              <strong>{totalLocationCapacity}</strong>
             </div>
           </div>
 
@@ -684,7 +754,7 @@ function AdminSubscriptions() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search plan name, billing cycle, limits, or storage"
+                placeholder="Search plan name, tier, billing cycle, limits, features, or storage"
               />
             </div>
 
@@ -702,11 +772,13 @@ function AdminSubscriptions() {
           </div>
 
           {loading ? (
-            <p>Loading subscription plans...</p>
+            <p>Loading shared subscription plans...</p>
           ) : filteredPlans.length === 0 ? (
             <div className="empty-state">
               <h3>No subscription plans found</h3>
-              <p>Add a subscription plan to start managing plan limits.</p>
+              <p>
+                Add a subscription plan to start managing shared plan limits.
+              </p>
             </div>
           ) : (
             <div className="appointments-list">
@@ -721,48 +793,68 @@ function AdminSubscriptions() {
                       </span>
                     </div>
 
-                    <p>
-                      <strong>Plan ID:</strong> {plan.plan_id}
-                    </p>
+                    <div className="subscription-detail-grid">
+                      <p>
+                        <strong>Plan ID:</strong> {plan.plan_id}
+                      </p>
 
-                    <p>
-                      <strong>Price:</strong> {formatPrice(plan.price)} /{" "}
-                      {plan.billing_cycle || "Monthly"}
-                    </p>
+                      <p>
+                        <strong>Tier:</strong> {plan.plan_tier || "Standard"}
+                      </p>
 
-                    <p>
-                      <strong>Staff Limits:</strong> {plan.max_dentists ?? 0}{" "}
-                      dentist
-                      {(plan.max_dentists ?? 0) === 1 ? "" : "s"},{" "}
-                      {plan.max_assistants ?? 0} assistant
-                      {(plan.max_assistants ?? 0) === 1 ? "" : "s"}
-                    </p>
+                      <p>
+                        <strong>Price:</strong> {formatPrice(plan.price)} /{" "}
+                        {plan.billing_cycle || "Monthly"}
+                      </p>
 
-                    <p>
-                      <strong>Patient Limit:</strong> {plan.max_patients ?? 0}{" "}
-                      patients
-                    </p>
+                      <p>
+                        <strong>Max Clinic Locations:</strong>{" "}
+                        {formatLimit(plan.max_clinics)}
+                      </p>
 
-                    <p>
-                      <strong>Dental Record Limit:</strong>{" "}
-                      {plan.max_records ?? 0} records
-                    </p>
+                      <p>
+                        <strong>Max Dentists:</strong>{" "}
+                        {formatLimit(plan.max_dentists)}
+                      </p>
 
-                    <p>
-                      <strong>X-ray Limit:</strong> {plan.max_xrays ?? 0} X-rays
-                    </p>
+                      <p>
+                        <strong>Max Assistants:</strong>{" "}
+                        {formatLimit(plan.max_assistants)}
+                      </p>
 
-                    <p>
-                      <strong>Storage Limit:</strong>{" "}
-                      {formatStorage(plan.storage_limit_mb)}
-                    </p>
+                      <p>
+                        <strong>Max Patients:</strong>{" "}
+                        {formatLimit(plan.max_patients)}
+                      </p>
 
-                    <p>
-                      <strong>Created:</strong>{" "}
-                      {plan.created_at
-                        ? new Date(plan.created_at).toLocaleString()
-                        : "N/A"}
-                    </p>
+                      <p>
+                        <strong>Max Dental Records:</strong>{" "}
+                        {formatLimit(plan.max_records)}
+                      </p>
+
+                      <p>
+                        <strong>Max X-rays:</strong>{" "}
+                        {formatLimit(plan.max_xrays)}
+                      </p>
+
+                      <p>
+                        <strong>Storage Limit:</strong>{" "}
+                        {formatStorage(plan.storage_limit_mb)}
+                      </p>
+
+                      <p>
+                        <strong>Created:</strong>{" "}
+                        {plan.created_at
+                          ? new Date(plan.created_at).toLocaleString()
+                          : "N/A"}
+                      </p>
+                    </div>
+
+                    {plan.features && (
+                      <p>
+                        <strong>Features:</strong> {plan.features}
+                      </p>
+                    )}
                   </div>
 
                   <div className="appointment-actions">
@@ -800,18 +892,18 @@ function AdminSubscriptions() {
 
       {showPlanModal && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="modal-card admin-subscription-modal">
             <div className="modal-header">
               <div>
                 <h3>
                   {selectedPlan
-                    ? "Edit Subscription Plan"
-                    : "Add Subscription Plan"}
+                    ? "Edit Shared Subscription Plan"
+                    : "Add Shared Subscription Plan"}
                 </h3>
                 <p>
                   {selectedPlan
-                    ? "Update pricing and enforcement limits for this plan."
-                    : "Create a new subscription plan with enforceable limits."}
+                    ? "Update pricing and shared enforcement limits for this plan."
+                    : "Create a new SaaS plan with limits shared across clinic locations."}
                 </p>
               </div>
 
@@ -827,127 +919,177 @@ function AdminSubscriptions() {
             <form className="modal-form" onSubmit={handleSavePlan}>
               {modalError && <div className="error-message">{modalError}</div>}
 
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Plan Name</label>
+                  <input
+                    type="text"
+                    name="plan_name"
+                    value={planForm.plan_name}
+                    onChange={handlePlanChange}
+                    placeholder="Example: Growth Plan"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Plan Tier</label>
+                  <input
+                    type="text"
+                    name="plan_tier"
+                    value={planForm.plan_tier}
+                    onChange={handlePlanChange}
+                    placeholder="Example: Basic, Standard, Premium"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Price</label>
+                  <input
+                    type="number"
+                    name="price"
+                    min="0"
+                    step="0.01"
+                    value={planForm.price}
+                    onChange={handlePlanChange}
+                    placeholder="Example: 999.00"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Billing Cycle</label>
+                  <select
+                    name="billing_cycle"
+                    value={planForm.billing_cycle}
+                    onChange={handlePlanChange}
+                  >
+                    <option value="Monthly">Monthly</option>
+                    <option value="Quarterly">Quarterly</option>
+                    <option value="Yearly">Yearly</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="info-message">
+                Limits below are shared across all clinic locations under one
+                Clinic Owner account.
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Max Clinic Locations</label>
+                  <input
+                    type="number"
+                    name="max_clinics"
+                    min="1"
+                    value={planForm.max_clinics}
+                    onChange={handlePlanChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Max Dentists</label>
+                  <input
+                    type="number"
+                    name="max_dentists"
+                    min="0"
+                    value={planForm.max_dentists}
+                    onChange={handlePlanChange}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Max Assistants</label>
+                  <input
+                    type="number"
+                    name="max_assistants"
+                    min="0"
+                    value={planForm.max_assistants}
+                    onChange={handlePlanChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Max Patients</label>
+                  <input
+                    type="number"
+                    name="max_patients"
+                    min="0"
+                    value={planForm.max_patients}
+                    onChange={handlePlanChange}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Max Dental Records</label>
+                  <input
+                    type="number"
+                    name="max_records"
+                    min="0"
+                    value={planForm.max_records}
+                    onChange={handlePlanChange}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Max X-rays</label>
+                  <input
+                    type="number"
+                    name="max_xrays"
+                    min="0"
+                    value={planForm.max_xrays}
+                    onChange={handlePlanChange}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Storage Limit in MB</label>
+                  <input
+                    type="number"
+                    name="storage_limit_mb"
+                    min="0"
+                    value={planForm.storage_limit_mb}
+                    onChange={handlePlanChange}
+                    placeholder="Example: 500"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Status</label>
+                  <select
+                    name="status"
+                    value={planForm.status}
+                    onChange={handlePlanChange}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              </div>
+
               <div className="form-group">
-                <label>Plan Name</label>
-                <input
-                  type="text"
-                  name="plan_name"
-                  value={planForm.plan_name}
+                <label>Features</label>
+                <textarea
+                  name="features"
+                  value={planForm.features}
                   onChange={handlePlanChange}
-                  placeholder="Example: Basic Clinic Plan"
-                  required
+                  placeholder="Example: Multi-location support, X-ray uploads, AI assist"
+                  rows="4"
                 />
-              </div>
-
-              <div className="form-group">
-                <label>Price</label>
-                <input
-                  type="number"
-                  name="price"
-                  min="0"
-                  step="0.01"
-                  value={planForm.price}
-                  onChange={handlePlanChange}
-                  placeholder="Example: 999.00"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Billing Cycle</label>
-                <select
-                  name="billing_cycle"
-                  value={planForm.billing_cycle}
-                  onChange={handlePlanChange}
-                >
-                  <option value="Monthly">Monthly</option>
-                  <option value="Quarterly">Quarterly</option>
-                  <option value="Yearly">Yearly</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Max Dentists</label>
-                <input
-                  type="number"
-                  name="max_dentists"
-                  min="0"
-                  value={planForm.max_dentists}
-                  onChange={handlePlanChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Max Assistants</label>
-                <input
-                  type="number"
-                  name="max_assistants"
-                  min="0"
-                  value={planForm.max_assistants}
-                  onChange={handlePlanChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Max Patients</label>
-                <input
-                  type="number"
-                  name="max_patients"
-                  min="0"
-                  value={planForm.max_patients}
-                  onChange={handlePlanChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Max Dental Records</label>
-                <input
-                  type="number"
-                  name="max_records"
-                  min="0"
-                  value={planForm.max_records}
-                  onChange={handlePlanChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Max X-rays</label>
-                <input
-                  type="number"
-                  name="max_xrays"
-                  min="0"
-                  value={planForm.max_xrays}
-                  onChange={handlePlanChange}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Storage Limit in MB</label>
-                <input
-                  type="number"
-                  name="storage_limit_mb"
-                  min="0"
-                  value={planForm.storage_limit_mb}
-                  onChange={handlePlanChange}
-                  placeholder="Example: 500"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Status</label>
-                <select
-                  name="status"
-                  value={planForm.status}
-                  onChange={handlePlanChange}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
               </div>
 
               <div className="info-message">
                 These values are not just labels. They are used by the backend
-                when assigning staff, creating dental records, and uploading
-                X-rays.
+                when adding clinic locations, assigning staff, creating dental
+                records, and uploading X-rays.
               </div>
 
               <div className="modal-actions">
@@ -983,7 +1125,7 @@ function AdminSubscriptions() {
               <div>
                 <h3>Update Plan Status</h3>
                 <p>
-                  Confirm that you want to mark this subscription plan as{" "}
+                  Confirm that you want to mark this shared subscription plan as{" "}
                   <strong>{selectedStatus}</strong>.
                 </p>
               </div>

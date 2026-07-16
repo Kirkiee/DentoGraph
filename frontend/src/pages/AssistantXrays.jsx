@@ -1,23 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 
 function AssistantXrays() {
   const [records, setRecords] = useState([]);
-  const [teeth, setTeeth] = useState([]);
-  const [xrays, setXrays] = useState([]);
-
-  const [formData, setFormData] = useState({
-    record_id: "",
-    tooth_id: "",
+  const [assignedClinic, setAssignedClinic] = useState({
+    clinic_id: null,
+    clinic_name: "",
   });
+  const [xrays, setXrays] = useState([]);
+  const [teeth, setTeeth] = useState([]);
 
-  const [xrayFile, setXrayFile] = useState(null);
+  const [selectedRecordId, setSelectedRecordId] = useState("");
+  const [selectedToothId, setSelectedToothId] = useState("");
+  const [selectedFile, setSelectedFile] = useState(null);
 
-  const [loading, setLoading] = useState(true);
-  const [loadingRecord, setLoadingRecord] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [fileTypeFilter, setFileTypeFilter] = useState("All");
+
+  const [loadingRecords, setLoadingRecords] = useState(true);
+  const [loadingXrays, setLoadingXrays] = useState(false);
+  const [loadingTeeth, setLoadingTeeth] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
+  const [deletingXrayId, setDeletingXrayId] = useState(null);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedXray, setSelectedXray] = useState(null);
@@ -38,79 +44,118 @@ function AssistantXrays() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (selectedRecordId) {
+      fetchXraysByRecord(selectedRecordId);
+      fetchTeethByRecord(selectedRecordId);
+    } else {
+      setXrays([]);
+      setTeeth([]);
+      setSelectedToothId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRecordId]);
+
+  useEffect(() => {
+    if (showDeleteModal) {
+      document.body.classList.add("modal-open");
+    } else {
+      document.body.classList.remove("modal-open");
+    }
+
+    return () => {
+      document.body.classList.remove("modal-open");
+    };
+  }, [showDeleteModal]);
+
   const fetchRecords = async () => {
     try {
-      setLoading(true);
+      setLoadingRecords(true);
       setError("");
 
       const response = await API.get("/api/dental-records", authHeaders);
-      setRecords(response.data.dental_records || []);
+      const dentalRecords = response.data.dental_records || [];
+
+      setRecords(dentalRecords);
+      setAssignedClinic({
+        clinic_id: response.data.assigned_clinic_id || null,
+        clinic_name: response.data.assigned_clinic_name || "",
+      });
+
+      if (dentalRecords.length > 0 && !selectedRecordId) {
+        setSelectedRecordId(String(dentalRecords[0].record_id));
+      }
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load dental records.");
     } finally {
-      setLoading(false);
+      setLoadingRecords(false);
     }
   };
 
-  const fetchRecordDetails = async (recordId) => {
-    if (!recordId) {
-      setTeeth([]);
-      setXrays([]);
-      return;
-    }
+  const fetchXraysByRecord = async (recordId) => {
+    if (!recordId) return;
 
     try {
-      setLoadingRecord(true);
+      setLoadingXrays(true);
       setError("");
 
-      const recordResponse = await API.get(
-        `/api/dental-records/${recordId}`,
-        authHeaders,
-      );
-
-      setTeeth(recordResponse.data.teeth || []);
-
-      const xrayResponse = await API.get(
+      const response = await API.get(
         `/api/xrays/record/${recordId}`,
         authHeaders,
       );
 
-      setXrays(xrayResponse.data.xrays || []);
+      setXrays(response.data.xrays || []);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load X-rays.");
     } finally {
-      setLoadingRecord(false);
+      setLoadingXrays(false);
     }
   };
 
-  const handleRecordChange = (e) => {
-    const selectedRecordId = e.target.value;
+  const fetchTeethByRecord = async (recordId) => {
+    if (!recordId) return;
 
-    setFormData({
-      record_id: selectedRecordId,
-      tooth_id: "",
-    });
+    try {
+      setLoadingTeeth(true);
 
-    setXrayFile(null);
-    setMessage("");
-    setError("");
+      const response = await API.get(
+        `/api/dental-records/${recordId}`,
+        authHeaders,
+      );
 
-    fetchRecordDetails(selectedRecordId);
+      setTeeth(response.data.teeth || []);
+    } catch (err) {
+      console.error("Fetch teeth error:", err);
+      setTeeth([]);
+    } finally {
+      setLoadingTeeth(false);
+    }
   };
 
-  const handleToothChange = (e) => {
-    setFormData((prev) => ({
-      ...prev,
-      tooth_id: e.target.value,
-    }));
+  const refreshPage = async () => {
+    try {
+      setRefreshing(true);
+      setError("");
+      setMessage("");
+
+      await fetchRecords();
+
+      if (selectedRecordId) {
+        await Promise.all([
+          fetchXraysByRecord(selectedRecordId),
+          fetchTeethByRecord(selectedRecordId),
+        ]);
+      }
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleFileChange = (e) => {
-    const file =
-      e.target.files && e.target.files.length > 0 ? e.target.files[0] : null;
+    const file = e.target.files?.[0] || null;
 
     if (!file) {
-      setXrayFile(null);
+      setSelectedFile(null);
       return;
     }
 
@@ -130,31 +175,29 @@ function AssistantXrays() {
       !allowedExtensions.test(file.name)
     ) {
       setError("Only JPG, JPEG, PNG, WEBP, GIF, and PDF files are allowed.");
-      setXrayFile(null);
+      setSelectedFile(null);
 
       const fileInput = document.getElementById("assistant-xray-file-input");
-      if (fileInput) {
-        fileInput.value = "";
-      }
+      if (fileInput) fileInput.value = "";
 
       return;
     }
 
-    setError("");
+    setSelectedFile(file);
     setMessage("");
-    setXrayFile(file);
+    setError("");
   };
 
   const handleUploadXray = async (e) => {
     e.preventDefault();
 
-    if (!formData.record_id) {
+    if (!selectedRecordId) {
       setError("Please select a dental record first.");
       return;
     }
 
-    if (!xrayFile) {
-      setError("Please select an X-ray file to upload.");
+    if (!selectedFile) {
+      setError("Please choose an X-ray file to upload.");
       return;
     }
 
@@ -163,16 +206,15 @@ function AssistantXrays() {
       setMessage("");
       setError("");
 
-      const uploadData = new FormData();
-      uploadData.append("record_id", formData.record_id);
+      const formData = new FormData();
+      formData.append("xray", selectedFile);
+      formData.append("record_id", selectedRecordId);
 
-      if (formData.tooth_id) {
-        uploadData.append("tooth_id", formData.tooth_id);
+      if (selectedToothId) {
+        formData.append("tooth_id", selectedToothId);
       }
 
-      uploadData.append("xray", xrayFile);
-
-      await API.post("/api/xrays/upload", uploadData, {
+      await API.post("/api/xrays/upload", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
@@ -180,14 +222,13 @@ function AssistantXrays() {
       });
 
       setMessage("X-ray uploaded successfully.");
-      setXrayFile(null);
+      setSelectedFile(null);
+      setSelectedToothId("");
 
       const fileInput = document.getElementById("assistant-xray-file-input");
-      if (fileInput) {
-        fileInput.value = "";
-      }
+      if (fileInput) fileInput.value = "";
 
-      fetchRecordDetails(formData.record_id);
+      fetchXraysByRecord(selectedRecordId);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to upload X-ray.");
     } finally {
@@ -203,6 +244,8 @@ function AssistantXrays() {
   };
 
   const closeDeleteModal = () => {
+    if (deletingXrayId) return;
+
     setShowDeleteModal(false);
     setSelectedXray(null);
   };
@@ -216,7 +259,7 @@ function AssistantXrays() {
     }
 
     try {
-      setDeletingId(selectedXray.xray_id);
+      setDeletingXrayId(selectedXray.xray_id);
       setMessage("");
       setError("");
 
@@ -224,19 +267,16 @@ function AssistantXrays() {
 
       setMessage("X-ray deleted successfully.");
       closeDeleteModal();
-      fetchRecordDetails(formData.record_id);
+      fetchXraysByRecord(selectedRecordId);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to delete X-ray.");
     } finally {
-      setDeletingId(null);
+      setDeletingXrayId(null);
     }
   };
 
   const getFileUrl = (filePath) => {
-    if (!filePath) return "#";
-
-    const API_HOST =
-      process.env.REACT_APP_API_URL || window.location.origin;
+    if (!filePath) return "";
 
     const normalizedPath = String(filePath).replace(/\\/g, "/");
 
@@ -247,42 +287,233 @@ function AssistantXrays() {
       return normalizedPath;
     }
 
-    const pathWithSlash = normalizedPath.startsWith("/")
-      ? normalizedPath
-      : `/${normalizedPath}`;
+    const baseURL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+    const cleanPath = normalizedPath.startsWith("/")
+      ? normalizedPath.slice(1)
+      : normalizedPath;
 
-    return `${API_HOST}${pathWithSlash}`;
+    return `${baseURL}/${cleanPath}`;
+  };
+
+  const getFileName = (filePath) => {
+    if (!filePath) return "Uploaded X-ray file";
+
+    const normalizedPath = String(filePath).replace(/\\/g, "/");
+    const parts = normalizedPath.split("/");
+
+    return parts[parts.length - 1] || "Uploaded X-ray file";
+  };
+
+  const getFileType = (filePath) => {
+    const fileName = getFileName(filePath).toLowerCase();
+
+    if (fileName.endsWith(".pdf")) return "PDF";
+
+    if (
+      fileName.endsWith(".jpg") ||
+      fileName.endsWith(".jpeg") ||
+      fileName.endsWith(".png") ||
+      fileName.endsWith(".webp") ||
+      fileName.endsWith(".gif")
+    ) {
+      return "Image";
+    }
+
+    return "Other";
   };
 
   const isImageFile = (filePath) => {
-    return /\.(jpg|jpeg|png|webp|gif)$/i.test(filePath || "");
+    return getFileType(filePath) === "Image";
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "N/A";
+
+    const date = new Date(dateValue);
+
+    if (Number.isNaN(date.getTime())) {
+      return "N/A";
+    }
+
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const selectedRecord = records.find(
-    (record) => Number(record.record_id) === Number(formData.record_id),
+    (record) => Number(record.record_id) === Number(selectedRecordId),
   );
+
+  const filteredXrays = useMemo(() => {
+    const search = searchTerm.trim().toLowerCase();
+
+    return xrays.filter((xray) => {
+      const type = getFileType(xray.file_path);
+
+      const matchesFileType =
+        fileTypeFilter === "All" || type === fileTypeFilter;
+
+      const searchableText = [
+        xray.xray_id,
+        xray.record_id,
+        xray.tooth_number,
+        xray.file_path,
+        getFileName(xray.file_path),
+        type,
+        xray.upload_date,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !search || searchableText.includes(search);
+
+      return matchesFileType && matchesSearch;
+    });
+  }, [xrays, searchTerm, fileTypeFilter]);
+
+  const xraySummary = useMemo(() => {
+    return {
+      total: xrays.length,
+      images: xrays.filter((xray) => getFileType(xray.file_path) === "Image")
+        .length,
+      pdfs: xrays.filter((xray) => getFileType(xray.file_path) === "PDF")
+        .length,
+      toothSpecific: xrays.filter((xray) => xray.tooth_number).length,
+    };
+  }, [xrays]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setFileTypeFilter("All");
+  };
+
+  const renderLoadingState = () => {
+    return (
+      <div className="appointments-list">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div className="appointment-item loading-card" key={index}>
+            <div className="appointment-info">
+              <div className="loading-line loading-title"></div>
+              <div className="loading-line loading-text"></div>
+              <div className="loading-line loading-text"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   return (
     <DashboardLayout role="Assistant">
-      <div className="appointments-layout">
-        <div className="appointment-form-card">
-          <h2>Upload X-ray</h2>
-          <p>
-            Select a dental record and upload an X-ray image or PDF for clinic
-            documentation.
-          </p>
+      <div className="appointments-list-card">
+        <div className="appointments-header">
+          <div>
+            <h2>Assistant X-rays</h2>
+            <p>
+              Upload, review, filter, open, and manage X-ray files linked to
+              clinic dental records.
+            </p>
+          </div>
 
-          {message && <div className="success-message">{message}</div>}
-          {error && <div className="error-message">{error}</div>}
+          <div className="appointment-actions">
+            <button
+              className="secondary-button"
+              onClick={refreshPage}
+              disabled={loadingRecords || loadingXrays || refreshing}
+            >
+              {loadingRecords || loadingXrays || refreshing
+                ? "Refreshing..."
+                : "Refresh"}
+            </button>
+          </div>
+        </div>
 
-          <form className="appointment-form" onSubmit={handleUploadXray}>
+        <div className="info-message">
+          <strong>Assistant Access:</strong>
+          <br />
+          Assistants may upload and manage clinic X-ray files for documentation.
+          AI interpretation and final clinical review remain under the dentist
+          workflow.
+        </div>
+
+        {assignedClinic.clinic_name && (
+          <div className="info-message">
+            <strong>Assigned Clinic Location:</strong>{" "}
+            {assignedClinic.clinic_name}
+            {assignedClinic.clinic_id
+              ? ` (Clinic ID: ${assignedClinic.clinic_id})`
+              : ""}
+          </div>
+        )}
+
+        {message && <div className="success-message">{message}</div>}
+
+        {error && (
+          <div className="error-message">
+            <strong>X-ray notice</strong>
+            <p>{error}</p>
+          </div>
+        )}
+
+        <div className="patient-dashboard-summary-grid">
+          <div className="patient-dashboard-card">
+            <span>Total X-rays</span>
+            <strong>{xraySummary.total}</strong>
+            <p>Files linked to the selected record.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Image Files</span>
+            <strong>{xraySummary.images}</strong>
+            <p>Image uploads linked to this record.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>PDF Files</span>
+            <strong>{xraySummary.pdfs}</strong>
+            <p>PDF reference documents.</p>
+          </div>
+
+          <div className="patient-dashboard-card">
+            <span>Tooth-specific</span>
+            <strong>{xraySummary.toothSpecific}</strong>
+            <p>X-rays attached to a tooth record.</p>
+          </div>
+        </div>
+
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Upload X-ray</h2>
+              <p>
+                Select a dental record, optionally attach a tooth, then upload
+                an image or PDF X-ray file.
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="dentist-xray-upload-form"
+            onSubmit={handleUploadXray}
+          >
             <div className="form-group">
               <label>Dental Record</label>
               <select
-                name="record_id"
-                value={formData.record_id}
-                onChange={handleRecordChange}
+                value={selectedRecordId}
+                onChange={(e) => {
+                  setSelectedRecordId(e.target.value);
+                  setSelectedToothId("");
+                  setMessage("");
+                  setError("");
+                }}
                 required
+                disabled={loadingRecords}
               >
                 <option value="">Select Dental Record</option>
                 {records.map((record) => (
@@ -297,173 +528,258 @@ function AssistantXrays() {
             <div className="form-group">
               <label>Related Tooth Optional</label>
               <select
-                name="tooth_id"
-                value={formData.tooth_id}
-                onChange={handleToothChange}
-                disabled={!formData.record_id || teeth.length === 0}
+                value={selectedToothId}
+                onChange={(e) => setSelectedToothId(e.target.value)}
+                disabled={!selectedRecordId || loadingTeeth}
               >
-                <option value="">No specific tooth</option>
+                <option value="">General X-ray / No specific tooth</option>
                 {teeth.map((tooth) => (
                   <option key={tooth.tooth_id} value={tooth.tooth_id}>
-                    Tooth #{tooth.tooth_number} - {tooth.tooth_status}
+                    Tooth #{tooth.tooth_number} -{" "}
+                    {tooth.tooth_status || "Normal"}
                   </option>
                 ))}
               </select>
             </div>
 
-            <div className="form-group">
+            <div className="form-group dentist-xray-file-field">
               <label>X-ray File</label>
               <input
                 id="assistant-xray-file-input"
                 type="file"
-                accept="image/jpeg,image/jpg,image/png,image/webp,image/gif,application/pdf,.jpg,.jpeg,.png,.webp,.gif,.pdf"
+                accept=".jpg,.jpeg,.png,.webp,.gif,.pdf"
                 onChange={handleFileChange}
                 required
               />
 
-              {xrayFile && <small>Selected file: {xrayFile.name}</small>}
+              {selectedFile && (
+                <p className="dentist-xray-selected-file">
+                  Selected file: <strong>{selectedFile.name}</strong>
+                </p>
+              )}
             </div>
 
-            <button
-              type="submit"
-              className="primary-button"
-              disabled={uploading}
-            >
-              {uploading ? "Uploading..." : "Upload X-ray"}
-            </button>
+            <div className="appointment-actions dentist-xray-upload-actions">
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={uploading || !selectedRecordId || !selectedFile}
+              >
+                {uploading ? "Uploading..." : "Upload X-ray"}
+              </button>
+            </div>
           </form>
         </div>
 
-        <div className="appointments-list-card">
+        <div className="patient-dashboard-section">
           <div className="appointments-header">
             <div>
-              <h2>X-ray Management</h2>
+              <h2>Selected Record</h2>
               <p>
-                View and manage uploaded X-rays connected to a selected dental
-                record.
-              </p>
-            </div>
-
-            <button
-              className="secondary-button"
-              onClick={() => {
-                fetchRecords();
-                if (formData.record_id) {
-                  fetchRecordDetails(formData.record_id);
-                }
-              }}
-              disabled={loading || loadingRecord}
-            >
-              {loading || loadingRecord ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-
-          {loading ? (
-            <p>Loading dental records...</p>
-          ) : !formData.record_id ? (
-            <div className="empty-state">
-              <h3>Select a dental record</h3>
-              <p>
-                Choose a dental record from the upload form to view its uploaded
+                Review the current patient record context before managing
                 X-rays.
               </p>
             </div>
-          ) : loadingRecord ? (
-            <p>Loading X-rays...</p>
+          </div>
+
+          {selectedRecord ? (
+            <div className="appointment-item dentist-xray-selected-record">
+              <div className="appointment-info">
+                <div className="appointment-title-row">
+                  <h3>Record #{selectedRecord.record_id}</h3>
+                  <span className="status-badge status-scheduled">
+                    {selectedRecord.status || "Active"}
+                  </span>
+                </div>
+
+                <div className="dentist-xray-record-grid">
+                  <p>
+                    <strong>Patient:</strong>{" "}
+                    {selectedRecord.patient_name ||
+                      `Patient ID ${selectedRecord.patient_id}`}
+                  </p>
+
+                  <p>
+                    <strong>Clinic:</strong>{" "}
+                    {selectedRecord.clinic_name || "No assigned clinic"}
+                  </p>
+
+                  <p>
+                    <strong>Dentist:</strong>{" "}
+                    {selectedRecord.dentist_name ||
+                      `Dentist ID ${selectedRecord.dentist_id}`}
+                  </p>
+
+                  <p>
+                    <strong>Status:</strong> {selectedRecord.status || "Active"}
+                  </p>
+                </div>
+              </div>
+            </div>
           ) : (
-            <>
-              {selectedRecord && (
-                <div className="appointment-item">
-                  <div className="appointment-info">
-                    <div className="appointment-title-row">
-                      <h3>Record #{selectedRecord.record_id}</h3>
-                      <span className="status-badge status-scheduled">
-                        Selected
-                      </span>
+            <div className="empty-state">
+              <h3>No record selected</h3>
+              <p>Select a dental record to view and upload X-rays.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h2>X-ray List</h2>
+              <p>
+                {loadingXrays
+                  ? "Loading X-rays..."
+                  : `${filteredXrays.length} of ${xrays.length} X-rays shown.`}
+              </p>
+            </div>
+
+            {(searchTerm || fileTypeFilter !== "All") && (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
+          <div className="dentist-xray-filter-panel">
+            <div className="form-group">
+              <label>Search X-rays</label>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search file name, tooth number, or X-ray ID"
+                disabled={loadingXrays}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>File Type</label>
+              <select
+                value={fileTypeFilter}
+                onChange={(e) => setFileTypeFilter(e.target.value)}
+                disabled={loadingXrays}
+              >
+                <option value="All">All File Types</option>
+                <option value="Image">Images</option>
+                <option value="PDF">PDF</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {loadingRecords ? (
+            renderLoadingState()
+          ) : records.length === 0 ? (
+            <div className="empty-state">
+              <h3>No dental records found</h3>
+              <p>Create a dental record first before uploading X-ray images.</p>
+            </div>
+          ) : loadingXrays ? (
+            renderLoadingState()
+          ) : xrays.length === 0 ? (
+            <div className="empty-state">
+              <h3>No X-rays uploaded</h3>
+              <p>X-rays for the selected record will appear here.</p>
+            </div>
+          ) : filteredXrays.length === 0 ? (
+            <div className="empty-state">
+              <h3>No matching X-rays</h3>
+              <p>Try changing the search or file type filter.</p>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={clearFilters}
+              >
+                Clear Filters
+              </button>
+            </div>
+          ) : (
+            <div className="dentist-xray-grid">
+              {filteredXrays.map((xray) => {
+                const fileType = getFileType(xray.file_path);
+                const fileUrl = getFileUrl(xray.file_path);
+
+                return (
+                  <div className="dentist-xray-card" key={xray.xray_id}>
+                    <div className="dentist-xray-preview">
+                      {isImageFile(xray.file_path) ? (
+                        <img src={fileUrl} alt={`X-ray ${xray.xray_id}`} />
+                      ) : (
+                        <div className="dentist-xray-file-placeholder">
+                          <strong>{fileType}</strong>
+                          <span>{getFileName(xray.file_path)}</span>
+                        </div>
+                      )}
                     </div>
 
-                    <p>
-                      <strong>Patient:</strong>{" "}
-                      {selectedRecord.patient_name ||
-                        `Patient ID ${selectedRecord.patient_id}`}
-                    </p>
+                    <div className="appointment-info">
+                      <div className="appointment-title-row">
+                        <h3>X-ray #{xray.xray_id}</h3>
 
-                    <p>
-                      <strong>Dentist:</strong>{" "}
-                      {selectedRecord.dentist_name ||
-                        `Dentist ID ${selectedRecord.dentist_id}`}
-                    </p>
-                  </div>
-                </div>
-              )}
+                        <span className="status-badge status-scheduled">
+                          {xray.tooth_number
+                            ? `Tooth #${xray.tooth_number}`
+                            : "General"}
+                        </span>
 
-              <div style={{ marginTop: "22px" }}>
-                {xrays.length === 0 ? (
-                  <div className="empty-state">
-                    <h3>No X-rays uploaded yet</h3>
-                    <p>
-                      Uploaded X-rays for this dental record will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="xray-grid">
-                    {xrays.map((xray) => (
-                      <div className="xray-card" key={xray.xray_id}>
-                        <div className="xray-preview">
-                          {isImageFile(xray.file_path) ? (
-                            <img
-                              src={getFileUrl(xray.file_path)}
-                              alt={`X-ray ${xray.xray_id}`}
-                            />
-                          ) : (
-                            <div className="xray-pdf-preview">PDF</div>
-                          )}
-                        </div>
-
-                        <div className="xray-info">
-                          <h3>X-ray #{xray.xray_id}</h3>
-
-                          <p>
-                            <strong>Tooth:</strong>{" "}
-                            {xray.tooth_number
-                              ? `Tooth #${xray.tooth_number}`
-                              : "General record X-ray"}
-                          </p>
-
-                          <p>
-                            <strong>Uploaded:</strong>{" "}
-                            {xray.upload_date
-                              ? new Date(xray.upload_date).toLocaleString()
-                              : "N/A"}
-                          </p>
-                        </div>
-
-                        <div className="xray-actions">
-                          <a
-                            href={getFileUrl(xray.file_path)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="secondary-button"
-                          >
-                            View
-                          </a>
-
-                          <button
-                            className="danger-button"
-                            disabled={deletingId === xray.xray_id}
-                            onClick={() => openDeleteModal(xray)}
-                          >
-                            {deletingId === xray.xray_id
-                              ? "Deleting..."
-                              : "Delete"}
-                          </button>
-                        </div>
+                        <span className="status-badge status-pending">
+                          {fileType}
+                        </span>
                       </div>
-                    ))}
+
+                      <div className="dentist-xray-detail-grid">
+                        <p>
+                          <strong>Record ID:</strong> {xray.record_id}
+                        </p>
+
+                        <p>
+                          <strong>Tooth:</strong>{" "}
+                          {xray.tooth_number
+                            ? `Tooth #${xray.tooth_number}`
+                            : "No specific tooth"}
+                        </p>
+
+                        <p>
+                          <strong>Uploaded:</strong>{" "}
+                          {formatDate(xray.upload_date)}
+                        </p>
+
+                        <p>
+                          <strong>File:</strong> {getFileName(xray.file_path)}
+                        </p>
+                      </div>
+
+                      <div className="appointment-actions dentist-xray-card-actions">
+                        <a
+                          className="secondary-button"
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open File
+                        </a>
+
+                        <button
+                          className="danger-button"
+                          onClick={() => openDeleteModal(xray)}
+                          disabled={Boolean(deletingXrayId)}
+                        >
+                          {deletingXrayId === xray.xray_id
+                            ? "Deleting..."
+                            : "Delete"}
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            </>
+                );
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -484,6 +800,7 @@ function AssistantXrays() {
                 type="button"
                 className="modal-close-button"
                 onClick={closeDeleteModal}
+                disabled={Boolean(deletingXrayId)}
               >
                 ×
               </button>
@@ -516,11 +833,16 @@ function AssistantXrays() {
                 />
               </div>
 
+              <div className="error-message">
+                This will remove the X-ray record and file from the system.
+              </div>
+
               <div className="modal-actions">
                 <button
                   type="button"
                   className="secondary-button"
                   onClick={closeDeleteModal}
+                  disabled={Boolean(deletingXrayId)}
                 >
                   Keep X-ray
                 </button>
@@ -528,9 +850,9 @@ function AssistantXrays() {
                 <button
                   type="submit"
                   className="danger-button"
-                  disabled={deletingId === selectedXray?.xray_id}
+                  disabled={deletingXrayId === selectedXray?.xray_id}
                 >
-                  {deletingId === selectedXray?.xray_id
+                  {deletingXrayId === selectedXray?.xray_id
                     ? "Deleting..."
                     : "Delete X-ray"}
                 </button>
