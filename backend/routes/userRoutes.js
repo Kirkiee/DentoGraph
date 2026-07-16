@@ -793,11 +793,19 @@ router.post("/login", loginLimiter, async (req, res) => {
           r.role_id,
           r.role_name,
           sc.credential_id,
-          sc.verification_status AS credential_verification_status
+          sc.verification_status AS credential_verification_status,
+          c.clinic_id AS owned_clinic_id,
+          c.clinic_name AS owned_clinic_name,
+          c.status AS owned_clinic_status,
+          cva.verification_status AS clinic_application_status
        FROM public.users u
        JOIN public.user_roles ur ON u.user_id = ur.user_id
        JOIN public.roles r ON ur.role_id = r.role_id
        LEFT JOIN public.staff_credentials sc ON u.user_id = sc.user_id
+       LEFT JOIN public.clinics c
+         ON c.owner_user_id = u.user_id
+       LEFT JOIN public.clinic_verification_applications cva
+         ON cva.clinic_id = c.clinic_id
        WHERE LOWER(u.email) = LOWER($1)
        LIMIT 1`,
       [cleanEmail],
@@ -833,6 +841,19 @@ router.post("/login", loginLimiter, async (req, res) => {
     }
 
     if (user.status === "Inactive") {
+      if (
+        user.role_name === "Clinic Owner" &&
+        user.clinic_application_status === "Pending"
+      ) {
+        return res.status(403).json({
+          error:
+            "Your clinic application is still pending Administrator review. You will be able to sign in after the clinic is approved.",
+          clinic_application_pending: true,
+          clinic_application_status: "Pending",
+          clinic_name: user.owned_clinic_name || null,
+        });
+      }
+
       return res.status(403).json({
         error: "This account is inactive. Please contact the administrator.",
       });

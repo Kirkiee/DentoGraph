@@ -8,12 +8,154 @@ const path = require("path");
 const fs = require("fs");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
-const { sendVerificationEmail } = require("../utils/emailSender");
+const {
+  sendVerificationEmail,
+  sendClinicApplicationReceivedEmail,
+  sendClinicApplicationApprovedEmail,
+  sendClinicApplicationRejectedEmail,
+} = require("../utils/emailSender");
 const {
   authenticateToken,
   authorizeRoles,
 } = require("../middleware/authMiddleware");
 const { verifyTurnstileMiddleware } = require("../utils/verifyTurnstile");
+
+const getClinicOwnerLoginUrl = () => `${getFrontendBaseUrl()}/auth/login`;
+
+const getClinicRegistrationUrl = () =>
+  `${getFrontendBaseUrl()}/clinic/register`;
+
+const normalizeServiceName = (value) =>
+  String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const parseClinicServicesInput = (services) => {
+  if (Array.isArray(services)) {
+    return [
+      ...new Map(
+        services
+          .map(normalizeServiceName)
+          .filter(Boolean)
+          .map((serviceName) => [serviceName.toLowerCase(), serviceName]),
+      ).values(),
+    ];
+  }
+
+  const rawValue = String(services || "").trim();
+
+  if (!rawValue) {
+    return [];
+  }
+
+  try {
+    const parsedValue = JSON.parse(rawValue);
+
+    if (Array.isArray(parsedValue)) {
+      return parseClinicServicesInput(parsedValue);
+    }
+  } catch {
+    // Backward compatibility for the legacy comma-separated request format.
+  }
+
+  return [
+    ...new Map(
+      rawValue
+        .split(",")
+        .map(normalizeServiceName)
+        .filter(Boolean)
+        .map((serviceName) => [serviceName.toLowerCase(), serviceName]),
+    ).values(),
+  ];
+};
+
+const clinicServicesToLegacyText = (services) =>
+  parseClinicServicesInput(services).join(", ");
+
+const syncClinicServices = async (client, clinicId, services) => {
+  const serviceNames = parseClinicServicesInput(services);
+
+  await client.query(
+    `DELETE FROM public.clinic_services
+     WHERE clinic_id = $1`,
+    [clinicId],
+  );
+
+  for (const serviceName of serviceNames) {
+    const normalizedName = serviceName.toLowerCase();
+
+    const serviceResult = await client.query(
+      `INSERT INTO public.dental_services
+       (
+         service_name,
+         normalized_name,
+         is_active
+       )
+       VALUES ($1, $2, TRUE)
+       ON CONFLICT (normalized_name)
+       DO UPDATE SET
+         service_name = EXCLUDED.service_name,
+         is_active = TRUE,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING service_id`,
+      [serviceName, normalizedName],
+    );
+
+    await client.query(
+      `INSERT INTO public.clinic_services
+       (
+         clinic_id,
+         service_id,
+         is_active
+       )
+       VALUES ($1, $2, TRUE)
+       ON CONFLICT (clinic_id, service_id)
+       DO UPDATE SET
+         is_active = TRUE,
+         updated_at = CURRENT_TIMESTAMP`,
+      [clinicId, serviceResult.rows[0].service_id],
+    );
+  }
+
+  return serviceNames;
+};
+
+const getNormalizedClinicServices = async (client, clinicId) => {
+  const result = await client.query(
+    `SELECT
+       ds.service_id,
+       ds.service_name,
+       ds.service_category
+     FROM public.clinic_services cs
+     JOIN public.dental_services ds
+       ON ds.service_id = cs.service_id
+     WHERE cs.clinic_id = $1
+       AND cs.is_active = TRUE
+       AND ds.is_active = TRUE
+     ORDER BY ds.service_name ASC`,
+    [clinicId],
+  );
+
+  return result.rows;
+};
+
+const attachNormalizedServices = async (client, clinic) => {
+  if (!clinic?.clinic_id) return clinic;
+
+  const normalizedServices = await getNormalizedClinicServices(
+    client,
+    clinic.clinic_id,
+  );
+
+  return {
+    ...clinic,
+    service_options: normalizedServices,
+    services:
+      normalizedServices.length > 0
+        ? normalizedServices.map((service) => service.service_name).join(", ")
+        : clinic.services || "",
+  };
+};
 
 // ===============================
 // PUBLIC: GET ACTIVE CLINICS FOR PATIENT REGISTRATION
@@ -27,7 +169,18 @@ router.get("/public/list", async (req, res) => {
           address,
           latitude,
           longitude,
-          services,
+          COALESCE(
+            (
+              SELECT STRING_AGG(ds.service_name, ', ' ORDER BY ds.service_name)
+              FROM public.clinic_services cs
+              JOIN public.dental_services ds
+                ON ds.service_id = cs.service_id
+              WHERE cs.clinic_id = public.clinics.clinic_id
+                AND cs.is_active = TRUE
+                AND ds.is_active = TRUE
+            ),
+            services
+          ) AS services,
           contact_number,
           opening_hours,
           status
@@ -298,6 +451,137 @@ const deleteClinicBrandingFile = (filePath) => {
 };
 
 // ===============================
+// CLINIC VERIFICATION DOCUMENT UPLOADS
+// ===============================
+
+const clinicVerificationUploadDir = path.join(
+  __dirname,
+  "../uploads/clinic-verification",
+);
+
+if (!fs.existsSync(clinicVerificationUploadDir)) {
+  fs.mkdirSync(clinicVerificationUploadDir, { recursive: true });
+}
+
+const clinicVerificationStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, clinicVerificationUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(12).toString("hex")}`;
+
+    cb(null, `clinic-verification-${uniqueSuffix}${extension}`);
+  },
+});
+
+const clinicVerificationFileFilter = (req, file, cb) => {
+  const allowedMimeTypes = [
+    "application/pdf",
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+  ];
+  const allowedExtensions = [".pdf", ".jpg", ".jpeg", ".png", ".webp"];
+  const extension = path.extname(file.originalname).toLowerCase();
+
+  if (
+    allowedMimeTypes.includes(file.mimetype) &&
+    allowedExtensions.includes(extension)
+  ) {
+    cb(null, true);
+    return;
+  }
+
+  cb(
+    new Error(
+      "Clinic verification documents must be PDF, JPG, JPEG, PNG, or WEBP files.",
+    ),
+    false,
+  );
+};
+
+const uploadClinicVerificationDocuments = multer({
+  storage: clinicVerificationStorage,
+  fileFilter: clinicVerificationFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024,
+    files: 4,
+  },
+}).fields([
+  { name: "business_registration", maxCount: 1 },
+  { name: "business_permit", maxCount: 1 },
+  { name: "owner_government_id", maxCount: 1 },
+  { name: "clinic_license", maxCount: 1 },
+]);
+
+const getUploadedClinicVerificationFiles = (req) => {
+  const files = req.files || {};
+
+  return {
+    business_registration: files.business_registration?.[0] || null,
+    business_permit: files.business_permit?.[0] || null,
+    owner_government_id: files.owner_government_id?.[0] || null,
+    clinic_license: files.clinic_license?.[0] || null,
+  };
+};
+
+const toStoredClinicVerificationPath = (file) => {
+  if (!file) return null;
+  return path.posix.join("uploads", "clinic-verification", file.filename);
+};
+
+const deleteClinicVerificationFile = (filePath) => {
+  if (
+    !filePath ||
+    !String(filePath).startsWith("uploads/clinic-verification/")
+  ) {
+    return;
+  }
+
+  const absolutePath = path.join(__dirname, "..", filePath);
+
+  if (fs.existsSync(absolutePath)) {
+    fs.unlinkSync(absolutePath);
+  }
+};
+
+const deleteUploadedClinicVerificationFiles = (req) => {
+  const files = getUploadedClinicVerificationFiles(req);
+
+  Object.values(files).forEach((file) => {
+    if (file?.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+  });
+};
+
+const runClinicVerificationUpload = (req, res, next) => {
+  uploadClinicVerificationDocuments(req, res, (err) => {
+    if (!err) {
+      next();
+      return;
+    }
+
+    deleteUploadedClinicVerificationFiles(req);
+
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({
+        error:
+          err.code === "LIMIT_FILE_SIZE"
+            ? "Each clinic verification document must not exceed 10 MB."
+            : "Unable to upload the clinic verification documents.",
+      });
+    }
+
+    return res.status(400).json({
+      error: err.message || "Invalid clinic verification document.",
+    });
+  });
+};
+
+// ===============================
 // HELPER FUNCTIONS
 // ===============================
 
@@ -484,6 +768,7 @@ const getOwnerSubscriptionSource = async (client, ownerUserId) => {
         sp.plan_tier,
         sp.price,
         sp.billing_cycle,
+        sp.max_clinics,
         sp.max_dentists,
         sp.max_assistants,
         sp.max_patients,
@@ -514,7 +799,18 @@ const getOwnerLocations = async (client, ownerUserId) => {
         c.address,
         c.latitude,
         c.longitude,
-        c.services,
+        COALESCE(
+              (
+                SELECT STRING_AGG(ds.service_name, ', ' ORDER BY ds.service_name)
+                FROM public.clinic_services cs
+                JOIN public.dental_services ds
+                  ON ds.service_id = cs.service_id
+                WHERE cs.clinic_id = c.clinic_id
+                  AND cs.is_active = TRUE
+                  AND ds.is_active = TRUE
+              ),
+              c.services
+            ) AS services,
         c.contact_number,
         c.opening_hours,
         c.brand_name,
@@ -533,6 +829,7 @@ const getOwnerLocations = async (client, ownerUserId) => {
         sp.plan_tier,
         sp.price,
         sp.billing_cycle,
+        sp.max_clinics,
         sp.max_dentists,
         sp.max_assistants,
         sp.max_patients,
@@ -562,7 +859,18 @@ const getOwnerLocationById = async (client, ownerUserId, clinicId) => {
         c.address,
         c.latitude,
         c.longitude,
-        c.services,
+        COALESCE(
+              (
+                SELECT STRING_AGG(ds.service_name, ', ' ORDER BY ds.service_name)
+                FROM public.clinic_services cs
+                JOIN public.dental_services ds
+                  ON ds.service_id = cs.service_id
+                WHERE cs.clinic_id = c.clinic_id
+                  AND cs.is_active = TRUE
+                  AND ds.is_active = TRUE
+              ),
+              c.services
+            ) AS services,
         c.contact_number,
         c.opening_hours,
         c.brand_name,
@@ -748,12 +1056,15 @@ const syncOwnerLocationSubscriptions = async (
 };
 
 // ===============================
-// PUBLIC: REGISTER CLINIC OWNER + FIRST CLINIC LOCATION WITH FREE SHARED PLAN
+// PUBLIC: REGISTER CLINIC OWNER + FIRST CLINIC LOCATION
+// The owner and clinic remain inactive until an Admin approves the
+// submitted clinic verification documents.
 // ===============================
 
 router.post(
   "/register",
   clinicRegisterLimiter,
+  runClinicVerificationUpload,
   verifyTurnstileMiddleware,
   async (req, res) => {
     const {
@@ -769,14 +1080,23 @@ router.post(
       opening_hours,
     } = req.body || {};
 
+    const uploadedFiles = getUploadedClinicVerificationFiles(req);
     const cleanOwnerName = cleanText(owner_name);
     const cleanOwnerEmail = normalizeEmail(owner_email);
     const cleanClinicName = cleanText(clinic_name);
     const cleanAddress = cleanText(address);
-    const cleanServices = cleanText(services);
+    const normalizedServices = parseClinicServicesInput(services);
+    const cleanServices = normalizedServices.join(", ");
     const cleanContactNumber = cleanText(contact_number);
     const cleanOpeningHours = cleanText(opening_hours);
+    const normalizedLatitude = normalizeNumber(latitude);
+    const normalizedLongitude = normalizeNumber(longitude);
     const passwordError = validatePasswordStrength(password);
+
+    const failRegistration = (status, payload) => {
+      deleteUploadedClinicVerificationFiles(req);
+      return res.status(status).json(payload);
+    };
 
     if (
       !cleanOwnerName ||
@@ -785,34 +1105,59 @@ router.post(
       !cleanClinicName ||
       !cleanAddress
     ) {
-      return res.status(400).json({
+      return failRegistration(400, {
         error:
           "Owner name, owner email, password, clinic name, and address are required.",
       });
     }
 
     if (!isValidEmail(cleanOwnerEmail)) {
-      return res.status(400).json({
+      return failRegistration(400, {
         error: "Please enter a valid owner email address.",
       });
     }
 
     if (passwordError) {
-      return res.status(400).json({
+      return failRegistration(400, {
         error: passwordError,
         password_rules: getPasswordRules(),
       });
     }
 
-    if (!cleanServices) {
-      return res.status(400).json({
-        error: "Please enter at least one clinic service.",
+    if (normalizedServices.length === 0) {
+      return failRegistration(400, {
+        error: "Please select at least one clinic service.",
       });
     }
 
     if (!cleanOpeningHours) {
-      return res.status(400).json({
+      return failRegistration(400, {
         error: "Opening hours are required.",
+      });
+    }
+
+    if (
+      normalizedLatitude === null ||
+      normalizedLongitude === null ||
+      normalizedLatitude < -90 ||
+      normalizedLatitude > 90 ||
+      normalizedLongitude < -180 ||
+      normalizedLongitude > 180
+    ) {
+      return failRegistration(400, {
+        error:
+          "Select a valid located address before submitting the clinic application.",
+      });
+    }
+
+    if (
+      !uploadedFiles.business_registration ||
+      !uploadedFiles.business_permit ||
+      !uploadedFiles.owner_government_id
+    ) {
+      return failRegistration(400, {
+        error:
+          "Business registration, current business permit, and Clinic Owner government ID are required.",
       });
     }
 
@@ -825,8 +1170,7 @@ router.post(
 
       if (!role) {
         await client.query("ROLLBACK");
-
-        return res.status(400).json({
+        return failRegistration(400, {
           error:
             "Clinic Owner role was not found. Please add the Clinic Owner role first.",
         });
@@ -836,8 +1180,7 @@ router.post(
 
       if (!freePlan) {
         await client.query("ROLLBACK");
-
-        return res.status(400).json({
+        return failRegistration(400, {
           error:
             "Free subscription plan was not found. Please create an active Free plan first.",
         });
@@ -853,8 +1196,7 @@ router.post(
 
       if (emailCheck.rows.length > 0) {
         await client.query("ROLLBACK");
-
-        return res.status(400).json({
+        return failRegistration(400, {
           error: "Email already exists. Please use another email address.",
         });
       }
@@ -870,14 +1212,12 @@ router.post(
 
       if (duplicateClinicCheck.rows.length > 0) {
         await client.query("ROLLBACK");
-
-        return res.status(400).json({
+        return failRegistration(400, {
           error: "A clinic with the same name and address already exists.",
         });
       }
 
       const hashedPassword = await bcrypt.hash(password, 12);
-      const emailVerification = generateEmailVerification();
 
       const newOwner = await client.query(
         `INSERT INTO public.users
@@ -890,16 +1230,9 @@ router.post(
            email_verification_token,
            email_verification_expires
          )
-         VALUES ($1, $2, $3, 'Active', $4, $5, $6)
+         VALUES ($1, $2, $3, 'Inactive', TRUE, NULL, NULL)
          RETURNING user_id, name, email, status, email_verified, created_at`,
-        [
-          cleanOwnerName,
-          cleanOwnerEmail,
-          hashedPassword,
-          false,
-          emailVerification.hashedToken,
-          emailVerification.expiresAt,
-        ],
+        [cleanOwnerName, cleanOwnerEmail, hashedPassword],
       );
 
       const ownerUserId = newOwner.rows[0].user_id;
@@ -926,13 +1259,13 @@ router.post(
            status,
            created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Active', CURRENT_TIMESTAMP)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending Review', CURRENT_TIMESTAMP)
          RETURNING *`,
         [
           cleanClinicName,
           cleanAddress,
-          normalizeNumber(latitude),
-          normalizeNumber(longitude),
+          normalizedLatitude,
+          normalizedLongitude,
           normalizeNullable(cleanServices),
           normalizeNullable(cleanContactNumber),
           normalizeNullable(cleanOpeningHours),
@@ -941,45 +1274,529 @@ router.post(
         ],
       );
 
+      const clinicId = newClinic.rows[0].clinic_id;
+
+      await syncClinicServices(client, clinicId, normalizedServices);
+
+      const newApplication = await client.query(
+        `INSERT INTO public.clinic_verification_applications
+         (
+           clinic_id,
+           owner_user_id,
+           business_registration_path,
+           business_registration_original_name,
+           business_registration_mime_type,
+           business_permit_path,
+           business_permit_original_name,
+           business_permit_mime_type,
+           owner_government_id_path,
+           owner_government_id_original_name,
+           owner_government_id_mime_type,
+           clinic_license_path,
+           clinic_license_original_name,
+           clinic_license_mime_type,
+           verification_status
+         )
+         VALUES (
+           $1, $2,
+           $3, $4, $5,
+           $6, $7, $8,
+           $9, $10, $11,
+           $12, $13, $14,
+           'Pending'
+         )
+         RETURNING application_id, verification_status, submitted_at`,
+        [
+          clinicId,
+          ownerUserId,
+          toStoredClinicVerificationPath(uploadedFiles.business_registration),
+          uploadedFiles.business_registration.originalname,
+          uploadedFiles.business_registration.mimetype,
+          toStoredClinicVerificationPath(uploadedFiles.business_permit),
+          uploadedFiles.business_permit.originalname,
+          uploadedFiles.business_permit.mimetype,
+          toStoredClinicVerificationPath(uploadedFiles.owner_government_id),
+          uploadedFiles.owner_government_id.originalname,
+          uploadedFiles.owner_government_id.mimetype,
+          toStoredClinicVerificationPath(uploadedFiles.clinic_license),
+          uploadedFiles.clinic_license?.originalname || null,
+          uploadedFiles.clinic_license?.mimetype || null,
+        ],
+      );
+
       await client.query("COMMIT");
-
-      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
-
-      await sendVerificationEmail({
-        to: cleanOwnerEmail,
-        name: cleanOwnerName,
-        verificationUrl,
-      });
 
       await createAuditLog({
         user_id: ownerUserId,
-        action: "REGISTER_CLINIC_OWNER",
+        action: "SUBMIT_CLINIC_APPLICATION",
         module: "Clinic Registration",
-        description: `Clinic owner ${cleanOwnerName} registered the first clinic location ${cleanClinicName} with the Free shared subscription.`,
+        description: `Clinic owner ${cleanOwnerName} submitted ${cleanClinicName} for administrator verification.`,
         ip_address: req.ip,
+      }).catch((auditError) => {
+        console.error(
+          "Clinic application audit log error:",
+          auditError.message,
+        );
       });
 
-      res.status(201).json({
+      let notificationSent = true;
+
+      try {
+        await sendClinicApplicationReceivedEmail({
+          to: cleanOwnerEmail,
+          ownerName: cleanOwnerName,
+          clinicName: cleanClinicName,
+          applicationId: newApplication.rows[0].application_id,
+        });
+      } catch (emailError) {
+        notificationSent = false;
+        console.error(
+          "Clinic application received email error:",
+          emailError.message,
+        );
+      }
+
+      return res.status(201).json({
         message:
-          "Clinic owner account and first clinic location created successfully. The account has been assigned the Free shared subscription by default. A verification email has been sent to the clinic owner email address. You may now log in.",
+          "Clinic application submitted successfully. Your account and clinic will remain inactive until an Administrator reviews and approves the submitted documents.",
         owner: newOwner.rows[0],
         role: role.role_name,
         clinic: newClinic.rows[0],
+        application: newApplication.rows[0],
         subscription_plan: freePlan,
+        approval_required: true,
+        notification_sent: notificationSent,
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
+      deleteUploadedClinicVerificationFiles(req);
 
       console.error("Clinic registration error:", err.message);
 
       if (err.code === "23505") {
         return res.status(400).json({
-          error: "A duplicate record already exists.",
+          error: "A duplicate clinic application already exists.",
         });
       }
 
-      res.status(500).json({
-        error: "Error registering clinic.",
+      return res.status(500).json({
+        error: "Error submitting clinic application.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// ADMIN: LIST CLINIC VERIFICATION APPLICATIONS
+// ===============================
+
+router.get(
+  "/admin/verification-applications",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const requestedStatus = cleanText(req.query.status || "Pending");
+    const allowedStatuses = ["All", "Pending", "Approved", "Rejected"];
+
+    if (!allowedStatuses.includes(requestedStatus)) {
+      return res.status(400).json({
+        error: "Invalid clinic application status filter.",
+      });
+    }
+
+    try {
+      const values = [];
+      let statusCondition = "";
+
+      if (requestedStatus !== "All") {
+        values.push(requestedStatus);
+        statusCondition = `WHERE a.verification_status = $${values.length}`;
+      }
+
+      const applications = await pool.query(
+        `SELECT
+            a.application_id,
+            a.clinic_id,
+            a.owner_user_id,
+            a.verification_status,
+            a.rejection_reason,
+            a.submitted_at,
+            a.reviewed_at,
+            a.business_registration_original_name,
+            a.business_permit_original_name,
+            a.owner_government_id_original_name,
+            a.clinic_license_original_name,
+            c.clinic_name,
+            c.address,
+            c.latitude,
+            c.longitude,
+            COALESCE(
+              (
+                SELECT STRING_AGG(ds.service_name, ', ' ORDER BY ds.service_name)
+                FROM public.clinic_services cs
+                JOIN public.dental_services ds
+                  ON ds.service_id = cs.service_id
+                WHERE cs.clinic_id = c.clinic_id
+                  AND cs.is_active = TRUE
+                  AND ds.is_active = TRUE
+              ),
+              c.services
+            ) AS services,
+            c.contact_number,
+            c.opening_hours,
+            c.status AS clinic_status,
+            u.name AS owner_name,
+            u.email AS owner_email,
+            u.status AS owner_status,
+            reviewer.name AS reviewed_by_name
+         FROM public.clinic_verification_applications a
+         JOIN public.clinics c ON c.clinic_id = a.clinic_id
+         JOIN public.users u ON u.user_id = a.owner_user_id
+         LEFT JOIN public.users reviewer ON reviewer.user_id = a.reviewed_by
+         ${statusCondition}
+         ORDER BY
+           CASE WHEN a.verification_status = 'Pending' THEN 0 ELSE 1 END,
+           a.submitted_at DESC`,
+        values,
+      );
+
+      return res.status(200).json({
+        message: "Clinic verification applications retrieved successfully.",
+        status_filter: requestedStatus,
+        applications: applications.rows,
+      });
+    } catch (err) {
+      console.error("Get clinic verification applications error:", err.message);
+      return res.status(500).json({
+        error: "Error retrieving clinic verification applications.",
+      });
+    }
+  },
+);
+
+// ===============================
+// ADMIN: OPEN A CLINIC VERIFICATION DOCUMENT
+// ===============================
+
+router.get(
+  "/admin/verification-applications/:application_id/document/:document_type",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const applicationId = Number(req.params.application_id);
+    const documentType = cleanText(req.params.document_type);
+    const documentMap = {
+      business_registration: {
+        path: "business_registration_path",
+        name: "business_registration_original_name",
+        mime: "business_registration_mime_type",
+      },
+      business_permit: {
+        path: "business_permit_path",
+        name: "business_permit_original_name",
+        mime: "business_permit_mime_type",
+      },
+      owner_government_id: {
+        path: "owner_government_id_path",
+        name: "owner_government_id_original_name",
+        mime: "owner_government_id_mime_type",
+      },
+      clinic_license: {
+        path: "clinic_license_path",
+        name: "clinic_license_original_name",
+        mime: "clinic_license_mime_type",
+      },
+    };
+
+    if (!Number.isInteger(applicationId) || applicationId <= 0) {
+      return res.status(400).json({ error: "Invalid clinic application ID." });
+    }
+
+    const documentFields = documentMap[documentType];
+
+    if (!documentFields) {
+      return res.status(400).json({ error: "Invalid document type." });
+    }
+
+    try {
+      const result = await pool.query(
+        `SELECT
+            ${documentFields.path} AS document_path,
+            ${documentFields.name} AS original_name,
+            ${documentFields.mime} AS mime_type
+         FROM public.clinic_verification_applications
+         WHERE application_id = $1
+         LIMIT 1`,
+        [applicationId],
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: "Clinic application not found." });
+      }
+
+      const document = result.rows[0];
+
+      if (!document.document_path) {
+        return res.status(404).json({ error: "Document was not submitted." });
+      }
+
+      const absolutePath = path.join(__dirname, "..", document.document_path);
+
+      if (!fs.existsSync(absolutePath)) {
+        return res.status(404).json({ error: "Document file was not found." });
+      }
+
+      res.setHeader(
+        "Content-Type",
+        document.mime_type || "application/octet-stream",
+      );
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename*=UTF-8''${encodeURIComponent(document.original_name || "clinic-document")}`,
+      );
+      res.setHeader("Cache-Control", "private, no-store");
+
+      return res.sendFile(absolutePath);
+    } catch (err) {
+      console.error("Open clinic verification document error:", err.message);
+      return res.status(500).json({
+        error: "Error opening clinic verification document.",
+      });
+    }
+  },
+);
+
+// ===============================
+// ADMIN: APPROVE OR REJECT A CLINIC APPLICATION
+// Rejection permanently removes the pending owner, clinic, application,
+// and verification files because the account has never been activated.
+// ===============================
+
+router.put(
+  "/admin/verification-applications/:application_id/review",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const applicationId = Number(req.params.application_id);
+    const decision = cleanText(req.body.decision);
+    const rejectionReason = cleanText(req.body.rejection_reason);
+
+    if (!Number.isInteger(applicationId) || applicationId <= 0) {
+      return res.status(400).json({ error: "Invalid clinic application ID." });
+    }
+
+    if (!["Approved", "Rejected"].includes(decision)) {
+      return res.status(400).json({
+        error: "Decision must be Approved or Rejected.",
+      });
+    }
+
+    if (decision === "Rejected" && rejectionReason.length < 5) {
+      return res.status(400).json({
+        error: "Enter a clear rejection reason with at least 5 characters.",
+      });
+    }
+
+    const client = await pool.connect();
+    let application = null;
+
+    try {
+      await client.query("BEGIN");
+
+      const applicationResult = await client.query(
+        `SELECT
+            a.*,
+            c.clinic_name,
+            c.status AS clinic_status,
+            u.name AS owner_name,
+            u.email AS owner_email,
+            u.status AS owner_status
+         FROM public.clinic_verification_applications a
+         JOIN public.clinics c ON c.clinic_id = a.clinic_id
+         JOIN public.users u ON u.user_id = a.owner_user_id
+         WHERE a.application_id = $1
+         FOR UPDATE OF a, c, u`,
+        [applicationId],
+      );
+
+      if (applicationResult.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({ error: "Clinic application not found." });
+      }
+
+      application = applicationResult.rows[0];
+
+      if (application.verification_status !== "Pending") {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error: `This clinic application has already been ${application.verification_status.toLowerCase()}.`,
+        });
+      }
+
+      if (decision === "Approved") {
+        await client.query(
+          `UPDATE public.clinic_verification_applications
+           SET verification_status = 'Approved',
+               rejection_reason = NULL,
+               reviewed_by = $1,
+               reviewed_at = CURRENT_TIMESTAMP
+           WHERE application_id = $2`,
+          [req.user.user_id, applicationId],
+        );
+
+        await client.query(
+          `UPDATE public.clinics
+           SET status = 'Active'
+           WHERE clinic_id = $1`,
+          [application.clinic_id],
+        );
+
+        await client.query(
+          `UPDATE public.users
+           SET status = 'Active',
+               email_verified = TRUE,
+               email_verification_token = NULL,
+               email_verification_expires = NULL
+           WHERE user_id = $1`,
+          [application.owner_user_id],
+        );
+
+        await client.query("COMMIT");
+
+        await createAuditLog({
+          user_id: req.user.user_id,
+          action: "APPROVE_CLINIC_APPLICATION",
+          module: "Clinic Verification",
+          description: `Approved clinic application for ${application.clinic_name}, owned by ${application.owner_name}.`,
+          ip_address: req.ip,
+        }).catch((auditError) => {
+          console.error("Approve clinic audit log error:", auditError.message);
+        });
+
+        let notificationSent = true;
+
+        try {
+          await sendClinicApplicationApprovedEmail({
+            to: application.owner_email,
+            ownerName: application.owner_name,
+            clinicName: application.clinic_name,
+            loginUrl: getClinicOwnerLoginUrl(),
+          });
+        } catch (emailError) {
+          notificationSent = false;
+          console.error(
+            "Clinic application approval email error:",
+            emailError.message,
+          );
+        }
+
+        return res.status(200).json({
+          message:
+            "Clinic application approved. The clinic and Clinic Owner account are now active.",
+          application_id: applicationId,
+          clinic_id: application.clinic_id,
+          owner_user_id: application.owner_user_id,
+          verification_status: "Approved",
+          notification_sent: notificationSent,
+        });
+      }
+
+      try {
+        await sendClinicApplicationRejectedEmail({
+          to: application.owner_email,
+          ownerName: application.owner_name,
+          clinicName: application.clinic_name,
+          rejectionReason,
+          registrationUrl: getClinicRegistrationUrl(),
+        });
+      } catch (emailError) {
+        await client.query("ROLLBACK");
+
+        console.error(
+          "Clinic application rejection email error:",
+          emailError.message,
+        );
+
+        return res.status(502).json({
+          error:
+            "The rejection email could not be sent, so the clinic application was not deleted. Check the email configuration and try again.",
+          notification_sent: false,
+          application_preserved: true,
+        });
+      }
+
+      const uploadedPaths = [
+        application.business_registration_path,
+        application.business_permit_path,
+        application.owner_government_id_path,
+        application.clinic_license_path,
+      ].filter(Boolean);
+
+      // Preserve historical audit records while removing their reference
+      // to the pending Clinic Owner account. The registration audit entry can
+      // otherwise prevent the user row from being deleted through its FK.
+      await client.query(
+        `UPDATE public.audit_logs
+         SET user_id = NULL
+         WHERE user_id = $1`,
+        [application.owner_user_id],
+      );
+
+      await client.query(
+        `DELETE FROM public.user_roles
+         WHERE user_id = $1`,
+        [application.owner_user_id],
+      );
+
+      // Clinic deletion cascades to clinic_verification_applications
+      // and clinic_services.
+      await client.query(
+        `DELETE FROM public.clinics
+         WHERE clinic_id = $1`,
+        [application.clinic_id],
+      );
+
+      await client.query(
+        `DELETE FROM public.users
+         WHERE user_id = $1`,
+        [application.owner_user_id],
+      );
+
+      await client.query("COMMIT");
+
+      uploadedPaths.forEach(deleteClinicVerificationFile);
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "REJECT_CLINIC_APPLICATION",
+        module: "Clinic Verification",
+        description: `Rejected and deleted clinic application for ${application.clinic_name}. Reason: ${rejectionReason}`,
+        ip_address: req.ip,
+      }).catch((auditError) => {
+        console.error("Reject clinic audit log error:", auditError.message);
+      });
+
+      return res.status(200).json({
+        message:
+          "Clinic application rejected. The pending clinic, owner account, and verification documents were permanently removed.",
+        application_id: applicationId,
+        verification_status: "Rejected",
+        notification_sent: true,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("Review clinic application error:", err.message);
+
+      return res.status(500).json({
+        error:
+          decision === "Approved"
+            ? "Error approving clinic application."
+            : "Error rejecting clinic application.",
+        database_code: err.code || null,
+        details:
+          process.env.NODE_ENV === "development" ? err.message : undefined,
       });
     } finally {
       client.release();
@@ -1004,7 +1821,18 @@ router.get(
             c.address,
             c.latitude,
             c.longitude,
-            c.services,
+            COALESCE(
+              (
+                SELECT STRING_AGG(ds.service_name, ', ' ORDER BY ds.service_name)
+                FROM public.clinic_services cs
+                JOIN public.dental_services ds
+                  ON ds.service_id = cs.service_id
+                WHERE cs.clinic_id = c.clinic_id
+                  AND cs.is_active = TRUE
+                  AND ds.is_active = TRUE
+              ),
+              c.services
+            ) AS services,
             c.contact_number,
             c.opening_hours,
             c.subscription_plan_id,
@@ -1614,6 +2442,190 @@ router.get(
 );
 
 // ===============================
+// CLINIC OWNER: UPDATE OWN LOCATION WHITE-LABEL BRANDING
+router.put(
+  "/owner/locations/:clinic_id/branding",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const clinicId = Number(req.params.clinic_id);
+
+    if (!Number.isInteger(clinicId) || clinicId <= 0) {
+      return res.status(400).json({
+        error: "A valid clinic location ID is required.",
+      });
+    }
+
+    const normalized = normalizeBrandingPayload(req.body);
+
+    if (!normalized.valid) {
+      return res.status(400).json({ error: normalized.error });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const ownedLocation = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinicId,
+      );
+
+      if (!ownedLocation) {
+        await client.query("ROLLBACK");
+        return res.status(403).json({
+          error:
+            "Selected clinic location does not belong to this Clinic Owner account.",
+        });
+      }
+
+      const branding = normalized.branding;
+
+      const updated = await client.query(
+        `UPDATE public.clinics
+         SET brand_name = $1,
+             primary_color = $2,
+             secondary_color = $3,
+             welcome_message = $4
+         WHERE clinic_id = $5
+         AND owner_user_id = $6
+         RETURNING
+           clinic_id,
+           clinic_name,
+           COALESCE(NULLIF(brand_name, ''), clinic_name) AS brand_name,
+           brand_logo_url,
+           primary_color,
+           secondary_color,
+           welcome_message`,
+        [
+          branding.brand_name,
+          branding.primary_color,
+          branding.secondary_color,
+          branding.welcome_message,
+          clinicId,
+          req.user.user_id,
+        ],
+      );
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "UPDATE_CLINIC_BRANDING",
+        module: "Clinic White Label",
+        description: `Updated white-label branding for ${ownedLocation.clinic_name}.`,
+        ip_address: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      return res.status(200).json({
+        message: "Clinic white-label branding updated successfully.",
+        branding: updated.rows[0],
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("Update clinic branding error:", err.message);
+      return res.status(500).json({
+        error: "Error updating clinic white-label branding.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: GET ALL OWN CLINIC LOCATIONS
+// ===============================
+
+router.get(
+  "/owner/locations",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const client = await pool.connect();
+
+    try {
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
+      );
+
+      if (subscriptionSource) {
+        await syncOwnerLocationSubscriptions(
+          client,
+          req.user.user_id,
+          subscriptionSource,
+        );
+      }
+
+      const locations = await getOwnerLocations(client, req.user.user_id);
+
+      res.status(200).json({
+        message: "Clinic owner locations retrieved successfully.",
+        shared_subscription: subscriptionSource,
+        locations,
+      });
+    } catch (err) {
+      console.error("Get clinic owner locations error:", err.message);
+      res.status(500).json({
+        error: "Error retrieving clinic owner locations.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// CLINIC OWNER: GET SINGLE OWN LOCATION
+// ===============================
+
+router.get(
+  "/owner/locations/:clinic_id",
+  authenticateToken,
+  authorizeRoles("Clinic Owner"),
+  async (req, res) => {
+    const { clinic_id } = req.params;
+    const client = await pool.connect();
+
+    try {
+      const location = await getOwnerLocationById(
+        client,
+        req.user.user_id,
+        clinic_id,
+      );
+
+      if (!location) {
+        return res.status(404).json({
+          error: "Clinic location not found under this clinic owner account.",
+        });
+      }
+
+      const subscriptionSource = await getOwnerSubscriptionSource(
+        client,
+        req.user.user_id,
+      );
+
+      res.status(200).json({
+        message: "Clinic owner location retrieved successfully.",
+        shared_subscription: subscriptionSource,
+        location,
+        clinic: location,
+      });
+    } catch (err) {
+      console.error("Get clinic owner location error:", err.message);
+      res.status(500).json({
+        error: "Error retrieving clinic owner location.",
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
 // CLINIC OWNER: CREATE NEW LOCATION UNDER SAME SUBSCRIPTION
 // ===============================
 
@@ -1634,13 +2646,20 @@ router.post(
 
     const cleanClinicName = cleanText(clinic_name);
     const cleanAddress = cleanText(address);
-    const cleanServices = cleanText(services);
+    const normalizedServices = parseClinicServicesInput(services);
+    const cleanServices = normalizedServices.join(", ");
     const cleanContactNumber = cleanText(contact_number);
     const cleanOpeningHours = cleanText(opening_hours);
 
     if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
         error: "Clinic location name and address are required.",
+      });
+    }
+
+    if (normalizedServices.length === 0) {
+      return res.status(400).json({
+        error: "Select at least one clinic service.",
       });
     }
 
@@ -1773,6 +2792,12 @@ router.post(
         ],
       );
 
+      await syncClinicServices(
+        client,
+        newLocation.rows[0].clinic_id,
+        normalizedServices,
+      );
+
       await createAuditLog({
         user_id: req.user.user_id,
         action: "CREATE_CLINIC_LOCATION",
@@ -1783,12 +2808,17 @@ router.post(
 
       await client.query("COMMIT");
 
+      const normalizedLocation = await attachNormalizedServices(
+        client,
+        newLocation.rows[0],
+      );
+
       res.status(201).json({
         message:
           "Clinic location created successfully under the same clinic owner subscription.",
         shared_subscription: subscriptionSource,
-        location: newLocation.rows[0],
-        clinic: newLocation.rows[0],
+        location: normalizedLocation,
+        clinic: normalizedLocation,
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
@@ -1826,6 +2856,8 @@ router.put(
 
     const cleanClinicName = cleanText(clinic_name);
     const cleanAddress = cleanText(address);
+    const normalizedServices = parseClinicServicesInput(services);
+    const cleanServices = normalizedServices.join(", ");
 
     if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
@@ -1908,13 +2940,19 @@ router.put(
           cleanAddress,
           normalizeNumber(latitude),
           normalizeNumber(longitude),
-          normalizeNullable(cleanText(services)),
+          normalizeNullable(cleanServices),
           normalizeNullable(cleanText(contact_number)),
           normalizeNullable(cleanText(opening_hours)),
           normalizeNullable(status),
           clinic_id,
           req.user.user_id,
         ],
+      );
+
+      await syncClinicServices(
+        client,
+        updatedLocation.rows[0].clinic_id,
+        normalizedServices,
       );
 
       await createAuditLog({
@@ -1927,11 +2965,16 @@ router.put(
 
       await client.query("COMMIT");
 
+      const normalizedLocation = await attachNormalizedServices(
+        client,
+        updatedLocation.rows[0],
+      );
+
       res.status(200).json({
         message: "Clinic location updated successfully.",
         shared_subscription: subscriptionSource,
-        location: updatedLocation.rows[0],
-        clinic: updatedLocation.rows[0],
+        location: normalizedLocation,
+        clinic: normalizedLocation,
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
@@ -2533,7 +3576,18 @@ router.get(
             c.address,
             c.latitude,
             c.longitude,
-            c.services,
+            COALESCE(
+              (
+                SELECT STRING_AGG(ds.service_name, ', ' ORDER BY ds.service_name)
+                FROM public.clinic_services cs
+                JOIN public.dental_services ds
+                  ON ds.service_id = cs.service_id
+                WHERE cs.clinic_id = c.clinic_id
+                  AND cs.is_active = TRUE
+                  AND ds.is_active = TRUE
+              ),
+              c.services
+            ) AS services,
             c.contact_number,
             c.opening_hours,
             c.subscription_plan_id,
@@ -2609,9 +3663,21 @@ router.post(
       });
     }
 
+    const normalizedServices = parseClinicServicesInput(services);
+    const cleanServices = normalizedServices.join(", ");
+
+    if (normalizedServices.length === 0) {
+      return res.status(400).json({
+        error: "Select at least one clinic service.",
+      });
+    }
+
+    const client = await pool.connect();
+
     try {
+      await client.query("BEGIN");
       if (subscription_plan_id) {
-        const planCheck = await pool.query(
+        const planCheck = await client.query(
           `SELECT plan_id
            FROM public.subscription_plans
            WHERE plan_id = $1`,
@@ -2626,7 +3692,7 @@ router.post(
       }
 
       if (owner_user_id) {
-        const ownerCheck = await pool.query(
+        const ownerCheck = await client.query(
           `SELECT user_id
            FROM public.users
            WHERE user_id = $1`,
@@ -2640,7 +3706,7 @@ router.post(
         }
       }
 
-      const duplicateCheck = await pool.query(
+      const duplicateCheck = await client.query(
         `SELECT clinic_id
          FROM public.clinics
          WHERE LOWER(clinic_name) = LOWER($1)
@@ -2655,7 +3721,7 @@ router.post(
         });
       }
 
-      const newClinic = await pool.query(
+      const newClinic = await client.query(
         `INSERT INTO public.clinics
          (
            clinic_name,
@@ -2677,13 +3743,19 @@ router.post(
           cleanAddress,
           normalizeNumber(latitude),
           normalizeNumber(longitude),
-          normalizeNullable(cleanText(services)),
+          normalizeNullable(cleanServices),
           normalizeNullable(cleanText(contact_number)),
           normalizeNullable(cleanText(opening_hours)),
           normalizeNumber(subscription_plan_id),
           normalizeNumber(owner_user_id),
           status || "Active",
         ],
+      );
+
+      await syncClinicServices(
+        client,
+        newClinic.rows[0].clinic_id,
+        normalizedServices,
       );
 
       await createAuditLog({
@@ -2694,15 +3766,25 @@ router.post(
         ip_address: req.ip,
       });
 
+      await client.query("COMMIT");
+
+      const normalizedClinic = await attachNormalizedServices(
+        client,
+        newClinic.rows[0],
+      );
+
       res.status(201).json({
         message: "Clinic created successfully",
-        clinic: newClinic.rows[0],
+        clinic: normalizedClinic,
       });
     } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
       console.error("Create clinic error:", err.message);
       res.status(500).json({
         error: "Error creating clinic",
       });
+    } finally {
+      client.release();
     }
   },
 );
@@ -2731,8 +3813,13 @@ router.put(
       owner_user_id,
     } = req.body || {};
 
+    const normalizedServices = parseClinicServicesInput(services);
+    const cleanServices = normalizedServices.join(", ");
+    const client = await pool.connect();
+
     try {
-      const clinicCheck = await pool.query(
+      await client.query("BEGIN");
+      const clinicCheck = await client.query(
         `SELECT *
          FROM public.clinics
          WHERE clinic_id = $1`,
@@ -2746,7 +3833,7 @@ router.put(
       }
 
       if (subscription_plan_id) {
-        const planCheck = await pool.query(
+        const planCheck = await client.query(
           `SELECT plan_id
            FROM public.subscription_plans
            WHERE plan_id = $1`,
@@ -2761,7 +3848,7 @@ router.put(
       }
 
       if (owner_user_id) {
-        const ownerCheck = await pool.query(
+        const ownerCheck = await client.query(
           `SELECT user_id
            FROM public.users
            WHERE user_id = $1`,
@@ -2777,7 +3864,7 @@ router.put(
 
       const oldClinic = clinicCheck.rows[0];
 
-      const updatedClinic = await pool.query(
+      const updatedClinic = await client.query(
         `UPDATE public.clinics
          SET clinic_name = COALESCE($1, clinic_name),
              address = COALESCE($2, address),
@@ -2796,7 +3883,7 @@ router.put(
           normalizeNullable(cleanText(address)),
           normalizeNumber(latitude),
           normalizeNumber(longitude),
-          normalizeNullable(cleanText(services)),
+          normalizeNullable(cleanServices),
           normalizeNullable(cleanText(contact_number)),
           normalizeNullable(cleanText(opening_hours)),
           normalizeNumber(subscription_plan_id),
@@ -2805,6 +3892,14 @@ router.put(
           clinic_id,
         ],
       );
+
+      if (services !== undefined) {
+        await syncClinicServices(
+          client,
+          updatedClinic.rows[0].clinic_id,
+          normalizedServices,
+        );
+      }
 
       const newStatus = updatedClinic.rows[0].status;
       const oldStatus = oldClinic.status;
@@ -2830,15 +3925,25 @@ router.put(
         ip_address: req.ip,
       });
 
+      await client.query("COMMIT");
+
+      const normalizedClinic = await attachNormalizedServices(
+        client,
+        updatedClinic.rows[0],
+      );
+
       res.status(200).json({
         message: "Clinic updated successfully",
-        clinic: updatedClinic.rows[0],
+        clinic: normalizedClinic,
       });
     } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
       console.error("Update clinic error:", err.message);
       res.status(500).json({
         error: "Error updating clinic",
       });
+    } finally {
+      client.release();
     }
   },
 );

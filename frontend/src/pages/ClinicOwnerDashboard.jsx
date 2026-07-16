@@ -32,6 +32,13 @@ function ClinicOwnerDashboard() {
 
   const sharedSubscriptionSource = aggregateClinic || selectedLocation || null;
 
+  const clinicLocationLimit =
+    sharedSubscriptionSource?.max_clinics ??
+    sharedSubscriptionSource?.max_clinic_locations ??
+    sharedSubscriptionSource?.clinic_location_limit ??
+    sharedSubscriptionSource?.location_limit ??
+    null;
+
   useEffect(() => {
     fetchDashboardData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -248,7 +255,7 @@ function ClinicOwnerDashboard() {
     {
       label: "Clinic Locations",
       value: clinicLocations.length,
-      description: "Branches under this clinic owner account.",
+      description: `Shared limit: ${formatLimit(clinicLocationLimit)}`,
     },
     {
       label: "Total Dentists",
@@ -748,6 +755,13 @@ function ClinicOwnerDashboard() {
               </div>
 
               <div className="appointments-list">
+                {renderUsageCard(
+                  "Clinic Locations",
+                  clinicLocations.length,
+                  clinicLocationLimit,
+                  "Total branches under this Clinic Owner account.",
+                )}
+
                 {renderUsageCard(
                   "Total Dentists",
                   aggregateUsage?.dentists || 0,

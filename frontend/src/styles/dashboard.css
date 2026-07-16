@@ -5436,6 +5436,46 @@ body textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder {
   color: #94a3b8;
 }
@@ -5740,6 +5780,94 @@ body .appointment-filters select:focus {
 }
 
 /* Placeholder text */
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::-webkit-input-placeholder,
 body textarea::-webkit-input-placeholder,
 body .modal-form input::-webkit-input-placeholder,
@@ -17635,6 +17763,46 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::-webkit-input-placeholder, .patient-xray-control-panel input::-webkit-input-placeholder {
   color: #94a3b8 !important;
 }
@@ -21501,6 +21669,46 @@ body {
   color: #718096 !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: #718096 !important;
 }
@@ -23111,6 +23319,78 @@ body {
   ) !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: color-mix(
     in srgb,
@@ -23504,6 +23784,78 @@ body {
   border-color: var(--clinic-primary) !important;
   box-shadow: 0 0 0 4px
     color-mix(in srgb, var(--clinic-primary) 16%, transparent) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
@@ -27462,5 +27814,407 @@ body {
   .modal-overlay .admin-credential-review-modal .modal-actions button {
     min-width: 0 !important;
     flex: 1 1 0 !important;
+  }
+}
+
+/* =========================================================
+   ADMIN CLINICS — CLINIC APPLICATION REVIEW
+   Append at the absolute bottom of frontend/src/styles/dashboard.css
+   ========================================================= */
+
+.admin-clinic-applications-section {
+  margin: 0 0 28px;
+  padding: 22px;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #2563eb) 34%, transparent);
+  border-radius: 17px;
+  background: color-mix(
+    in srgb,
+    var(--dashboard-card-bg, #111827) 95%,
+    transparent
+  );
+}
+
+.admin-clinic-application-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-clinic-application-controls select {
+  min-width: 170px;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #2563eb) 44%, transparent);
+  border-radius: 10px;
+  color: var(--dashboard-text, #f8fafc);
+  background: var(--dashboard-card-bg, #111827);
+}
+
+.admin-clinic-application-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 18px;
+}
+
+.admin-clinic-application-card {
+  padding: 19px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 15px;
+  background: rgba(2, 6, 23, 0.2);
+}
+
+.admin-clinic-application-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-clinic-application-card-header h3 {
+  margin: 5px 0 4px;
+  color: var(--dashboard-text, #f8fafc);
+  font-size: 1.08rem;
+}
+
+.admin-clinic-application-card-header p {
+  margin: 0;
+  color: var(--dashboard-muted, #94a3b8);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.clinic-application-status-pending {
+  color: #fde68a !important;
+  background: rgba(234, 179, 8, 0.13) !important;
+  border-color: rgba(250, 204, 21, 0.42) !important;
+}
+
+.clinic-application-status-approved {
+  color: #bbf7d0 !important;
+  background: rgba(22, 163, 74, 0.13) !important;
+  border-color: rgba(74, 222, 128, 0.42) !important;
+}
+
+.clinic-application-status-rejected {
+  color: #fecaca !important;
+  background: rgba(220, 38, 38, 0.13) !important;
+  border-color: rgba(248, 113, 113, 0.42) !important;
+}
+
+.admin-clinic-application-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 11px;
+  margin-top: 16px;
+}
+
+.admin-clinic-application-details > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.admin-clinic-application-details span,
+.admin-clinic-application-services > span,
+.admin-clinic-review-summary span {
+  color: var(--dashboard-muted, #94a3b8);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.admin-clinic-application-details strong {
+  overflow-wrap: anywhere;
+  color: var(--dashboard-text, #f8fafc);
+  font-size: 0.82rem;
+}
+
+.admin-clinic-application-details small {
+  overflow-wrap: anywhere;
+  color: var(--dashboard-muted, #94a3b8);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.admin-clinic-application-services {
+  margin-top: 13px;
+  padding: 12px 13px;
+  border-radius: 11px;
+  background: rgba(15, 23, 42, 0.38);
+}
+
+.admin-clinic-application-services p {
+  margin: 6px 0 0;
+  color: var(--dashboard-text, #e5e7eb);
+  font-size: 0.79rem;
+  line-height: 1.5;
+}
+
+.admin-clinic-application-documents,
+.admin-clinic-application-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.admin-clinic-application-documents button {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 0.77rem;
+}
+
+.admin-clinic-application-actions {
+  justify-content: flex-end;
+  padding-top: 14px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.admin-clinic-reviewed-message {
+  margin-top: 14px;
+}
+
+.admin-clinic-application-empty {
+  margin-top: 16px;
+}
+
+.modal-overlay .admin-clinic-review-modal {
+  width: min(620px, calc(100vw - 32px));
+  max-width: 620px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-clinic-review-modal .modal-header {
+  padding: 20px 23px 16px;
+}
+
+.admin-clinic-review-modal form {
+  padding: 0;
+}
+
+.admin-clinic-review-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 18px 22px;
+}
+
+.admin-clinic-review-summary > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.34);
+}
+
+.admin-clinic-review-summary strong {
+  overflow-wrap: anywhere;
+  color: var(--dashboard-text, #f8fafc);
+  font-size: 0.8rem;
+}
+
+.admin-clinic-review-modal form > .info-message,
+.admin-clinic-review-modal form > .error-message {
+  margin: 14px 22px;
+}
+
+.admin-clinic-review-modal .form-group {
+  display: block;
+  margin: 16px 22px 19px;
+}
+
+.admin-clinic-review-modal .form-group label {
+  display: block;
+  margin: 0 0 7px;
+}
+
+.admin-clinic-review-modal .form-group textarea {
+  display: block;
+  width: 100%;
+  min-height: 105px;
+  padding: 11px 12px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.admin-clinic-review-modal .form-group small {
+  display: block;
+  margin-top: 7px;
+  color: var(--dashboard-muted, #94a3b8);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.admin-clinic-review-modal .modal-actions {
+  margin: 0;
+  padding: 14px 18px 17px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+@media (max-width: 900px) {
+  .admin-clinic-application-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .admin-clinic-applications-section {
+    padding: 16px;
+  }
+
+  .admin-clinic-application-controls,
+  .admin-clinic-application-controls select,
+  .admin-clinic-application-controls button {
+    width: 100%;
+  }
+
+  .admin-clinic-application-card-header {
+    flex-direction: column;
+  }
+
+  .admin-clinic-application-details,
+  .admin-clinic-review-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-clinic-application-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-clinic-application-actions button {
+    width: 100%;
+  }
+
+  .admin-clinic-review-modal .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .admin-clinic-review-modal .modal-actions button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   ADMIN CLINICS — NORMALIZED SERVICE MULTI-SELECT
+   Append at the absolute bottom of frontend/src/styles/dashboard.css
+   ========================================================= */
+
+.admin-clinic-service-selector {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 13px;
+  background: rgba(2, 6, 23, 0.18);
+}
+
+.admin-clinic-service-selector legend {
+  padding: 0 7px;
+  color: var(--dashboard-text, #f8fafc);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.admin-clinic-service-selector .clinic-service-category-list {
+  max-height: 390px;
+  overflow-y: auto;
+  padding-right: 5px;
+}
+
+.admin-clinic-service-selector
+  .clinic-service-category
+  + .clinic-service-category {
+  margin-top: 15px;
+}
+
+.admin-clinic-service-selector .clinic-service-category h4 {
+  margin: 0 0 8px;
+  color: var(--dashboard-text, #f8fafc);
+  font-size: 0.8rem;
+}
+
+.admin-clinic-service-selector .clinic-service-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.admin-clinic-service-selector .clinic-service-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 9px;
+  color: var(--dashboard-text, #e5e7eb);
+  background: rgba(15, 23, 42, 0.34);
+  cursor: pointer;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.admin-clinic-service-selector .clinic-service-option.selected {
+  border-color: var(--clinic-primary, #2563eb);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, #2563eb) 14%,
+    rgba(15, 23, 42, 0.34)
+  );
+}
+
+.admin-clinic-service-selector .clinic-service-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.admin-clinic-service-selector .clinic-service-option-check {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1px solid rgba(148, 163, 184, 0.55);
+  border-radius: 5px;
+  color: #ffffff;
+  background: rgba(2, 6, 23, 0.35);
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.admin-clinic-service-selector
+  .clinic-service-option.selected
+  .clinic-service-option-check {
+  border-color: var(--clinic-primary, #2563eb);
+  background: var(--clinic-primary, #2563eb);
+}
+
+.admin-clinic-service-selector .clinic-service-selection-summary {
+  margin-top: 12px;
+  color: var(--dashboard-muted, #94a3b8);
+  font-size: 0.78rem;
+}
+
+.admin-clinic-service-selector .clinic-service-selection-summary strong {
+  color: var(--dashboard-text, #f8fafc);
+}
+
+@media (max-width: 650px) {
+  .admin-clinic-service-selector .clinic-service-options {
+    grid-template-columns: 1fr;
   }
 }

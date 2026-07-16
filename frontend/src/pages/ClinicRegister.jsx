@@ -7,215 +7,15 @@ import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
 import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
-
-const CLINIC_SERVICE_CATEGORIES = [
-  {
-    category: "Consultation and Preventive Care",
-    services: [
-      "Dental Consultation",
-      "Comprehensive Oral Examination",
-      "Routine Dental Check-up",
-      "Treatment Planning",
-      "Oral Health Education",
-      "Dental Prophylaxis / Teeth Cleaning",
-      "Deep Cleaning / Scaling and Root Planing",
-      "Fluoride Treatment",
-      "Pit and Fissure Sealants",
-      "Oral Cancer Screening",
-      "Periodontal Screening",
-      "Halitosis / Bad Breath Management",
-      "Preventive Dentistry",
-    ],
-  },
-  {
-    category: "Diagnostic and Imaging Services",
-    services: [
-      "Digital Dental X-ray",
-      "Periapical X-ray",
-      "Bitewing X-ray",
-      "Occlusal X-ray",
-      "Panoramic X-ray",
-      "Cephalometric X-ray",
-      "Cone Beam CT / CBCT Scan",
-      "Intraoral Photography",
-      "Digital Dental Scanning",
-      "Study Casts / Dental Impressions",
-      "Temporomandibular Joint / TMJ Assessment",
-    ],
-  },
-  {
-    category: "Restorative Dentistry",
-    services: [
-      "Tooth-Colored Filling / Composite Restoration",
-      "Amalgam Filling",
-      "Temporary Filling",
-      "Glass Ionomer Restoration",
-      "Inlay and Onlay",
-      "Dental Bonding",
-      "Full-Mouth Rehabilitation",
-      "Restoration Repair or Replacement",
-    ],
-  },
-  {
-    category: "Endodontic Services",
-    services: [
-      "Root Canal Treatment",
-      "Root Canal Retreatment",
-      "Pulpotomy",
-      "Pulpectomy",
-      "Vital Pulp Therapy",
-      "Apicoectomy",
-      "Management of Dental Abscess",
-      "Emergency Endodontic Treatment",
-    ],
-  },
-  {
-    category: "Oral Surgery and Extractions",
-    services: [
-      "Simple Tooth Extraction",
-      "Surgical Tooth Extraction",
-      "Wisdom Tooth Extraction",
-      "Impacted Tooth Surgery",
-      "Alveoloplasty",
-      "Frenectomy",
-      "Gingivectomy",
-      "Incision and Drainage",
-      "Biopsy of Oral Lesions",
-      "Removal of Oral Cysts",
-      "Pre-Prosthetic Surgery",
-      "Management of Dental Trauma",
-      "Emergency Dental Care",
-    ],
-  },
-  {
-    category: "Periodontal and Gum Care",
-    services: [
-      "Gingivitis Treatment",
-      "Periodontitis Treatment",
-      "Scaling and Root Planing",
-      "Periodontal Maintenance",
-      "Gum Contouring",
-      "Gum Grafting",
-      "Crown Lengthening",
-      "Periodontal Surgery",
-      "Bone Grafting",
-      "Guided Tissue Regeneration",
-      "Peri-Implant Disease Management",
-    ],
-  },
-  {
-    category: "Prosthodontics and Tooth Replacement",
-    services: [
-      "Complete Dentures",
-      "Partial Dentures",
-      "Flexible Dentures",
-      "Immediate Dentures",
-      "Denture Repair",
-      "Denture Reline or Rebase",
-      "Dental Crowns",
-      "Dental Bridges",
-      "Porcelain-Fused-to-Metal Crowns",
-      "Zirconia Crowns",
-      "E-Max Crowns and Veneers",
-      "Implant-Supported Crown",
-      "Implant-Supported Bridge",
-      "Implant-Supported Denture",
-      "Dental Implant Placement",
-      "Dental Implant Restoration",
-      "Maxillofacial Prosthetics",
-    ],
-  },
-  {
-    category: "Orthodontic Services",
-    services: [
-      "Orthodontic Consultation",
-      "Metal Braces",
-      "Ceramic Braces",
-      "Self-Ligating Braces",
-      "Lingual Braces",
-      "Clear Aligners",
-      "Retainers",
-      "Space Maintainers",
-      "Habit-Breaking Appliances",
-      "Palatal Expander",
-      "Functional Orthodontic Appliances",
-      "Interceptive Orthodontics",
-      "Orthodontic Adjustment",
-      "Braces Removal",
-      "Dentofacial Orthopedics",
-    ],
-  },
-  {
-    category: "Cosmetic and Aesthetic Dentistry",
-    services: [
-      "Professional Teeth Whitening",
-      "Dental Veneers",
-      "Composite Veneers",
-      "Porcelain Veneers",
-      "Smile Design",
-      "Cosmetic Dental Bonding",
-      "Tooth Recontouring",
-      "Gum Depigmentation",
-      "Gummy Smile Correction",
-      "Diastema / Gap Closure",
-      "Tooth Jewelry",
-    ],
-  },
-  {
-    category: "Pediatric Dentistry",
-    services: [
-      "Pediatric Dental Consultation",
-      "Pediatric Oral Examination",
-      "Pediatric Dental Cleaning",
-      "Fluoride Treatment for Children",
-      "Pit and Fissure Sealants for Children",
-      "Pediatric Tooth Filling",
-      "Pulpotomy for Primary Teeth",
-      "Pulpectomy for Primary Teeth",
-      "Stainless Steel Crown",
-      "Primary Tooth Extraction",
-      "Space Maintainer",
-      "Early Orthodontic Assessment",
-      "Behavior Management for Children",
-      "Special Needs Pediatric Dentistry",
-    ],
-  },
-  {
-    category: "TMJ, Orofacial Pain, and Sleep Dentistry",
-    services: [
-      "TMJ Disorder Management",
-      "Orofacial Pain Management",
-      "Bruxism / Teeth Grinding Management",
-      "Night Guard / Occlusal Splint",
-      "Sports Mouthguard",
-      "Sleep Apnea Oral Appliance",
-      "Snoring Appliance",
-      "Occlusal Adjustment",
-    ],
-  },
-  {
-    category: "Special Care and Sedation",
-    services: [
-      "Dental Care for Persons with Disabilities",
-      "Geriatric Dentistry",
-      "Dental Care for Medically Compromised Patients",
-      "Dental Anxiety Management",
-      "Conscious Sedation",
-      "Nitrous Oxide Sedation",
-      "Local Anesthesia",
-      "Hospital-Based Dental Treatment",
-      "Home-Service Dentistry",
-    ],
-  },
-];
-
-const CLINIC_SERVICE_OPTIONS = CLINIC_SERVICE_CATEGORIES.flatMap(
-  (group) => group.services,
-);
+import { CLINIC_SERVICE_CATEGORIES } from "../utils/clinicServices";
 
 function ClinicRegister() {
   const navigate = useNavigate();
   const turnstileRef = useRef(null);
+  const businessRegistrationRef = useRef(null);
+  const businessPermitRef = useRef(null);
+  const ownerGovernmentIdRef = useRef(null);
+  const clinicLicenseRef = useRef(null);
 
   const siteKey = process.env.REACT_APP_TURNSTILE_SITE_KEY;
 
@@ -231,6 +31,13 @@ function ClinicRegister() {
     contact_number: "",
     services: [],
     opening_hours: "",
+  });
+
+  const [verificationFiles, setVerificationFiles] = useState({
+    business_registration: null,
+    business_permit: null,
+    owner_government_id: null,
+    clinic_license: null,
   });
 
   const [agree, setAgree] = useState(false);
@@ -299,6 +106,24 @@ function ClinicRegister() {
       contact_number: "",
       services: [],
       opening_hours: "",
+    });
+
+    setVerificationFiles({
+      business_registration: null,
+      business_permit: null,
+      owner_government_id: null,
+      clinic_license: null,
+    });
+
+    [
+      businessRegistrationRef,
+      businessPermitRef,
+      ownerGovernmentIdRef,
+      clinicLicenseRef,
+    ].forEach((inputRef) => {
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
     });
 
     setAgree(false);
@@ -399,6 +224,54 @@ function ClinicRegister() {
     );
   };
 
+  const ALLOWED_DOCUMENT_TYPES = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ];
+
+  const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+
+  const handleVerificationFileChange = (fieldName, event) => {
+    setError("");
+    setSuccess("");
+
+    const file = event.target.files?.[0] || null;
+
+    if (!file) {
+      setVerificationFiles((previous) => ({
+        ...previous,
+        [fieldName]: null,
+      }));
+      return;
+    }
+
+    if (!ALLOWED_DOCUMENT_TYPES.includes(file.type)) {
+      event.target.value = "";
+      setError(
+        "Verification documents must be PDF, JPG, JPEG, PNG, or WEBP files.",
+      );
+      return;
+    }
+
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      event.target.value = "";
+      setError("Each verification document must not exceed 10 MB.");
+      return;
+    }
+
+    setVerificationFiles((previous) => ({
+      ...previous,
+      [fieldName]: file,
+    }));
+  };
+
+  const formatFileSize = (sizeInBytes) => {
+    const sizeInMb = Number(sizeInBytes || 0) / (1024 * 1024);
+    return `${sizeInMb.toFixed(sizeInMb >= 1 ? 2 : 3)} MB`;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -421,7 +294,7 @@ function ClinicRegister() {
     const selectedServices = Array.isArray(formData.services)
       ? formData.services
       : [];
-    const services = selectedServices.join(", ");
+    const servicesPayload = JSON.stringify(selectedServices);
     const openingHours = cleanText(formData.opening_hours);
 
     if (!ownerName) {
@@ -468,13 +341,28 @@ function ClinicRegister() {
       return;
     }
 
-    if (!services) {
+    if (selectedServices.length === 0) {
       setError("Please select at least one clinic service.");
       return;
     }
 
     if (!openingHours) {
       setError("Opening hours are required.");
+      return;
+    }
+
+    if (!verificationFiles.business_registration) {
+      setError("Business registration document is required.");
+      return;
+    }
+
+    if (!verificationFiles.business_permit) {
+      setError("Current business or mayor's permit is required.");
+      return;
+    }
+
+    if (!verificationFiles.owner_government_id) {
+      setError("Clinic Owner government-issued ID is required.");
       return;
     }
 
@@ -491,23 +379,48 @@ function ClinicRegister() {
     try {
       setLoading(true);
 
-      const response = await API.post("/api/clinics/register", {
-        owner_name: ownerName,
-        owner_email: ownerEmail,
-        password,
-        clinic_name: clinicName,
-        address,
-        latitude: Number(latitude),
-        longitude: Number(longitude),
-        contact_number: contactNumber || null,
-        services,
-        opening_hours: openingHours,
-        turnstileToken,
-      });
+      const registrationPayload = new FormData();
+
+      registrationPayload.append("owner_name", ownerName);
+      registrationPayload.append("owner_email", ownerEmail);
+      registrationPayload.append("password", password);
+      registrationPayload.append("clinic_name", clinicName);
+      registrationPayload.append("address", address);
+      registrationPayload.append("latitude", latitude);
+      registrationPayload.append("longitude", longitude);
+      registrationPayload.append("contact_number", contactNumber);
+      registrationPayload.append("services", servicesPayload);
+      registrationPayload.append("opening_hours", openingHours);
+      registrationPayload.append("turnstileToken", turnstileToken);
+
+      registrationPayload.append(
+        "business_registration",
+        verificationFiles.business_registration,
+      );
+      registrationPayload.append(
+        "business_permit",
+        verificationFiles.business_permit,
+      );
+      registrationPayload.append(
+        "owner_government_id",
+        verificationFiles.owner_government_id,
+      );
+
+      if (verificationFiles.clinic_license) {
+        registrationPayload.append(
+          "clinic_license",
+          verificationFiles.clinic_license,
+        );
+      }
+
+      const response = await API.post(
+        "/api/clinics/register",
+        registrationPayload,
+      );
 
       setSuccess(
         response.data?.message ||
-          "Clinic owner account and first clinic location created successfully. Please check the clinic owner email to verify the account.",
+          "Clinic application submitted successfully. Your account and clinic will remain inactive until an Administrator approves the submitted documents.",
       );
 
       resetForm();
@@ -541,7 +454,7 @@ function ClinicRegister() {
   return (
     <AuthLayout
       title="Register Your Clinic"
-      subtitle="Create a clinic owner account and first clinic location workspace"
+      subtitle="Submit your first clinic location for Administrator verification"
       wide
     >
       <ThemeToggle />
@@ -563,14 +476,13 @@ function ClinicRegister() {
         </div>
       )}
 
-      {success && <div className="auth-success">{success}</div>}
-
       {!success && (
         <>
           <div className="info-message" style={{ marginBottom: "16px" }}>
-            <strong>Default Setup:</strong> This creates one Clinic Owner
-            account and the first clinic location. The account starts with the
-            Free shared subscription and can add more locations after upgrading.
+            <strong>Administrator Approval Required:</strong> Your Clinic Owner
+            account and first clinic location will remain inactive while the
+            submitted clinic documents are reviewed. The Free shared
+            subscription is assigned only after approval.
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
@@ -827,6 +739,162 @@ function ClinicRegister() {
               />
             </div>
 
+            <fieldset className="clinic-verification-section">
+              <legend>
+                Clinic Verification Documents{" "}
+                <span className="auth-required">*</span>
+              </legend>
+
+              <div className="clinic-verification-intro">
+                <strong>Administrator validation is required.</strong>
+                <span>
+                  Upload clear and current documents. Accepted formats: PDF,
+                  JPG, JPEG, PNG, and WEBP. Maximum file size: 10 MB each.
+                </span>
+              </div>
+
+              <div className="clinic-verification-grid">
+                <div className="clinic-verification-upload">
+                  <label htmlFor="business_registration">
+                    Business Registration{" "}
+                    <span className="auth-required">*</span>
+                  </label>
+                  <small>
+                    SEC, DTI, CDA, or another applicable business registration
+                    document.
+                  </small>
+                  <input
+                    ref={businessRegistrationRef}
+                    id="business_registration"
+                    name="business_registration"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange(
+                        "business_registration",
+                        event,
+                      )
+                    }
+                    disabled={loading}
+                    required
+                  />
+                  {verificationFiles.business_registration && (
+                    <div className="clinic-verification-file-selected">
+                      <span>
+                        {verificationFiles.business_registration.name}
+                      </span>
+                      <small>
+                        {formatFileSize(
+                          verificationFiles.business_registration.size,
+                        )}
+                      </small>
+                    </div>
+                  )}
+                </div>
+
+                <div className="clinic-verification-upload">
+                  <label htmlFor="business_permit">
+                    Current Business / Mayor's Permit{" "}
+                    <span className="auth-required">*</span>
+                  </label>
+                  <small>
+                    Upload the current permit showing that the clinic is allowed
+                    to operate at the registered address.
+                  </small>
+                  <input
+                    ref={businessPermitRef}
+                    id="business_permit"
+                    name="business_permit"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange("business_permit", event)
+                    }
+                    disabled={loading}
+                    required
+                  />
+                  {verificationFiles.business_permit && (
+                    <div className="clinic-verification-file-selected">
+                      <span>{verificationFiles.business_permit.name}</span>
+                      <small>
+                        {formatFileSize(verificationFiles.business_permit.size)}
+                      </small>
+                    </div>
+                  )}
+                </div>
+
+                <div className="clinic-verification-upload">
+                  <label htmlFor="owner_government_id">
+                    Clinic Owner Government-Issued ID{" "}
+                    <span className="auth-required">*</span>
+                  </label>
+                  <small>
+                    Upload a clear copy of a valid government-issued ID
+                    belonging to the registering Clinic Owner.
+                  </small>
+                  <input
+                    ref={ownerGovernmentIdRef}
+                    id="owner_government_id"
+                    name="owner_government_id"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange("owner_government_id", event)
+                    }
+                    disabled={loading}
+                    required
+                  />
+                  {verificationFiles.owner_government_id && (
+                    <div className="clinic-verification-file-selected">
+                      <span>{verificationFiles.owner_government_id.name}</span>
+                      <small>
+                        {formatFileSize(
+                          verificationFiles.owner_government_id.size,
+                        )}
+                      </small>
+                    </div>
+                  )}
+                </div>
+
+                <div className="clinic-verification-upload">
+                  <label htmlFor="clinic_license">
+                    Clinic License / Accreditation
+                    <span className="clinic-verification-optional">
+                      Optional
+                    </span>
+                  </label>
+                  <small>
+                    Upload an operating license, accreditation, or another
+                    supporting clinic document when available.
+                  </small>
+                  <input
+                    ref={clinicLicenseRef}
+                    id="clinic_license"
+                    name="clinic_license"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange("clinic_license", event)
+                    }
+                    disabled={loading}
+                  />
+                  {verificationFiles.clinic_license && (
+                    <div className="clinic-verification-file-selected">
+                      <span>{verificationFiles.clinic_license.name}</span>
+                      <small>
+                        {formatFileSize(verificationFiles.clinic_license.size)}
+                      </small>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="clinic-verification-privacy-note">
+                Documents are available only to authorized Administrators for
+                clinic application review.
+              </div>
+            </fieldset>
+
             <label className="auth-check">
               <input
                 type="checkbox"
@@ -891,44 +959,107 @@ function ClinicRegister() {
             )}
 
             <AuthButton type="submit" disabled={loading || !siteKey}>
-              {loading ? "Registering Clinic..." : "Register Clinic Location"}
+              {loading
+                ? "Submitting Application..."
+                : "Submit Clinic Application"}
             </AuthButton>
           </form>
         </>
       )}
 
-      {success && (
-        <div className="auth-form">
-          <AuthButton type="button" onClick={() => navigate("/auth/login")}>
-            Go to Login
-          </AuthButton>
+      {success ? (
+        <section
+          className="clinic-application-confirmation"
+          aria-live="polite"
+          aria-labelledby="clinic-application-confirmation-title"
+        >
+          <div
+            className="clinic-application-confirmation-icon"
+            aria-hidden="true"
+          >
+            ✓
+          </div>
 
+          <div className="clinic-application-confirmation-heading">
+            <span>Application Submitted</span>
+            <h2 id="clinic-application-confirmation-title">
+              Your clinic application is pending Administrator review
+            </h2>
+          </div>
+
+          <p className="clinic-application-confirmation-message">{success}</p>
+
+          <div className="clinic-application-pending-status">
+            <span
+              className="clinic-application-pending-dot"
+              aria-hidden="true"
+            />
+            <div>
+              <strong>Status: Pending Review</strong>
+              <p>
+                Your Clinic Owner account and clinic location remain inactive
+                until an Administrator validates the submitted information and
+                documents.
+              </p>
+            </div>
+          </div>
+
+          <div className="clinic-application-next-steps">
+            <h3>What happens next?</h3>
+
+            <ol>
+              <li>
+                An Administrator reviews the clinic details and verification
+                documents.
+              </li>
+              <li>
+                Once approved, the clinic and Clinic Owner account are
+                activated.
+              </li>
+              <li>
+                You may then sign in using the registered Clinic Owner email and
+                password.
+              </li>
+            </ol>
+          </div>
+
+          <div className="clinic-application-confirmation-note">
+            Attempting to sign in before approval will show that the clinic
+            application is still pending.
+          </div>
+
+          <div className="clinic-application-confirmation-actions">
+            <AuthButton type="button" onClick={() => navigate("/auth/login")}>
+              Go to Login
+            </AuthButton>
+
+            <button
+              type="button"
+              className="secondary-button clinic-application-another-button"
+              onClick={() => {
+                setSuccess("");
+                setError("");
+                setPasswordRules([]);
+                resetForm();
+              }}
+            >
+              Submit Another Application
+            </button>
+          </div>
+        </section>
+      ) : (
+        <p className="auth-footer">
+          Already have a clinic owner account?{" "}
           <button
             type="button"
             className="auth-link"
-            onClick={() => {
-              setSuccess("");
-              setError("");
-              setPasswordRules([]);
-              resetTurnstile();
-            }}
+            onClick={() => navigate("/auth/login")}
+            disabled={loading}
           >
-            Register another clinic owner
+            Sign in
           </button>
-        </div>
+        </p>
       )}
-
-      <p className="auth-footer">
-        Already have a clinic owner account?{" "}
-        <button
-          type="button"
-          className="auth-link"
-          onClick={() => navigate("/auth/login")}
-          disabled={loading}
-        >
-          Sign in
-        </button>
-      </p>
     </AuthLayout>
   );
 }

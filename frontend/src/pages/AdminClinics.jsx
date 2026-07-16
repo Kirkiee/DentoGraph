@@ -3,6 +3,10 @@ import API from "../api/axios";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
+import {
+  CLINIC_SERVICE_CATEGORIES,
+  getClinicServiceNames,
+} from "../utils/clinicServices";
 import "leaflet/dist/leaflet.css";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -46,6 +50,14 @@ function AdminClinics() {
   const [filteredClinics, setFilteredClinics] = useState([]);
   const [subscriptionPlans, setSubscriptionPlans] = useState([]);
 
+  const [clinicApplications, setClinicApplications] = useState([]);
+  const [applicationStatusFilter, setApplicationStatusFilter] =
+    useState("Pending");
+  const [applicationsLoading, setApplicationsLoading] = useState(true);
+  const [reviewingApplicationId, setReviewingApplicationId] = useState(null);
+  const [openingApplicationDocument, setOpeningApplicationDocument] =
+    useState("");
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
 
@@ -57,6 +69,8 @@ function AdminClinics() {
   const [showClinicModal, setShowClinicModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showUsageModal, setShowUsageModal] = useState(false);
+  const [showApplicationReviewModal, setShowApplicationReviewModal] =
+    useState(false);
 
   const [usageLoading, setUsageLoading] = useState(false);
   const [clinicUsage, setClinicUsage] = useState(null);
@@ -64,12 +78,17 @@ function AdminClinics() {
   const [selectedClinic, setSelectedClinic] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState("");
 
+  const [selectedApplication, setSelectedApplication] = useState(null);
+  const [applicationDecision, setApplicationDecision] = useState("Approved");
+  const [applicationRejectionReason, setApplicationRejectionReason] =
+    useState("");
+
   const [clinicForm, setClinicForm] = useState({
     clinic_name: "",
     address: "",
     latitude: "",
     longitude: "",
-    services: "",
+    services: [],
     contact_number: "",
     opening_hours: "",
     subscription_plan_id: "",
@@ -95,12 +114,21 @@ function AdminClinics() {
   }, []);
 
   useEffect(() => {
+    fetchClinicApplications();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationStatusFilter]);
+
+  useEffect(() => {
     filterClinics();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinics, searchTerm, statusFilter]);
 
   useEffect(() => {
-    const isAnyModalOpen = showClinicModal || showStatusModal || showUsageModal;
+    const isAnyModalOpen =
+      showClinicModal ||
+      showStatusModal ||
+      showUsageModal ||
+      showApplicationReviewModal;
 
     if (isAnyModalOpen) {
       document.body.classList.add("modal-open");
@@ -111,7 +139,12 @@ function AdminClinics() {
     return () => {
       document.body.classList.remove("modal-open");
     };
-  }, [showClinicModal, showStatusModal, showUsageModal]);
+  }, [
+    showClinicModal,
+    showStatusModal,
+    showUsageModal,
+    showApplicationReviewModal,
+  ]);
 
   const fetchClinics = async () => {
     try {
@@ -124,6 +157,168 @@ function AdminClinics() {
       setError(err.response?.data?.error || "Unable to load clinics.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchClinicApplications = async () => {
+    try {
+      setApplicationsLoading(true);
+      setError("");
+
+      const response = await API.get(
+        "/api/clinics/admin/verification-applications",
+        {
+          ...authHeaders,
+          params: {
+            status: applicationStatusFilter,
+          },
+        },
+      );
+
+      setClinicApplications(response.data?.applications || []);
+    } catch (err) {
+      setClinicApplications([]);
+      setError(
+        err.response?.data?.error ||
+          "Unable to load clinic verification applications.",
+      );
+    } finally {
+      setApplicationsLoading(false);
+    }
+  };
+
+  const formatApplicationDate = (value) => {
+    if (!value) return "N/A";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
+  const openClinicApplicationDocument = async (application, documentType) => {
+    const documentKey = `${application.application_id}-${documentType}`;
+
+    try {
+      setOpeningApplicationDocument(documentKey);
+      setError("");
+
+      const response = await API.get(
+        `/api/clinics/admin/verification-applications/${application.application_id}/document/${documentType}`,
+        {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const objectUrl = URL.createObjectURL(response.data);
+      const openedWindow = window.open(
+        objectUrl,
+        "_blank",
+        "noopener,noreferrer",
+      );
+
+      if (!openedWindow) {
+        URL.revokeObjectURL(objectUrl);
+        setError("The document popup was blocked. Allow popups and try again.");
+        return;
+      }
+
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          "Unable to open the clinic verification document.",
+      );
+    } finally {
+      setOpeningApplicationDocument("");
+    }
+  };
+
+  const openApplicationReviewModal = (application, decision) => {
+    setSelectedApplication(application);
+    setApplicationDecision(decision);
+    setApplicationRejectionReason("");
+    setModalError("");
+    setError("");
+    setMessage("");
+    setShowApplicationReviewModal(true);
+  };
+
+  const closeApplicationReviewModal = () => {
+    if (reviewingApplicationId) return;
+
+    setShowApplicationReviewModal(false);
+    setSelectedApplication(null);
+    setApplicationDecision("Approved");
+    setApplicationRejectionReason("");
+    setModalError("");
+  };
+
+  const handleClinicApplicationReview = async (event) => {
+    event.preventDefault();
+
+    if (!selectedApplication) {
+      setModalError("No clinic application was selected.");
+      return;
+    }
+
+    const cleanReason = applicationRejectionReason.trim();
+
+    if (applicationDecision === "Rejected" && cleanReason.length < 5) {
+      setModalError(
+        "Enter a clear rejection reason with at least 5 characters.",
+      );
+      return;
+    }
+
+    try {
+      setReviewingApplicationId(selectedApplication.application_id);
+      setModalError("");
+      setError("");
+      setMessage("");
+
+      const response = await API.put(
+        `/api/clinics/admin/verification-applications/${selectedApplication.application_id}/review`,
+        {
+          decision: applicationDecision,
+          rejection_reason:
+            applicationDecision === "Rejected" ? cleanReason : null,
+        },
+        authHeaders,
+      );
+
+      setMessage(
+        response.data?.message ||
+          (applicationDecision === "Approved"
+            ? "Clinic application approved successfully."
+            : "Clinic application rejected and permanently deleted."),
+      );
+
+      setShowApplicationReviewModal(false);
+      setSelectedApplication(null);
+      setApplicationDecision("Approved");
+      setApplicationRejectionReason("");
+      setModalError("");
+
+      await Promise.all([fetchClinicApplications(), fetchClinics()]);
+    } catch (err) {
+      setModalError(
+        err.response?.data?.error ||
+          `Unable to ${applicationDecision.toLowerCase()} the clinic application.`,
+      );
+    } finally {
+      setReviewingApplicationId(null);
     }
   };
 
@@ -157,7 +352,10 @@ function AdminClinics() {
           clinic.clinic_name?.toLowerCase().includes(term) ||
           clinic.address?.toLowerCase().includes(term) ||
           clinic.contact_number?.toLowerCase().includes(term) ||
-          clinic.services?.toLowerCase().includes(term) ||
+          getClinicServiceNames(clinic)
+            .join(" ")
+            .toLowerCase()
+            .includes(term) ||
           clinic.owner_name?.toLowerCase().includes(term) ||
           clinic.owner_email?.toLowerCase().includes(term) ||
           clinic.plan_name?.toLowerCase().includes(term),
@@ -173,7 +371,7 @@ function AdminClinics() {
       address: "",
       latitude: "",
       longitude: "",
-      services: "",
+      services: [],
       contact_number: "",
       opening_hours: "",
       subscription_plan_id: "",
@@ -198,7 +396,7 @@ function AdminClinics() {
       address: clinic.address || "",
       latitude: clinic.latitude || "",
       longitude: clinic.longitude || "",
-      services: clinic.services || "",
+      services: getClinicServiceNames(clinic),
       contact_number: clinic.contact_number || "",
       opening_hours: clinic.opening_hours || clinic.operating_hours || "",
       subscription_plan_id: clinic.subscription_plan_id || "",
@@ -225,6 +423,23 @@ function AdminClinics() {
       ...prev,
       [e.target.name]: e.target.value,
     }));
+  };
+
+  const toggleClinicService = (serviceName) => {
+    setModalError("");
+
+    setClinicForm((previous) => {
+      const currentServices = Array.isArray(previous.services)
+        ? previous.services
+        : getClinicServiceNames(previous.services);
+
+      return {
+        ...previous,
+        services: currentServices.includes(serviceName)
+          ? currentServices.filter((service) => service !== serviceName)
+          : [...currentServices, serviceName],
+      };
+    });
   };
 
   const validateCoordinates = () => {
@@ -259,6 +474,14 @@ function AdminClinics() {
 
     if (!clinicForm.address.trim()) {
       setModalError("Clinic address is required.");
+      return;
+    }
+
+    if (
+      !Array.isArray(clinicForm.services) ||
+      clinicForm.services.length === 0
+    ) {
+      setModalError("Select at least one clinic service.");
       return;
     }
 
@@ -450,6 +673,15 @@ function AdminClinics() {
   const inactiveClinics = clinics.filter(
     (clinic) => clinic.status === "Inactive",
   ).length;
+  const pendingReviewClinics = clinics.filter(
+    (clinic) => clinic.status === "Pending Review",
+  ).length;
+  const pendingApplicationCount =
+    applicationStatusFilter === "Pending"
+      ? clinicApplications.length
+      : clinicApplications.filter(
+          (application) => application.verification_status === "Pending",
+        ).length;
   const mappedClinics = clinics.filter(
     (clinic) => clinic.latitude && clinic.longitude,
   ).length;
@@ -476,6 +708,7 @@ function AdminClinics() {
               onClick={() => {
                 fetchClinics();
                 fetchSubscriptionPlans();
+                fetchClinicApplications();
               }}
               disabled={loading}
             >
@@ -510,10 +743,250 @@ function AdminClinics() {
           </div>
 
           <div className="dashboard-card">
+            <h3>Pending Review</h3>
+            <strong>{pendingReviewClinics}</strong>
+          </div>
+
+          <div className="dashboard-card">
+            <h3>Pending Applications</h3>
+            <strong>{pendingApplicationCount}</strong>
+          </div>
+
+          <div className="dashboard-card">
             <h3>Mapped Locations</h3>
             <strong>{mappedClinics}</strong>
           </div>
         </div>
+
+        <section className="admin-clinic-applications-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Clinic Verification Applications</h2>
+              <p>
+                Validate clinic information and securely review submitted
+                documents before approving access.
+              </p>
+            </div>
+
+            <div className="admin-clinic-application-controls">
+              <select
+                value={applicationStatusFilter}
+                onChange={(event) =>
+                  setApplicationStatusFilter(event.target.value)
+                }
+                disabled={applicationsLoading}
+                aria-label="Clinic application status"
+              >
+                <option value="Pending">Pending</option>
+                <option value="Approved">Approved</option>
+                <option value="All">All Applications</option>
+              </select>
+
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={fetchClinicApplications}
+                disabled={applicationsLoading}
+              >
+                {applicationsLoading ? "Refreshing..." : "Refresh Applications"}
+              </button>
+            </div>
+          </div>
+
+          <div className="info-message">
+            Only an Administrator can approve a clinic application. Rejecting a
+            pending application permanently deletes the Clinic Owner account,
+            clinic record, verification application, and uploaded documents.
+          </div>
+
+          {applicationsLoading ? (
+            <div className="payment-loading-card">
+              <p>Loading clinic verification applications...</p>
+            </div>
+          ) : clinicApplications.length === 0 ? (
+            <div className="empty-state admin-clinic-application-empty">
+              <h3>No {applicationStatusFilter.toLowerCase()} applications</h3>
+              <p>
+                Clinic applications matching the selected status will appear
+                here.
+              </p>
+            </div>
+          ) : (
+            <div className="admin-clinic-application-list">
+              {clinicApplications.map((application) => (
+                <article
+                  className="admin-clinic-application-card"
+                  key={application.application_id}
+                >
+                  <div className="admin-clinic-application-card-header">
+                    <div>
+                      <span className="muted-text">
+                        Application #{application.application_id}
+                      </span>
+                      <h3>{application.clinic_name || "Clinic Application"}</h3>
+                      <p>{application.address || "No address provided"}</p>
+                    </div>
+
+                    <span
+                      className={`status-badge clinic-application-status-${String(
+                        application.verification_status || "Pending",
+                      ).toLowerCase()}`}
+                    >
+                      {application.verification_status || "Pending"}
+                    </span>
+                  </div>
+
+                  <div className="admin-clinic-application-details">
+                    <div>
+                      <span>Clinic Owner</span>
+                      <strong>{application.owner_name || "N/A"}</strong>
+                      <small>{application.owner_email || "N/A"}</small>
+                    </div>
+
+                    <div>
+                      <span>Contact</span>
+                      <strong>{application.contact_number || "N/A"}</strong>
+                      <small>
+                        {application.opening_hours || "No hours listed"}
+                      </small>
+                    </div>
+
+                    <div>
+                      <span>Coordinates</span>
+                      <strong>
+                        {application.latitude && application.longitude
+                          ? `${application.latitude}, ${application.longitude}`
+                          : "Not available"}
+                      </strong>
+                      <small>Clinic location</small>
+                    </div>
+
+                    <div>
+                      <span>Submitted</span>
+                      <strong>
+                        {formatApplicationDate(application.submitted_at)}
+                      </strong>
+                      <small>
+                        Clinic: {application.clinic_status || "Pending Review"}{" "}
+                        · Owner: {application.owner_status || "Inactive"}
+                      </small>
+                    </div>
+                  </div>
+
+                  <div className="admin-clinic-application-services">
+                    <span>Services Offered</span>
+                    <p>{application.services || "No services listed"}</p>
+                  </div>
+
+                  <div className="admin-clinic-application-documents">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() =>
+                        openClinicApplicationDocument(
+                          application,
+                          "business_registration",
+                        )
+                      }
+                      disabled={Boolean(openingApplicationDocument)}
+                    >
+                      {openingApplicationDocument ===
+                      `${application.application_id}-business_registration`
+                        ? "Opening..."
+                        : "Business Registration"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() =>
+                        openClinicApplicationDocument(
+                          application,
+                          "business_permit",
+                        )
+                      }
+                      disabled={Boolean(openingApplicationDocument)}
+                    >
+                      {openingApplicationDocument ===
+                      `${application.application_id}-business_permit`
+                        ? "Opening..."
+                        : "Business Permit"}
+                    </button>
+
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() =>
+                        openClinicApplicationDocument(
+                          application,
+                          "owner_government_id",
+                        )
+                      }
+                      disabled={Boolean(openingApplicationDocument)}
+                    >
+                      {openingApplicationDocument ===
+                      `${application.application_id}-owner_government_id`
+                        ? "Opening..."
+                        : "Owner Government ID"}
+                    </button>
+
+                    {application.clinic_license_original_name && (
+                      <button
+                        type="button"
+                        className="secondary-button"
+                        onClick={() =>
+                          openClinicApplicationDocument(
+                            application,
+                            "clinic_license",
+                          )
+                        }
+                        disabled={Boolean(openingApplicationDocument)}
+                      >
+                        {openingApplicationDocument ===
+                        `${application.application_id}-clinic_license`
+                          ? "Opening..."
+                          : "Clinic License"}
+                      </button>
+                    )}
+                  </div>
+
+                  {application.verification_status === "Approved" && (
+                    <div className="success-message admin-clinic-reviewed-message">
+                      Approved by {application.reviewed_by_name || "Admin"} on{" "}
+                      {formatApplicationDate(application.reviewed_at)}.
+                    </div>
+                  )}
+
+                  {application.verification_status === "Pending" && (
+                    <div className="admin-clinic-application-actions">
+                      <button
+                        type="button"
+                        className="primary-button"
+                        onClick={() =>
+                          openApplicationReviewModal(application, "Approved")
+                        }
+                        disabled={Boolean(reviewingApplicationId)}
+                      >
+                        Approve Application
+                      </button>
+
+                      <button
+                        type="button"
+                        className="danger-button"
+                        onClick={() =>
+                          openApplicationReviewModal(application, "Rejected")
+                        }
+                        disabled={Boolean(reviewingApplicationId)}
+                      >
+                        Reject and Delete
+                      </button>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
 
         <div className="appointment-filters">
           <div className="form-group">
@@ -535,6 +1008,7 @@ function AdminClinics() {
               <option value="All">All Status</option>
               <option value="Active">Active</option>
               <option value="Inactive">Inactive</option>
+              <option value="Pending Review">Pending Review</option>
             </select>
           </div>
         </div>
@@ -734,7 +1208,11 @@ function AdminClinics() {
                             Map
                           </a>
 
-                          {clinic.status === "Active" ? (
+                          {clinic.status === "Pending Review" ? (
+                            <span className="status-badge status-pending">
+                              Admin Review Required
+                            </span>
+                          ) : clinic.status === "Active" ? (
                             <button
                               className="danger-button"
                               disabled={updatingStatus}
@@ -763,6 +1241,131 @@ function AdminClinics() {
           )}
         </div>
       </div>
+
+      {showApplicationReviewModal && selectedApplication && (
+        <div className="modal-overlay">
+          <div className="modal-card admin-clinic-review-modal">
+            <div className="modal-header">
+              <div>
+                <h3>
+                  {applicationDecision === "Approved"
+                    ? "Approve Clinic Application"
+                    : "Reject Clinic Application"}
+                </h3>
+                <p>
+                  {selectedApplication.clinic_name} ·{" "}
+                  {selectedApplication.owner_name}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="modal-close-button"
+                onClick={closeApplicationReviewModal}
+                disabled={Boolean(reviewingApplicationId)}
+                aria-label="Close clinic application review"
+              >
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleClinicApplicationReview}>
+              <div className="admin-clinic-review-summary">
+                <div>
+                  <span>Clinic</span>
+                  <strong>{selectedApplication.clinic_name}</strong>
+                </div>
+                <div>
+                  <span>Clinic Owner</span>
+                  <strong>{selectedApplication.owner_name}</strong>
+                </div>
+                <div>
+                  <span>Owner Email</span>
+                  <strong>{selectedApplication.owner_email}</strong>
+                </div>
+                <div>
+                  <span>Submitted</span>
+                  <strong>
+                    {formatApplicationDate(selectedApplication.submitted_at)}
+                  </strong>
+                </div>
+              </div>
+
+              {applicationDecision === "Approved" ? (
+                <div className="info-message">
+                  Approval will activate the clinic location and Clinic Owner
+                  account. The Clinic Owner can sign in immediately after this
+                  action succeeds.
+                </div>
+              ) : (
+                <>
+                  <div className="error-message">
+                    Permanent deletion warning: rejecting this application
+                    removes the pending Clinic Owner account, clinic record,
+                    verification application, role assignment, and all uploaded
+                    verification documents. This action cannot be undone.
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="clinic_application_rejection_reason">
+                      Rejection Reason
+                    </label>
+                    <textarea
+                      id="clinic_application_rejection_reason"
+                      value={applicationRejectionReason}
+                      onChange={(event) => {
+                        setApplicationRejectionReason(event.target.value);
+                        setModalError("");
+                      }}
+                      placeholder="Explain why the clinic application is being rejected."
+                      minLength={5}
+                      maxLength={1000}
+                      rows={4}
+                      disabled={Boolean(reviewingApplicationId)}
+                      required
+                    />
+                    <small>
+                      This reason is recorded in the Administrator audit log
+                      before the application is deleted.
+                    </small>
+                  </div>
+                </>
+              )}
+
+              {modalError && <div className="error-message">{modalError}</div>}
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={closeApplicationReviewModal}
+                  disabled={Boolean(reviewingApplicationId)}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className={
+                    applicationDecision === "Approved"
+                      ? "primary-button"
+                      : "danger-button"
+                  }
+                  disabled={Boolean(reviewingApplicationId)}
+                >
+                  {reviewingApplicationId
+                    ? applicationDecision === "Approved"
+                      ? "Approving..."
+                      : "Rejecting and Deleting..."
+                    : applicationDecision === "Approved"
+                      ? "Confirm Approval"
+                      : "Confirm Rejection and Delete"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showClinicModal && (
         <div className="modal-overlay">
@@ -841,16 +1444,60 @@ function AdminClinics() {
                 />
               </div>
 
-              <div className="form-group">
-                <label>Services</label>
-                <textarea
-                  name="services"
-                  value={clinicForm.services}
-                  onChange={handleClinicChange}
-                  placeholder="Example: Dental Consultation, Cleaning, Filling, X-ray"
-                  rows="3"
-                />
-              </div>
+              <fieldset className="clinic-service-selector admin-clinic-service-selector">
+                <legend>Services Offered</legend>
+                <p className="clinic-service-selector-help">
+                  Select all dental services available at this clinic location.
+                </p>
+
+                <div className="clinic-service-category-list">
+                  {CLINIC_SERVICE_CATEGORIES.map((group) => (
+                    <section
+                      className="clinic-service-category"
+                      key={group.category}
+                    >
+                      <h4>{group.category}</h4>
+
+                      <div className="clinic-service-options">
+                        {group.services.map((service) => {
+                          const isSelected =
+                            clinicForm.services.includes(service);
+
+                          return (
+                            <label
+                              className={`clinic-service-option ${
+                                isSelected ? "selected" : ""
+                              }`}
+                              key={service}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleClinicService(service)}
+                                disabled={saving}
+                              />
+                              <span
+                                className="clinic-service-option-check"
+                                aria-hidden="true"
+                              >
+                                {isSelected ? "✓" : ""}
+                              </span>
+                              <span>{service}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+
+                <div className="clinic-service-selection-summary">
+                  <strong>{clinicForm.services.length}</strong>{" "}
+                  {clinicForm.services.length === 1
+                    ? "service selected"
+                    : "services selected"}
+                </div>
+              </fieldset>
 
               <div className="form-group">
                 <label>Contact Number</label>
