@@ -4956,6 +4956,86 @@ body textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder {
   color: #94a3b8;
 }
@@ -5260,6 +5340,182 @@ body .appointment-filters select:focus {
 }
 
 /* Placeholder text */
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::-webkit-input-placeholder,
 body textarea::-webkit-input-placeholder,
 body .modal-form input::-webkit-input-placeholder,
@@ -15619,6 +15875,86 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::-webkit-input-placeholder, .patient-xray-control-panel input::-webkit-input-placeholder {
   color: #94a3b8 !important;
 }
@@ -19005,6 +19341,86 @@ body {
   color: #718096 !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: #718096 !important;
 }
@@ -19425,6 +19841,150 @@ body {
   background: var(--clinic-input-background) !important;
   color: var(--clinic-input-text) !important;
   border-color: var(--clinic-border) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout input::-webkit-input-placeholder,
@@ -20470,6 +21030,150 @@ body {
   ) !important;
 }
 
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
 .dashboard-layout.portal-theme-light input::-webkit-input-placeholder, .dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
   color: color-mix(
     in srgb,
@@ -21122,4 +21826,408 @@ body {
   color: var(--dg-primary) !important;
   border-color: var(--dg-primary) !important;
   transform: translateY(-1px);
+}
+
+/* =========================================================
+   ASSISTANT DENTAL RECORDS — CLINIC BRANDING OVERRIDES
+   Append this at the END of dashboard.css
+   ========================================================= */
+
+.clinic-themed-count-box {
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 18%,
+    var(--clinic-surface-elevated, var(--dg-card-bg))
+  ) !important;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-primary)) 45%,
+      transparent
+    ) !important;
+  color: var(
+    --clinic-heading-text,
+    var(--dg-heading-text, var(--dg-text))
+  ) !important;
+}
+
+.clinic-themed-record-card {
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 42%,
+    var(--clinic-border, var(--dg-border))
+  ) !important;
+  background: var(--clinic-surface-elevated, var(--dg-card-bg)) !important;
+}
+
+.clinic-themed-record-card:hover {
+  border-color: var(--clinic-primary, var(--dg-primary)) !important;
+  box-shadow: 0 12px 30px
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-primary)) 16%,
+      transparent
+    ) !important;
+}
+
+.clinic-themed-source-note {
+  background: color-mix(
+    in srgb,
+    var(--clinic-secondary, var(--dg-secondary, var(--dg-primary))) 12%,
+    var(--clinic-surface-elevated, var(--dg-card-bg))
+  ) !important;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-secondary, var(--dg-secondary, var(--dg-primary))) 36%,
+      var(--clinic-border, var(--dg-border))
+    ) !important;
+  color: var(
+    --clinic-muted-text,
+    var(--dg-text-muted, var(--dg-text))
+  ) !important;
+}
+
+.clinic-themed-source-note strong {
+  color: var(
+    --clinic-heading-text,
+    var(--dg-heading-text, var(--dg-text))
+  ) !important;
+}
+
+.clinic-themed-primary-action {
+  background: var(--clinic-primary, var(--dg-primary)) !important;
+  border-color: var(--clinic-primary, var(--dg-primary)) !important;
+  color: var(--clinic-primary-text, var(--dg-primary-text, #ffffff)) !important;
+  box-shadow: 0 8px 20px
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-primary)) 24%,
+      transparent
+    ) !important;
+}
+
+.clinic-themed-primary-action:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 88%,
+    #000000
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 88%,
+    #000000
+  ) !important;
+  transform: translateY(-1px);
+}
+
+.clinic-themed-secondary-action {
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 8%,
+    var(--clinic-surface-elevated, var(--dg-card-bg))
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 52%,
+    var(--clinic-border, var(--dg-border))
+  ) !important;
+  color: var(--clinic-primary, var(--dg-primary)) !important;
+}
+
+.clinic-themed-secondary-action:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 16%,
+    var(--clinic-surface-elevated, var(--dg-card-bg))
+  ) !important;
+  border-color: var(--clinic-primary, var(--dg-primary)) !important;
+}
+
+.assistant-record-filter-panel input,
+.assistant-record-filter-panel select {
+  background: var(
+    --clinic-input-background,
+    var(--dg-input-bg, var(--dg-card-bg))
+  ) !important;
+  color: var(--clinic-input-text, var(--dg-text)) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 40%,
+    var(--clinic-border, var(--dg-border))
+  ) !important;
+}
+
+.assistant-record-filter-panel input:focus,
+.assistant-record-filter-panel select:focus {
+  border-color: var(--clinic-primary, var(--dg-primary)) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-primary)) 18%,
+      transparent
+    ) !important;
+  outline: none !important;
+}
+
+.assistant-record-filter-panel label,
+.patient-dashboard-section h2,
+.patient-dashboard-section h3,
+.assistant-record-item h3,
+.assistant-record-detail-grid strong {
+  color: var(
+    --clinic-heading-text,
+    var(--dg-heading-text, var(--dg-text))
+  ) !important;
+}
+
+.assistant-record-detail-grid,
+.assistant-record-detail-grid p,
+.patient-dashboard-section p {
+  color: var(
+    --clinic-muted-text,
+    var(--dg-text-muted, var(--dg-text))
+  ) !important;
+}
+
+/* Neutralize old fixed status colors and derive them from clinic colors. */
+.assistant-record-item .status-badge {
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 16%,
+    var(--clinic-surface-elevated, var(--dg-card-bg))
+  ) !important;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-primary)) 34%,
+      transparent
+    ) !important;
+  color: var(--clinic-primary, var(--dg-primary)) !important;
+}
+
+.assistant-record-item .status-cancelled,
+.assistant-record-item .status-pending {
+  background: color-mix(
+    in srgb,
+    var(--clinic-secondary, var(--dg-secondary, var(--dg-primary))) 14%,
+    var(--clinic-surface-elevated, var(--dg-card-bg))
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-secondary, var(--dg-secondary, var(--dg-primary))) 34%,
+    transparent
+  ) !important;
+  color: var(
+    --clinic-secondary,
+    var(--dg-secondary, var(--dg-primary))
+  ) !important;
+}
+
+/* =========================================================
+   GLOBAL CLINIC-PRIMARY BORDER OVERRIDES
+   Append this at the very END of dashboard.css.
+   ========================================================= */
+
+:root {
+  --clinic-border-strong: var(--clinic-primary, var(--dg-primary));
+  --clinic-border-medium: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 58%,
+    transparent
+  );
+  --clinic-border-soft: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 34%,
+    transparent
+  );
+  --clinic-focus-ring: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary)) 20%,
+    transparent
+  );
+}
+
+/* Main cards, panels, sections, and list items */
+.dashboard-content
+  :where(
+    .dashboard-card,
+    .patient-dashboard-card,
+    .appointments-list-card,
+    .appointment-item,
+    .record-card,
+    .xray-card,
+    .clinic-card,
+    .subscription-card,
+    .report-card,
+    .analytics-card,
+    .profile-card,
+    .settings-card,
+    .form-card,
+    .details-card,
+    .summary-card,
+    .stat-card,
+    .modal-content,
+    .dialog-content,
+    .patient-dashboard-section,
+    .assistant-record-filter-panel,
+    .filter-panel,
+    .search-filter-panel,
+    .table-container,
+    .data-table-wrapper,
+    .empty-state,
+    .info-message,
+    .success-message,
+    .warning-message,
+    .error-message
+  ) {
+  border-color: var(--clinic-border-soft) !important;
+}
+
+/* More prominent interactive cards */
+.dashboard-content
+  :where(
+    .appointment-item,
+    .record-card,
+    .xray-card,
+    .clinic-card,
+    .subscription-card,
+    .patient-dashboard-card
+  ):hover {
+  border-color: var(--clinic-border-strong) !important;
+}
+
+/* Inputs and controls */
+.dashboard-content
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    .form-control,
+    .search-input,
+    .filter-select,
+    .date-input,
+    .time-input
+  ) {
+  border-color: var(--clinic-border-medium) !important;
+}
+
+.dashboard-content
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    .form-control,
+    .search-input,
+    .filter-select,
+    .date-input,
+    .time-input
+  ):hover:not(:disabled) {
+  border-color: var(--clinic-border-strong) !important;
+}
+
+.dashboard-content
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]),
+    select,
+    textarea,
+    .form-control,
+    .search-input,
+    .filter-select,
+    .date-input,
+    .time-input
+  ):focus {
+  border-color: var(--clinic-border-strong) !important;
+  box-shadow: 0 0 0 3px var(--clinic-focus-ring) !important;
+  outline: none !important;
+}
+
+/* Tables */
+.dashboard-content :where(table, th, td, .table-header, .table-row, .data-row) {
+  border-color: var(--clinic-border-soft) !important;
+}
+
+/* Buttons */
+.dashboard-content
+  :where(
+    .secondary-button,
+    .outline-button,
+    .ghost-button,
+    .icon-button,
+    .action-button,
+    .filter-button,
+    .tab-button
+  ) {
+  border-color: var(--clinic-border-medium) !important;
+}
+
+.dashboard-content
+  :where(
+    .secondary-button,
+    .outline-button,
+    .ghost-button,
+    .icon-button,
+    .action-button,
+    .filter-button,
+    .tab-button
+  ):hover:not(:disabled) {
+  border-color: var(--clinic-border-strong) !important;
+}
+
+/* Tabs, chips, and badges that use outlines */
+.dashboard-content
+  :where(.patient-filter-tab, .filter-tab, .tab, .chip, .tag, .status-badge) {
+  border-color: var(--clinic-border-medium) !important;
+}
+
+.dashboard-content
+  :where(
+    .patient-filter-tab.active,
+    .filter-tab.active,
+    .tab.active,
+    .chip.selected,
+    .tag.selected
+  ) {
+  border-color: var(--clinic-border-strong) !important;
+}
+
+/* Dividers and separators */
+.dashboard-content
+  :where(hr, .divider, .section-divider, .card-divider, .table-divider) {
+  border-color: var(--clinic-border-soft) !important;
+}
+
+/* Checkbox and radio accents */
+.dashboard-content input[type="checkbox"],
+.dashboard-content input[type="radio"] {
+  accent-color: var(--clinic-primary, var(--dg-primary));
+}
+
+/* Pagination */
+.dashboard-content
+  :where(.pagination button, .pagination-button, .page-button) {
+  border-color: var(--clinic-border-medium) !important;
+}
+
+.dashboard-content
+  :where(
+    .pagination button:hover,
+    .pagination-button:hover,
+    .page-button:hover,
+    .pagination button.active,
+    .pagination-button.active,
+    .page-button.active
+  ) {
+  border-color: var(--clinic-border-strong) !important;
+}
+
+/* Keep destructive actions semantically red */
+.dashboard-content
+  :where(.danger-button, .delete-button, .status-cancelled, .error-message) {
+  --clinic-border-strong: #dc2626;
+}
+
+/* Keep warning states semantically amber */
+.dashboard-content :where(.warning-button, .status-pending, .warning-message) {
+  --clinic-border-strong: #d97706;
 }

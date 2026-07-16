@@ -473,7 +473,9 @@ function AssistantDentalRecords() {
             </div>
           </div>
 
-          <div className="assistant-record-count-box">{recordCountText()}</div>
+          <div className="assistant-record-count-box clinic-themed-count-box">
+            {recordCountText()}
+          </div>
         </div>
 
         <div className="patient-dashboard-section">
@@ -565,13 +567,13 @@ function AssistantDentalRecords() {
                       </p>
                     </div>
 
-                    <div className="assistant-record-source-note">
+                    <div className="assistant-record-source-note clinic-themed-source-note">
                       <strong>Record Source:</strong>{" "}
                       {getRecordSourceDescription(record.record_source)}
                     </div>
 
                     {record.source_notes && (
-                      <div className="assistant-record-source-note">
+                      <div className="assistant-record-source-note clinic-themed-source-note">
                         <strong>Source Notes:</strong> {record.source_notes}
                       </div>
                     )}
@@ -579,7 +581,7 @@ function AssistantDentalRecords() {
 
                   <div className="appointment-actions assistant-record-actions">
                     <button
-                      className="secondary-button"
+                      className="secondary-button clinic-themed-secondary-action"
                       onClick={() =>
                         navigate(
                           `/assistant/dental-records/${record.record_id}`,
@@ -590,7 +592,7 @@ function AssistantDentalRecords() {
                     </button>
 
                     <button
-                      className="primary-button"
+                      className="primary-button clinic-themed-primary-action"
                       onClick={() =>
                         navigate(
                           `/assistant/dental-records/${record.record_id}/3d-view`,
