@@ -30,30 +30,54 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const clearError = () => {
+    setErrorMessage("");
+  };
+
+  const isValidEmail = (value) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+  };
+
+  const isStrongPassword = (value) => {
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/.test(
+      value
+    );
+  };
+
   const handleRegister = async () => {
+    const cleanFirstName = firstName.trim();
+    const cleanLastName = lastName.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanContactNumber = contactNumber.trim();
+
     if (
-      !firstName.trim() ||
-      !lastName.trim() ||
-      !email.trim() ||
+      !cleanFirstName ||
+      !cleanLastName ||
+      !cleanEmail ||
       !password.trim() ||
       !confirmPassword.trim()
     ) {
-      Alert.alert(
-        "Missing Fields",
+      setErrorMessage(
         "Please fill in your name, email, password, and confirm password."
       );
       return;
     }
 
-    if (password !== confirmPassword) {
-      Alert.alert("Password Mismatch", "Passwords do not match.");
+    if (!isValidEmail(cleanEmail)) {
+      setErrorMessage("Please enter a valid email address.");
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert(
-        "Weak Password",
-        "Password must be at least 6 characters long."
+    if (password !== confirmPassword) {
+      setErrorMessage("Passwords do not match.");
+      return;
+    }
+
+    if (!isStrongPassword(password)) {
+      setErrorMessage(
+        "Password must be at least 8 characters and include uppercase, lowercase, number, and special character."
       );
       return;
     }
@@ -61,31 +85,29 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
     try {
       Keyboard.dismiss();
       setLoading(true);
+      setErrorMessage("");
 
       await registerPatient({
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        contactNumber: contactNumber.trim(),
+        firstName: cleanFirstName,
+        lastName: cleanLastName,
+        email: cleanEmail,
+        contactNumber: cleanContactNumber,
         password,
         confirmPassword,
       });
 
       Alert.alert(
-        "Account Created",
-        "Your patient account has been created. Please check your email for verification before logging in.",
+        "Verify Your Email",
+        "Your patient account has been created. Please check your email inbox or spam folder and verify your account before logging in.",
         [
           {
-            text: "OK",
+            text: "Back to Login",
             onPress: onBackToLogin,
           },
         ]
       );
     } catch (error) {
-      Alert.alert(
-        "Registration Failed",
-        error.message || "Unable to create account."
-      );
+      setErrorMessage(error.message || "Unable to create account.");
     } finally {
       setLoading(false);
     }
@@ -106,12 +128,12 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
         >
           <View style={styles.topSection}>
             <View style={styles.logoCircle}>
-  <Image
-    source={require("../../assets/dentograph-favicon.png")}
-    style={styles.logoImage}
-    resizeMode="contain"
-  />
-</View>
+              <Image
+                source={require("../../assets/dentograph-favicon.png")}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
 
             <Text style={styles.appName}>Create Account</Text>
             <Text style={styles.tagline}>Patient Mobile Registration</Text>
@@ -125,6 +147,28 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
               X-rays, AR previews, and nearby clinics.
             </Text>
 
+            {errorMessage ? (
+              <View style={styles.errorCard}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color="#991b1b"
+                />
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.infoCard}>
+              <Ionicons
+                name="mail-unread-outline"
+                size={18}
+                color="#2b6cb0"
+              />
+              <Text style={styles.infoText}>
+                After registration, verify your email first before logging in.
+              </Text>
+            </View>
+
             <View style={styles.nameRow}>
               <View style={styles.nameField}>
                 <Text style={styles.label}>First Name</Text>
@@ -137,7 +181,10 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
                     placeholder="First name"
                     placeholderTextColor="#a0aec0"
                     value={firstName}
-                    onChangeText={setFirstName}
+                    onChangeText={(value) => {
+                      setFirstName(value);
+                      clearError();
+                    }}
                     editable={!loading}
                   />
                 </View>
@@ -154,7 +201,10 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
                     placeholder="Last name"
                     placeholderTextColor="#a0aec0"
                     value={lastName}
-                    onChangeText={setLastName}
+                    onChangeText={(value) => {
+                      setLastName(value);
+                      clearError();
+                    }}
                     editable={!loading}
                   />
                 </View>
@@ -172,7 +222,10 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
                   placeholder="patient@email.com"
                   placeholderTextColor="#a0aec0"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={(value) => {
+                    setEmail(value);
+                    clearError();
+                  }}
                   autoCapitalize="none"
                   keyboardType="email-address"
                   editable={!loading}
@@ -191,7 +244,10 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
                   placeholder="Optional"
                   placeholderTextColor="#a0aec0"
                   value={contactNumber}
-                  onChangeText={setContactNumber}
+                  onChangeText={(value) => {
+                    setContactNumber(value);
+                    clearError();
+                  }}
                   keyboardType="phone-pad"
                   editable={!loading}
                 />
@@ -213,7 +269,10 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
                   placeholder="Create password"
                   placeholderTextColor="#a0aec0"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(value) => {
+                    setPassword(value);
+                    clearError();
+                  }}
                   secureTextEntry={!showPassword}
                   editable={!loading}
                 />
@@ -230,6 +289,11 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
                   />
                 </Pressable>
               </View>
+
+              <Text style={styles.helperText}>
+                Minimum 8 characters with uppercase, lowercase, number, and
+                special character.
+              </Text>
             </View>
 
             <View style={styles.formGroup}>
@@ -247,7 +311,10 @@ export default function RegisterPatientScreen({ onBackToLogin }) {
                   placeholder="Confirm password"
                   placeholderTextColor="#a0aec0"
                   value={confirmPassword}
-                  onChangeText={setConfirmPassword}
+                  onChangeText={(value) => {
+                    setConfirmPassword(value);
+                    clearError();
+                  }}
                   secureTextEntry={!showConfirmPassword}
                   editable={!loading}
                   onSubmitEditing={handleRegister}
@@ -332,28 +399,28 @@ const styles = StyleSheet.create({
     marginBottom: 26,
   },
   logoCircle: {
-  width: 90,
-  height: 90,
-  borderRadius: 30,
-  backgroundColor: "#ffffff",
-  justifyContent: "center",
-  alignItems: "center",
-  marginBottom: 14,
-  borderWidth: 1,
-  borderColor: "#e2e8f0",
-  shadowColor: "#2b6cb0",
-  shadowOffset: {
-    width: 0,
-    height: 8,
+    width: 90,
+    height: 90,
+    borderRadius: 30,
+    backgroundColor: "#ffffff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    shadowColor: "#2b6cb0",
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.18,
+    shadowRadius: 14,
+    elevation: 4,
   },
-  shadowOpacity: 0.18,
-  shadowRadius: 14,
-  elevation: 4,
-},
-logoImage: {
-  width: 62,
-  height: 62,
-},
+  logoImage: {
+    width: 62,
+    height: 62,
+  },
   appName: {
     fontSize: 30,
     fontWeight: "900",
@@ -393,9 +460,43 @@ logoImage: {
     fontSize: 14,
     color: "#718096",
     textAlign: "center",
-    marginBottom: 24,
+    marginBottom: 16,
     lineHeight: 20,
     fontWeight: "600",
+  },
+  errorCard: {
+    backgroundColor: "#fee2e2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 15,
+    padding: 12,
+    marginBottom: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    color: "#991b1b",
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: "800",
+  },
+  infoCard: {
+    backgroundColor: "#e3f2fd",
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 18,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  infoText: {
+    flex: 1,
+    color: "#2c5282",
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: "700",
   },
   nameRow: {
     flexDirection: "row",
@@ -434,6 +535,13 @@ logoImage: {
   },
   eyeButton: {
     padding: 4,
+  },
+  helperText: {
+    color: "#718096",
+    fontSize: 11.5,
+    fontWeight: "700",
+    lineHeight: 16,
+    marginTop: 7,
   },
   primaryButton: {
     backgroundColor: "#2b6cb0",

@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { Turnstile } from "@marsidev/react-turnstile";
 import API from "../api/axios";
 import AuthLayout from "../components/auth/AuthLayout";
 import AuthInput from "../components/auth/AuthInput";
@@ -9,6 +10,9 @@ import ThemeToggle from "../components/ThemeToggle";
 
 function ClinicRegister() {
   const navigate = useNavigate();
+  const turnstileRef = useRef(null);
+
+  const siteKey = process.env.REACT_APP_TURNSTILE_SITE_KEY;
 
   const [formData, setFormData] = useState({
     owner_name: "",
@@ -23,6 +27,8 @@ function ClinicRegister() {
   });
 
   const [agree, setAgree] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+
   const [error, setError] = useState("");
   const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
@@ -62,6 +68,14 @@ function ClinicRegister() {
     return String(value || "").trim();
   };
 
+  const resetTurnstile = () => {
+    setTurnstileToken("");
+
+    if (turnstileRef.current) {
+      turnstileRef.current.reset();
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       owner_name: "",
@@ -76,6 +90,7 @@ function ClinicRegister() {
     });
 
     setAgree(false);
+    resetTurnstile();
   };
 
   const handleChange = (e) => {
@@ -91,6 +106,8 @@ function ClinicRegister() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (loading) return;
 
     setError("");
     setPasswordRules([]);
@@ -134,12 +151,12 @@ function ClinicRegister() {
     }
 
     if (!clinicName) {
-      setError("Clinic name is required.");
+      setError("Clinic location name is required.");
       return;
     }
 
     if (!address) {
-      setError("Clinic address is required.");
+      setError("Clinic location address is required.");
       return;
     }
 
@@ -158,6 +175,11 @@ function ClinicRegister() {
       return;
     }
 
+    if (!turnstileToken) {
+      setError("Please complete the CAPTCHA verification.");
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -170,11 +192,12 @@ function ClinicRegister() {
         contact_number: contactNumber || null,
         services,
         opening_hours: openingHours,
+        turnstileToken,
       });
 
       setSuccess(
         response.data?.message ||
-          "Clinic registered successfully. Please check the clinic owner email to verify the account.",
+          "Clinic owner account and first clinic location created successfully. Please check the clinic owner email to verify the account.",
       );
 
       resetForm();
@@ -189,6 +212,8 @@ function ClinicRegister() {
 
       if (status === 429) {
         setError("Too many registration attempts. Please try again later.");
+      } else if (status === 400 && err.response?.data?.captcha_required) {
+        setError(apiError || "Please complete the CAPTCHA verification.");
       } else if (status === 400) {
         setError(apiError || "Please check your clinic registration details.");
       } else if (status === 403) {
@@ -196,6 +221,8 @@ function ClinicRegister() {
       } else {
         setError(apiError || "Clinic registration failed. Please try again.");
       }
+
+      resetTurnstile();
     } finally {
       setLoading(false);
     }
@@ -204,7 +231,7 @@ function ClinicRegister() {
   return (
     <AuthLayout
       title="Register Your Clinic"
-      subtitle="Create a clinic owner account and start with the Free plan"
+      subtitle="Create a clinic owner account and first clinic location workspace"
       wide
     >
       <ThemeToggle />
@@ -231,12 +258,16 @@ function ClinicRegister() {
       {!success && (
         <>
           <div className="info-message" style={{ marginBottom: "16px" }}>
-            <strong>Default Plan:</strong> New clinics are automatically
-            assigned the Free plan. You can upgrade later once the payment
-            gateway is added.
+            <strong>Default Setup:</strong> This creates one Clinic Owner
+            account and the first clinic location. The account starts with the
+            Free shared subscription and can add more locations after upgrading.
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            <div className="auth-required-note">
+              Fields marked with <span>*</span> are required.
+            </div>
+
             <div className="auth-row">
               <AuthInput
                 label="Clinic Owner Name"
@@ -246,6 +277,8 @@ function ClinicRegister() {
                 onChange={handleChange}
                 icon="👤"
                 autoComplete="name"
+                disabled={loading}
+                required
               />
 
               <AuthInput
@@ -257,6 +290,8 @@ function ClinicRegister() {
                 onChange={handleChange}
                 icon="✉"
                 autoComplete="email"
+                disabled={loading}
+                required
               />
             </div>
 
@@ -292,27 +327,31 @@ function ClinicRegister() {
             </div>
 
             <AuthInput
-              label="Clinic Name"
+              label="Clinic Location Name"
               name="clinic_name"
-              placeholder="Dela Cruz Dental Clinic"
+              placeholder="Dela Cruz Dental Clinic - Main Branch"
               value={formData.clinic_name}
               onChange={handleChange}
               icon="🏥"
               autoComplete="organization"
+              disabled={loading}
+              required
             />
 
             <AuthInput
-              label="Clinic Address"
+              label="Clinic Location Address"
               name="address"
               placeholder="123 Sample Street, Quezon City"
               value={formData.address}
               onChange={handleChange}
               icon="📍"
               autoComplete="street-address"
+              disabled={loading}
+              required
             />
 
             <AuthInput
-              label="Clinic Contact Number"
+              label="Clinic Location Contact Number"
               type="tel"
               name="contact_number"
               placeholder="09123456789"
@@ -321,10 +360,19 @@ function ClinicRegister() {
               icon="☎"
               required={false}
               autoComplete="tel"
+              disabled={loading}
             />
 
+            <div className="auth-note">
+              This first clinic location will be linked to the Clinic Owner
+              account. Additional locations can be managed later from the Clinic
+              Owner portal.
+            </div>
+
             <div className="auth-textarea-group">
-              <label>Services Offered</label>
+              <label>
+                Services Offered <span className="auth-required">*</span>
+              </label>
               <textarea
                 name="services"
                 value={formData.services}
@@ -332,11 +380,14 @@ function ClinicRegister() {
                 placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
                 rows="4"
                 disabled={loading}
+                required
               />
             </div>
 
             <div className="auth-textarea-group">
-              <label>Opening Hours</label>
+              <label>
+                Opening Hours <span className="auth-required">*</span>
+              </label>
               <textarea
                 name="opening_hours"
                 value={formData.opening_hours}
@@ -344,6 +395,7 @@ function ClinicRegister() {
                 placeholder="Example: Monday to Saturday, 9:00 AM - 5:00 PM"
                 rows="4"
                 disabled={loading}
+                required
               />
             </div>
 
@@ -351,14 +403,50 @@ function ClinicRegister() {
               <input
                 type="checkbox"
                 checked={agree}
-                onChange={(e) => setAgree(e.target.checked)}
+                onChange={(e) => {
+                  setAgree(e.target.checked);
+                  setError("");
+                }}
                 disabled={loading}
               />
-              <span>I agree to the Terms of Service and Privacy Policy</span>
+              <span>
+                I agree to the Terms of Service and Privacy Policy{" "}
+                <strong className="auth-required">*</strong>
+              </span>
             </label>
 
-            <AuthButton type="submit" disabled={loading}>
-              {loading ? "Registering Clinic..." : "Register Clinic"}
+            {siteKey ? (
+              <div className="turnstile-wrapper">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={siteKey}
+                  onSuccess={(token) => {
+                    setTurnstileToken(token);
+                    setError("");
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken("");
+                  }}
+                  onError={() => {
+                    setTurnstileToken("");
+                    setError(
+                      "CAPTCHA failed to load. Please refresh and try again.",
+                    );
+                  }}
+                  options={{
+                    theme: "auto",
+                    size: "normal",
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="auth-error">
+                Turnstile site key is missing. Please check frontend .env.
+              </div>
+            )}
+
+            <AuthButton type="submit" disabled={loading || !siteKey}>
+              {loading ? "Registering Clinic..." : "Register Clinic Location"}
             </AuthButton>
           </form>
         </>
@@ -377,15 +465,16 @@ function ClinicRegister() {
               setSuccess("");
               setError("");
               setPasswordRules([]);
+              resetTurnstile();
             }}
           >
-            Register another clinic
+            Register another clinic owner
           </button>
         </div>
       )}
 
       <p className="auth-footer">
-        Already registered?{" "}
+        Already have a clinic owner account?{" "}
         <button
           type="button"
           className="auth-link"

@@ -1,0 +1,347 @@
+.registration-clinic-locator {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 6px 0 2px;
+  padding: 18px;
+  border: 1px solid var(--clinic-border, #334155);
+  border-radius: 18px;
+  background: var(--clinic-surface-elevated, #172033);
+}
+
+.registration-clinic-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.registration-clinic-header h3 {
+  margin: 0 0 6px;
+  color: var(--clinic-heading-text, #f8fafc);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.registration-clinic-header p {
+  margin: 0;
+  color: var(--clinic-muted-text, #afc0d6);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.registration-location-button,
+.registration-popup-select {
+  border: 1px solid var(--clinic-primary, #2563eb);
+  border-radius: 12px;
+  background: var(--clinic-primary, #2563eb);
+  color: var(--clinic-primary-text, #ffffff);
+  padding: 10px 13px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.registration-location-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.registration-clinic-map {
+  width: 100%;
+  height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--clinic-border, #334155);
+  border-radius: 16px;
+}
+
+.registration-leaflet-map {
+  width: 100%;
+  height: 100%;
+}
+
+.registration-clinic-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.registration-clinic-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 78px;
+  padding: 13px 14px;
+  border: 1px solid var(--clinic-border, #334155);
+  border-radius: 14px;
+  background: var(--clinic-surface-soft, #1e293b);
+  color: var(--clinic-heading-text, #f8fafc);
+  text-align: left;
+  cursor: pointer;
+  transition: 0.18s ease;
+}
+
+.registration-clinic-option:hover:not(:disabled) {
+  border-color: var(--clinic-primary, #2563eb);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, #2563eb) 12%,
+    var(--clinic-surface-soft, #1e293b)
+  );
+  transform: translateY(-1px);
+}
+
+.registration-clinic-option.selected {
+  border-color: var(--clinic-primary, #2563eb);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, #2563eb) 24%,
+    var(--clinic-surface-soft, #1e293b)
+  );
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--clinic-primary, #2563eb) 20%, transparent);
+}
+
+.registration-clinic-option-main {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.registration-clinic-option-main strong {
+  color: var(--clinic-heading-text, #f8fafc);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.registration-clinic-option-main small {
+  color: var(--clinic-muted-text, #afc0d6);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.registration-clinic-select-label {
+  flex: 0 0 auto;
+  color: var(--clinic-primary, #2563eb);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.registration-clinic-option.selected .registration-clinic-select-label {
+  color: var(--clinic-primary-text, #ffffff);
+}
+
+.registration-selected-clinic {
+  border-left: 4px solid var(--clinic-primary, #2563eb);
+}
+
+.registration-popup-select {
+  margin-top: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .registration-clinic-header {
+    flex-direction: column;
+  }
+
+  .registration-location-button {
+    width: 100%;
+  }
+
+  .registration-clinic-list {
+    grid-template-columns: 1fr;
+  }
+
+  .registration-clinic-map {
+    height: 280px;
+  }
+}
+
+/* Clear selected-clinic indicator for registration */
+.registration-selected-clinic-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  margin: 16px 0;
+  border: 2px solid var(--dg-primary);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--dg-primary) 14%, var(--dg-card-bg));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dg-primary) 14%, transparent);
+}
+
+.registration-selected-clinic-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  background: var(--dg-primary);
+  color: var(--dg-primary-text, #ffffff);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.registration-selected-clinic-content {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.registration-selected-clinic-label {
+  color: var(--dg-primary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.registration-selected-clinic-content strong {
+  color: var(--dg-heading-text, var(--dg-text));
+  font-size: 1rem;
+}
+
+.registration-selected-clinic-content small {
+  color: var(--dg-muted-text, var(--dg-text-muted));
+}
+
+.registration-change-clinic-button {
+  flex: 0 0 auto;
+  padding: 9px 13px;
+  border: 1px solid var(--dg-primary);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--dg-primary);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.registration-change-clinic-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--dg-primary) 12%, transparent);
+}
+
+.registration-selected-clinic-empty {
+  padding: 13px 15px;
+  margin: 16px 0;
+  border: 1px dashed var(--dg-border);
+  border-radius: 12px;
+  color: var(--dg-muted-text, var(--dg-text-muted));
+  text-align: center;
+}
+
+.registration-clinic-option.selected {
+  position: relative;
+  border: 2px solid var(--dg-primary) !important;
+  background: color-mix(
+    in srgb,
+    var(--dg-primary) 16%,
+    var(--dg-card-bg)
+  ) !important;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--dg-primary) 14%, transparent),
+    0 10px 24px color-mix(in srgb, var(--dg-primary) 18%, transparent);
+  transform: translateY(-1px);
+}
+
+.registration-clinic-option.selected::before {
+  content: "SELECTED";
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--dg-primary);
+  color: var(--dg-primary-text, #ffffff);
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+}
+
+.registration-clinic-option.selected .registration-clinic-option-main {
+  padding-right: 78px;
+}
+
+.registration-clinic-option.selected .registration-clinic-select-label {
+  color: var(--dg-primary);
+  font-weight: 800;
+}
+
+@media (max-width: 640px) {
+  .registration-selected-clinic-banner {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .registration-change-clinic-button {
+    width: 100%;
+  }
+}
+
+/* Compact registration clinic cards
+   Place this AFTER the previous selected-clinic CSS. */
+
+.registration-clinic-option,
+.registration-clinic-option.selected {
+  position: static !important;
+  min-height: 78px !important;
+  padding: 13px 14px !important;
+  border-width: 1px !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.registration-clinic-option.selected {
+  border-color: var(--clinic-primary, var(--dg-primary, #2563eb)) !important;
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-primary, #2563eb)) 24%,
+    var(--clinic-surface-soft, var(--dg-card-bg, #1e293b))
+  ) !important;
+  box-shadow: 0 0 0 2px
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-primary, #2563eb)) 20%,
+      transparent
+    ) !important;
+}
+
+.registration-clinic-option.selected::before {
+  content: none !important;
+  display: none !important;
+}
+
+.registration-clinic-option-main,
+.registration-clinic-option.selected .registration-clinic-option-main {
+  min-width: 0 !important;
+  padding-right: 0 !important;
+}
+
+.registration-clinic-option-main strong {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.registration-clinic-select-label,
+.registration-clinic-option.selected .registration-clinic-select-label {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--clinic-primary, var(--dg-primary, #2563eb)) !important;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.registration-clinic-option.selected .registration-clinic-select-label {
+  color: var(--clinic-primary-text, var(--dg-primary-text, #ffffff)) !important;
+}

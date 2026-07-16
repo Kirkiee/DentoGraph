@@ -38,6 +38,7 @@ function MapRecenter({ userLocation }) {
 
 function PatientClinicDiscovery() {
   const [clinics, setClinics] = useState([]);
+  const [assignedClinicId, setAssignedClinicId] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -83,11 +84,31 @@ function PatientClinicDiscovery() {
         authHeaders,
       );
       setClinics(response.data.clinics || []);
+      setAssignedClinicId(response.data.assigned_clinic_id || null);
     } catch (err) {
-      setError(err.response?.data?.error || "Unable to load clinic list.");
+      setError(err.response?.data?.error || "Unable to load clinic locations.");
+      setClinics([]);
+      setAssignedClinicId(null);
     } finally {
       setLoading(false);
     }
+  };
+
+  const isAssignedClinic = (clinic) => {
+    if (!clinic) return false;
+
+    const clinicId = Number(clinic.clinic_id);
+    const assignedId = Number(assignedClinicId);
+
+    if (
+      Number.isFinite(clinicId) &&
+      Number.isFinite(assignedId) &&
+      clinicId === assignedId
+    ) {
+      return true;
+    }
+
+    return clinic.is_assigned_clinic === true;
   };
 
   const getCurrentLocation = () => {
@@ -260,7 +281,11 @@ function PatientClinicDiscovery() {
 
         let matchesRadius = true;
 
-        if (userLocation && selectedRadius !== null) {
+        if (
+          userLocation &&
+          selectedRadius !== null &&
+          !isAssignedClinic(clinic)
+        ) {
           matchesRadius =
             clinic.distance !== null && clinic.distance <= selectedRadius;
         }
@@ -268,6 +293,13 @@ function PatientClinicDiscovery() {
         return matchesSearch && matchesService && matchesRadius;
       })
       .sort((a, b) => {
+        const aAssigned = isAssignedClinic(a);
+        const bAssigned = isAssignedClinic(b);
+
+        if (aAssigned !== bAssigned) {
+          return aAssigned ? -1 : 1;
+        }
+
         if (a.distance === null && b.distance === null) return 0;
         if (a.distance === null) return 1;
         if (b.distance === null) return -1;
@@ -280,6 +312,7 @@ function PatientClinicDiscovery() {
     serviceFilter,
     radiusFilter,
     userLocation,
+    assignedClinicId,
   ]);
 
   const clinicsInsideRadius = useMemo(() => {
@@ -304,10 +337,10 @@ function PatientClinicDiscovery() {
       <div className="appointments-list-card">
         <div className="appointments-header">
           <div>
-            <h2>Clinic Discovery</h2>
+            <h2>Clinic Locations</h2>
             <p>
-              Find nearby dental clinics using GPS tracking, geofencing, radial
-              distance calculation, and an interactive real-time map.
+              View your assigned clinic and the other active branches managed by
+              the same dental clinic owner.
             </p>
           </div>
 
@@ -344,22 +377,45 @@ function PatientClinicDiscovery() {
         </div>
 
         <div className="info-message">
-          The map uses your latitude and longitude to create a virtual search
-          boundary. Clinics inside the selected radius are displayed and sorted
-          by estimated distance.
+          Your account is assigned to one clinic location. Other branches are
+          shown for reference and navigation only. Appointments, dental records,
+          X-rays, and documents remain connected to your assigned clinic.
         </div>
 
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
+        {!loading && assignedClinicId && (
+          <div className="staff-summary-grid">
+            <div className="staff-summary-card">
+              <span>Assigned Location</span>
+              <strong>
+                {clinics.find(
+                  (clinic) =>
+                    String(clinic.clinic_id) === String(assignedClinicId),
+                )?.clinic_name || "Assigned clinic"}
+              </strong>
+              <p>
+                Only one clinic location is assigned to your patient account.
+              </p>
+            </div>
+
+            <div className="staff-summary-card">
+              <span>Available Branches</span>
+              <strong>{clinics.length}</strong>
+              <p>Active locations under the same clinic owner</p>
+            </div>
+          </div>
+        )}
+
         <div className="appointment-filters">
           <div className="form-group">
-            <label>Search Clinic or Service</label>
+            <label>Search Location or Service</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by clinic name, address, or service"
+              placeholder="Search by branch name, address, or service"
             />
           </div>
 
@@ -398,8 +454,8 @@ function PatientClinicDiscovery() {
             <div>
               <h2>Real-Time Clinic Map</h2>
               <p>
-                Blue marker shows your location. Clinic markers show active
-                dental clinics within the current filter.
+                Blue marker shows your location. Branch markers show your
+                assigned clinic and other active locations under the same owner.
               </p>
             </div>
 
@@ -459,6 +515,12 @@ function PatientClinicDiscovery() {
                   >
                     <Popup>
                       <strong>{clinic.clinic_name}</strong>
+                      {isAssignedClinic(clinic) && (
+                        <>
+                          <br />
+                          <strong>Your assigned clinic</strong>
+                        </>
+                      )}
                       <br />
                       {clinic.address || "No address provided"}
                       <br />
@@ -506,7 +568,7 @@ function PatientClinicDiscovery() {
               </p>
 
               <p>
-                <strong>Clinics inside radius:</strong>{" "}
+                <strong>Locations inside radius:</strong>{" "}
                 {radiusFilter === "all"
                   ? clinicsWithDistance.length
                   : clinicsInsideRadius.length}
@@ -516,10 +578,10 @@ function PatientClinicDiscovery() {
         )}
 
         {loading ? (
-          <p>Loading clinics...</p>
+          <p>Loading clinic locations...</p>
         ) : filteredClinics.length === 0 ? (
           <div className="empty-state">
-            <h3>No clinics found within the selected filter</h3>
+            <h3>No clinic locations found within the selected filter</h3>
             <p>
               Try expanding the radius, selecting “Show all clinics,” or
               changing the search/service filter.
@@ -532,9 +594,32 @@ function PatientClinicDiscovery() {
                 <div className="appointment-title-row">
                   <h3>{clinic.clinic_name}</h3>
 
-                  <span className="status-badge status-scheduled">
-                    {clinic.status || "Active"}
-                  </span>
+                  <div
+                    className="appointment-actions"
+                    style={{ flexDirection: "row", flexWrap: "wrap" }}
+                  >
+                    {isAssignedClinic(clinic) && (
+                      <span className="status-badge status-completed">
+                        My Assigned Clinic
+                      </span>
+                    )}
+
+                    {!isAssignedClinic(clinic) && (
+                      <span className="status-badge status-scheduled">
+                        Other Branch
+                      </span>
+                    )}
+
+                    <span
+                      className={`status-badge ${
+                        clinic.status === "Inactive"
+                          ? "status-cancelled"
+                          : "status-scheduled"
+                      }`}
+                    >
+                      {clinic.status || "Active"}
+                    </span>
+                  </div>
                 </div>
 
                 <p>
@@ -575,10 +660,13 @@ function PatientClinicDiscovery() {
                     </p>
                   )}
 
-                <div
-                  className="appointment-actions"
-                  style={{ flexDirection: "row", flexWrap: "wrap" }}
-                >
+                <div className="info-message" style={{ marginTop: "14px" }}>
+                  {isAssignedClinic(clinic)
+                    ? "Your patient account, appointments, and dental records are assigned to this location."
+                    : "This is another branch under the same clinic owner. Viewing it does not change your assigned clinic."}
+                </div>
+
+                <div className="patient-clinic-actions">
                   <a
                     className="primary-button"
                     href={getGoogleMapsLink(clinic)}

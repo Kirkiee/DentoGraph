@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
 import { useNavigate } from "react-router-dom";
@@ -8,6 +8,7 @@ function ClinicOwnerSubscription() {
 
   const [clinic, setClinic] = useState(null);
   const [usage, setUsage] = useState(null);
+  const [clinicLocations, setClinicLocations] = useState([]);
   const [plans, setPlans] = useState([]);
 
   const [loading, setLoading] = useState(true);
@@ -30,7 +31,7 @@ function ClinicOwnerSubscription() {
       setPaymentNotice({
         type: "success",
         message:
-          "Payment successful. Your subscription is being updated. Please refresh after a few seconds if the new plan does not appear immediately.",
+          "Payment successful. Your shared subscription is being updated for all clinic locations. Please refresh after a few seconds if the new plan does not appear immediately.",
       });
 
       window.history.replaceState({}, "", "/clinic-owner/subscription");
@@ -39,7 +40,8 @@ function ClinicOwnerSubscription() {
     if (paymentStatus === "cancelled") {
       setPaymentNotice({
         type: "cancelled",
-        message: "Payment was cancelled. No subscription changes were applied.",
+        message:
+          "Payment was cancelled. No shared subscription changes were applied.",
       });
 
       window.history.replaceState({}, "", "/clinic-owner/subscription");
@@ -51,12 +53,23 @@ function ClinicOwnerSubscription() {
       setLoading(true);
       setError("");
 
-      const usageResponse = await API.get("/api/clinics/owner/usage");
-      const plansResponse = await API.get("/api/subscriptions/active-plans");
+      const [usageResponse, plansResponse, locationsResponse] =
+        await Promise.all([
+          API.get("/api/clinics/owner/usage"),
+          API.get("/api/subscriptions/active-plans"),
+          API.get("/api/clinics/owner/locations"),
+        ]);
+
+      const locations =
+        locationsResponse.data.locations ||
+        locationsResponse.data.clinics ||
+        locationsResponse.data.clinic_locations ||
+        [];
 
       setClinic(usageResponse.data.clinic || null);
       setUsage(usageResponse.data.usage || null);
       setPlans(plansResponse.data.plans || []);
+      setClinicLocations(locations);
     } catch (err) {
       setError(
         err.response?.data?.error || "Unable to load subscription details.",
@@ -87,7 +100,12 @@ function ClinicOwnerSubscription() {
 
     if (Number.isNaN(date.getTime())) return "N/A";
 
-    return date.toLocaleString();
+    return date.toLocaleDateString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+    });
   };
 
   const getDaysRemaining = (endDateValue) => {
@@ -121,27 +139,28 @@ function ClinicOwnerSubscription() {
     if (status === "Expired" || days < 0) {
       return {
         type: "expired",
-        title: "Subscription Expired",
+        title: "Shared Subscription Expired",
         message:
-          "Your clinic subscription has expired. Please change or renew your subscription plan to continue full access.",
+          "The shared subscription for this Clinic Owner account has expired. Please renew or change the plan to continue full access across all clinic locations.",
       };
     }
 
     if (days === 0) {
       return {
         type: "warning",
-        title: "Subscription Expires Today",
+        title: "Shared Subscription Expires Today",
         message:
-          "Your clinic subscription expires today. Please renew or change your plan soon to avoid service interruption.",
+          "The shared subscription expires today. Please renew or change the plan soon to avoid service interruption across all clinic locations.",
       };
     }
 
     if (days <= 7) {
       return {
         type: "warning",
-        title: "Subscription Expiring Soon",
-        message: `Your clinic subscription will expire in ${days} day${days === 1 ? "" : "s"
-          }. Please renew or change your plan soon.`,
+        title: "Shared Subscription Expiring Soon",
+        message: `The shared subscription will expire in ${days} day${
+          days === 1 ? "" : "s"
+        }. Please renew or change the plan soon.`,
       };
     }
 
@@ -198,13 +217,13 @@ function ClinicOwnerSubscription() {
 
   const getDefaultFeatures = (plan) => {
     return [
-      `${formatLimit(plan.max_clinics)} clinic limit`,
-      `${formatLimit(plan.max_dentists)} dentist limit`,
-      `${formatLimit(plan.max_assistants)} assistant limit`,
-      `${formatLimit(plan.max_patients)} patient limit`,
-      `${formatLimit(plan.max_records)} dental record limit`,
-      `${formatLimit(plan.max_xrays)} X-ray limit`,
-      `${formatLimit(plan.storage_limit_mb)} MB storage limit`,
+      `${formatLimit(plan.max_clinics)} clinic location limit`,
+      `${formatLimit(plan.max_dentists)} dentist limit shared across locations`,
+      `${formatLimit(plan.max_assistants)} assistant limit shared across locations`,
+      `${formatLimit(plan.max_patients)} patient limit shared across locations`,
+      `${formatLimit(plan.max_records)} dental record limit shared across locations`,
+      `${formatLimit(plan.max_xrays)} X-ray limit shared across locations`,
+      `${formatLimit(plan.storage_limit_mb)} MB storage shared across locations`,
     ];
   };
 
@@ -237,7 +256,7 @@ function ClinicOwnerSubscription() {
       return "";
     }
 
-    return `\n\nCurrent usage exceeding selected plan:\n- ${violations.join(
+    return `\n\nCurrent shared usage exceeding selected plan:\n- ${violations.join(
       "\n- ",
     )}`;
   };
@@ -247,7 +266,7 @@ function ClinicOwnerSubscription() {
 
     if (Number(plan.price || 0) <= 0) {
       const confirmFreeChange = window.confirm(
-        "This plan does not require checkout. The system will only allow this change if your clinic usage fits the selected plan limits. Continue?",
+        "This plan does not require checkout. The system will only allow this change if the shared usage across all clinic locations fits the selected plan limits. Continue?",
       );
 
       if (!confirmFreeChange) return;
@@ -262,7 +281,8 @@ function ClinicOwnerSubscription() {
         });
 
         alert(
-          response.data.message || "Subscription plan changed successfully.",
+          response.data.message ||
+            "Shared subscription plan changed successfully.",
         );
         fetchSubscriptionData();
       } catch (err) {
@@ -310,7 +330,7 @@ function ClinicOwnerSubscription() {
     }
   };
 
-  const renderLimitRow = (label, used, limit) => {
+  const renderLimitRow = (label, used, limit, helperText = "") => {
     const percent = getUsagePercent(used, limit);
 
     return (
@@ -324,23 +344,12 @@ function ClinicOwnerSubscription() {
             </span>
           </div>
 
-          <div
-            style={{
-              width: "100%",
-              height: "10px",
-              background: "#e2e8f0",
-              borderRadius: "999px",
-              overflow: "hidden",
-              marginTop: "12px",
-            }}
-          >
+          {helperText && <p>{helperText}</p>}
+
+          <div className="usage-progress-track">
             <div
-              style={{
-                width: `${percent}%`,
-                height: "100%",
-                background: "#2b6cb0",
-                borderRadius: "999px",
-              }}
+              className="usage-progress-fill"
+              style={{ width: `${percent}%` }}
             ></div>
           </div>
         </div>
@@ -353,15 +362,40 @@ function ClinicOwnerSubscription() {
     clinic?.subscription_status,
   );
 
+  const summaryCards = useMemo(() => {
+    return [
+      {
+        label: "Clinic Locations",
+        value: clinicLocations.length,
+        description: "Locations sharing this subscription",
+      },
+      {
+        label: "Shared Plan",
+        value: clinic?.plan_name || "No Plan",
+        description: clinic?.billing_cycle || "No billing cycle",
+      },
+      {
+        label: "Subscription Status",
+        value: clinic?.subscription_status || "Active",
+        description: getDaysRemaining(clinic?.subscription_end_date),
+      },
+      {
+        label: "Storage Used",
+        value: `${usage?.storage_used_mb || 0} MB`,
+        description: `Limit: ${formatLimit(clinic?.storage_limit_mb)} MB`,
+      },
+    ];
+  }, [clinic, usage, clinicLocations.length]);
+
   return (
     <DashboardLayout role="Clinic Owner">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card clinic-owner-subscription-page">
         <div className="appointments-header">
           <div>
-            <h2>Subscription</h2>
+            <h2>Shared Subscription</h2>
             <p>
-              View your current clinic plan, usage limits, subscription period,
-              and available plan change options.
+              Manage the single subscription shared by all clinic locations
+              under this Clinic Owner account.
             </p>
           </div>
 
@@ -413,38 +447,42 @@ function ClinicOwnerSubscription() {
         )}
 
         {loading ? (
-          <p>Loading subscription details...</p>
+          <div className="payment-loading-card">
+            <p>Loading shared subscription details...</p>
+          </div>
         ) : !clinic ? (
           <div className="empty-state">
             <h3>No subscription found</h3>
             <p>
-              This account is not linked to a clinic subscription. Please
+              This account is not linked to a shared subscription. Please
               contact the system administrator.
             </p>
           </div>
         ) : (
           <>
             <div className="info-message">
-              <strong>Clinic:</strong> {clinic.clinic_name}
-              <br />
-              <strong>Current Plan:</strong> {clinic.plan_name || "No Plan"}
-              <br />
-              <strong>Billing Cycle:</strong> {clinic.billing_cycle || "N/A"}
-              <br />
-              <strong>Subscription Status:</strong>{" "}
-              {clinic.subscription_status || "Active"}
-              <br />
-              <strong>Subscription Ends:</strong>{" "}
-              {formatDate(clinic.subscription_end_date)}
+              <strong>Important:</strong> This subscription applies to the
+              entire Clinic Owner account, not just one branch. Plan limits are
+              checked against the combined usage of all clinic locations.
             </div>
 
-            <div className="report-section">
+            <div className="staff-summary-grid">
+              {summaryCards.map((card) => (
+                <div className="staff-summary-card" key={card.label}>
+                  <span>{card.label}</span>
+                  <strong>{card.value}</strong>
+                  <p>{card.description}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
                   <h2>Subscription Period</h2>
                   <p>
-                    These dates show when the current subscription started and
-                    when it is expected to end.
+                    These dates control subscription access for all clinic
+                    locations under this account.
                   </p>
                 </div>
               </div>
@@ -452,7 +490,7 @@ function ClinicOwnerSubscription() {
               <div className="appointment-item">
                 <div className="appointment-info">
                   <div className="appointment-title-row">
-                    <h3>Subscription Status</h3>
+                    <h3>{clinic.plan_name || "No Subscription Plan"}</h3>
 
                     <span
                       className={getSubscriptionStatusClass(
@@ -482,11 +520,14 @@ function ClinicOwnerSubscription() {
               </div>
             </div>
 
-            <div className="report-section">
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Current Plan Details</h2>
-                  <p>Your clinic is currently using this subscription plan.</p>
+                  <h2>Shared Plan Details</h2>
+                  <p>
+                    These limits apply to the combined usage of all locations,
+                    not to each location individually.
+                  </p>
                 </div>
               </div>
 
@@ -507,106 +548,126 @@ function ClinicOwnerSubscription() {
                     </span>
                   </div>
 
-                  <p>
-                    <strong>Price:</strong> {formatPrice(clinic.price)}
-                  </p>
+                  <div className="subscription-detail-grid">
+                    <p>
+                      <strong>Price:</strong> {formatPrice(clinic.price)}
+                    </p>
 
-                  <p>
-                    <strong>Billing Cycle:</strong>{" "}
-                    {clinic.billing_cycle || "N/A"}
-                  </p>
+                    <p>
+                      <strong>Billing Cycle:</strong>{" "}
+                      {clinic.billing_cycle || "N/A"}
+                    </p>
 
-                  <p>
-                    <strong>Max Clinics:</strong>{" "}
-                    {formatLimit(clinic.max_clinics)}
-                  </p>
+                    <p>
+                      <strong>Max Clinic Locations:</strong>{" "}
+                      {formatLimit(clinic.max_clinics)}
+                    </p>
 
-                  <p>
-                    <strong>Max Dentists:</strong>{" "}
-                    {formatLimit(clinic.max_dentists)}
-                  </p>
+                    <p>
+                      <strong>Max Dentists:</strong>{" "}
+                      {formatLimit(clinic.max_dentists)}
+                    </p>
 
-                  <p>
-                    <strong>Max Assistants:</strong>{" "}
-                    {formatLimit(clinic.max_assistants)}
-                  </p>
+                    <p>
+                      <strong>Max Assistants:</strong>{" "}
+                      {formatLimit(clinic.max_assistants)}
+                    </p>
 
-                  <p>
-                    <strong>Max Patients:</strong>{" "}
-                    {formatLimit(clinic.max_patients)}
-                  </p>
+                    <p>
+                      <strong>Max Patients:</strong>{" "}
+                      {formatLimit(clinic.max_patients)}
+                    </p>
 
-                  <p>
-                    <strong>Max Records:</strong>{" "}
-                    {formatLimit(clinic.max_records)}
-                  </p>
+                    <p>
+                      <strong>Max Records:</strong>{" "}
+                      {formatLimit(clinic.max_records)}
+                    </p>
 
-                  <p>
-                    <strong>Max X-rays:</strong> {formatLimit(clinic.max_xrays)}
-                  </p>
+                    <p>
+                      <strong>Max X-rays:</strong>{" "}
+                      {formatLimit(clinic.max_xrays)}
+                    </p>
 
-                  <p>
-                    <strong>Storage Limit:</strong>{" "}
-                    {formatLimit(clinic.storage_limit_mb)} MB
-                  </p>
+                    <p>
+                      <strong>Storage Limit:</strong>{" "}
+                      {formatLimit(clinic.storage_limit_mb)} MB
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="report-section">
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
-                  <h2>Current Usage</h2>
+                  <h2>Aggregate Usage</h2>
                   <p>
-                    These values show how much of your current subscription is
-                    already being used.
+                    These totals combine all clinic locations under this Clinic
+                    Owner account.
                   </p>
                 </div>
               </div>
 
               <div className="appointments-list">
                 {renderLimitRow(
+                  "Clinic Locations",
+                  clinicLocations.length,
+                  clinic.max_clinics,
+                  "Total branches under this Clinic Owner account.",
+                )}
+
+                {renderLimitRow(
                   "Dentists",
                   usage?.dentists || 0,
                   clinic.max_dentists,
+                  "Dentist accounts across all locations.",
                 )}
 
                 {renderLimitRow(
                   "Dental Assistants",
                   usage?.assistants || 0,
                   clinic.max_assistants,
+                  "Dental assistant accounts across all locations.",
                 )}
 
                 {renderLimitRow(
                   "Patients",
                   usage?.patients || 0,
                   clinic.max_patients,
+                  "Patients assigned across all locations.",
                 )}
 
                 {renderLimitRow(
                   "Dental Records",
                   usage?.records || 0,
                   clinic.max_records,
+                  "Dental records created across all locations.",
                 )}
 
-                {renderLimitRow("X-rays", usage?.xrays || 0, clinic.max_xrays)}
+                {renderLimitRow(
+                  "X-rays",
+                  usage?.xrays || 0,
+                  clinic.max_xrays,
+                  "X-ray files uploaded across all locations.",
+                )}
 
                 {renderLimitRow(
                   "Storage Used",
                   usage?.storage_used_mb || 0,
                   clinic.storage_limit_mb,
+                  "Total X-ray storage used across all locations.",
                 )}
               </div>
             </div>
 
-            <div className="report-section">
+            <div className="patient-dashboard-section">
               <div className="appointments-header">
                 <div>
                   <h2>Available Subscription Plans</h2>
                   <p>
-                    Choose a subscription plan to change your clinic plan.
-                    Checkout is blocked if the selected plan cannot support the
-                    clinic's current usage.
+                    Changing a plan affects every clinic location under this
+                    Clinic Owner account. Checkout is blocked if the combined
+                    usage does not fit the selected plan.
                   </p>
                 </div>
               </div>
@@ -617,15 +678,18 @@ function ClinicOwnerSubscription() {
                   <p>No active subscription plans are available right now.</p>
                 </div>
               ) : (
-                <div className="appointments-list">
+                <div className="patient-quick-action-grid subscription-plan-grid">
                   {plans.map((plan) => {
                     const current = isCurrentPlan(plan);
                     const features = getPlanFeatures(plan);
                     const changeType = getPlanChangeType(plan);
 
                     return (
-                      <div className="appointment-item" key={plan.plan_id}>
-                        <div className="appointment-info">
+                      <div
+                        className="patient-quick-action-card subscription-plan-card"
+                        key={plan.plan_id}
+                      >
+                        <div>
                           <div className="appointment-title-row">
                             <h3>{plan.plan_name}</h3>
 
@@ -673,9 +737,9 @@ function ClinicOwnerSubscription() {
                             {current
                               ? "Current"
                               : checkoutLoading &&
-                                selectedPlan === plan.plan_name
+                                  selectedPlan === plan.plan_name
                                 ? "Preparing Checkout..."
-                                : "Change Plan"}
+                                : "Change Shared Plan"}
                           </button>
                         </div>
                       </div>

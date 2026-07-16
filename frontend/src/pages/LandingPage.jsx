@@ -187,8 +187,8 @@ function LandingPage() {
 
                 <div className="preview-box">
                   <p>X-ray AI</p>
-                  <h4>82.4%</h4>
-                  <small>High confidence</small>
+                  <h4>AI Assist</h4>
+                  <small>For dentist review</small>
                 </div>
 
                 <div className="preview-box">

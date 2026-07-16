@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
-import { loginUser } from "../services/authService";
+import { loginUser, resendVerificationEmail } from "../services/authService";
 
 export default function LoginScreen({
   onLoginSuccess,
@@ -29,12 +29,33 @@ export default function LoginScreen({
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [resendingVerification, setResendingVerification] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [unverifiedEmail, setUnverifiedEmail] = useState("");
 
   const scrollToForm = () => {
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 250);
+  };
+
+  const clearMessages = () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+  };
+
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    setUnverifiedEmail("");
+    clearMessages();
+  };
+
+  const handlePasswordChange = (value) => {
+    setPassword(value);
+    clearMessages();
   };
 
   const handleForgotPassword = () => {
@@ -63,17 +84,21 @@ export default function LoginScreen({
   };
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
-      Alert.alert("Missing Fields", "Please enter your email and password.");
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password.trim()) {
+      setErrorMessage("Please enter your email and password.");
       return;
     }
 
     try {
       Keyboard.dismiss();
       setLoading(true);
+      setUnverifiedEmail("");
+      clearMessages();
 
       const data = await loginUser({
-        email: email.trim(),
+        email: cleanEmail,
         password,
       });
 
@@ -81,18 +106,12 @@ export default function LoginScreen({
       const token = data.token;
 
       if (!token || !user) {
-        Alert.alert(
-          "Login Error",
-          "The server response is missing the token or user data."
-        );
+        setErrorMessage("The server response is missing the token or user data.");
         return;
       }
 
       if (String(user.role).toLowerCase() !== "patient") {
-        Alert.alert(
-          "Access Restricted",
-          "The mobile app is currently for patients only."
-        );
+        setErrorMessage("The mobile app is currently for patients only.");
         return;
       }
 
@@ -102,26 +121,64 @@ export default function LoginScreen({
       });
     } catch (error) {
       const message = error.message || "Something went wrong.";
+      const status = error.status || error.response?.status;
+      const emailUnverified =
+        error.email_unverified ||
+        error.response?.data?.email_unverified ||
+        false;
 
       const isUnverified =
-        message.toLowerCase().includes("verify") ||
-        message.toLowerCase().includes("verification") ||
-        message.toLowerCase().includes("not verified") ||
-        message.toLowerCase().includes("email is not verified");
+        status === 403 && emailUnverified
+          ? true
+          : message.toLowerCase().includes("verify") ||
+            message.toLowerCase().includes("verification") ||
+            message.toLowerCase().includes("not verified") ||
+            message.toLowerCase().includes("email is not verified");
 
       if (isUnverified) {
-        Alert.alert(
-          "Email Not Verified",
-          "Please verify your email before logging in. Check your email inbox for the verification link."
+        setUnverifiedEmail(cleanEmail);
+        setErrorMessage(
+          message ||
+            "Please verify your email before logging in. Check your email inbox for the verification link."
         );
         return;
       }
 
-      Alert.alert("Login Failed", message);
+      setErrorMessage(message);
     } finally {
       setLoading(false);
     }
   };
+
+  const handleResendVerification = async () => {
+    const targetEmail = unverifiedEmail || email.trim().toLowerCase();
+
+    if (!targetEmail) {
+      setErrorMessage("Please enter your email address first.");
+      return;
+    }
+
+    try {
+      Keyboard.dismiss();
+      setResendingVerification(true);
+      clearMessages();
+
+      const data = await resendVerificationEmail(targetEmail);
+
+      setSuccessMessage(
+        data?.message ||
+          "Verification email sent. Please check your inbox or spam folder."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error.message || "Unable to resend verification email right now."
+      );
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
+  const isBusy = loading || resendingVerification;
 
   return (
     <KeyboardAvoidingView
@@ -139,12 +196,12 @@ export default function LoginScreen({
         >
           <View style={styles.topSection}>
             <View style={styles.logoCircle}>
-  <Image
-    source={require("../../assets/dentograph-favicon.png")}
-    style={styles.logoImage}
-    resizeMode="contain"
-  />
-</View>
+              <Image
+                source={require("../../assets/dentograph-favicon.png")}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
 
             <Text style={styles.appName}>DentoGraph</Text>
             <Text style={styles.tagline}>Mobile Patient Portal</Text>
@@ -158,6 +215,28 @@ export default function LoginScreen({
               previews, nearby clinics, and profile.
             </Text>
 
+            {successMessage ? (
+              <View style={styles.successCard}>
+                <Ionicons
+                  name="checkmark-circle-outline"
+                  size={18}
+                  color="#166534"
+                />
+                <Text style={styles.successText}>{successMessage}</Text>
+              </View>
+            ) : null}
+
+            {errorMessage ? (
+              <View style={styles.errorCard}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={18}
+                  color="#991b1b"
+                />
+                <Text style={styles.errorText}>{errorMessage}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.formGroup}>
               <Text style={styles.label}>Email Address</Text>
 
@@ -169,10 +248,10 @@ export default function LoginScreen({
                   placeholder="patient@email.com"
                   placeholderTextColor="#a0aec0"
                   value={email}
-                  onChangeText={setEmail}
+                  onChangeText={handleEmailChange}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  editable={!loading}
+                  editable={!isBusy}
                   returnKeyType="next"
                   onFocus={scrollToForm}
                 />
@@ -194,9 +273,9 @@ export default function LoginScreen({
                   placeholder="Enter your password"
                   placeholderTextColor="#a0aec0"
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={handlePasswordChange}
                   secureTextEntry={!showPassword}
-                  editable={!loading}
+                  editable={!isBusy}
                   returnKeyType="done"
                   onSubmitEditing={handleLogin}
                   onFocus={scrollToForm}
@@ -205,7 +284,7 @@ export default function LoginScreen({
                 <Pressable
                   style={styles.eyeButton}
                   onPress={() => setShowPassword((current) => !current)}
-                  disabled={loading}
+                  disabled={isBusy}
                 >
                   <Ionicons
                     name={showPassword ? "eye-off-outline" : "eye-outline"}
@@ -219,7 +298,7 @@ export default function LoginScreen({
             <View style={styles.forgotPasswordRow}>
               <Pressable
                 onPress={handleForgotPassword}
-                disabled={loading}
+                disabled={isBusy}
                 hitSlop={8}
               >
                 <Text style={styles.authLinkText}>Forgot Password?</Text>
@@ -233,7 +312,7 @@ export default function LoginScreen({
                 loading && styles.disabledButton,
               ]}
               onPress={handleLogin}
-              disabled={loading}
+              disabled={isBusy}
             >
               {loading ? (
                 <ActivityIndicator color="#ffffff" />
@@ -249,12 +328,39 @@ export default function LoginScreen({
               )}
             </Pressable>
 
+            {unverifiedEmail ? (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.resendButton,
+                  pressed && styles.resendButtonPressed,
+                  resendingVerification && styles.disabledButton,
+                ]}
+                onPress={handleResendVerification}
+                disabled={isBusy}
+              >
+                {resendingVerification ? (
+                  <ActivityIndicator color="#2b6cb0" />
+                ) : (
+                  <>
+                    <Ionicons
+                      name="mail-unread-outline"
+                      size={18}
+                      color="#2b6cb0"
+                    />
+                    <Text style={styles.resendButtonText}>
+                      Resend Verification Email
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+
             <View style={styles.registerRow}>
               <Text style={styles.registerText}>
                 Don't have a patient account?
               </Text>
 
-              <Pressable onPress={handleRegister} disabled={loading} hitSlop={8}>
+              <Pressable onPress={handleRegister} disabled={isBusy} hitSlop={8}>
                 <Text style={styles.registerLinkText}>Create Account</Text>
               </Pressable>
             </View>
@@ -319,8 +425,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 14,
     elevation: 4,
-},
-
+  },
   logoImage: {
     width: 62,
     height: 62,
@@ -365,6 +470,42 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     lineHeight: 20,
     fontWeight: "600",
+  },
+  successCard: {
+    backgroundColor: "#dcfce7",
+    borderWidth: 1,
+    borderColor: "#86efac",
+    borderRadius: 15,
+    padding: 12,
+    marginBottom: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  successText: {
+    flex: 1,
+    color: "#166534",
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: "800",
+  },
+  errorCard: {
+    backgroundColor: "#fee2e2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 15,
+    padding: 12,
+    marginBottom: 14,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
+  errorText: {
+    flex: 1,
+    color: "#991b1b",
+    fontSize: 12.5,
+    lineHeight: 18,
+    fontWeight: "800",
   },
   formGroup: {
     marginBottom: 15,
@@ -427,6 +568,27 @@ const styles = StyleSheet.create({
   loginButtonPressed: {
     backgroundColor: "#255f9e",
     opacity: 0.9,
+  },
+  resendButton: {
+    backgroundColor: "#ffffff",
+    borderWidth: 1.5,
+    borderColor: "#2b6cb0",
+    paddingVertical: 13,
+    borderRadius: 17,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 7,
+  },
+  resendButtonPressed: {
+    backgroundColor: "#e3f2fd",
+    opacity: 0.9,
+  },
+  resendButtonText: {
+    color: "#2b6cb0",
+    fontSize: 14,
+    fontWeight: "900",
   },
   disabledButton: {
     opacity: 0.75,

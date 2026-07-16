@@ -69,21 +69,22 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
     Admin: [
       { label: "Dashboard", path: "/admin/dashboard" },
       { label: "My Profile", path: "/admin/profile" },
-      { label: "Users", path: "/admin/users" },
-      { label: "Clinics", path: "/admin/clinics" },
-      { label: "Subscriptions", path: "/admin/subscriptions" },
-      { label: "Payments", path: "/admin/payments" },
-      { label: "Reports", path: "/admin/reports" },
+      { label: "User Management", path: "/admin/users" },
+      { label: "Clinic Locations", path: "/admin/clinics" },
+      { label: "Shared Subscriptions", path: "/admin/subscriptions" },
+      { label: "Subscription Payments", path: "/admin/payments" },
+      { label: "Reports & Analytics", path: "/admin/reports" },
       { label: "Audit Logs", path: "/admin/audit-logs" },
       { label: "Dental Records", path: "/admin/dental-records" },
     ],
 
     "Clinic Owner": [
       { label: "Dashboard", path: "/clinic-owner/dashboard" },
+      { label: "Clinic Locations", path: "/clinic-owner/profile" },
+      { label: "Clinic Customization", path: "/clinic-owner/branding" },
       { label: "Staff Management", path: "/clinic-owner/staff" },
-      { label: "Subscription", path: "/clinic-owner/subscription" },
+      { label: "Shared Subscription", path: "/clinic-owner/subscription" },
       { label: "Payment History", path: "/clinic-owner/payments" },
-      { label: "Clinic Profile", path: "/clinic-owner/profile" },
     ],
   };
 

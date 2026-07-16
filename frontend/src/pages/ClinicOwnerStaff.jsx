@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
 import { useNavigate } from "react-router-dom";
@@ -6,10 +6,15 @@ import { useNavigate } from "react-router-dom";
 function ClinicOwnerStaff() {
   const navigate = useNavigate();
 
+  const [clinicLocations, setClinicLocations] = useState([]);
+  const [selectedClinicId, setSelectedClinicId] = useState(
+    () => localStorage.getItem("clinicOwnerSelectedClinicId") || "",
+  );
   const [clinic, setClinic] = useState(null);
   const [staff, setStaff] = useState([]);
 
   const [formData, setFormData] = useState({
+    clinic_id: "",
     name: "",
     email: "",
     password: "",
@@ -31,25 +36,110 @@ function ClinicOwnerStaff() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
+  const activeClinicLocations = useMemo(() => {
+    return clinicLocations.filter(
+      (location) => String(location.status || "Active") === "Active",
+    );
+  }, [clinicLocations]);
+
+  const selectedClinic = useMemo(() => {
+    return (
+      clinicLocations.find(
+        (location) => String(location.clinic_id) === String(selectedClinicId),
+      ) || null
+    );
+  }, [clinicLocations, selectedClinicId]);
+
   useEffect(() => {
-    fetchStaff();
+    fetchClinicLocations();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchStaff = async () => {
+  useEffect(() => {
+    if (selectedClinicId) {
+      localStorage.setItem(
+        "clinicOwnerSelectedClinicId",
+        String(selectedClinicId),
+      );
+      fetchStaff(selectedClinicId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClinicId]);
+
+  const fetchClinicLocations = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const response = await API.get("/api/users/clinic-owner/staff");
+      const response = await API.get("/api/clinics/owner/locations");
 
-      setClinic(response.data.clinic || null);
+      const locations =
+        response.data.locations ||
+        response.data.clinics ||
+        response.data.clinic_locations ||
+        [];
+
+      setClinicLocations(locations);
+
+      if (locations.length > 0) {
+        const firstClinicId = String(locations[0].clinic_id);
+
+        setSelectedClinicId(firstClinicId);
+        setFormData((prev) => ({
+          ...prev,
+          clinic_id: firstClinicId,
+        }));
+      } else {
+        setSelectedClinicId("");
+        setClinic(null);
+        setStaff([]);
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || "Unable to load clinic locations.");
+      setClinicLocations([]);
+      setSelectedClinicId("");
+      setClinic(null);
+      setStaff([]);
+      setLoading(false);
+    }
+  };
+
+  const fetchStaff = async (clinicId = selectedClinicId) => {
+    if (!clinicId) {
+      setStaff([]);
+      setClinic(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await API.get(
+        `/api/users/clinic-owner/staff?clinic_id=${clinicId}`,
+      );
+
+      setClinic(response.data.clinic || selectedClinic || null);
       setStaff(response.data.staff || []);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to load clinic staff.");
+      setStaff([]);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClinicChange = (e) => {
+    const clinicId = e.target.value;
+
+    setMessage("");
+    setError("");
+    setSelectedClinicId(clinicId);
+    setFormData((prev) => ({
+      ...prev,
+      clinic_id: clinicId,
+    }));
   };
 
   const handleChange = (e) => {
@@ -64,6 +154,7 @@ function ClinicOwnerStaff() {
 
   const resetForm = () => {
     setFormData({
+      clinic_id: selectedClinicId || "",
       name: "",
       email: "",
       password: "",
@@ -78,37 +169,86 @@ function ClinicOwnerStaff() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
   };
 
+  const validatePasswordStrength = (password) => {
+    const value = String(password || "");
+
+    if (value.length < 8) {
+      return "Password must be at least 8 characters long.";
+    }
+
+    if (!/[A-Z]/.test(value)) {
+      return "Password must contain at least one uppercase letter.";
+    }
+
+    if (!/[a-z]/.test(value)) {
+      return "Password must contain at least one lowercase letter.";
+    }
+
+    if (!/[0-9]/.test(value)) {
+      return "Password must contain at least one number.";
+    }
+
+    if (!/[^A-Za-z0-9]/.test(value)) {
+      return "Password must contain at least one special character.";
+    }
+
+    return null;
+  };
+
   const handleCreateStaff = async (e) => {
     e.preventDefault();
+
+    if (creating) return;
 
     const cleanName = formData.name.trim();
     const cleanEmail = formData.email.trim().toLowerCase();
     const cleanPassword = formData.password;
+    const clinicId = formData.clinic_id || selectedClinicId;
 
-    if (!cleanName || !cleanEmail || !cleanPassword) {
-      setError("Name, email, and password are required.");
+    setMessage("");
+    setError("");
+
+    if (!clinicId) {
+      setError("Please select the clinic location for this staff account.");
+      return;
+    }
+
+    if (!cleanName) {
+      setError("Staff full name is required.");
+      return;
+    }
+
+    if (!cleanEmail) {
+      setError("Staff email address is required.");
       return;
     }
 
     if (!isValidEmail(cleanEmail)) {
-      setError("Please enter a valid email address.");
+      setError("Please enter a valid staff email address.");
       return;
     }
 
-    if (cleanPassword.length < 8) {
-      setError("Password must be at least 8 characters long.");
+    const passwordError = validatePasswordStrength(cleanPassword);
+
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
     try {
       setCreating(true);
-      setMessage("");
-      setError("");
 
       const payload = {
         ...formData,
+        clinic_id: Number(clinicId),
         name: cleanName,
         email: cleanEmail,
+        license_number: formData.license_number.trim() || null,
+        specialization:
+          formData.staff_role === "Dentist"
+            ? formData.specialization.trim() || null
+            : null,
+        availability: formData.availability.trim() || null,
       };
 
       const response = await API.post("/api/users/clinic-owner/staff", payload);
@@ -119,7 +259,7 @@ function ClinicOwnerStaff() {
       );
 
       resetForm();
-      fetchStaff();
+      fetchStaff(clinicId);
     } catch (err) {
       setError(err.response?.data?.error || "Unable to create staff account.");
     } finally {
@@ -169,7 +309,7 @@ function ClinicOwnerStaff() {
       );
 
       closeStatusModal();
-      fetchStaff();
+      fetchStaff(selectedClinicId);
     } catch (err) {
       setError(
         err.response?.data?.error || "Unable to update staff account status.",
@@ -199,7 +339,7 @@ function ClinicOwnerStaff() {
           `Verification email resent to ${person.name}.`,
       );
 
-      fetchStaff();
+      fetchStaff(selectedClinicId);
     } catch (err) {
       setError(
         err.response?.data?.error ||
@@ -224,6 +364,22 @@ function ClinicOwnerStaff() {
   const getAvailability = (person) => {
     return (
       person.dentist_availability || person.assistant_availability || "N/A"
+    );
+  };
+
+  const getSpecialization = (person) => {
+    if (person.role_name !== "Dentist") return "N/A";
+    return person.specialization || "General Dentistry";
+  };
+
+  const getStaffClinicName = (person) => {
+    return (
+      person.clinic_name ||
+      person.dentist_clinic_name ||
+      person.assistant_clinic_name ||
+      clinic?.clinic_name ||
+      selectedClinic?.clinic_name ||
+      "N/A"
     );
   };
 
@@ -264,263 +420,480 @@ function ClinicOwnerStaff() {
     });
   };
 
+  const dentistCount = staff.filter(
+    (person) => person.role_name === "Dentist",
+  ).length;
+
+  const assistantCount = staff.filter((person) =>
+    ["Assistant", "Dental Assistant"].includes(person.role_name),
+  ).length;
+
+  const activeStaffCount = staff.filter(
+    (person) => person.status !== "Inactive",
+  ).length;
+
+  const unverifiedStaffCount = staff.filter(
+    (person) => !person.email_verified,
+  ).length;
+
+  const displayedClinic = clinic || selectedClinic;
+
   return (
     <DashboardLayout role="Clinic Owner">
-      <div className="appointments-layout">
-        <div className="appointment-form-card">
-          <h2>Add Clinic Staff</h2>
+      <div className="appointments-list-card clinic-owner-staff-page">
+        <div className="appointments-header">
+          <div>
+            <h2>Clinic Staff Management</h2>
+            <p>
+              Manage dentist and dental assistant accounts for each clinic
+              location under your clinic owner account.
+            </p>
+          </div>
 
-          <p>
-            Create dentist or dental assistant accounts under your clinic.
-            Account limits follow your current subscription plan.
-          </p>
+          <div className="appointment-actions" style={{ flexDirection: "row" }}>
+            <button
+              className="secondary-button"
+              onClick={() => navigate("/clinic-owner/dashboard")}
+              disabled={loading || creating || updatingStatus}
+            >
+              Back to Dashboard
+            </button>
 
-          {clinic && (
-            <div className="info-message" style={{ marginBottom: "16px" }}>
-              <strong>Clinic:</strong> {clinic.clinic_name}
-              <br />
-              <strong>Current Plan:</strong> {clinic.plan_name || "No Plan"}
-              <br />
-              <strong>Dentist Limit:</strong>{" "}
-              {clinic.max_dentists ?? "Unlimited"}
-              <br />
-              <strong>Assistant Limit:</strong>{" "}
-              {clinic.max_assistants ?? "Unlimited"}
-            </div>
-          )}
-
-          {message && <div className="success-message">{message}</div>}
-          {error && <div className="error-message">{error}</div>}
-
-          <form className="appointment-form" onSubmit={handleCreateStaff}>
-            <div className="form-group">
-              <label>Staff Role</label>
-              <select
-                name="staff_role"
-                value={formData.staff_role}
-                onChange={handleChange}
-                disabled={creating}
-              >
-                <option value="Dentist">Dentist</option>
-                <option value="Assistant">Dental Assistant</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Full Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                placeholder="Enter staff full name"
-                disabled={creating}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Email Address</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                placeholder="staff@clinic.com"
-                disabled={creating}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Temporary Password</label>
-              <input
-                type="password"
-                name="password"
-                value={formData.password}
-                onChange={handleChange}
-                placeholder="Minimum 8 characters"
-                disabled={creating}
-                required
-              />
-              <small>
-                The staff member must verify their email before logging in.
-              </small>
-            </div>
-
-            <div className="form-group">
-              <label>License Number</label>
-              <input
-                type="text"
-                name="license_number"
-                value={formData.license_number}
-                onChange={handleChange}
-                placeholder={
-                  formData.staff_role === "Dentist"
-                    ? "Example: DEN-12345"
-                    : "Example: AST-12345"
-                }
-                disabled={creating}
-              />
-            </div>
-
-            {formData.staff_role === "Dentist" && (
-              <div className="form-group">
-                <label>Specialization</label>
-                <input
-                  type="text"
-                  name="specialization"
-                  value={formData.specialization}
-                  onChange={handleChange}
-                  placeholder="Example: General Dentistry"
-                  disabled={creating}
-                />
-              </div>
-            )}
-
-            <div className="form-group">
-              <label>Availability</label>
-              <input
-                type="text"
-                name="availability"
-                value={formData.availability}
-                onChange={handleChange}
-                placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
-                disabled={creating}
-              />
-            </div>
-
-            <AuthButtonReplacement disabled={creating}>
-              {creating ? "Creating..." : "Create Staff Account"}
-            </AuthButtonReplacement>
-          </form>
+            <button
+              className="secondary-button"
+              onClick={() => fetchStaff(selectedClinicId)}
+              disabled={
+                loading || creating || updatingStatus || !selectedClinicId
+              }
+            >
+              {loading ? "Refreshing..." : "Refresh"}
+            </button>
+          </div>
         </div>
 
-        <div className="appointments-list-card">
+        {message && <div className="success-message">{message}</div>}
+        {error && <div className="error-message">{error}</div>}
+
+        <div className="staff-section">
           <div className="appointments-header">
             <div>
-              <h2>Clinic Staff</h2>
+              <h2>Location Assignment</h2>
               <p>
-                Manage dentists and dental assistants assigned to your clinic.
+                Choose the clinic location where staff will be viewed or added.
               </p>
             </div>
+          </div>
 
-            <div
-              className="appointment-actions"
-              style={{ flexDirection: "row" }}
+          <div className="clinic-location-panel">
+            <div className="clinic-location-grid">
+              <div className="clinic-location-field">
+                <label>
+                  Clinic Location <span className="auth-required">*</span>
+                </label>
+
+                <select
+                  name="clinic_id"
+                  value={selectedClinicId}
+                  onChange={handleClinicChange}
+                  disabled={loading || creating || updatingStatus}
+                  required
+                >
+                  {activeClinicLocations.length === 0 ? (
+                    <option value="">No clinic locations available</option>
+                  ) : (
+                    activeClinicLocations.map((location) => (
+                      <option
+                        key={location.clinic_id}
+                        value={location.clinic_id}
+                      >
+                        {location.clinic_name}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <div className="clinic-location-field">
+                <label>Shared Subscription</label>
+                <div className="clinic-location-readonly">
+                  {displayedClinic?.plan_name ||
+                    selectedClinic?.plan_name ||
+                    "No active plan"}
+                </div>
+              </div>
+            </div>
+
+            {displayedClinic && (
+              <div className="clinic-location-note">
+                {displayedClinic.status !== "Active" && (
+                  <p className="error-message">
+                    This clinic location is inactive. Staff creation and new
+                    operational activity are disabled until it is reactivated.
+                  </p>
+                )}
+                <strong>{displayedClinic.clinic_name}</strong> is the active
+                clinic location for this page. Staff created here will be
+                assigned to this location, while subscription limits are shared
+                across all locations under your clinic owner account.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="staff-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Clinic Summary</h2>
+              <p>
+                This section shows the selected clinic location and current
+                staff usage.
+              </p>
+            </div>
+          </div>
+
+          <div className="staff-summary-grid">
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
+              <span>Selected Location</span>
+              <strong>
+                {displayedClinic?.clinic_name || "No clinic loaded"}
+              </strong>
+              <p>{displayedClinic?.plan_name || "No active plan"}</p>
+            </div>
+
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
+              <span>Total Staff</span>
+              <strong>{staff.length}</strong>
+              <p>{activeStaffCount} active account(s)</p>
+            </div>
+
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
+              <span>Dentists</span>
+              <strong>
+                {dentistCount}
+                {displayedClinic?.max_dentists !== null &&
+                displayedClinic?.max_dentists !== undefined
+                  ? ` / ${displayedClinic.max_dentists}`
+                  : ""}
+              </strong>
+              <p>Dental provider accounts</p>
+            </div>
+
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
+              <span>Assistants</span>
+              <strong>
+                {assistantCount}
+                {displayedClinic?.max_assistants !== null &&
+                displayedClinic?.max_assistants !== undefined
+                  ? ` / ${displayedClinic.max_assistants}`
+                  : ""}
+              </strong>
+              <p>Clinic support accounts</p>
+            </div>
+
+            <div className="staff-summary-card clinic-owner-staff-summary-card">
+              <span>Unverified</span>
+              <strong>{unverifiedStaffCount}</strong>
+              <p>Waiting for email verification</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="staff-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Add Staff Account</h2>
+              <p>
+                Create a user account under the selected clinic location. Staff
+                must verify their email before logging in.
+              </p>
+            </div>
+          </div>
+
+          <div className="staff-form-card clinic-owner-staff-form-card">
+            <div className="info-message" style={{ marginBottom: "16px" }}>
+              Fields marked with <span className="auth-required">*</span> are
+              required. Staff accounts are separate user accounts, but each one
+              is assigned to a specific clinic location.
+            </div>
+
+            <form
+              className="appointment-form clinic-owner-staff-form"
+              onSubmit={handleCreateStaff}
             >
-              <button
-                className="secondary-button"
-                onClick={() => navigate("/clinic-owner/dashboard")}
-              >
-                Back to Dashboard
-              </button>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>
+                    Clinic Location <span className="auth-required">*</span>
+                  </label>
+                  <select
+                    name="clinic_id"
+                    value={formData.clinic_id}
+                    onChange={handleChange}
+                    disabled={creating || loading}
+                    required
+                  >
+                    {activeClinicLocations.length === 0 ? (
+                      <option value="">No clinic locations available</option>
+                    ) : (
+                      activeClinicLocations.map((location) => (
+                        <option
+                          key={location.clinic_id}
+                          value={location.clinic_id}
+                        >
+                          {location.clinic_name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    Staff Role <span className="auth-required">*</span>
+                  </label>
+                  <select
+                    name="staff_role"
+                    value={formData.staff_role}
+                    onChange={handleChange}
+                    disabled={
+                      creating ||
+                      !selectedClinic ||
+                      selectedClinic.status !== "Active"
+                    }
+                    required
+                  >
+                    <option value="Dentist">Dentist</option>
+                    <option value="Assistant">Dental Assistant</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>
+                    Full Name <span className="auth-required">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Enter staff full name"
+                    disabled={creating}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    Email Address <span className="auth-required">*</span>
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="staff@clinic.com"
+                    disabled={creating}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>
+                    Temporary Password <span className="auth-required">*</span>
+                  </label>
+                  <input
+                    type="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Minimum 8 characters"
+                    disabled={creating}
+                    required
+                  />
+                  <small>
+                    Must include uppercase, lowercase, number, and special
+                    character.
+                  </small>
+                </div>
+
+                <div className="form-group">
+                  <label>License Number</label>
+                  <input
+                    type="text"
+                    name="license_number"
+                    value={formData.license_number}
+                    onChange={handleChange}
+                    placeholder={
+                      formData.staff_role === "Dentist"
+                        ? "Example: DEN-12345"
+                        : "Example: AST-12345"
+                    }
+                    disabled={creating}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                {formData.staff_role === "Dentist" && (
+                  <div className="form-group">
+                    <label>Specialization</label>
+                    <input
+                      type="text"
+                      name="specialization"
+                      value={formData.specialization}
+                      onChange={handleChange}
+                      placeholder="Example: General Dentistry"
+                      disabled={creating}
+                    />
+                  </div>
+                )}
+
+                <div className="form-group">
+                  <label>Availability</label>
+                  <input
+                    type="text"
+                    name="availability"
+                    value={formData.availability}
+                    onChange={handleChange}
+                    placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
+                    disabled={creating}
+                  />
+                </div>
+              </div>
 
               <button
-                className="secondary-button"
-                onClick={fetchStaff}
-                disabled={loading}
+                type="submit"
+                className="primary-button"
+                disabled={creating || !formData.clinic_id}
               >
-                {loading ? "Refreshing..." : "Refresh"}
+                {creating ? "Creating..." : "Create Staff Account"}
               </button>
+            </form>
+          </div>
+        </div>
+
+        <div className="staff-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Clinic Staff List</h2>
+              <p>
+                View staff user accounts, email verification, account status,
+                and role-specific details for the selected clinic location.
+              </p>
             </div>
           </div>
 
           {loading ? (
-            <p>Loading clinic staff...</p>
+            <div className="payment-loading-card">
+              <p>Loading clinic staff...</p>
+            </div>
           ) : staff.length === 0 ? (
             <div className="empty-state">
               <h3>No staff yet</h3>
               <p>Created dentist and assistant accounts will appear here.</p>
             </div>
           ) : (
-            <div className="appointments-list">
-              {staff.map((person) => {
-                const isVerified = Boolean(person.email_verified);
-                const isInactive = person.status === "Inactive";
-                const isResending = resendingId === person.user_id;
+            <div className="staff-table-wrapper">
+              <table className="staff-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Clinic Location</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Email Verification</th>
+                    <th>License</th>
+                    <th>Specialization</th>
+                    <th>Availability</th>
+                    <th>Created At</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
 
-                return (
-                  <div className="appointment-item" key={person.user_id}>
-                    <div className="appointment-info">
-                      <div className="appointment-title-row">
-                        <h3>{person.name}</h3>
+                <tbody>
+                  {staff.map((person) => {
+                    const isVerified = Boolean(person.email_verified);
+                    const isInactive = person.status === "Inactive";
+                    const isResending = resendingId === person.user_id;
 
-                        <span className="status-badge status-scheduled">
-                          {getRoleLabel(person)}
-                        </span>
-                      </div>
+                    return (
+                      <tr key={person.user_id}>
+                        <td>
+                          <strong>{person.name}</strong>
+                        </td>
 
-                      <p>
-                        <strong>Email:</strong> {person.email}
-                      </p>
+                        <td>
+                          <span className="staff-email-text">
+                            {person.email}
+                          </span>
+                        </td>
 
-                      <p>
-                        <strong>Account Status:</strong>{" "}
-                        <span className={getStatusClass(person.status)}>
-                          {person.status || "Active"}
-                        </span>
-                      </p>
+                        <td>{getStaffClinicName(person)}</td>
 
-                      <p>
-                        <strong>Email Verification:</strong>{" "}
-                        <span className={getVerificationClass(isVerified)}>
-                          {getVerificationLabel(isVerified)}
-                        </span>
-                      </p>
+                        <td>{getRoleLabel(person)}</td>
 
-                      <p>
-                        <strong>License Number:</strong>{" "}
-                        {getLicenseNumber(person)}
-                      </p>
+                        <td>
+                          <span className={getStatusClass(person.status)}>
+                            {person.status || "Active"}
+                          </span>
+                        </td>
 
-                      {person.role_name === "Dentist" && (
-                        <p>
-                          <strong>Specialization:</strong>{" "}
-                          {person.specialization || "General Dentistry"}
-                        </p>
-                      )}
+                        <td>
+                          <span className={getVerificationClass(isVerified)}>
+                            {getVerificationLabel(isVerified)}
+                          </span>
+                        </td>
 
-                      <p>
-                        <strong>Availability:</strong> {getAvailability(person)}
-                      </p>
+                        <td>{getLicenseNumber(person)}</td>
 
-                      <p>
-                        <strong>Created At:</strong>{" "}
-                        {formatDate(person.created_at)}
-                      </p>
-                    </div>
+                        <td>{getSpecialization(person)}</td>
 
-                    <div className="clinic-staff-actions">
-                      {!isVerified && !isInactive && (
-                        <button
-                          className="secondary-button clinic-staff-btn"
-                          onClick={() => handleResendVerification(person)}
-                          disabled={
-                            updatingStatus || loading || creating || isResending
-                          }
-                        >
-                          {isResending ? "Sending..." : "Resend Email"}
-                        </button>
-                      )}
+                        <td>{getAvailability(person)}</td>
 
-                      <button
-                        className={
-                          person.status === "Inactive"
-                            ? "primary-button clinic-staff-btn"
-                            : "danger-button clinic-staff-btn"
-                        }
-                        onClick={() => openStatusModal(person)}
-                        disabled={updatingStatus || isResending}
-                      >
-                        {person.status === "Inactive"
-                          ? "Activate"
-                          : "Deactivate"}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
+                        <td>{formatDate(person.created_at)}</td>
+
+                        <td>
+                          <div className="staff-table-actions">
+                            {!isVerified && !isInactive && (
+                              <button
+                                className="secondary-button"
+                                onClick={() => handleResendVerification(person)}
+                                disabled={
+                                  updatingStatus ||
+                                  loading ||
+                                  creating ||
+                                  isResending
+                                }
+                              >
+                                {isResending ? "Sending..." : "Resend"}
+                              </button>
+                            )}
+
+                            <button
+                              className={
+                                person.status === "Inactive"
+                                  ? "primary-button"
+                                  : "danger-button"
+                              }
+                              onClick={() => openStatusModal(person)}
+                              disabled={updatingStatus || isResending}
+                            >
+                              {person.status === "Inactive"
+                                ? "Activate"
+                                : "Deactivate"}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
@@ -528,13 +901,13 @@ function ClinicOwnerStaff() {
 
       {showStatusModal && selectedStaff && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="modal-card clinic-owner-staff-modal-card">
             <div className="modal-header">
               <div>
                 <h3>Update Staff Status</h3>
                 <p>
-                  Change the account status for this staff member. Inactive
-                  users should not be able to access the system.
+                  Change the account status for this staff user. Inactive users
+                  should not be able to access the system.
                 </p>
               </div>
 
@@ -553,6 +926,9 @@ function ClinicOwnerStaff() {
                 <strong>Staff:</strong> {selectedStaff.name}
                 <br />
                 <strong>Email:</strong> {selectedStaff.email}
+                <br />
+                <strong>Clinic Location:</strong>{" "}
+                {getStaffClinicName(selectedStaff)}
                 <br />
                 <strong>Role:</strong> {getRoleLabel(selectedStaff)}
                 <br />
@@ -603,14 +979,6 @@ function ClinicOwnerStaff() {
         </div>
       )}
     </DashboardLayout>
-  );
-}
-
-function AuthButtonReplacement({ children, disabled }) {
-  return (
-    <button type="submit" className="primary-button" disabled={disabled}>
-      {children}
-    </button>
   );
 }
 

@@ -27,6 +27,7 @@ function DentistProfile() {
   const [clinics, setClinics] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
 
@@ -76,9 +77,14 @@ function DentistProfile() {
     return null;
   };
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = async (isRefresh = false) => {
     try {
-      setLoading(true);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+
       setError("");
 
       await Promise.all([fetchProfile(), fetchClinics()]);
@@ -86,6 +92,7 @@ function DentistProfile() {
       setError("Unable to load dentist profile data.");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -136,11 +143,11 @@ function DentistProfile() {
     e.preventDefault();
 
     if (
-      !profile.name ||
-      !profile.email ||
-      !profile.license_number ||
-      !profile.specialization ||
-      !profile.availability
+      !profile.name.trim() ||
+      !profile.email.trim() ||
+      !profile.license_number.trim() ||
+      !profile.specialization.trim() ||
+      !profile.availability.trim()
     ) {
       setError("Please complete all required fields.");
       return;
@@ -154,11 +161,11 @@ function DentistProfile() {
       const response = await API.put(
         "/api/dentists/profile",
         {
-          name: profile.name,
-          email: profile.email,
-          license_number: profile.license_number,
-          specialization: profile.specialization,
-          availability: profile.availability,
+          name: profile.name.trim(),
+          email: profile.email.trim().toLowerCase(),
+          license_number: profile.license_number.trim(),
+          specialization: profile.specialization.trim(),
+          availability: profile.availability.trim(),
           clinic_id: profile.clinic_id ? Number(profile.clinic_id) : null,
         },
         authHeaders,
@@ -277,172 +284,313 @@ function DentistProfile() {
     }
   };
 
+  const closePasswordForm = () => {
+    setShowPasswordForm(false);
+    setPasswordForm({
+      current_password: "",
+      new_password: "",
+      confirm_password: "",
+    });
+    setPasswordError("");
+    setPasswordMessage("");
+    setPasswordRules([]);
+  };
+
+  const selectedClinic = clinics.find(
+    (clinic) => Number(clinic.clinic_id) === Number(profile.clinic_id),
+  );
+
+  const renderLoadingState = () => {
+    return (
+      <div className="patient-profile-loading">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div className="loading-card" key={index}>
+            <div className="loading-line loading-title"></div>
+            <div className="loading-line loading-text"></div>
+            <div className="loading-line loading-text"></div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout role="Dentist">
-      <div className="profile-container">
-        <div className="profile-card">
-          <h2>My Profile</h2>
-          <p>
-            Manage your dentist account details, professional information,
-            assigned clinic, and availability.
-          </p>
+      <div className="appointments-list-card">
+        <div className="appointments-header">
+          <div>
+            <h2>My Profile</h2>
+            <p>
+              Manage your dentist account details, professional information,
+              clinic assignment, availability, and account security.
+            </p>
+          </div>
 
-          {message && <div className="profile-success">{message}</div>}
-          {error && <div className="profile-error">{error}</div>}
-
-          {loading ? (
-            <p>Loading profile...</p>
-          ) : (
-            <form className="profile-form" onSubmit={handleSubmit}>
-              <div className="profile-grid">
-                <div className="profile-field">
-                  <label>Name</label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={profile.name}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Email</label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={profile.email}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>License Number</label>
-                  <input
-                    type="text"
-                    name="license_number"
-                    value={profile.license_number}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Specialization</label>
-                  <input
-                    type="text"
-                    name="specialization"
-                    value={profile.specialization}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Assigned Clinic</label>
-                  <select
-                    name="clinic_id"
-                    value={profile.clinic_id}
-                    onChange={handleChange}
-                  >
-                    <option value="">No assigned clinic</option>
-                    {clinics
-                      .filter(
-                        (clinic) =>
-                          clinic.status === "Active" ||
-                          Number(clinic.clinic_id) ===
-                            Number(profile.clinic_id),
-                      )
-                      .map((clinic) => (
-                        <option key={clinic.clinic_id} value={clinic.clinic_id}>
-                          {clinic.clinic_name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                <div className="profile-field">
-                  <label>Current Clinic</label>
-                  <input
-                    type="text"
-                    value={profile.clinic_name || "No assigned clinic"}
-                    disabled
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Account Status</label>
-                  <input
-                    type="text"
-                    value={profile.account_status || "Active"}
-                    disabled
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Profile Status</label>
-                  <input
-                    type="text"
-                    value={profile.profile_status || "Active"}
-                    disabled
-                  />
-                </div>
-              </div>
-
-              <div className="profile-field">
-                <label>Availability</label>
-                <textarea
-                  name="availability"
-                  value={profile.availability}
-                  onChange={handleChange}
-                  placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
-                  required
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="profile-button"
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </form>
-          )}
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => fetchInitialData(true)}
+            disabled={loading || refreshing}
+          >
+            {loading || refreshing ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
 
-        <div className="profile-card" style={{ marginTop: "20px" }}>
-          <h2>Account Security</h2>
+        {message && <div className="success-message">{message}</div>}
 
-          <p>
-            Update your password regularly to keep your DentoGraph account
-            secure.
-          </p>
+        {error && (
+          <div className="error-message">
+            <strong>Profile notice</strong>
+            <p>{error}</p>
+          </div>
+        )}
 
-          {passwordMessage && (
-            <div className="profile-success">{passwordMessage}</div>
-          )}
+        {loading ? (
+          renderLoadingState()
+        ) : (
+          <>
+            <div className="patient-dashboard-summary-grid">
+              <div className="patient-dashboard-card">
+                <span>Account Status</span>
+                <strong>{profile.account_status || "Active"}</strong>
+                <p>Your login account condition.</p>
+              </div>
 
-          {passwordError && (
-            <div className="profile-error">{passwordError}</div>
-          )}
+              <div className="patient-dashboard-card">
+                <span>Profile Status</span>
+                <strong>{profile.profile_status || "Active"}</strong>
+                <p>Your dentist profile condition.</p>
+              </div>
 
-          {passwordRules.length > 0 && (
-            <div className="profile-error">
-              <strong>Password must follow these rules:</strong>
-              <ul>
-                {passwordRules.map((rule, index) => (
-                  <li key={index}>{rule}</li>
-                ))}
-              </ul>
+              <div className="patient-dashboard-card">
+                <span>Assigned Clinic</span>
+                <strong>
+                  {profile.clinic_name || selectedClinic?.clinic_name || "None"}
+                </strong>
+                <p>Clinic currently linked to your profile.</p>
+              </div>
+
+              <div className="patient-dashboard-card">
+                <span>Specialization</span>
+                <strong>{profile.specialization || "Not set"}</strong>
+                <p>Your declared professional focus.</p>
+              </div>
             </div>
-          )}
 
-          {!showPasswordForm ? (
+            <form
+              className="profile-form dentist-profile-form"
+              onSubmit={handleSubmit}
+            >
+              <div className="patient-dashboard-section">
+                <div className="appointments-header">
+                  <div>
+                    <h2>Basic Account Information</h2>
+                    <p>Update your name and contact email.</p>
+                  </div>
+                </div>
+
+                <div className="dentist-profile-grid">
+                  <div className="profile-field">
+                    <label>Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={profile.name}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      value={profile.email}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="patient-dashboard-section">
+                <div className="appointments-header">
+                  <div>
+                    <h2>Professional Information</h2>
+                    <p>
+                      Keep your license, specialization, and availability
+                      updated.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="dentist-profile-grid">
+                  <div className="profile-field">
+                    <label>License Number</label>
+                    <input
+                      type="text"
+                      name="license_number"
+                      value={profile.license_number}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Specialization</label>
+                    <input
+                      type="text"
+                      name="specialization"
+                      value={profile.specialization}
+                      onChange={handleChange}
+                      placeholder="Example: General Dentistry, Orthodontics"
+                      required
+                    />
+                  </div>
+
+                  <div className="profile-field dentist-profile-full">
+                    <label>Availability</label>
+                    <textarea
+                      name="availability"
+                      value={profile.availability}
+                      onChange={handleChange}
+                      placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="patient-dashboard-section">
+                <div className="appointments-header">
+                  <div>
+                    <h2>Clinic Assignment</h2>
+                    <p>
+                      Review or update the clinic connected to your dentist
+                      account.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="dentist-profile-grid">
+                  <div className="profile-field">
+                    <label>Assigned Clinic</label>
+                    <select
+                      name="clinic_id"
+                      value={profile.clinic_id}
+                      onChange={handleChange}
+                    >
+                      <option value="">No assigned clinic</option>
+                      {clinics
+                        .filter(
+                          (clinic) =>
+                            clinic.status === "Active" ||
+                            Number(clinic.clinic_id) ===
+                              Number(profile.clinic_id),
+                        )
+                        .map((clinic) => (
+                          <option
+                            key={clinic.clinic_id}
+                            value={clinic.clinic_id}
+                          >
+                            {clinic.clinic_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Current Clinic</label>
+                    <input
+                      type="text"
+                      value={profile.clinic_name || "No assigned clinic"}
+                      disabled
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Account Status</label>
+                    <input
+                      type="text"
+                      value={profile.account_status || "Active"}
+                      disabled
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Profile Status</label>
+                    <input
+                      type="text"
+                      value={profile.profile_status || "Active"}
+                      disabled
+                    />
+                  </div>
+                </div>
+
+                <div className="info-message">
+                  Clinic assignment may affect which patient records,
+                  appointments, and X-rays are visible to your dentist account.
+                </div>
+              </div>
+
+              <div className="appointment-actions dentist-profile-save-actions">
+                <button
+                  type="submit"
+                  className="primary-button"
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Save Profile Changes"}
+                </button>
+              </div>
+            </form>
+          </>
+        )}
+      </div>
+
+      <div className="appointments-list-card dentist-security-card">
+        <div className="appointments-header">
+          <div>
+            <h2>Account Security</h2>
+            <p>
+              Update your password regularly to keep your DentoGraph account
+              secure.
+            </p>
+          </div>
+        </div>
+
+        {passwordMessage && (
+          <div className="success-message">{passwordMessage}</div>
+        )}
+
+        {passwordError && (
+          <div className="error-message">
+            <strong>Password notice</strong>
+            <p>{passwordError}</p>
+          </div>
+        )}
+
+        {passwordRules.length > 0 && (
+          <div className="error-message">
+            <strong>Password must follow these rules:</strong>
+            <ul>
+              {passwordRules.map((rule, index) => (
+                <li key={index}>{rule}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {!showPasswordForm ? (
+          <div className="dentist-security-summary">
+            <div className="info-message">
+              Password must have at least 8 characters, one uppercase letter,
+              one lowercase letter, one number, and one special character.
+            </div>
+
             <button
               type="button"
-              className="profile-button"
+              className="primary-button"
               onClick={() => {
                 setShowPasswordForm(true);
                 setPasswordMessage("");
@@ -452,89 +600,75 @@ function DentistProfile() {
             >
               Change Password
             </button>
-          ) : (
-            <form className="profile-form" onSubmit={handleChangePassword}>
-              <div className="profile-grid">
-                <PasswordInput
-                  label="Current Password"
-                  name="current_password"
-                  placeholder="Enter current password"
-                  value={passwordForm.current_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="current-password"
-                  disabled={changingPassword}
-                  required
-                />
+          </div>
+        ) : (
+          <form
+            className="profile-form dentist-password-form"
+            onSubmit={handleChangePassword}
+          >
+            <div className="dentist-profile-grid">
+              <PasswordInput
+                label="Current Password"
+                name="current_password"
+                placeholder="Enter current password"
+                value={passwordForm.current_password}
+                onChange={handlePasswordChange}
+                icon="🔒"
+                autoComplete="current-password"
+                disabled={changingPassword}
+                required
+              />
 
-                <PasswordInput
-                  label="New Password"
-                  name="new_password"
-                  placeholder="Enter new password"
-                  value={passwordForm.new_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="new-password"
-                  disabled={changingPassword}
-                  required
-                />
+              <PasswordInput
+                label="New Password"
+                name="new_password"
+                placeholder="Enter new password"
+                value={passwordForm.new_password}
+                onChange={handlePasswordChange}
+                icon="🔒"
+                autoComplete="new-password"
+                disabled={changingPassword}
+                required
+              />
 
-                <PasswordInput
-                  label="Confirm New Password"
-                  name="confirm_password"
-                  placeholder="Confirm new password"
-                  value={passwordForm.confirm_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="new-password"
-                  disabled={changingPassword}
-                  required
-                />
-              </div>
+              <PasswordInput
+                label="Confirm New Password"
+                name="confirm_password"
+                placeholder="Confirm new password"
+                value={passwordForm.confirm_password}
+                onChange={handlePasswordChange}
+                icon="🔒"
+                autoComplete="new-password"
+                disabled={changingPassword}
+                required
+              />
+            </div>
 
-              <div className="info-message" style={{ marginTop: "16px" }}>
-                Password must have at least 8 characters, one uppercase letter,
-                one lowercase letter, one number, and one special character.
-              </div>
+            <div className="info-message">
+              Password must have at least 8 characters, one uppercase letter,
+              one lowercase letter, one number, and one special character.
+            </div>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                  marginTop: "16px",
-                }}
+            <div className="appointment-actions dentist-profile-save-actions">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={changingPassword}
+                onClick={closePasswordForm}
               >
-                <button
-                  type="submit"
-                  className="profile-button"
-                  disabled={changingPassword}
-                >
-                  {changingPassword ? "Changing..." : "Save New Password"}
-                </button>
+                Cancel
+              </button>
 
-                <button
-                  type="button"
-                  className="profile-button secondary"
-                  disabled={changingPassword}
-                  onClick={() => {
-                    setShowPasswordForm(false);
-                    setPasswordForm({
-                      current_password: "",
-                      new_password: "",
-                      confirm_password: "",
-                    });
-                    setPasswordError("");
-                    setPasswordMessage("");
-                    setPasswordRules([]);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={changingPassword}
+              >
+                {changingPassword ? "Changing..." : "Save New Password"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </DashboardLayout>
   );

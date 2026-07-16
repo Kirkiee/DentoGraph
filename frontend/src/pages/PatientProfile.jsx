@@ -292,275 +292,341 @@ function PatientProfile() {
     }
   };
 
+  const renderLoadingState = () => {
+    return (
+      <div className="patient-profile-loading">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div className="loading-panel" key={index}>
+            <div className="loading-line loading-title"></div>
+            <div className="loading-line loading-text"></div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <DashboardLayout role="Patient">
-      <div className="profile-container">
-        <div className="profile-card">
-          <h2>My Profile</h2>
+      <div className="appointments-list-card">
+        <div className="appointments-header">
+          <div>
+            <h2>My Profile</h2>
+            <p>
+              Manage your patient account details, contact information, dental
+              profile, medical notes, and password.
+            </p>
+          </div>
 
-          <p>
-            Manage your patient account details, contact information, medical
-            background, and dentition type.
-          </p>
-
-          {message && <div className="profile-success">{message}</div>}
-          {error && <div className="profile-error">{error}</div>}
-
-          {loading ? (
-            <p>Loading profile...</p>
-          ) : (
-            <form className="profile-form" onSubmit={handleSubmit}>
-              <div className="profile-grid">
-                <div className="profile-field">
-                  <label>Name</label>
-
-                  <input
-                    type="text"
-                    name="name"
-                    value={profile.name}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Email</label>
-
-                  <input
-                    type="email"
-                    name="email"
-                    value={profile.email}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Contact Number</label>
-
-                  <input
-                    type="text"
-                    name="contact_number"
-                    value={profile.contact_number}
-                    onChange={handleChange}
-                    placeholder="Example: 09123456789"
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Date of Birth</label>
-
-                  <input
-                    type="date"
-                    name="date_of_birth"
-                    value={profile.date_of_birth}
-                    onChange={handleChange}
-                  />
-                </div>
-
-                <div className="profile-field">
-                  <label>Gender</label>
-
-                  <select
-                    name="gender"
-                    value={profile.gender}
-                    onChange={handleChange}
-                  >
-                    <option value="">Select Gender</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                    <option value="Prefer not to say">Prefer not to say</option>
-                  </select>
-                </div>
-
-                <div className="profile-field">
-                  <label>Dentition Type</label>
-
-                  <select
-                    name="dentition_type"
-                    value={profile.dentition_type}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="Adult">Adult / Permanent Teeth</option>
-                    <option value="Child">Child / Primary Teeth</option>
-                  </select>
-                </div>
-
-                <div className="profile-field">
-                  <label>Account Status</label>
-
-                  <input
-                    type="text"
-                    value={profile.account_status || "Active"}
-                    disabled
-                  />
-                </div>
-              </div>
-
-              <div className="info-message" style={{ marginTop: "16px" }}>
-                <strong>Dentition Type Guide:</strong> Adult patients use
-                permanent FDI tooth numbers 11–18, 21–28, 31–38, and 41–48.
-                Child patients use primary FDI tooth numbers 51–55, 61–65,
-                71–75, and 81–85.
-              </div>
-
-              <div className="profile-field">
-                <label>Address</label>
-
-                <textarea
-                  name="address"
-                  value={profile.address}
-                  onChange={handleChange}
-                  placeholder="Enter your complete address"
-                />
-              </div>
-
-              <div className="profile-field">
-                <label>Medical History</label>
-
-                <textarea
-                  name="medical_history"
-                  value={profile.medical_history}
-                  onChange={handleChange}
-                  placeholder="Enter allergies, previous conditions, medications, or other relevant notes"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="profile-button"
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Save Changes"}
-              </button>
-            </form>
-          )}
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={fetchProfile}
+            disabled={loading || saving}
+          >
+            {loading ? "Refreshing..." : "Refresh"}
+          </button>
         </div>
 
-        <div className="profile-card" style={{ marginTop: "20px" }}>
-          <h2>Account Security</h2>
+        {message && <div className="success-message">{message}</div>}
 
-          <p>
-            Update your password regularly to keep your DentoGraph account
-            secure.
-          </p>
+        {error && (
+          <div className="error-message">
+            <strong>Profile notice</strong>
+            <p>{error}</p>
+          </div>
+        )}
 
-          {passwordMessage && (
-            <div className="profile-success">{passwordMessage}</div>
-          )}
+        {loading ? (
+          renderLoadingState()
+        ) : (
+          <form
+            className="profile-form patient-profile-clean-form"
+            onSubmit={handleSubmit}
+          >
+            <div className="patient-dashboard-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Personal Information</h2>
+                  <p>Basic details used for your patient account.</p>
+                </div>
+              </div>
 
-          {passwordError && (
-            <div className="profile-error">{passwordError}</div>
-          )}
+              <div className="patient-profile-section-card">
+                <div className="patient-profile-grid">
+                  <div className="profile-field">
+                    <label>Name</label>
 
-          {passwordRules.length > 0 && (
-            <div className="profile-error">
-              <strong>Password must follow these rules:</strong>
-              <ul>
-                {passwordRules.map((rule, index) => (
-                  <li key={index}>{rule}</li>
-                ))}
-              </ul>
+                    <input
+                      type="text"
+                      name="name"
+                      value={profile.name}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Email</label>
+
+                    <input
+                      type="email"
+                      name="email"
+                      value={profile.email}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Contact Number</label>
+
+                    <input
+                      type="text"
+                      name="contact_number"
+                      value={profile.contact_number}
+                      onChange={handleChange}
+                      placeholder="Example: 09123456789"
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Date of Birth</label>
+
+                    <input
+                      type="date"
+                      name="date_of_birth"
+                      value={profile.date_of_birth}
+                      onChange={handleChange}
+                    />
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Gender</label>
+
+                    <select
+                      name="gender"
+                      value={profile.gender}
+                      onChange={handleChange}
+                    >
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                      <option value="Prefer not to say">
+                        Prefer not to say
+                      </option>
+                    </select>
+                  </div>
+
+                  <div className="profile-field">
+                    <label>Account Status</label>
+
+                    <input
+                      type="text"
+                      value={profile.account_status || "Active"}
+                      disabled
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
-          )}
 
-          {!showPasswordForm ? (
-            <button
-              type="button"
-              className="profile-button"
-              onClick={() => {
-                setShowPasswordForm(true);
-                setPasswordMessage("");
-                setPasswordError("");
-                setPasswordRules([]);
-              }}
-            >
-              Change Password
-            </button>
-          ) : (
-            <form className="profile-form" onSubmit={handleChangePassword}>
-              <div className="profile-grid">
-                <PasswordInput
-                  label="Current Password"
-                  name="current_password"
-                  placeholder="Enter current password"
-                  value={passwordForm.current_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="current-password"
-                  disabled={changingPassword}
-                  required
-                />
-
-                <PasswordInput
-                  label="New Password"
-                  name="new_password"
-                  placeholder="Enter new password"
-                  value={passwordForm.new_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="new-password"
-                  disabled={changingPassword}
-                  required
-                />
-
-                <PasswordInput
-                  label="Confirm New Password"
-                  name="confirm_password"
-                  placeholder="Confirm new password"
-                  value={passwordForm.confirm_password}
-                  onChange={handlePasswordChange}
-                  icon="🔒"
-                  autoComplete="new-password"
-                  disabled={changingPassword}
-                  required
-                />
+            <div className="patient-dashboard-section">
+              <div className="appointments-header">
+                <div>
+                  <h2>Dental and Medical Details</h2>
+                  <p>
+                    These details help your dentist understand your dental chart
+                    type and medical background.
+                  </p>
+                </div>
               </div>
 
-              <div className="info-message" style={{ marginTop: "16px" }}>
-                Password must have at least 8 characters, one uppercase letter,
-                one lowercase letter, one number, and one special character.
-              </div>
+              <div className="patient-profile-section-card">
+                <div className="patient-profile-grid">
+                  <div className="profile-field">
+                    <label>Dentition Type</label>
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  flexWrap: "wrap",
-                  marginTop: "16px",
+                    <select
+                      name="dentition_type"
+                      value={profile.dentition_type}
+                      onChange={handleChange}
+                      required
+                    >
+                      <option value="Adult">Adult / Permanent Teeth</option>
+                      <option value="Child">Child / Primary Teeth</option>
+                    </select>
+                  </div>
+
+                  <div className="info-message patient-profile-guide">
+                    <strong>Dentition Type Guide: </strong>
+                    Adult uses permanent tooth numbering. Child uses primary
+                    tooth numbering.
+                  </div>
+                </div>
+
+                <div className="profile-field">
+                  <label>Address</label>
+
+                  <textarea
+                    name="address"
+                    value={profile.address}
+                    onChange={handleChange}
+                    placeholder="Enter your complete address"
+                    rows="3"
+                  />
+                </div>
+
+                <div className="profile-field">
+                  <label>Medical Notes</label>
+
+                  <textarea
+                    name="medical_history"
+                    value={profile.medical_history}
+                    onChange={handleChange}
+                    placeholder="Enter allergies, previous conditions, medications, or other relevant notes"
+                    rows="4"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="appointment-actions" style={{ marginTop: "20px" }}>
+              <button
+                type="submit"
+                className="primary-button"
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "Save Profile Changes"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h2>Account Security</h2>
+              <p>
+                Update your password regularly to keep your DentoGraph account
+                secure.
+              </p>
+            </div>
+          </div>
+
+          <div className="patient-profile-section-card">
+            {passwordMessage && (
+              <div className="success-message">{passwordMessage}</div>
+            )}
+
+            {passwordError && (
+              <div className="error-message">{passwordError}</div>
+            )}
+
+            {passwordRules.length > 0 && (
+              <div className="error-message">
+                <strong>Password must follow these rules:</strong>
+                <ul>
+                  {passwordRules.map((rule, index) => (
+                    <li key={index}>{rule}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {!showPasswordForm ? (
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setShowPasswordForm(true);
+                  setPasswordMessage("");
+                  setPasswordError("");
+                  setPasswordRules([]);
                 }}
               >
-                <button
-                  type="submit"
-                  className="profile-button"
-                  disabled={changingPassword}
-                >
-                  {changingPassword ? "Changing..." : "Save New Password"}
-                </button>
+                Change Password
+              </button>
+            ) : (
+              <form className="profile-form" onSubmit={handleChangePassword}>
+                <div className="patient-profile-grid">
+                  <PasswordInput
+                    label="Current Password"
+                    name="current_password"
+                    placeholder="Enter current password"
+                    value={passwordForm.current_password}
+                    onChange={handlePasswordChange}
+                    icon="🔒"
+                    autoComplete="current-password"
+                    disabled={changingPassword}
+                    required
+                  />
 
-                <button
-                  type="button"
-                  className="profile-button secondary"
-                  disabled={changingPassword}
-                  onClick={() => {
-                    setShowPasswordForm(false);
-                    setPasswordForm({
-                      current_password: "",
-                      new_password: "",
-                      confirm_password: "",
-                    });
-                    setPasswordError("");
-                    setPasswordMessage("");
-                    setPasswordRules([]);
-                  }}
+                  <PasswordInput
+                    label="New Password"
+                    name="new_password"
+                    placeholder="Enter new password"
+                    value={passwordForm.new_password}
+                    onChange={handlePasswordChange}
+                    icon="🔒"
+                    autoComplete="new-password"
+                    disabled={changingPassword}
+                    required
+                  />
+
+                  <PasswordInput
+                    label="Confirm New Password"
+                    name="confirm_password"
+                    placeholder="Confirm new password"
+                    value={passwordForm.confirm_password}
+                    onChange={handlePasswordChange}
+                    icon="🔒"
+                    autoComplete="new-password"
+                    disabled={changingPassword}
+                    required
+                  />
+                </div>
+
+                <div className="info-message" style={{ marginTop: "16px" }}>
+                  Password must have at least 8 characters, one uppercase
+                  letter, one lowercase letter, one number, and one special
+                  character.
+                </div>
+
+                <div
+                  className="appointment-actions"
+                  style={{ marginTop: "16px" }}
                 >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
+                  <button
+                    type="submit"
+                    className="primary-button"
+                    disabled={changingPassword}
+                  >
+                    {changingPassword ? "Changing..." : "Save New Password"}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    disabled={changingPassword}
+                    onClick={() => {
+                      setShowPasswordForm(false);
+                      setPasswordForm({
+                        current_password: "",
+                        new_password: "",
+                        confirm_password: "",
+                      });
+                      setPasswordError("");
+                      setPasswordMessage("");
+                      setPasswordRules([]);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
         </div>
       </div>
     </DashboardLayout>

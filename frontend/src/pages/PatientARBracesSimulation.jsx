@@ -73,6 +73,14 @@ function PatientARBracesSimulation() {
   const [loadingLogsId, setLoadingLogsId] = useState(null);
   const [loadingTracker, setLoadingTracker] = useState(false);
 
+  const [snapshotPreview, setSnapshotPreview] = useState("");
+  const [operationProgress, setOperationProgress] = useState({
+    active: false,
+    percent: 0,
+    label: "",
+    detail: "",
+  });
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -154,13 +162,55 @@ function PatientARBracesSimulation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [braceStyle]);
 
+  const updateOperationProgress = (
+    percent,
+    label,
+    detail = "",
+    active = true,
+  ) => {
+    setOperationProgress({
+      active,
+      percent: Math.max(0, Math.min(100, Number(percent) || 0)),
+      label,
+      detail,
+    });
+  };
+
+  const finishOperationProgress = (label, detail = "") => {
+    updateOperationProgress(100, label, detail, true);
+
+    window.setTimeout(() => {
+      setOperationProgress((current) => {
+        if (current.percent !== 100) return current;
+
+        return {
+          active: false,
+          percent: 0,
+          label: "",
+          detail: "",
+        };
+      });
+    }, 1200);
+  };
+
   const initializeFaceLandmarker = async () => {
     try {
       setLoadingTracker(true);
       setError("");
+      updateOperationProgress(
+        10,
+        "Preparing AR tracker",
+        "Loading the MediaPipe runtime...",
+      );
 
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
+      );
+
+      updateOperationProgress(
+        45,
+        "Preparing AR tracker",
+        "MediaPipe runtime loaded. Loading the face landmark model...",
       );
 
       const faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
@@ -176,8 +226,18 @@ function PatientARBracesSimulation() {
         minTrackingConfidence: 0.25,
       });
 
+      updateOperationProgress(
+        90,
+        "Preparing AR tracker",
+        "Finalizing face tracking...",
+      );
+
       faceLandmarkerRef.current = faceLandmarker;
       setTrackingReady(true);
+      finishOperationProgress(
+        "AR tracker ready",
+        "Face tracking is ready. You may start the camera.",
+      );
     } catch (err) {
       console.error("Face tracker initialization error:", err);
 
@@ -188,6 +248,12 @@ function PatientARBracesSimulation() {
       );
 
       setTrackingReady(false);
+      setOperationProgress({
+        active: false,
+        percent: 0,
+        label: "",
+        detail: "",
+      });
     } finally {
       setLoadingTracker(false);
     }
@@ -783,6 +849,12 @@ function PatientARBracesSimulation() {
       setError("");
       setFaceDetected(false);
 
+      updateOperationProgress(
+        12,
+        "Starting camera",
+        "Waiting for camera permission...",
+      );
+
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: "user",
@@ -792,16 +864,39 @@ function PatientARBracesSimulation() {
         audio: false,
       });
 
+      updateOperationProgress(
+        58,
+        "Starting camera",
+        "Camera permission granted. Preparing the video feed...",
+      );
+
       streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
+
+        updateOperationProgress(
+          88,
+          "Starting camera",
+          "Connecting the camera feed to face tracking...",
+        );
+
         setCameraOn(true);
+        finishOperationProgress(
+          "Camera ready",
+          "Center your face in the frame and smile slightly.",
+        );
       }
     } catch (err) {
       console.error("Camera error:", err);
       setError("Unable to access camera. Please allow camera permission.");
+      setOperationProgress({
+        active: false,
+        percent: 0,
+        label: "",
+        detail: "",
+      });
     }
   };
 
@@ -849,8 +944,20 @@ function PatientARBracesSimulation() {
 
       if (!selectedRecordId) {
         setError("Please select a dental record before saving a preview.");
+        setOperationProgress({
+          active: false,
+          percent: 0,
+          label: "",
+          detail: "",
+        });
         return;
       }
+
+      updateOperationProgress(
+        68,
+        "Saving snapshot",
+        "Preparing the captured image for upload...",
+      );
 
       const file = await dataUrlToFile(
         imageData,
@@ -866,14 +973,32 @@ function PatientARBracesSimulation() {
         "notes",
         "Auto-fitted face-tracked AR braces simulation preview",
       );
+
       await API.post("/api/ar-simulations", formData, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
+        onUploadProgress: (progressEvent) => {
+          const total = progressEvent.total || file.size || 1;
+          const uploadedPercent = Math.round(
+            (progressEvent.loaded / total) * 100,
+          );
+          const overallPercent = 70 + Math.round(uploadedPercent * 0.28);
+
+          updateOperationProgress(
+            Math.min(98, overallPercent),
+            "Saving snapshot",
+            `Uploading snapshot... ${Math.min(100, uploadedPercent)}%`,
+          );
+        },
       });
 
-      setMessage("AR braces simulation preview saved successfully.");
+      setMessage("AR braces snapshot captured and saved successfully.");
+      finishOperationProgress(
+        "Snapshot saved",
+        "The captured AR preview is now available under Saved Previews.",
+      );
 
       if (selectedRecordId) {
         fetchSavedPreviewsByRecord(selectedRecordId);
@@ -882,12 +1007,18 @@ function PatientARBracesSimulation() {
       setError(
         err.response?.data?.error || "Unable to save AR simulation preview.",
       );
+      setOperationProgress({
+        active: false,
+        percent: 0,
+        label: "",
+        detail: "",
+      });
     } finally {
       setSavingPreview(false);
     }
   };
 
-  const captureSimulation = () => {
+  const captureSimulation = async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
@@ -914,25 +1045,59 @@ function PatientARBracesSimulation() {
       return;
     }
 
-    const width = video.videoWidth;
-    const height = video.videoHeight;
+    try {
+      updateOperationProgress(
+        12,
+        "Capturing snapshot",
+        "Freezing the current camera frame...",
+      );
 
-    canvas.width = width;
-    canvas.height = height;
+      const width = video.videoWidth;
+      const height = video.videoHeight;
 
-    const ctx = canvas.getContext("2d");
+      canvas.width = width;
+      canvas.height = height;
 
-    ctx.save();
-    ctx.translate(width, 0);
-    ctx.scale(-1, 1);
-    ctx.drawImage(video, 0, 0, width, height);
-    ctx.restore();
+      const ctx = canvas.getContext("2d");
 
-    drawBracesOnCanvas(ctx, canvas, latestLandmarksRef.current);
+      if (!ctx) {
+        throw new Error("Unable to prepare the snapshot canvas.");
+      }
 
-    const imageData = canvas.toDataURL("image/png");
+      ctx.save();
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, width, height);
+      ctx.restore();
 
-    savePreviewToBackend(imageData);
+      updateOperationProgress(
+        38,
+        "Capturing snapshot",
+        "Applying the selected braces style...",
+      );
+
+      drawBracesOnCanvas(ctx, canvas, latestLandmarksRef.current);
+
+      updateOperationProgress(
+        58,
+        "Capturing snapshot",
+        "Encoding the final preview image...",
+      );
+
+      const imageData = canvas.toDataURL("image/png");
+      setSnapshotPreview(imageData);
+
+      await savePreviewToBackend(imageData);
+    } catch (err) {
+      console.error("Snapshot capture error:", err);
+      setError(err.message || "Unable to capture the AR braces snapshot.");
+      setOperationProgress({
+        active: false,
+        percent: 0,
+        label: "",
+        detail: "",
+      });
+    }
   };
 
   const deletePreview = async (simulationId) => {
@@ -1002,6 +1167,29 @@ function PatientARBracesSimulation() {
 
           {message && <div className="success-message">{message}</div>}
           {error && <div className="error-message">{error}</div>}
+
+          {operationProgress.active && (
+            <div
+              className="ar-operation-progress"
+              role="status"
+              aria-live="polite"
+              aria-label={`${operationProgress.label}: ${operationProgress.percent}%`}
+            >
+              <div className="ar-operation-progress-header">
+                <strong>{operationProgress.label}</strong>
+                <span>{operationProgress.percent}%</span>
+              </div>
+
+              <div className="ar-operation-progress-track" aria-hidden="true">
+                <div
+                  className="ar-operation-progress-fill"
+                  style={{ width: `${operationProgress.percent}%` }}
+                />
+              </div>
+
+              {operationProgress.detail && <p>{operationProgress.detail}</p>}
+            </div>
+          )}
 
           <div className="appointment-form">
             <div className="form-group">
@@ -1199,9 +1387,17 @@ function PatientARBracesSimulation() {
                 type="button"
                 className="primary-button"
                 onClick={captureSimulation}
-                disabled={!cameraOn || savingPreview || !selectedRecordId}
+                disabled={
+                  !cameraOn ||
+                  savingPreview ||
+                  loadingTracker ||
+                  !trackingReady ||
+                  !selectedRecordId
+                }
               >
-                {savingPreview ? "Saving..." : "Capture"}
+                {savingPreview
+                  ? "Saving Snapshot..."
+                  : "Capture & Save Snapshot"}
               </button>
             </div>
           </div>
@@ -1242,6 +1438,34 @@ function PatientARBracesSimulation() {
 
             <canvas ref={canvasRef} className="hidden-canvas" />
           </div>
+
+          {snapshotPreview && (
+            <div className="ar-latest-snapshot-card">
+              <div className="ar-latest-snapshot-header">
+                <div>
+                  <h3>Latest Captured Snapshot</h3>
+                  <p>
+                    This is the most recent frame captured during this session.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => setSnapshotPreview("")}
+                  disabled={savingPreview}
+                >
+                  Dismiss Preview
+                </button>
+              </div>
+
+              <img
+                src={snapshotPreview}
+                alt={`Latest ${getBraceStyleLabel()} AR braces snapshot`}
+                className="ar-latest-snapshot-image"
+              />
+            </div>
+          )}
 
           <div className="appointments-header" style={{ marginTop: "28px" }}>
             <div>

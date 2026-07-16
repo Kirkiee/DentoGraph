@@ -34,12 +34,16 @@ API.interceptors.response.use(
     const status = error.response?.status;
     const message = error.response?.data?.error || "";
 
+    const lowerMessage = String(message || "").toLowerCase();
+
     const isAuthError =
-      status === 401 ||
-      (status === 403 &&
-        (message.toLowerCase().includes("expired") ||
-          message.toLowerCase().includes("invalid token") ||
-          message.toLowerCase().includes("authentication")));
+      status === 401 &&
+      (lowerMessage.includes("expired") ||
+        lowerMessage.includes("invalid token") ||
+        lowerMessage.includes("jwt") ||
+        lowerMessage.includes("authentication") ||
+        lowerMessage.includes("unauthorized") ||
+        lowerMessage.includes("token"));
 
     if (isAuthError) {
       localStorage.removeItem("token");

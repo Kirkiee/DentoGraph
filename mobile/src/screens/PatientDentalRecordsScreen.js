@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,10 +18,30 @@ import {
   getPatientDentalRecords,
 } from "../services/dentalRecordService";
 
+const RECORD_SOURCE_OPTIONS = [
+  {
+    value: "NEW_SYSTEM_RECORD",
+    label: "New System Record",
+  },
+  {
+    value: "OLD_ENCODED_RECORD",
+    label: "Old Encoded Record",
+  },
+  {
+    value: "SCANNED_OLD_RECORD",
+    label: "Scanned Old Record",
+  },
+];
+
 export default function PatientDentalRecordsScreen({ token, onBack }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [sourceFilter, setSourceFilter] = useState("All");
+  const [sortBy, setSortBy] = useState("newest");
 
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedRecordDetails, setSelectedRecordDetails] = useState(null);
@@ -112,7 +133,8 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
       return String(value);
     }
 
-    return date.toLocaleDateString(undefined, {
+    return date.toLocaleDateString("en-PH", {
+      timeZone: "Asia/Manila",
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -128,14 +150,170 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
       return String(value);
     }
 
-    return `${date.toLocaleDateString(undefined, {
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
       year: "numeric",
       month: "short",
       day: "numeric",
-    })} ${date.toLocaleTimeString(undefined, {
       hour: "numeric",
       minute: "2-digit",
-    })}`;
+    });
+  };
+
+  const getRecordStatus = (record) => {
+    return record.status || "Active";
+  };
+
+  const getRecordSourceLabel = (source) => {
+    if (source === "PDA_BASED_RECORD") {
+      return "Old / Imported Record";
+    }
+
+    const match = RECORD_SOURCE_OPTIONS.find((option) => option.value === source);
+
+    return match?.label || "New System Record";
+  };
+
+  const getRecordSourceBadgeStyle = (source) => {
+    if (source === "OLD_ENCODED_RECORD") return styles.oldSourceBadge;
+    if (source === "SCANNED_OLD_RECORD") return styles.scannedSourceBadge;
+    if (source === "PDA_BASED_RECORD") return styles.oldSourceBadge;
+
+    return styles.newSourceBadge;
+  };
+
+  const getRecordSourceTextStyle = (source) => {
+    if (source === "OLD_ENCODED_RECORD") return styles.oldSourceText;
+    if (source === "SCANNED_OLD_RECORD") return styles.scannedSourceText;
+    if (source === "PDA_BASED_RECORD") return styles.oldSourceText;
+
+    return styles.newSourceText;
+  };
+
+  const getStatusBadgeStyle = (status) => {
+    const normalized = String(status || "").toLowerCase();
+
+    if (normalized === "archived") return styles.archivedStatusBadge;
+    if (normalized === "inactive") return styles.inactiveStatusBadge;
+
+    return styles.activeStatusBadge;
+  };
+
+  const getStatusTextStyle = (status) => {
+    const normalized = String(status || "").toLowerCase();
+
+    if (normalized === "archived") return styles.archivedStatusText;
+    if (normalized === "inactive") return styles.inactiveStatusText;
+
+    return styles.activeStatusText;
+  };
+
+  const filteredAndSortedRecords = useMemo(() => {
+    const cleanSearch = searchTerm.trim().toLowerCase();
+
+    let result = [...records];
+
+    if (statusFilter !== "All") {
+      result = result.filter(
+        (record) => getRecordStatus(record) === statusFilter
+      );
+    }
+
+    if (sourceFilter !== "All") {
+      result = result.filter((record) => {
+        const source = record.record_source || "NEW_SYSTEM_RECORD";
+
+        if (sourceFilter === "OLD_IMPORTED") {
+          return (
+            source === "OLD_ENCODED_RECORD" ||
+            source === "SCANNED_OLD_RECORD" ||
+            source === "PDA_BASED_RECORD"
+          );
+        }
+
+        return source === sourceFilter;
+      });
+    }
+
+    if (cleanSearch) {
+      result = result.filter((record) => {
+        const searchableText = [
+          record.record_id,
+          record.patient_id,
+          record.patient_name,
+          record.patient_email,
+          record.dentition_label,
+          record.dentition_type,
+          record.dentist_id,
+          record.dentist_name,
+          record.clinic_name,
+          record.status,
+          record.record_source,
+          getRecordSourceLabel(record.record_source),
+          record.source_notes,
+          record.date_created,
+          record.last_updated,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+
+        return searchableText.includes(cleanSearch);
+      });
+    }
+
+    result.sort((a, b) => {
+      const dentistA = (a.dentist_name || "").toLowerCase();
+      const dentistB = (b.dentist_name || "").toLowerCase();
+
+      const clinicA = (a.clinic_name || "").toLowerCase();
+      const clinicB = (b.clinic_name || "").toLowerCase();
+
+      const createdA = a.date_created ? new Date(a.date_created).getTime() : 0;
+      const createdB = b.date_created ? new Date(b.date_created).getTime() : 0;
+
+      const updatedA = a.last_updated ? new Date(a.last_updated).getTime() : 0;
+      const updatedB = b.last_updated ? new Date(b.last_updated).getTime() : 0;
+
+      switch (sortBy) {
+        case "oldest":
+          return createdA - createdB;
+        case "updated":
+          return updatedB - updatedA;
+        case "dentist-az":
+          return dentistA.localeCompare(dentistB);
+        case "dentist-za":
+          return dentistB.localeCompare(dentistA);
+        case "clinic-az":
+          return clinicA.localeCompare(clinicB);
+        case "clinic-za":
+          return clinicB.localeCompare(clinicA);
+        case "newest":
+        default:
+          return createdB - createdA;
+      }
+    });
+
+    return result;
+  }, [records, searchTerm, statusFilter, sourceFilter, sortBy]);
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("All");
+    setSourceFilter("All");
+    setSortBy("newest");
+  };
+
+  const recordCountText = () => {
+    if (records.length === 0) return "No dental records found.";
+
+    if (filteredAndSortedRecords.length === records.length) {
+      return `${records.length} dental record${
+        records.length === 1 ? "" : "s"
+      } found.`;
+    }
+
+    return `${filteredAndSortedRecords.length} of ${records.length} dental records shown.`;
   };
 
   const getToothBadgeStyle = (status) => {
@@ -246,6 +424,10 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
       >
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
+            <Pressable style={styles.backButton} onPress={onBack}>
+              <Ionicons name="arrow-back" size={20} color="#2b6cb0" />
+            </Pressable>
+
             <View style={styles.headerIconCircle}>
               <Ionicons
                 name="document-text-outline"
@@ -263,6 +445,107 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
           </View>
         </View>
 
+        <View style={styles.filterCard}>
+          <Text style={styles.filterTitle}>Search and Filter</Text>
+
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search dentist, clinic, record ID, source..."
+            placeholderTextColor="#a0aec0"
+            value={searchTerm}
+            onChangeText={setSearchTerm}
+          />
+
+          <Text style={styles.filterLabel}>Status</Text>
+          <View style={styles.chipRow}>
+            {["All", "Active", "Inactive", "Archived"].map((status) => (
+              <Pressable
+                key={status}
+                style={[
+                  styles.chip,
+                  statusFilter === status && styles.chipSelected,
+                ]}
+                onPress={() => setStatusFilter(status)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    statusFilter === status && styles.chipTextSelected,
+                  ]}
+                >
+                  {status}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.filterLabel}>Record Source</Text>
+          <View style={styles.chipRow}>
+            {[
+              { value: "All", label: "All" },
+              { value: "NEW_SYSTEM_RECORD", label: "New" },
+              { value: "OLD_IMPORTED", label: "Old / Imported" },
+              { value: "OLD_ENCODED_RECORD", label: "Old Encoded" },
+              { value: "SCANNED_OLD_RECORD", label: "Scanned" },
+            ].map((source) => (
+              <Pressable
+                key={source.value}
+                style={[
+                  styles.chip,
+                  sourceFilter === source.value && styles.chipSelected,
+                ]}
+                onPress={() => setSourceFilter(source.value)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    sourceFilter === source.value && styles.chipTextSelected,
+                  ]}
+                >
+                  {source.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Text style={styles.filterLabel}>Sort By</Text>
+          <View style={styles.chipRow}>
+            {[
+              { value: "newest", label: "Newest" },
+              { value: "oldest", label: "Oldest" },
+              { value: "updated", label: "Updated" },
+              { value: "dentist-az", label: "Dentist A-Z" },
+              { value: "dentist-za", label: "Dentist Z-A" },
+              { value: "clinic-az", label: "Clinic A-Z" },
+              { value: "clinic-za", label: "Clinic Z-A" },
+            ].map((sort) => (
+              <Pressable
+                key={sort.value}
+                style={[
+                  styles.chip,
+                  sortBy === sort.value && styles.chipSelected,
+                ]}
+                onPress={() => setSortBy(sort.value)}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    sortBy === sort.value && styles.chipTextSelected,
+                  ]}
+                >
+                  {sort.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <Pressable style={styles.clearButton} onPress={clearFilters}>
+            <Text style={styles.clearButtonText}>Clear Search / Filters</Text>
+          </Pressable>
+        </View>
+
+        <Text style={styles.countText}>{recordCountText()}</Text>
+
         {records.length === 0 ? (
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconCircle}>
@@ -275,8 +558,19 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
               them.
             </Text>
           </View>
+        ) : filteredAndSortedRecords.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIconCircle}>
+              <Ionicons name="search-outline" size={30} color="#2b6cb0" />
+            </View>
+
+            <Text style={styles.emptyTitle}>No matching records</Text>
+            <Text style={styles.emptyText}>
+              Try changing your search, filter, or sorting options.
+            </Text>
+          </View>
         ) : (
-          records.map((record, index) => (
+          filteredAndSortedRecords.map((record, index) => (
             <View key={record.record_id || index} style={styles.recordCard}>
               <View style={styles.recordTopRow}>
                 <View style={styles.recordIconCircle}>
@@ -295,8 +589,18 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                   </Text>
                 </View>
 
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusText}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    getStatusBadgeStyle(record.status),
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusText,
+                      getStatusTextStyle(record.status),
+                    ]}
+                  >
                     {record.status || "Active"}
                   </Text>
                 </View>
@@ -314,6 +618,38 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                     icon="business-outline"
                     label="Clinic"
                     value={record.clinic_name}
+                  />
+                ) : null}
+
+                <View style={styles.sourceRow}>
+                  <Ionicons name="file-tray-outline" size={16} color="#718096" />
+
+                  <View style={styles.sourceContent}>
+                    <Text style={styles.detailLabel}>Record Source</Text>
+
+                    <View
+                      style={[
+                        styles.sourceBadge,
+                        getRecordSourceBadgeStyle(record.record_source),
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.sourceText,
+                          getRecordSourceTextStyle(record.record_source),
+                        ]}
+                      >
+                        {getRecordSourceLabel(record.record_source)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {record.source_notes ? (
+                  <InfoRow
+                    icon="reader-outline"
+                    label="Source Notes"
+                    value={record.source_notes}
                   />
                 ) : null}
 
@@ -393,8 +729,18 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                           </Text>
                         </View>
 
-                        <View style={styles.statusBadge}>
-                          <Text style={styles.statusText}>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            getStatusBadgeStyle(detailsRecord.status),
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.statusText,
+                              getStatusTextStyle(detailsRecord.status),
+                            ]}
+                          >
                             {detailsRecord.status || "Active"}
                           </Text>
                         </View>
@@ -414,6 +760,18 @@ export default function PatientDentalRecordsScreen({ token, onBack }) {
                         <DetailRow
                           label="Clinic"
                           value={detailsRecord.clinic_name}
+                        />
+                      ) : null}
+
+                      <DetailRow
+                        label="Record Source"
+                        value={getRecordSourceLabel(detailsRecord.record_source)}
+                      />
+
+                      {detailsRecord.source_notes ? (
+                        <DetailRow
+                          label="Source Notes"
+                          value={detailsRecord.source_notes}
                         />
                       ) : null}
 
@@ -590,7 +948,15 @@ const styles = StyleSheet.create({
   headerTopRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
+    gap: 12,
+  },
+  backButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: "#edf2f7",
+    alignItems: "center",
+    justifyContent: "center",
   },
   headerIconCircle: {
     width: 52,
@@ -614,6 +980,82 @@ const styles = StyleSheet.create({
     color: "#718096",
     lineHeight: 20,
     fontWeight: "600",
+  },
+  filterCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    marginBottom: 14,
+  },
+  filterTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#1a202c",
+    marginBottom: 12,
+  },
+  searchInput: {
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 15,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: "#1a202c",
+    marginBottom: 14,
+  },
+  filterLabel: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#2d3748",
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  chipRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  chip: {
+    backgroundColor: "#edf2f7",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  chipSelected: {
+    backgroundColor: "#2b6cb0",
+    borderColor: "#2b6cb0",
+  },
+  chipText: {
+    color: "#4a5568",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  chipTextSelected: {
+    color: "#ffffff",
+  },
+  clearButton: {
+    backgroundColor: "#edf2f7",
+    borderRadius: 14,
+    paddingVertical: 11,
+    alignItems: "center",
+    marginTop: 4,
+  },
+  clearButtonText: {
+    color: "#2b6cb0",
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  countText: {
+    color: "#718096",
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: 12,
   },
   emptyCard: {
     backgroundColor: "#ffffff",
@@ -682,16 +1124,32 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   statusBadge: {
-    backgroundColor: "#c6f6d5",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 999,
     alignSelf: "flex-start",
   },
   statusText: {
-    color: "#2f855a",
     fontSize: 12,
     fontWeight: "900",
+  },
+  activeStatusBadge: {
+    backgroundColor: "#c6f6d5",
+  },
+  activeStatusText: {
+    color: "#2f855a",
+  },
+  inactiveStatusBadge: {
+    backgroundColor: "#fed7d7",
+  },
+  inactiveStatusText: {
+    color: "#c53030",
+  },
+  archivedStatusBadge: {
+    backgroundColor: "#e2e8f0",
+  },
+  archivedStatusText: {
+    color: "#2d3748",
   },
   infoList: {
     gap: 8,
@@ -712,6 +1170,43 @@ const styles = StyleSheet.create({
   detailLabel: {
     color: "#2d3748",
     fontWeight: "900",
+  },
+  sourceRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 7,
+  },
+  sourceContent: {
+    flex: 1,
+    gap: 6,
+  },
+  sourceBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  sourceText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  newSourceBadge: {
+    backgroundColor: "#e3f2fd",
+  },
+  newSourceText: {
+    color: "#2b6cb0",
+  },
+  oldSourceBadge: {
+    backgroundColor: "#fef3c7",
+  },
+  oldSourceText: {
+    color: "#92400e",
+  },
+  scannedSourceBadge: {
+    backgroundColor: "#c6f6d5",
+  },
+  scannedSourceText: {
+    color: "#2f855a",
   },
   viewButton: {
     backgroundColor: "#2b6cb0",
