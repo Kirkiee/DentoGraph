@@ -1037,7 +1037,7 @@ function DentistDentalRecordDetails() {
 
   return (
     <DashboardLayout role="Dentist">
-      <div className="appointments-list-card">
+      <div className="appointments-list-card dental-record-details-page">
         <div className="appointments-header no-print">
           <div>
             <h2>Dental Record Details</h2>

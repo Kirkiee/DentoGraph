@@ -146,9 +146,8 @@ const buildAccessibleBrandingVariables = (branding) => {
   const bodyText = isLightPortal ? "#334155" : "#D8E2F0";
   const mutedText = isLightPortal ? "#64748B" : "#94A3B8";
 
-  const borderColor = isLightPortal
-    ? mixHexColors(primary, "#CBD5E1", 0.2)
-    : mixHexColors(primary, "#334155", 0.32);
+  // All structural borders must follow the clinic primary color exactly.
+  const borderColor = primary;
 
   const inputBackground = isLightPortal
     ? mixHexColors(secondary, "#FFFFFF", 0.08)
@@ -185,6 +184,12 @@ const buildAccessibleBrandingVariables = (branding) => {
     "--clinic-surface-soft": surfaceSoft,
     "--clinic-page-background": pageBackground,
     "--clinic-border": borderColor,
+    "--clinic-border-soft": borderColor,
+    "--clinic-border-medium": borderColor,
+    "--clinic-border-strong": borderColor,
+    "--dg-border": borderColor,
+    "--dg-border-strong": borderColor,
+    "--portal-light-border": borderColor,
     "--clinic-input-background": inputBackground,
     "--clinic-input-text": inputText,
     "--clinic-primary-soft": primarySoft,

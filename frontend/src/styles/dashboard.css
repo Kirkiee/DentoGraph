@@ -36,7 +36,7 @@
   --dg-bg: var(--clinic-page-background);
   --dg-text: var(--clinic-heading-text);
   --dg-muted: var(--clinic-muted-text);
-  --dg-border: var(--clinic-border);
+  --dg-border: var(--clinic-primary);
   --dg-sidebar: var(--clinic-surface);
   --dg-input-bg: var(--clinic-input-background);
   --dg-soft-shadow: 0 18px 38px rgba(0, 0, 0, 0.32);
@@ -240,7 +240,7 @@ body {
 .navbar-user {
   text-align: right;
   background: #ffffff;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   padding: 12px 18px;
   min-width: 120px;
@@ -335,7 +335,7 @@ body {
 
 .profile-card {
   background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid var(--clinic-primary);
   border-radius: 26px;
   padding: 36px 38px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
@@ -403,7 +403,7 @@ body {
 .profile-field textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 15px;
   padding: 15px 16px;
   background: #f8fafc;
@@ -488,7 +488,7 @@ body {
 .appointment-form-card,
 .appointments-list-card {
   background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid var(--clinic-primary);
   border-radius: 24px;
   padding: 28px;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
@@ -532,7 +532,7 @@ body {
 .appointment-form textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 15px;
   padding: 15px 16px;
   background: #f8fafc;
@@ -599,7 +599,7 @@ body {
 }
 
 .appointment-item {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   padding: 20px;
   background: #f8fafc;
@@ -704,7 +704,7 @@ body {
 
 .empty-state {
   padding: 34px;
-  border: 1px dashed var(--dg-border);
+  border: 1px dashed var(--clinic-primary);
   border-radius: 18px;
   text-align: center;
   background: #f8fafc;
@@ -740,7 +740,7 @@ body {
   border-radius: 24px;
   padding: 28px;
   box-shadow: 0 20px 45px rgba(15, 23, 42, 0.18);
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid var(--clinic-primary);
 }
 
 .modal-header {
@@ -805,7 +805,7 @@ body {
 .modal-form .form-group textarea {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 15px;
   padding: 15px 16px;
   background: #f8fafc;
@@ -872,7 +872,7 @@ body {
     position: static;
     width: auto;
     border-right: none;
-    border-bottom: 1px solid var(--dg-border);
+    border-bottom: 1px solid var(--clinic-primary);
     padding: 18px;
   }
 
@@ -1006,13 +1006,13 @@ body {
   grid-template-columns: repeat(8, minmax(0, 1fr));
   gap: 10px;
   padding: 18px;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   background: #f8fafc;
 }
 
 .tooth-chart-item {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   padding: 12px 8px;
   background: #ffffff;
@@ -1076,7 +1076,7 @@ body {
   margin-top: 24px;
   padding: 18px;
   border-radius: 18px;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   background: #f8fafc;
 }
 
@@ -1097,7 +1097,7 @@ body {
 }
 
 .appointment-actions select {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 12px;
   padding: 10px 12px;
   background: #ffffff;
@@ -1128,7 +1128,7 @@ body {
 
 .xray-card {
   background: #f8fafc;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   overflow: hidden;
   box-shadow: 0 10px 22px rgba(15, 23, 42, 0.05);
@@ -1201,7 +1201,7 @@ body {
   margin-bottom: 24px;
   padding: 18px;
   background: #f8fafc;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
 }
 
@@ -1221,7 +1221,7 @@ body {
 .appointment-filters select {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 15px;
   padding: 14px 15px;
   background: #ffffff;
@@ -1258,7 +1258,7 @@ body {
 }
 
 .report-panel {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 20px;
   background: #f8fafc;
   padding: 20px;
@@ -1279,7 +1279,7 @@ body {
 .selected-dentist-card {
   margin-top: 14px;
   padding: 16px;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: #f8fafc;
 }
@@ -1308,14 +1308,14 @@ body {
 
 .dental-3d-viewer {
   height: 620px;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 22px;
   background: linear-gradient(180deg, #f8fafc 0%, #e0f2fe 100%);
   overflow: hidden;
 }
 
 .dental-3d-panel {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 22px;
   background: #ffffff;
   padding: 22px;
@@ -1336,7 +1336,7 @@ body {
 
 .dental-legend {
   margin-top: 24px;
-  border-top: 1px solid var(--dg-border);
+  border-top: 1px solid var(--clinic-primary);
   padding-top: 18px;
 }
 
@@ -1413,7 +1413,7 @@ body {
 
 .xray-annotation-viewer,
 .xray-annotation-panel {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 22px;
   background: #ffffff;
   padding: 22px;
@@ -1479,7 +1479,7 @@ body {
 }
 
 .annotation-card {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   padding: 16px;
   background: #f8fafc;
@@ -1535,7 +1535,7 @@ body {
 }
 
 .clinic-card {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 22px;
   background: #ffffff;
   padding: 20px;
@@ -1567,7 +1567,7 @@ body {
 .clinic-map-card {
   margin-top: 20px;
   margin-bottom: 22px;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 22px;
   background: #ffffff;
   padding: 20px;
@@ -1579,7 +1579,7 @@ body {
   height: 460px;
   border-radius: 18px;
   overflow: hidden;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   margin-top: 16px;
 }
 
@@ -1865,7 +1865,7 @@ body.modal-open {
 /* SUBSCRIPTION USAGE MODAL */
 
 .usage-summary-card {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   padding: 18px;
   background: #f8fafc;
@@ -1893,7 +1893,7 @@ body.modal-open {
 }
 
 .usage-card {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   background: #ffffff;
   padding: 16px;
@@ -1947,7 +1947,7 @@ body.modal-open {
 .report-section {
   margin-top: 28px;
   padding-top: 20px;
-  border-top: 1px solid var(--dg-border);
+  border-top: 1px solid var(--clinic-primary);
 }
 
 .report-two-column {
@@ -1958,7 +1958,7 @@ body.modal-open {
 }
 
 .report-panel {
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 22px;
   background: #ffffff;
   padding: 20px;
@@ -2170,7 +2170,7 @@ body .clinic-map-card,
 body .report-panel,
 body .usage-card {
   background: rgba(15, 23, 42, 0.94);
-  border-color: var(--dg-border);
+  border-color: var(--clinic-primary);
   color: var(--dg-text);
 }
 
@@ -2197,14 +2197,14 @@ body .tooth-chart-grid,
 body .tooth-chart-item,
 body .report-panel {
   background: #1e293b;
-  border-color: var(--dg-border);
+  border-color: var(--clinic-primary);
   color: var(--dg-text);
 }
 
 body .modal-header,
 body .modal-actions {
   background: #0f172a;
-  border-color: var(--dg-border);
+  border-color: var(--clinic-primary);
 }
 
 body .sidebar-link {
@@ -2273,7 +2273,187 @@ body select,
 body textarea {
   background: #1e293b;
   color: #f8fafc;
-  border-color: var(--dg-border);
+  border-color: var(--clinic-primary);
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
 }
 
 body input::-webkit-input-placeholder,
@@ -11192,6 +11372,402 @@ body .profile-field textarea::-ms-input-placeholder {
   color: #94a3b8 !important;
   opacity: 1 !important;
 }
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder, body .modal-form input::-webkit-input-placeholder, body .modal-form textarea::-webkit-input-placeholder, body .appointment-form input::-webkit-input-placeholder, body .appointment-form textarea::-webkit-input-placeholder, body .profile-field input::-webkit-input-placeholder, body .profile-field textarea::-webkit-input-placeholder {
   color: #94a3b8 !important;
   opacity: 1 !important;
@@ -11350,7 +11926,7 @@ body .modal-header p {
 
 .tooth-history-content {
   padding: 12px;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 12px;
   background: var(--card-bg, #ffffff);
 }
@@ -11532,7 +12108,7 @@ body .tooth-history-note {
     position: static;
     width: auto;
     border-right: none;
-    border-bottom: 1px solid var(--dg-border);
+    border-bottom: 1px solid var(--clinic-primary);
     padding: 16px;
   }
 
@@ -13138,7 +13714,7 @@ body .password-toggle-button,
 .payment-latest-card,
 .payment-loading-card {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   padding: 18px;
 }
@@ -13180,7 +13756,7 @@ body .password-toggle-button,
 
 .payment-table-wrapper {
   overflow-x: auto;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
 }
 
@@ -13283,7 +13859,7 @@ body .password-toggle-button,
 .staff-summary-card,
 .staff-form-card {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   padding: 18px;
 }
@@ -13312,7 +13888,7 @@ body .password-toggle-button,
 
 .staff-table-wrapper {
   overflow-x: auto;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
 }
 
@@ -13392,7 +13968,7 @@ body .password-toggle-button,
 .admin-users-summary-card,
 .admin-users-filter-card {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   padding: 18px;
 }
@@ -13421,7 +13997,7 @@ body .password-toggle-button,
 
 .admin-users-table-wrapper {
   overflow-x: auto;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
 }
 
@@ -13512,7 +14088,7 @@ body .password-toggle-button,
 .module-report-card,
 .subscription-usage-card {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   padding: 18px;
 }
@@ -13541,7 +14117,7 @@ body .password-toggle-button,
 
 .module-report-table-wrapper {
   overflow-x: auto;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
 }
 
@@ -13609,7 +14185,7 @@ body .password-toggle-button,
 .patient-quick-action-card,
 .loading-panel {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   padding: 18px;
 }
@@ -13765,7 +14341,7 @@ body .password-toggle-button,
 .patient-booking-panel {
   margin-top: 18px;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
 }
@@ -13791,7 +14367,7 @@ body .password-toggle-button,
 }
 
 .patient-filter-tab {
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.35);
   color: #e2e8f0;
   border-radius: 999px;
@@ -13904,7 +14480,7 @@ body .password-toggle-button,
   gap: 18px;
   margin: 18px 0;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
 }
@@ -14003,7 +14579,7 @@ body .password-toggle-button,
   grid-template-columns: 220px 1fr;
   gap: 18px;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -14201,7 +14777,7 @@ body .password-toggle-button,
 
 .patient-profile-section-card {
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
 }
@@ -14237,7 +14813,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -15955,6 +16531,186 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::-webkit-input-placeholder, .patient-xray-control-panel input::-webkit-input-placeholder {
   color: #94a3b8 !important;
 }
@@ -15994,7 +16750,7 @@ body .password-toggle-button,
   align-items: end;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
   box-sizing: border-box;
@@ -16019,7 +16775,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -16028,7 +16784,7 @@ body .password-toggle-button,
 
 .patient-clinic-map-card {
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
 }
@@ -16041,7 +16797,7 @@ body .password-toggle-button,
 
 .patient-clinic-card {
   padding: 20px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -16108,7 +16864,7 @@ body .password-toggle-button,
   gap: 18px;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
   box-sizing: border-box;
@@ -16134,7 +16890,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -16149,7 +16905,7 @@ body .password-toggle-button,
 
 .patient-tooth-card {
   padding: 16px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -16191,7 +16947,7 @@ body .password-toggle-button,
 .patient-xray-review-panel,
 .patient-annotation-card {
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -16281,7 +17037,7 @@ body .password-toggle-button,
   align-items: end;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
   box-sizing: border-box;
@@ -16306,7 +17062,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -16423,7 +17179,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -16454,7 +17210,7 @@ body .password-toggle-button,
   align-items: end;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
   box-sizing: border-box;
@@ -16581,7 +17337,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -16610,7 +17366,7 @@ body .password-toggle-button,
   align-items: end;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
   box-sizing: border-box;
@@ -16677,7 +17433,7 @@ body .password-toggle-button,
   grid-template-columns: 220px 1fr;
   gap: 18px;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   box-sizing: border-box;
@@ -16805,7 +17561,7 @@ body .password-toggle-button,
 .dentist-annotation-panel,
 .dentist-annotation-card {
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
   box-sizing: border-box;
@@ -16959,7 +17715,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -17103,7 +17859,7 @@ body .password-toggle-button,
   align-items: end;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
   box-sizing: border-box;
@@ -17128,7 +17884,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -17242,7 +17998,7 @@ body .password-toggle-button,
   align-items: end;
   width: 100%;
   padding: 18px;
-  border: 1px solid rgba(226, 232, 240, 0.16);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.035);
   box-sizing: border-box;
@@ -17267,7 +18023,7 @@ body .password-toggle-button,
   min-height: 44px;
   padding: 11px 13px;
   border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--clinic-primary);
   background: rgba(15, 23, 42, 0.75);
   color: #ffffff;
   font-size: 14px;
@@ -18427,7 +19183,7 @@ body .patient-filter-tab span {
 
 body .patient-filter-tab {
   background: var(--clinic-surface-soft) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
   color: var(--clinic-muted-text) !important;
 }
 
@@ -18741,14 +19497,14 @@ body .clinic-branding-logo-preview {
 
 .clinic-branding-page > .appointments-header {
   padding-bottom: 22px;
-  border-bottom: 1px solid var(--dg-border);
+  border-bottom: 1px solid var(--clinic-primary);
 }
 
 .clinic-branding-page .patient-dashboard-section {
   margin: 0;
   padding: 24px;
   background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid var(--clinic-primary);
   border-radius: 20px;
   box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
 }
@@ -18756,7 +19512,7 @@ body .clinic-branding-logo-preview {
 .clinic-branding-page .patient-dashboard-section .appointments-header {
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid var(--dg-border);
+  border-bottom: 1px solid var(--clinic-primary);
 }
 
 .clinic-branding-page .patient-dashboard-section h2 {
@@ -18796,7 +19552,7 @@ body .clinic-branding-logo-preview {
   width: 100%;
   min-height: 50px;
   box-sizing: border-box;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 14px;
   padding: 14px 15px;
   background: #f8fafc;
@@ -18837,7 +19593,7 @@ body .clinic-branding-logo-preview {
   height: 50px;
   min-height: 50px;
   box-sizing: border-box;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 14px;
   padding: 5px;
   background: #f8fafc;
@@ -18851,13 +19607,13 @@ body .clinic-branding-logo-preview {
 .clinic-branding-logo-card {
   padding: 18px;
   background: #f8fafc;
-  border: 1px solid var(--dg-border);
+  border: 1px solid var(--clinic-primary);
   border-radius: 16px;
 }
 
 .clinic-branding-logo-preview-box {
   background: #ffffff;
-  border-color: var(--dg-border);
+  border-color: var(--clinic-primary);
 }
 
 .clinic-branding-preview {
@@ -18871,7 +19627,7 @@ body .clinic-branding-logo-preview {
 .clinic-branding-save-actions {
   margin-top: 0;
   padding: 20px 0 0;
-  border-top: 1px solid var(--dg-border);
+  border-top: 1px solid var(--clinic-primary);
 }
 
 .clinic-branding-save-actions .primary-button,
@@ -19095,7 +19851,7 @@ body {
     color-mix(in srgb, var(--clinic-secondary) 78%, #111827),
     color-mix(in srgb, var(--clinic-secondary) 55%, #0f172a)
   ) !important;
-  border-color: var(--dg-border) !important;
+  border-color: var(--clinic-primary) !important;
   color: var(--dg-text) !important;
   box-shadow:
     0 16px 36px rgba(0, 0, 0, 0.2),
@@ -19136,9 +19892,189 @@ body {
     var(--clinic-secondary) 74%,
     #111827
   ) !important;
-  border: 1px solid var(--dg-border) !important;
+  border: 1px solid var(--clinic-primary) !important;
   color: #f8fafc !important;
   caret-color: var(--clinic-primary);
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
 }
 
 .dashboard-layout input::-webkit-input-placeholder,
@@ -19585,7 +20521,7 @@ body {
 
 .dashboard-layout td,
 .dashboard-layout th {
-  border-color: var(--dg-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout tbody tr:hover {
@@ -19768,7 +20704,7 @@ body {
     var(--clinic-surface)
   ) !important;
   color: var(--clinic-body-text) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
   box-shadow: var(--clinic-shadow) !important;
 }
 
@@ -19797,7 +20733,7 @@ body {
     var(--clinic-surface)
   ) !important;
   color: var(--clinic-body-text) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
   box-shadow: var(--clinic-shadow) !important;
 }
 
@@ -19840,7 +20776,331 @@ body {
 .dashboard-layout .modal-form textarea {
   background: var(--clinic-input-background) !important;
   color: var(--clinic-input-text) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout input::-webkit-input-placeholder,
@@ -20381,7 +21641,7 @@ body {
 .dashboard-layout .modal-close-button {
   background: var(--clinic-secondary-soft) !important;
   color: var(--clinic-secondary-text) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout.portal-theme-light .secondary-button,
@@ -20409,7 +21669,7 @@ body {
 .dashboard-layout td,
 .dashboard-layout th {
   background-color: transparent !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout thead,
@@ -20438,7 +21698,7 @@ body {
     color-mix(in srgb, var(--clinic-primary) 10%, var(--clinic-surface))
   ) !important;
   color: var(--clinic-heading-text) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout .modal-overlay {
@@ -20465,7 +21725,7 @@ body {
 .dashboard-layout .clinic-branding-logo-preview,
 .dashboard-layout .clinic-branding-preview-logo {
   background: var(--clinic-surface-soft) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout.portal-theme-light .navbar-clinic-logo,
@@ -20483,7 +21743,7 @@ body {
 .dashboard-layout .usage-summary-card {
   background: var(--clinic-surface-soft) !important;
   color: var(--clinic-body-text) !important;
-  border-color: var(--clinic-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout .clinic-branding-preview {
@@ -20527,7 +21787,7 @@ body {
   --portal-light-text: var(--clinic-heading-text);
   --portal-light-body: var(--clinic-body-text);
   --portal-light-muted: var(--clinic-muted-text);
-  --portal-light-border: var(--clinic-border);
+  --portal-light-border: var(--clinic-primary);
   --portal-light-input: var(--clinic-input-background);
   --portal-light-input-text: var(--clinic-input-text);
 }
@@ -20551,7 +21811,7 @@ body {
     var(--portal-light-elevated),
     var(--portal-light-surface)
   ) !important;
-  border-color: var(--portal-light-border) !important;
+  border-color: var(--clinic-primary) !important;
   color: var(--portal-light-text) !important;
 }
 
@@ -20604,7 +21864,7 @@ body {
     var(--portal-light-elevated),
     var(--portal-light-surface)
   ) !important;
-  border-color: var(--portal-light-border) !important;
+  border-color: var(--clinic-primary) !important;
   color: var(--portal-light-body) !important;
   box-shadow: var(--clinic-shadow) !important;
 }
@@ -20621,7 +21881,7 @@ body {
 .dashboard-layout.portal-theme-light .clinic-branding-logo-card,
 .dashboard-layout.portal-theme-light .clinic-branding-logo-preview-box {
   background: var(--portal-light-soft) !important;
-  border-color: var(--portal-light-border) !important;
+  border-color: var(--clinic-primary) !important;
   color: var(--portal-light-body) !important;
 }
 
@@ -20685,7 +21945,7 @@ body {
   input[type="file"] {
   background: var(--portal-light-input) !important;
   color: var(--portal-light-input-text) !important;
-  border-color: var(--portal-light-border) !important;
+  border-color: var(--clinic-primary) !important;
   box-shadow: none !important;
 }
 
@@ -20704,6 +21964,330 @@ body {
   border-color: var(--clinic-primary) !important;
   box-shadow: 0 0 0 4px
     color-mix(in srgb, var(--clinic-primary) 16%, transparent) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
@@ -21228,7 +22812,7 @@ body {
 .dashboard-layout.portal-theme-light td,
 .dashboard-layout.portal-theme-light th {
   color: var(--portal-light-body) !important;
-  border-color: var(--portal-light-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout.portal-theme-light thead,
@@ -21261,7 +22845,7 @@ body {
     var(--portal-light-surface)
   ) !important;
   color: var(--portal-light-text) !important;
-  border-color: var(--portal-light-border) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-layout.portal-theme-light .secondary-button:hover,
@@ -21296,7 +22880,7 @@ body {
 .dashboard-layout.portal-theme-light .modal-form,
 .dashboard-layout.portal-theme-light .modal-actions {
   background: var(--portal-light-surface) !important;
-  border-color: var(--portal-light-border) !important;
+  border-color: var(--clinic-primary) !important;
   color: var(--portal-light-body) !important;
 }
 
@@ -21348,7 +22932,7 @@ body {
     color-mix(in srgb, var(--clinic-secondary) 28%, var(--clinic-surface))
   ) !important;
   border: 1px solid
-    color-mix(in srgb, var(--clinic-primary) 58%, var(--clinic-border)) !important;
+    color-mix(in srgb, var(--clinic-primary) 58%, var(--clinic-primary)) !important;
   color: var(--clinic-heading-text) !important;
   box-shadow: 0 10px 24px
     color-mix(in srgb, var(--clinic-primary) 18%, transparent) !important;
@@ -21381,7 +22965,7 @@ body {
   border-color: color-mix(
     in srgb,
     var(--clinic-primary) 34%,
-    var(--clinic-border)
+    var(--clinic-primary)
   ) !important;
 }
 
@@ -21394,7 +22978,7 @@ body {
     color-mix(in srgb, var(--clinic-secondary) 12%, var(--clinic-surface-soft))
   ) !important;
   border: 1px solid
-    color-mix(in srgb, var(--clinic-primary) 42%, var(--clinic-border)) !important;
+    color-mix(in srgb, var(--clinic-primary) 42%, var(--clinic-primary)) !important;
   color: var(--clinic-heading-text) !important;
 }
 
@@ -21419,7 +23003,7 @@ body {
     )
   ) !important;
   border: 1px solid
-    color-mix(in srgb, var(--clinic-primary) 42%, var(--clinic-border)) !important;
+    color-mix(in srgb, var(--clinic-primary) 42%, var(--clinic-primary)) !important;
   color: var(--clinic-input-text) !important;
   box-shadow: inset 0 1px 0
     color-mix(in srgb, var(--clinic-primary) 8%, transparent) !important;
@@ -21434,7 +23018,7 @@ body {
   border-color: color-mix(
     in srgb,
     var(--clinic-primary) 66%,
-    var(--clinic-border)
+    var(--clinic-primary)
   ) !important;
 }
 
@@ -21476,7 +23060,7 @@ body {
     color-mix(in srgb, var(--clinic-primary) 72%, var(--clinic-secondary)) 100%
   ) !important;
   border: 1px solid
-    color-mix(in srgb, var(--clinic-primary) 80%, var(--clinic-border)) !important;
+    color-mix(in srgb, var(--clinic-primary) 80%, var(--clinic-primary)) !important;
   color: var(--clinic-primary-text) !important;
   box-shadow: 0 12px 28px
     color-mix(in srgb, var(--clinic-primary) 30%, transparent) !important;
@@ -21524,7 +23108,7 @@ body {
   background: transparent !important;
   border: none !important;
   border-top: 1px solid
-    color-mix(in srgb, var(--clinic-primary) 24%, var(--clinic-border)) !important;
+    color-mix(in srgb, var(--clinic-primary) 24%, var(--clinic-primary)) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   color: var(--clinic-body-text) !important;
@@ -21571,7 +23155,7 @@ body {
     var(--clinic-surface-elevated),
     var(--clinic-surface)
   ) !important;
-  border: 1px solid var(--clinic-border) !important;
+  border: 1px solid var(--clinic-primary) !important;
   border-radius: 20px !important;
   box-shadow: var(--clinic-shadow) !important;
 }
@@ -21589,7 +23173,7 @@ body {
   background: transparent !important;
   border: none !important;
   border-top: 1px solid
-    color-mix(in srgb, var(--clinic-primary) 24%, var(--clinic-border)) !important;
+    color-mix(in srgb, var(--clinic-primary) 24%, var(--clinic-primary)) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
 }
@@ -21632,7 +23216,7 @@ body {
   background-image: none !important;
   border: none !important;
   border-top: 1px solid
-    color-mix(in srgb, var(--clinic-primary) 22%, var(--clinic-border)) !important;
+    color-mix(in srgb, var(--clinic-primary) 22%, var(--clinic-primary)) !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   color: var(--clinic-body-text) !important;
@@ -21728,7 +23312,7 @@ body {
     var(--clinic-surface-elevated),
     var(--clinic-surface)
   ) !important;
-  border: 1px solid var(--clinic-border) !important;
+  border: 1px solid var(--clinic-primary) !important;
   border-radius: 20px !important;
   box-shadow: var(--clinic-shadow) !important;
 }
@@ -21855,7 +23439,7 @@ body {
   border-color: color-mix(
     in srgb,
     var(--clinic-primary, var(--dg-primary)) 42%,
-    var(--clinic-border, var(--dg-border))
+    var(--clinic-border, var(--clinic-primary))
   ) !important;
   background: var(--clinic-surface-elevated, var(--dg-card-bg)) !important;
 }
@@ -21880,7 +23464,7 @@ body {
     color-mix(
       in srgb,
       var(--clinic-secondary, var(--dg-secondary, var(--dg-primary))) 36%,
-      var(--clinic-border, var(--dg-border))
+      var(--clinic-border, var(--clinic-primary))
     ) !important;
   color: var(
     --clinic-muted-text,
@@ -21930,7 +23514,7 @@ body {
   border-color: color-mix(
     in srgb,
     var(--clinic-primary, var(--dg-primary)) 52%,
-    var(--clinic-border, var(--dg-border))
+    var(--clinic-border, var(--clinic-primary))
   ) !important;
   color: var(--clinic-primary, var(--dg-primary)) !important;
 }
@@ -21954,7 +23538,7 @@ body {
   border-color: color-mix(
     in srgb,
     var(--clinic-primary, var(--dg-primary)) 40%,
-    var(--clinic-border, var(--dg-border))
+    var(--clinic-border, var(--clinic-primary))
   ) !important;
 }
 
@@ -22081,7 +23665,7 @@ body {
     .warning-message,
     .error-message
   ) {
-  border-color: var(--clinic-border-soft) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 /* More prominent interactive cards */
@@ -22094,7 +23678,7 @@ body {
     .subscription-card,
     .patient-dashboard-card
   ):hover {
-  border-color: var(--clinic-border-strong) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 /* Inputs and controls */
@@ -22109,7 +23693,7 @@ body {
     .date-input,
     .time-input
   ) {
-  border-color: var(--clinic-border-medium) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-content
@@ -22123,7 +23707,7 @@ body {
     .date-input,
     .time-input
   ):hover:not(:disabled) {
-  border-color: var(--clinic-border-strong) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-content
@@ -22137,14 +23721,14 @@ body {
     .date-input,
     .time-input
   ):focus {
-  border-color: var(--clinic-border-strong) !important;
+  border-color: var(--clinic-primary) !important;
   box-shadow: 0 0 0 3px var(--clinic-focus-ring) !important;
   outline: none !important;
 }
 
 /* Tables */
 .dashboard-content :where(table, th, td, .table-header, .table-row, .data-row) {
-  border-color: var(--clinic-border-soft) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 /* Buttons */
@@ -22158,7 +23742,7 @@ body {
     .filter-button,
     .tab-button
   ) {
-  border-color: var(--clinic-border-medium) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-content
@@ -22171,13 +23755,13 @@ body {
     .filter-button,
     .tab-button
   ):hover:not(:disabled) {
-  border-color: var(--clinic-border-strong) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 /* Tabs, chips, and badges that use outlines */
 .dashboard-content
   :where(.patient-filter-tab, .filter-tab, .tab, .chip, .tag, .status-badge) {
-  border-color: var(--clinic-border-medium) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-content
@@ -22188,13 +23772,13 @@ body {
     .chip.selected,
     .tag.selected
   ) {
-  border-color: var(--clinic-border-strong) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 /* Dividers and separators */
 .dashboard-content
   :where(hr, .divider, .section-divider, .card-divider, .table-divider) {
-  border-color: var(--clinic-border-soft) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 /* Checkbox and radio accents */
@@ -22206,7 +23790,7 @@ body {
 /* Pagination */
 .dashboard-content
   :where(.pagination button, .pagination-button, .page-button) {
-  border-color: var(--clinic-border-medium) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 .dashboard-content
@@ -22218,7 +23802,7 @@ body {
     .pagination-button.active,
     .page-button.active
   ) {
-  border-color: var(--clinic-border-strong) !important;
+  border-color: var(--clinic-primary) !important;
 }
 
 /* Keep destructive actions semantically red */
@@ -22230,4 +23814,1015 @@ body {
 /* Keep warning states semantically amber */
 .dashboard-content :where(.warning-button, .status-pending, .warning-message) {
   --clinic-border-strong: #d97706;
+}
+
+/* =========================================================
+   FINAL AUTHORITATIVE CLINIC BORDER ENFORCEMENT
+   This is part of the full dashboard.css replacement.
+   ========================================================= */
+
+.dashboard-layout {
+  --dg-border: var(--clinic-primary) !important;
+  --dg-border-strong: var(--clinic-primary) !important;
+  --clinic-border: var(--clinic-primary) !important;
+  --clinic-border-soft: var(--clinic-primary) !important;
+  --clinic-border-medium: var(--clinic-primary) !important;
+  --clinic-border-strong: var(--clinic-primary) !important;
+  --portal-light-border: var(--clinic-primary) !important;
+}
+
+.dashboard-layout .patient-profile-section-card,
+.dashboard-layout .appointment-form-card,
+.dashboard-layout .appointments-list-card,
+.dashboard-layout .appointment-item,
+.dashboard-layout .appointment-filters,
+.dashboard-layout .selected-dentist-card,
+.dashboard-layout .clinic-location-panel,
+.dashboard-layout .patient-profile-guide,
+.dashboard-layout .dashboard-card,
+.dashboard-layout .profile-card,
+.dashboard-layout .record-card,
+.dashboard-layout .xray-card,
+.dashboard-layout .clinic-card,
+.dashboard-layout .clinic-map-card,
+.dashboard-layout .subscription-card,
+.dashboard-layout .report-panel,
+.dashboard-layout .usage-card,
+.dashboard-layout .modal-card,
+.dashboard-layout .empty-state {
+  border: 1px solid var(--clinic-primary) !important;
+}
+
+.dashboard-layout .patient-profile-section-card input,
+.dashboard-layout .patient-profile-section-card select,
+.dashboard-layout .patient-profile-section-card textarea,
+.dashboard-layout .appointment-form-card input,
+.dashboard-layout .appointment-form-card select,
+.dashboard-layout .appointment-form-card textarea,
+.dashboard-layout .appointment-form input,
+.dashboard-layout .appointment-form select,
+.dashboard-layout .appointment-form textarea,
+.dashboard-layout .profile-field input,
+.dashboard-layout .profile-field select,
+.dashboard-layout .profile-field textarea {
+  border: 1px solid var(--clinic-primary) !important;
+}
+
+.dashboard-layout .secondary-button,
+.dashboard-layout .outline-button,
+.dashboard-layout .ghost-button {
+  border-color: var(--clinic-primary) !important;
+}
+
+/* =========================================================
+   EXACT PATIENT FILTER PANEL BORDER FIX
+   These two custom panels were not included in the earlier structural list.
+   ========================================================= */
+
+.dashboard-layout .dashboard-content .patient-record-filter-panel,
+.dashboard-layout .dashboard-content .patient-xray-control-panel,
+.dashboard-layout .patient-record-filter-panel,
+.dashboard-layout .patient-xray-control-panel {
+  border: 1.5px solid var(--clinic-primary) !important;
+  border-color: var(--clinic-primary) !important;
+}
+
+/* Keep their controls on the same clinic primary border. */
+.dashboard-layout .patient-record-filter-panel input,
+.dashboard-layout .patient-record-filter-panel select,
+.dashboard-layout .patient-xray-control-panel input,
+.dashboard-layout .patient-xray-control-panel select {
+  border: 1.5px solid var(--clinic-primary) !important;
+  border-color: var(--clinic-primary) !important;
+}
+
+.dashboard-layout .patient-record-filter-panel input:focus,
+.dashboard-layout .patient-record-filter-panel select:focus,
+.dashboard-layout .patient-xray-control-panel input:focus,
+.dashboard-layout .patient-xray-control-panel select:focus {
+  border-color: var(--clinic-primary) !important;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary) 24%, transparent) !important;
+  outline: none !important;
+}
+
+/* =========================================================
+   DENTAL RECORD DETAILS — REMOVE SHARP SECTION EDGES
+   Applies only to DentistDentalRecordDetails and
+   AssistantDentalRecordDetails after adding:
+   dental-record-details-page
+   ========================================================= */
+
+/*
+ * report-section is a layout wrapper on these pages, not a card.
+ * Remove the sharp full-width top border and rectangular surface.
+ */
+.dashboard-layout .dental-record-details-page > .report-section,
+.dashboard-layout .dental-record-details-page > .report-section.no-print {
+  margin-top: 28px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Use spacing rather than a sharp horizontal line between sections. */
+.dashboard-layout
+  .dental-record-details-page
+  > .report-section
+  + .report-section {
+  margin-top: 36px !important;
+}
+
+/* Keep section headers open and unboxed. */
+.dashboard-layout
+  .dental-record-details-page
+  > .report-section
+  > .appointments-header {
+  margin: 0 0 18px !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+/*
+ * Actual content cards remain rounded. These include uploaded documents,
+ * tooth/treatment entries, AR summaries, and empty states.
+ */
+.dashboard-layout
+  .dental-record-details-page
+  > .report-section
+  .appointment-item,
+.dashboard-layout .dental-record-details-page > .report-section .empty-state {
+  border: 1px solid var(--clinic-primary) !important;
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+/* Prevent inherited square backgrounds around lists. */
+.dashboard-layout
+  .dental-record-details-page
+  > .report-section
+  > .appointments-list {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* The top-level record summary remains a rounded card. */
+.dashboard-layout .dental-record-details-page > .appointment-item {
+  border-radius: 16px !important;
+  overflow: hidden !important;
+}
+
+/* Responsive spacing */
+@media (max-width: 700px) {
+  .dashboard-layout .dental-record-details-page > .report-section,
+  .dashboard-layout .dental-record-details-page > .report-section.no-print {
+    margin-top: 24px !important;
+  }
+
+  .dashboard-layout
+    .dental-record-details-page
+    > .report-section
+    + .report-section {
+    margin-top: 30px !important;
+  }
+}
+
+/* =========================================================
+   ADMIN MODULE-SPECIFIC REPORTS
+   MATCHED TO THE PREVIOUS ADMIN REPORTS DESIGN
+
+   Remove the previous "prettier" Admin reports CSS block, then
+   append this at the absolute bottom of dashboard.css.
+   ========================================================= */
+
+.admin-module-reports-page {
+  width: 100%;
+}
+
+/* Keep the same simple page header used by the old reports page. */
+.admin-module-reports-page > .appointments-header {
+  margin-bottom: 18px;
+}
+
+/* Module selector styled like the previous report filter panels. */
+.admin-report-module-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  width: 100%;
+  margin: 18px 0 28px;
+  padding: 16px;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 16px;
+  background: var(
+    --clinic-surface-elevated,
+    var(--dg-surface-soft, rgba(255, 255, 255, 0.04))
+  );
+  box-sizing: border-box;
+}
+
+.admin-report-module-tab {
+  min-height: 42px;
+  padding: 9px 14px;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 11px;
+  background: transparent;
+  color: var(--clinic-body-text, var(--dg-text));
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.admin-report-module-tab:hover,
+.admin-report-module-tab.active {
+  background: var(--clinic-primary);
+  color: var(--clinic-primary-text, #ffffff);
+}
+
+/* Keep the selected report heading plain like the old page sections. */
+.admin-report-print-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 0 0 20px;
+  padding: 0 0 16px;
+  border: none;
+  border-bottom: 1px solid var(--clinic-primary);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-report-print-header h2 {
+  margin: 0 0 6px;
+  color: var(--clinic-heading-text, var(--dg-text));
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.admin-report-print-header p {
+  margin: 0;
+  color: var(--clinic-muted-text, var(--dg-muted));
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.admin-report-eyebrow {
+  display: none;
+}
+
+.admin-report-generated {
+  color: var(--clinic-muted-text, var(--dg-muted));
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Match the original report section spacing. */
+.module-report-section {
+  margin-top: 0;
+  padding: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.module-report-subsection {
+  margin-top: 22px;
+  padding: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.module-report-subsection h3 {
+  margin: 0 0 14px;
+  color: var(--clinic-heading-text, var(--dg-text));
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* Original report summary card design. */
+.module-report-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 16px;
+}
+
+.module-report-card {
+  padding: 18px;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 16px;
+  background: var(
+    --clinic-surface-elevated,
+    var(--dg-surface-soft, rgba(255, 255, 255, 0.04))
+  );
+  box-shadow: none;
+  transform: none;
+}
+
+.module-report-card::before,
+.module-report-card::after {
+  display: none;
+}
+
+.module-report-card:hover {
+  transform: none;
+  border-color: var(--clinic-primary);
+  box-shadow: none;
+}
+
+.module-report-card span {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--clinic-muted-text, var(--dg-muted));
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
+.module-report-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--clinic-heading-text, var(--dg-text));
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.2;
+  letter-spacing: normal;
+}
+
+.module-report-card p {
+  margin: 0;
+  color: var(--clinic-body-text, var(--dg-text-body));
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Tables follow the old Admin reports and payment-table design. */
+.admin-report-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 16px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-report-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  background: var(--clinic-surface, var(--dg-surface, rgba(15, 23, 42, 0.24)));
+}
+
+.admin-report-table th,
+.admin-report-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--clinic-primary);
+  text-align: left;
+  vertical-align: top;
+  color: var(--clinic-body-text, var(--dg-text));
+  font-size: 14px;
+}
+
+.admin-report-table th {
+  position: static;
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary) 12%,
+    var(--clinic-surface-elevated, var(--dg-surface-soft))
+  );
+  color: var(--clinic-heading-text, var(--dg-text));
+  font-size: 13px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-report-table tbody tr:hover {
+  background: transparent;
+}
+
+.admin-report-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-report-table td small {
+  display: block;
+  margin-top: 4px;
+  color: var(--clinic-muted-text, var(--dg-muted));
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Subscription filters match the old report filter cards. */
+.admin-report-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 300px);
+  gap: 16px;
+  align-items: end;
+  width: 100%;
+  padding: 18px;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 16px;
+  background: var(
+    --clinic-surface-elevated,
+    var(--dg-surface-soft, rgba(255, 255, 255, 0.04))
+  );
+  box-sizing: border-box;
+}
+
+.admin-report-filter-grid .form-group {
+  margin: 0;
+}
+
+.admin-report-filter-grid label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--clinic-heading-text, var(--dg-text));
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.admin-report-filter-grid input,
+.admin-report-filter-grid select {
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 13px;
+  border: 1px solid var(--clinic-primary) !important;
+  border-radius: 12px !important;
+  background: var(--clinic-input-background, var(--dg-surface));
+  color: var(--clinic-input-text, var(--dg-text));
+  box-sizing: border-box;
+}
+
+.admin-report-load-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+/* Overview shortcuts should look like normal old report cards. */
+.admin-report-overview-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.admin-report-overview-link {
+  min-height: 100px;
+  padding: 18px;
+  border: 1px solid var(--clinic-primary);
+  border-radius: 16px;
+  background: var(
+    --clinic-surface-elevated,
+    var(--dg-surface-soft, rgba(255, 255, 255, 0.04))
+  );
+  color: var(--clinic-body-text, var(--dg-text));
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+  transform: none;
+}
+
+.admin-report-overview-link::before,
+.admin-report-overview-link::after {
+  display: none;
+}
+
+.admin-report-overview-link:hover {
+  transform: none;
+  border-color: var(--clinic-primary);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary) 8%,
+    var(--clinic-surface-elevated, var(--dg-surface-soft))
+  );
+  box-shadow: none;
+}
+
+.admin-report-overview-link strong,
+.admin-report-overview-link span {
+  display: block;
+  max-width: 100%;
+}
+
+.admin-report-overview-link strong {
+  color: var(--clinic-heading-text, var(--dg-text));
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.admin-report-overview-link span {
+  margin-top: 7px;
+  color: var(--clinic-muted-text, var(--dg-muted));
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Loading and empty states remain consistent with existing pages. */
+.admin-module-reports-page .payment-loading-card,
+.admin-module-reports-page .empty-state,
+.admin-module-reports-page .info-message,
+.admin-module-reports-page .error-message {
+  border-radius: 16px;
+}
+
+.admin-module-reports-page .payment-loading-card {
+  padding: 24px;
+  border: 1px solid var(--clinic-primary);
+  background: var(
+    --clinic-surface-elevated,
+    var(--dg-surface-soft, rgba(255, 255, 255, 0.04))
+  );
+  text-align: center;
+}
+
+/* Responsive behavior matching the old report grids. */
+@media (max-width: 1100px) {
+  .module-report-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+
+  .admin-report-overview-links {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-report-print-header {
+    flex-direction: column;
+  }
+
+  .admin-report-generated {
+    white-space: normal;
+  }
+
+  .admin-report-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-report-module-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 540px) {
+  .module-report-grid,
+  .admin-report-overview-links,
+  .admin-report-module-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Print only the active module while keeping the old clean report style. */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  .admin-report-print-area,
+  .admin-report-print-area * {
+    visibility: visible !important;
+  }
+
+  .admin-report-print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    padding: 18px;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .admin-report-print-area * {
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+
+  .admin-report-print-header,
+  .module-report-card,
+  .admin-report-table-wrap {
+    -moz-column-break-inside: avoid;
+    break-inside: avoid;
+    border-color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .admin-report-table th,
+  .admin-report-table td {
+    border-color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .admin-report-print-area .status-badge {
+    border: 1px solid #000000 !important;
+    background: transparent !important;
+  }
+}
+
+/* =========================================================
+   ADMIN MODULE REPORTS — COMPACT LAYOUT
+   Append this at the absolute bottom of dashboard.css.
+   ========================================================= */
+
+.admin-module-reports-page {
+  padding: 18px !important;
+}
+
+.admin-module-reports-page > .appointments-header {
+  margin-bottom: 12px !important;
+  padding-bottom: 10px !important;
+}
+
+.admin-module-reports-page > .appointments-header h2 {
+  font-size: 1.45rem !important;
+  margin-bottom: 4px !important;
+}
+
+.admin-module-reports-page > .appointments-header p {
+  font-size: 0.88rem !important;
+  line-height: 1.45 !important;
+}
+
+.admin-module-reports-page > .appointments-header .appointment-actions {
+  gap: 8px !important;
+}
+
+.admin-module-reports-page > .appointments-header .primary-button,
+.admin-module-reports-page > .appointments-header .secondary-button {
+  min-height: 38px !important;
+  padding: 8px 13px !important;
+  font-size: 0.82rem !important;
+  border-radius: 10px !important;
+}
+
+.admin-report-module-tabs {
+  gap: 7px !important;
+  margin: 12px 0 20px !important;
+  padding: 10px !important;
+  border-radius: 14px !important;
+}
+
+.admin-report-module-tab {
+  min-height: 36px !important;
+  padding: 7px 11px !important;
+  font-size: 0.78rem !important;
+  border-radius: 9px !important;
+}
+
+.admin-report-print-header {
+  margin-bottom: 16px !important;
+  padding-bottom: 12px !important;
+  gap: 12px !important;
+}
+
+.admin-report-print-header h2 {
+  font-size: 1.35rem !important;
+  margin-bottom: 3px !important;
+}
+
+.admin-report-print-header p {
+  font-size: 0.84rem !important;
+}
+
+.admin-report-generated {
+  font-size: 0.72rem !important;
+}
+
+.module-report-grid {
+  grid-template-columns: repeat(4, minmax(140px, 1fr)) !important;
+  gap: 10px !important;
+}
+
+.module-report-card {
+  padding: 14px !important;
+  border-radius: 13px !important;
+}
+
+.module-report-card span {
+  margin-bottom: 5px !important;
+  font-size: 0.72rem !important;
+}
+
+.module-report-card strong {
+  margin-bottom: 4px !important;
+  font-size: 1.35rem !important;
+}
+
+.module-report-card p {
+  font-size: 0.74rem !important;
+  line-height: 1.35 !important;
+}
+
+.admin-report-overview-links {
+  grid-template-columns: repeat(3, minmax(180px, 1fr)) !important;
+  gap: 10px !important;
+  margin-top: 16px !important;
+}
+
+.admin-report-overview-link {
+  min-height: 82px !important;
+  padding: 13px !important;
+  border-radius: 13px !important;
+}
+
+.admin-report-overview-link strong {
+  font-size: 0.86rem !important;
+}
+
+.admin-report-overview-link span {
+  margin-top: 4px !important;
+  font-size: 0.74rem !important;
+  line-height: 1.35 !important;
+}
+
+.module-report-subsection {
+  margin-top: 18px !important;
+}
+
+.module-report-subsection h3 {
+  margin-bottom: 10px !important;
+  font-size: 0.98rem !important;
+}
+
+.admin-report-table th,
+.admin-report-table td {
+  padding: 10px 12px !important;
+  font-size: 0.78rem !important;
+}
+
+.admin-report-table th {
+  font-size: 0.72rem !important;
+}
+
+.admin-report-filter-grid {
+  gap: 12px !important;
+  padding: 14px !important;
+}
+
+.admin-report-filter-grid input,
+.admin-report-filter-grid select {
+  min-height: 40px !important;
+  padding: 9px 11px !important;
+  font-size: 0.8rem !important;
+}
+
+.admin-report-filter-grid label {
+  margin-bottom: 5px !important;
+  font-size: 0.78rem !important;
+}
+
+@media (max-width: 1200px) {
+  .module-report-grid {
+    grid-template-columns: repeat(3, minmax(140px, 1fr)) !important;
+  }
+
+  .admin-report-overview-links {
+    grid-template-columns: repeat(2, minmax(180px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 850px) {
+  .module-report-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .module-report-grid,
+  .admin-report-overview-links {
+    grid-template-columns: 1fr !important;
+  }
+
+  .admin-module-reports-page {
+    padding: 12px !important;
+  }
+}
+
+/* =========================================================
+   ADMIN MODULE REPORTS — PRINT FIX
+   Append this at the ABSOLUTE END of dashboard.css.
+   This replaces the earlier print visibility rules.
+   ========================================================= */
+
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  /*
+   * Keep all ancestors of the report visible. The previous rule hid every
+   * element under body, including layout ancestors, which can cause the
+   * selected report to print as a blank page in some browsers.
+   */
+  body * {
+    visibility: hidden !important;
+  }
+
+  .dashboard-layout,
+  .dashboard-layout *,
+  .dashboard-main,
+  .dashboard-main *,
+  .dashboard-content,
+  .dashboard-content *,
+  .admin-module-reports-page,
+  .admin-module-reports-page *,
+  .admin-report-print-area,
+  .admin-report-print-area * {
+    overflow: visible !important;
+  }
+
+  .dashboard-layout,
+  .dashboard-main,
+  .dashboard-content,
+  .admin-module-reports-page,
+  .admin-report-print-area,
+  .admin-report-print-area * {
+    visibility: visible !important;
+  }
+
+  /* Hide navigation and controls while keeping the report itself visible. */
+  .sidebar,
+  .dashboard-sidebar,
+  .navbar,
+  .dashboard-navbar,
+  .no-print,
+  .admin-report-module-tabs,
+  .admin-module-reports-page > .appointments-header,
+  .admin-module-reports-page > .error-message,
+  .admin-module-reports-page > .success-message {
+    display: none !important;
+  }
+
+  .dashboard-layout,
+  .dashboard-main,
+  .dashboard-content,
+  .admin-module-reports-page {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    background: #ffffff !important;
+  }
+
+  .admin-report-print-area {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    page-break-before: auto !important;
+  }
+
+  .admin-report-print-area,
+  .admin-report-print-area * {
+    color: #000000 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    -webkit-filter: none !important;
+            filter: none !important;
+  }
+
+  .admin-report-print-header {
+    display: flex !important;
+    visibility: visible !important;
+    margin: 0 0 14px !important;
+    padding: 0 0 10px !important;
+    border: 0 !important;
+    border-bottom: 1px solid #000000 !important;
+    background: #ffffff !important;
+    -moz-column-break-after: avoid;
+         break-after: avoid-page;
+  }
+
+  .module-report-section,
+  .module-report-subsection,
+  .module-report-grid,
+  .module-report-card,
+  .admin-report-table-wrap,
+  .admin-report-table,
+  .admin-report-table thead,
+  .admin-report-table tbody,
+  .admin-report-table tr,
+  .admin-report-table th,
+  .admin-report-table td {
+    visibility: visible !important;
+  }
+
+  .module-report-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .module-report-card {
+    display: block !important;
+    padding: 10px !important;
+    border: 1px solid #000000 !important;
+    border-radius: 8px !important;
+    background: #ffffff !important;
+    break-inside: avoid-page;
+  }
+
+  .module-report-card span,
+  .module-report-card strong,
+  .module-report-card p {
+    color: #000000 !important;
+  }
+
+  .module-report-card strong {
+    font-size: 18px !important;
+  }
+
+  .admin-report-table-wrap {
+    display: block !important;
+    width: 100% !important;
+    overflow: visible !important;
+    border: 1px solid #000000 !important;
+    border-radius: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .admin-report-table {
+    display: table !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
+    table-layout: auto !important;
+    background: #ffffff !important;
+  }
+
+  .admin-report-table thead {
+    display: table-header-group !important;
+  }
+
+  .admin-report-table tbody {
+    display: table-row-group !important;
+  }
+
+  .admin-report-table tr {
+    display: table-row !important;
+    break-inside: avoid-page;
+  }
+
+  .admin-report-table th,
+  .admin-report-table td {
+    display: table-cell !important;
+    padding: 6px 7px !important;
+    border: 1px solid #000000 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+    font-size: 9px !important;
+  }
+
+  .admin-report-print-area .status-badge {
+    display: inline-block !important;
+    padding: 2px 6px !important;
+    border: 1px solid #000000 !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+
+  .admin-report-filter-grid,
+  .admin-report-load-more {
+    display: none !important;
+  }
 }
