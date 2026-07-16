@@ -55,6 +55,8 @@ import PatientDental3DViewer from "./pages/PatientDental3DViewer";
 import PatientXrayAnnotationView from "./pages/PatientXrayAnnotationView";
 import PatientClinicDiscovery from "./pages/PatientClinicDiscovery";
 import PatientARBracesSimulation from "./pages/PatientARBracesSimulation";
+import PatientTransfers from "./pages/PatientTransfers";
+import ClinicPatientTransfers from "./pages/ClinicPatientTransfers";
 
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
@@ -351,6 +353,42 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerPaymentCancel />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/transfers"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/patient-transfers"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicPatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/patient-transfers"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <ClinicPatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/patient-transfers"
+          element={
+            <ProtectedRoute allowedRoles={assistantRoles}>
+              <ClinicPatientTransfers />
             </ProtectedRoute>
           }
         />

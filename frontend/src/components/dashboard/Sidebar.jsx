@@ -40,6 +40,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "X-rays", path: "/patient/xrays" },
       { label: "AR Braces Simulation", path: "/patient/ar-braces" },
       { label: "Clinic Discovery", path: "/patient/clinics" },
+      { label: "Information Transfers", path: "/patient/transfers" },
     ],
 
     Dentist: [
@@ -52,6 +53,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       },
       { label: "Dental Records", path: "/dentist/dental-records" },
       { label: "X-rays", path: "/dentist/xrays" },
+      { label: "Patient Transfers", path: "/dentist/patient-transfers" },
     ],
 
     Assistant: [
@@ -64,6 +66,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       },
       { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
+      { label: "Patient Transfers", path: "/assistant/patient-transfers" },
     ],
 
     "Dental Assistant": [
@@ -76,6 +79,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       },
       { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
+      { label: "Patient Transfers", path: "/assistant/patient-transfers" },
     ],
 
     Admin: [
@@ -109,6 +113,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       },
       { label: "Shared Subscription", path: "/clinic-owner/subscription" },
       { label: "Payment History", path: "/clinic-owner/payments" },
+      { label: "Patient Transfers", path: "/clinic-owner/patient-transfers" },
     ],
   };
 

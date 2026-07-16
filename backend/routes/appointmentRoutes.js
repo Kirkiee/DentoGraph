@@ -1608,4 +1608,369 @@ router.put(
   },
 );
 
+// ============================================================
+// PHASE 11: SERVICE-FIRST PATIENT BOOKING
+// The patient's assigned clinic remains enforced for location isolation.
+// ============================================================
+const phase11TimeToMinutes = (value) => {
+  const match = String(value || "").match(/^(\d{2}):(\d{2})/);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+};
+const phase11MinutesToTime = (minutes) =>
+  `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+const phase11ManilaDay = (dateOnly) => {
+  const day = new Date(`${dateOnly}T12:00:00+08:00`).getUTCDay();
+  return day === 0 ? 7 : day;
+};
+
+router.get(
+  "/booking/services",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    try {
+      const context = await getPatientClinicContext(req.user.user_id);
+      if (!context.allowed)
+        return res.status(context.status).json({ error: context.error });
+      const result = await pool.query(
+        `SELECT ds.service_id, ds.service_name, ds.service_category
+       FROM public.clinic_services cs
+       JOIN public.dental_services ds ON ds.service_id = cs.service_id
+       WHERE cs.clinic_id = $1 AND cs.is_active = TRUE AND ds.is_active = TRUE
+       ORDER BY ds.service_name`,
+        [context.clinic_id],
+      );
+      return res.json({ services: result.rows });
+    } catch (err) {
+      return res.status(500).json({ error: "Unable to load dental services." });
+    }
+  },
+);
+
+router.get(
+  "/booking/clinics",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const serviceId = Number(req.query.service_id);
+    if (!Number.isInteger(serviceId))
+      return res.status(400).json({ error: "A valid service is required." });
+    try {
+      const context = await getPatientClinicContext(req.user.user_id);
+      if (!context.allowed)
+        return res.status(context.status).json({ error: context.error });
+      const result = await pool.query(
+        `SELECT c.clinic_id, c.clinic_name, c.address, c.contact_number,
+              COALESCE(json_agg(json_build_object(
+                'day_of_week', coh.day_of_week,
+                'day_name', CASE coh.day_of_week WHEN 1 THEN 'Monday' WHEN 2 THEN 'Tuesday'
+                  WHEN 3 THEN 'Wednesday' WHEN 4 THEN 'Thursday' WHEN 5 THEN 'Friday'
+                  WHEN 6 THEN 'Saturday' ELSE 'Sunday' END,
+                'is_open', coh.is_open,
+                'opening_time', CASE WHEN coh.opening_time IS NULL THEN NULL ELSE TO_CHAR(coh.opening_time,'HH24:MI') END,
+                'closing_time', CASE WHEN coh.closing_time IS NULL THEN NULL ELSE TO_CHAR(coh.closing_time,'HH24:MI') END
+              ) ORDER BY coh.day_of_week) FILTER (WHERE coh.day_of_week IS NOT NULL), '[]') AS availability
+       FROM public.clinics c
+       JOIN public.clinic_services cs ON cs.clinic_id = c.clinic_id AND cs.service_id = $2 AND cs.is_active = TRUE
+       LEFT JOIN public.clinic_operating_hours coh ON coh.clinic_id = c.clinic_id
+       WHERE c.clinic_id = $1 AND c.status = 'Active'
+       GROUP BY c.clinic_id`,
+        [context.clinic_id, serviceId],
+      );
+      return res.json({ clinics: result.rows });
+    } catch (err) {
+      return res
+        .status(500)
+        .json({ error: "Unable to load clinic availability." });
+    }
+  },
+);
+
+router.get(
+  "/booking/dentists",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const clinicId = Number(req.query.clinic_id),
+      serviceId = Number(req.query.service_id);
+    if (!Number.isInteger(clinicId) || !Number.isInteger(serviceId))
+      return res
+        .status(400)
+        .json({ error: "Clinic and service are required." });
+    try {
+      const context = await getPatientClinicContext(req.user.user_id);
+      if (!context.allowed)
+        return res.status(context.status).json({ error: context.error });
+      if (clinicId !== Number(context.clinic_id))
+        return res
+          .status(403)
+          .json({
+            error: "You may only book within your assigned clinic location.",
+          });
+      const result = await pool.query(
+        `SELECT d.dentist_id, u.name AS dentist_name, d.specialization, d.clinic_id,
+              COALESCE(json_agg(json_build_object(
+                'day_of_week', da.day_of_week,
+                'day_name', CASE da.day_of_week WHEN 1 THEN 'Monday' WHEN 2 THEN 'Tuesday'
+                  WHEN 3 THEN 'Wednesday' WHEN 4 THEN 'Thursday' WHEN 5 THEN 'Friday'
+                  WHEN 6 THEN 'Saturday' ELSE 'Sunday' END,
+                'is_available', da.is_available,
+                'start_time', CASE WHEN da.start_time IS NULL THEN NULL ELSE TO_CHAR(da.start_time,'HH24:MI') END,
+                'end_time', CASE WHEN da.end_time IS NULL THEN NULL ELSE TO_CHAR(da.end_time,'HH24:MI') END,
+                'break_start_time', CASE WHEN da.break_start_time IS NULL THEN NULL ELSE TO_CHAR(da.break_start_time,'HH24:MI') END,
+                'break_end_time', CASE WHEN da.break_end_time IS NULL THEN NULL ELSE TO_CHAR(da.break_end_time,'HH24:MI') END,
+                'slot_duration_minutes', da.slot_duration_minutes
+              ) ORDER BY da.day_of_week) FILTER (WHERE da.day_of_week IS NOT NULL), '[]') AS availability
+       FROM public.dentists d
+       JOIN public.users u ON u.user_id = d.user_id AND u.status = 'Active'
+       JOIN public.dentist_services dsv ON dsv.dentist_id = d.dentist_id AND dsv.service_id = $2 AND dsv.is_active = TRUE
+       LEFT JOIN public.dentist_availability da ON da.dentist_id = d.dentist_id
+       WHERE d.clinic_id = $1 AND d.status = 'Active'
+       GROUP BY d.dentist_id, u.name
+       ORDER BY u.name`,
+        [clinicId, serviceId],
+      );
+      return res.json({ dentists: result.rows });
+    } catch (err) {
+      return res
+        .status(500)
+        .json({ error: "Unable to load dentist availability." });
+    }
+  },
+);
+
+router.get(
+  "/booking/available-dates",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const clinicId = Number(req.query.clinic_id),
+      dentistId = Number(req.query.dentist_id),
+      serviceId = Number(req.query.service_id);
+    if (![clinicId, dentistId, serviceId].every(Number.isInteger))
+      return res
+        .status(400)
+        .json({ error: "Service, clinic, and dentist are required." });
+    try {
+      const context = await getPatientClinicContext(req.user.user_id);
+      if (!context.allowed)
+        return res.status(context.status).json({ error: context.error });
+      if (clinicId !== Number(context.clinic_id))
+        return res.status(403).json({ error: "Invalid clinic selection." });
+      const validity = await pool.query(
+        `SELECT 1 FROM public.dentists d
+       JOIN public.dentist_services ds ON ds.dentist_id=d.dentist_id AND ds.service_id=$3 AND ds.is_active=TRUE
+       WHERE d.dentist_id=$2 AND d.clinic_id=$1 AND d.status='Active'`,
+        [clinicId, dentistId, serviceId],
+      );
+      if (!validity.rows.length)
+        return res
+          .status(400)
+          .json({
+            error: "The dentist is not available for the selected service.",
+          });
+      const schedule = await pool.query(
+        `SELECT day_of_week FROM public.dentist_availability WHERE dentist_id=$1 AND is_available=TRUE`,
+        [dentistId],
+      );
+      const clinicDays = await pool.query(
+        `SELECT day_of_week FROM public.clinic_operating_hours WHERE clinic_id=$1 AND is_open=TRUE`,
+        [clinicId],
+      );
+      const blocked = await pool.query(
+        `SELECT TO_CHAR(unavailable_date,'YYYY-MM-DD') d FROM public.dentist_unavailable_dates WHERE dentist_id=$1 AND unavailable_date BETWEEN CURRENT_DATE AND CURRENT_DATE+90`,
+        [dentistId],
+      );
+      const allowedDays = new Set(
+        schedule.rows
+          .map((r) => Number(r.day_of_week))
+          .filter((d) =>
+            clinicDays.rows.some((c) => Number(c.day_of_week) === d),
+          ),
+      );
+      const blockedDates = new Set(blocked.rows.map((r) => r.d));
+      const available_dates = [];
+      for (let offset = 0; offset <= 90; offset++) {
+        const dt = new Date(Date.now() + offset * 86400000);
+        const value = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        }).format(dt);
+        if (
+          allowedDays.has(phase11ManilaDay(value)) &&
+          !blockedDates.has(value)
+        )
+          available_dates.push(value);
+      }
+      return res.json({ available_dates });
+    } catch (err) {
+      return res.status(500).json({ error: "Unable to load available dates." });
+    }
+  },
+);
+
+router.get(
+  "/booking/available-times",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const clinicId = Number(req.query.clinic_id),
+      dentistId = Number(req.query.dentist_id),
+      serviceId = Number(req.query.service_id);
+    const dateOnly = formatDateOnly(req.query.appointment_date);
+    if (![clinicId, dentistId, serviceId].every(Number.isInteger) || !dateOnly)
+      return res
+        .status(400)
+        .json({ error: "Service, clinic, dentist, and date are required." });
+    try {
+      const context = await getPatientClinicContext(req.user.user_id);
+      if (!context.allowed)
+        return res.status(context.status).json({ error: context.error });
+      if (clinicId !== Number(context.clinic_id))
+        return res.status(403).json({ error: "Invalid clinic selection." });
+      const day = phase11ManilaDay(dateOnly);
+      const rows = await pool.query(
+        `SELECT da.start_time, da.end_time, da.break_start_time, da.break_end_time, da.slot_duration_minutes,
+              coh.opening_time, coh.closing_time
+       FROM public.dentists d
+       JOIN public.dentist_services ds ON ds.dentist_id=d.dentist_id AND ds.service_id=$3 AND ds.is_active=TRUE
+       JOIN public.dentist_availability da ON da.dentist_id=d.dentist_id AND da.day_of_week=$4 AND da.is_available=TRUE
+       JOIN public.clinic_operating_hours coh ON coh.clinic_id=d.clinic_id AND coh.day_of_week=$4 AND coh.is_open=TRUE
+       WHERE d.dentist_id=$2 AND d.clinic_id=$1 AND d.status='Active'
+       AND NOT EXISTS (SELECT 1 FROM public.dentist_unavailable_dates dud WHERE dud.dentist_id=d.dentist_id AND dud.unavailable_date=$5::date)`,
+        [clinicId, dentistId, serviceId, day, dateOnly],
+      );
+      if (!rows.rows.length) return res.json({ available_times: [] });
+      const s = rows.rows[0];
+      const start = Math.max(
+        phase11TimeToMinutes(s.start_time),
+        phase11TimeToMinutes(s.opening_time),
+      );
+      const end = Math.min(
+        phase11TimeToMinutes(s.end_time),
+        phase11TimeToMinutes(s.closing_time),
+      );
+      const bs = phase11TimeToMinutes(s.break_start_time),
+        be = phase11TimeToMinutes(s.break_end_time);
+      const duration = Number(s.slot_duration_minutes) || 30;
+      const booked = await pool.query(
+        `SELECT TO_CHAR(appointment_date AT TIME ZONE 'Asia/Manila','HH24:MI') t FROM public.appointments WHERE dentist_id=$1 AND DATE(appointment_date AT TIME ZONE 'Asia/Manila')=$2::date AND status IN ('Pending','Scheduled')`,
+        [dentistId, dateOnly],
+      );
+      const bookedSet = new Set(booked.rows.map((r) => r.t));
+      const now = Date.now(),
+        slots = [];
+      for (let m = start; m + duration <= end; m += duration) {
+        if (bs !== null && be !== null && m < be && m + duration > bs) continue;
+        const time = phase11MinutesToTime(m);
+        if (bookedSet.has(time)) continue;
+        if (new Date(`${dateOnly}T${time}:00+08:00`).getTime() <= now) continue;
+        slots.push(time);
+      }
+      return res.json({ available_times: slots });
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: "Unable to load available times." });
+    }
+  },
+);
+
+router.post(
+  "/booking",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const clinicId = Number(req.body.clinic_id),
+      dentistId = Number(req.body.dentist_id),
+      serviceId = Number(req.body.service_id);
+    const dateOnly = formatDateOnly(req.body.appointment_date),
+      time = String(req.body.appointment_time || "");
+    if (
+      ![clinicId, dentistId, serviceId].every(Number.isInteger) ||
+      !dateOnly ||
+      !/^\d{2}:\d{2}$/.test(time)
+    )
+      return res
+        .status(400)
+        .json({
+          error:
+            "Complete the service, clinic, dentist, date, and time selections.",
+        });
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const context = await getPatientClinicContext(req.user.user_id, client);
+      if (!context.allowed) {
+        await client.query("ROLLBACK");
+        return res.status(context.status).json({ error: context.error });
+      }
+      if (clinicId !== Number(context.clinic_id)) {
+        await client.query("ROLLBACK");
+        return res
+          .status(403)
+          .json({
+            error: "You may only book within your assigned clinic location.",
+          });
+      }
+      const valid = await client.query(
+        `SELECT 1 FROM public.dentists d JOIN public.dentist_services ds ON ds.dentist_id=d.dentist_id AND ds.service_id=$3 AND ds.is_active=TRUE JOIN public.clinic_services cs ON cs.clinic_id=d.clinic_id AND cs.service_id=$3 AND cs.is_active=TRUE WHERE d.dentist_id=$2 AND d.clinic_id=$1 AND d.status='Active' FOR UPDATE OF d`,
+        [clinicId, dentistId, serviceId],
+      );
+      if (!valid.rows.length) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ error: "Invalid service, clinic, or dentist selection." });
+      }
+      const scheduled = new Date(`${dateOnly}T${time}:00+08:00`);
+      if (scheduled.getTime() <= Date.now()) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ error: "You cannot book a past schedule." });
+      }
+      const conflict = await client.query(
+        `SELECT 1 FROM public.appointments WHERE dentist_id=$1 AND appointment_date=$2 AND status IN ('Pending','Scheduled')`,
+        [dentistId, scheduled],
+      );
+      if (conflict.rows.length) {
+        await client.query("ROLLBACK");
+        return res
+          .status(409)
+          .json({ error: "This appointment slot is already taken." });
+      }
+      const service = await client.query(
+        `SELECT service_name FROM public.dental_services WHERE service_id=$1`,
+        [serviceId],
+      );
+      const inserted = await client.query(
+        `INSERT INTO public.appointments (patient_id,dentist_id,appointment_date,status,notes,appointment_type,service_id,cancellation_reason,cancelled_at,cancelled_by,reschedule_request,requested_appointment_date,reschedule_status) VALUES ($1,$2,$3,'Pending',$4,$5,$6,NULL,NULL,NULL,false,NULL,'None') RETURNING *`,
+        [
+          context.patient_id,
+          dentistId,
+          scheduled,
+          isBlank(req.body.notes) ? null : String(req.body.notes).trim(),
+          service.rows[0]?.service_name || "Dental Appointment",
+          serviceId,
+        ],
+      );
+      await client.query("COMMIT");
+      return res
+        .status(201)
+        .json({
+          message: "Appointment request submitted successfully.",
+          appointment: inserted.rows[0],
+        });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error(err);
+      return res.status(500).json({ error: "Unable to book appointment." });
+    } finally {
+      client.release();
+    }
+  },
+);
+
 module.exports = router;

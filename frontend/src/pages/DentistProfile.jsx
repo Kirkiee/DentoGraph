@@ -9,7 +9,6 @@ function DentistProfile() {
     email: "",
     license_number: "",
     specialization: "",
-    availability: "",
     clinic_id: "",
     clinic_name: "",
     account_status: "",
@@ -25,6 +24,15 @@ function DentistProfile() {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   const [clinics, setClinics] = useState([]);
+  const [availabilitySchedule, setAvailabilitySchedule] = useState([]);
+  const [clinicServices, setClinicServices] = useState([]);
+  const [selectedServiceIds, setSelectedServiceIds] = useState([]);
+  const [unavailableDates, setUnavailableDates] = useState([]);
+  const [newUnavailableDate, setNewUnavailableDate] = useState({
+    unavailable_date: "",
+    reason: "",
+  });
+  const [savingAvailability, setSavingAvailability] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -87,7 +95,7 @@ function DentistProfile() {
 
       setError("");
 
-      await Promise.all([fetchProfile(), fetchClinics()]);
+      await Promise.all([fetchProfile(), fetchClinics(), fetchAvailability()]);
     } catch (err) {
       setError("Unable to load dentist profile data.");
     } finally {
@@ -105,12 +113,19 @@ function DentistProfile() {
       email: dentist.email || "",
       license_number: dentist.license_number || "",
       specialization: dentist.specialization || "",
-      availability: dentist.availability || "",
       clinic_id: dentist.clinic_id || "",
       clinic_name: dentist.clinic_name || "",
       account_status: dentist.account_status || "",
       profile_status: dentist.profile_status || "",
     });
+  };
+
+  const fetchAvailability = async () => {
+    const response = await API.get("/api/dentists/availability", authHeaders);
+    setAvailabilitySchedule(response.data.schedule || []);
+    setClinicServices(response.data.clinic_services || []);
+    setSelectedServiceIds(response.data.selected_service_ids || []);
+    setUnavailableDates(response.data.unavailable_dates || []);
   };
 
   const fetchClinics = async () => {
@@ -126,6 +141,78 @@ function DentistProfile() {
       ...prev,
       [e.target.name]: e.target.value,
     }));
+  };
+
+  const updateScheduleDay = (day, field, value) => {
+    setAvailabilitySchedule((current) =>
+      current.map((item) =>
+        Number(item.day_of_week) === Number(day)
+          ? {
+              ...item,
+              [field]: field === "is_available" ? Boolean(value) : value,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const toggleService = (serviceId) => {
+    setSelectedServiceIds((current) =>
+      current.includes(Number(serviceId))
+        ? current.filter((id) => id !== Number(serviceId))
+        : [...current, Number(serviceId)],
+    );
+  };
+
+  const saveAvailability = async () => {
+    try {
+      setSavingAvailability(true);
+      setMessage("");
+      setError("");
+      const response = await API.put(
+        "/api/dentists/availability",
+        { schedule: availabilitySchedule, service_ids: selectedServiceIds },
+        authHeaders,
+      );
+      setMessage(response.data.message || "Availability saved successfully.");
+      await fetchAvailability();
+    } catch (err) {
+      setError(err.response?.data?.error || "Unable to save availability.");
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
+
+  const addUnavailableDate = async () => {
+    if (!newUnavailableDate.unavailable_date) {
+      setError("Select an unavailable date.");
+      return;
+    }
+    try {
+      await API.post(
+        "/api/dentists/availability/unavailable-dates",
+        newUnavailableDate,
+        authHeaders,
+      );
+      setNewUnavailableDate({ unavailable_date: "", reason: "" });
+      await fetchAvailability();
+    } catch (err) {
+      setError(err.response?.data?.error || "Unable to add unavailable date.");
+    }
+  };
+
+  const removeUnavailableDate = async (id) => {
+    try {
+      await API.delete(
+        `/api/dentists/availability/unavailable-dates/${id}`,
+        authHeaders,
+      );
+      await fetchAvailability();
+    } catch (err) {
+      setError(
+        err.response?.data?.error || "Unable to remove unavailable date.",
+      );
+    }
   };
 
   const handlePasswordChange = (e) => {
@@ -146,8 +233,7 @@ function DentistProfile() {
       !profile.name.trim() ||
       !profile.email.trim() ||
       !profile.license_number.trim() ||
-      !profile.specialization.trim() ||
-      !profile.availability.trim()
+      !profile.specialization.trim()
     ) {
       setError("Please complete all required fields.");
       return;
@@ -165,7 +251,6 @@ function DentistProfile() {
           email: profile.email.trim().toLowerCase(),
           license_number: profile.license_number.trim(),
           specialization: profile.specialization.trim(),
-          availability: profile.availability.trim(),
           clinic_id: profile.clinic_id ? Number(profile.clinic_id) : null,
         },
         authHeaders,
@@ -178,7 +263,6 @@ function DentistProfile() {
         email: updatedDentist.email || "",
         license_number: updatedDentist.license_number || "",
         specialization: updatedDentist.specialization || "",
-        availability: updatedDentist.availability || "",
         clinic_id: updatedDentist.clinic_id || "",
         clinic_name: updatedDentist.clinic_name || "",
         account_status: updatedDentist.account_status || "",
@@ -448,16 +532,12 @@ function DentistProfile() {
                       required
                     />
                   </div>
-
                   <div className="profile-field dentist-profile-full">
                     <label>Availability</label>
-                    <textarea
-                      name="availability"
-                      value={profile.availability}
-                      onChange={handleChange}
-                      placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
-                      required
-                    />
+                    <div className="info-message">
+                      Managed below using the structured weekly availability
+                      editor.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -546,6 +626,213 @@ function DentistProfile() {
             </form>
           </>
         )}
+      </div>
+
+      <div className="appointments-list-card phase11-dentist-availability-page">
+        <div className="appointments-header">
+          <div>
+            <h2>Structured Dentist Availability</h2>
+            <p>
+              Set weekly working hours, optional breaks, appointment duration,
+              services, and blocked dates. Patients only see generated available
+              schedules.
+            </p>
+          </div>
+        </div>
+        <div className="phase11-schedule-list">
+          {availabilitySchedule.map((day) => (
+            <div
+              className={`phase11-schedule-row ${day.is_available ? "active" : "closed"}`}
+              key={day.day_of_week}
+            >
+              <label className="phase11-day-toggle">
+                <input
+                  type="checkbox"
+                  checked={Boolean(day.is_available)}
+                  onChange={(e) =>
+                    updateScheduleDay(
+                      day.day_of_week,
+                      "is_available",
+                      e.target.checked,
+                    )
+                  }
+                />
+                <strong>{day.day_name}</strong>
+              </label>
+              <div>
+                <label>Start</label>
+                <input
+                  type="time"
+                  value={day.start_time || "09:00"}
+                  disabled={!day.is_available}
+                  onChange={(e) =>
+                    updateScheduleDay(
+                      day.day_of_week,
+                      "start_time",
+                      e.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <label>End</label>
+                <input
+                  type="time"
+                  value={day.end_time || "17:00"}
+                  disabled={!day.is_available}
+                  onChange={(e) =>
+                    updateScheduleDay(
+                      day.day_of_week,
+                      "end_time",
+                      e.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <label>Break Start</label>
+                <input
+                  type="time"
+                  value={day.break_start_time || ""}
+                  disabled={!day.is_available}
+                  onChange={(e) =>
+                    updateScheduleDay(
+                      day.day_of_week,
+                      "break_start_time",
+                      e.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <label>Break End</label>
+                <input
+                  type="time"
+                  value={day.break_end_time || ""}
+                  disabled={!day.is_available}
+                  onChange={(e) =>
+                    updateScheduleDay(
+                      day.day_of_week,
+                      "break_end_time",
+                      e.target.value,
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <label>Slot</label>
+                <select
+                  value={day.slot_duration_minutes || 30}
+                  disabled={!day.is_available}
+                  onChange={(e) =>
+                    updateScheduleDay(
+                      day.day_of_week,
+                      "slot_duration_minutes",
+                      Number(e.target.value),
+                    )
+                  }
+                >
+                  <option value="15">15 min</option>
+                  <option value="30">30 min</option>
+                  <option value="45">45 min</option>
+                  <option value="60">60 min</option>
+                </select>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h3>Services You Provide</h3>
+              <p>
+                Only services offered by your assigned clinic can be selected.
+              </p>
+            </div>
+          </div>
+          <div className="phase11-service-checks">
+            {clinicServices.map((service) => (
+              <label key={service.service_id}>
+                <input
+                  type="checkbox"
+                  checked={selectedServiceIds.includes(
+                    Number(service.service_id),
+                  )}
+                  onChange={() => toggleService(service.service_id)}
+                />
+                <span>{service.service_name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div className="patient-dashboard-section">
+          <div className="appointments-header">
+            <div>
+              <h3>Unavailable Dates</h3>
+              <p>
+                Block leave, training, holidays, or other dates outside the
+                weekly schedule.
+              </p>
+            </div>
+          </div>
+          <div className="phase11-block-date-form">
+            <input
+              type="date"
+              min={new Date().toISOString().slice(0, 10)}
+              value={newUnavailableDate.unavailable_date}
+              onChange={(e) =>
+                setNewUnavailableDate((prev) => ({
+                  ...prev,
+                  unavailable_date: e.target.value,
+                }))
+              }
+            />
+            <input
+              type="text"
+              placeholder="Reason (optional)"
+              value={newUnavailableDate.reason}
+              onChange={(e) =>
+                setNewUnavailableDate((prev) => ({
+                  ...prev,
+                  reason: e.target.value,
+                }))
+              }
+            />
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={addUnavailableDate}
+            >
+              Add Date
+            </button>
+          </div>
+          <div className="phase11-blocked-dates">
+            {unavailableDates.map((item) => (
+              <span key={item.unavailable_date_id}>
+                <b>{item.unavailable_date}</b>
+                {item.reason && ` — ${item.reason}`}
+                <button
+                  type="button"
+                  onClick={() =>
+                    removeUnavailableDate(item.unavailable_date_id)
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="appointment-actions">
+          <button
+            type="button"
+            className="primary-button"
+            onClick={saveAvailability}
+            disabled={savingAvailability}
+          >
+            {savingAvailability ? "Saving..." : "Save Availability"}
+          </button>
+        </div>
       </div>
 
       <div className="appointments-list-card dentist-security-card">

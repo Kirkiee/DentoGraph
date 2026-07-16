@@ -25,7 +25,6 @@ function ClinicOwnerStaff() {
     credential_number: "",
     qualification_name: "",
     qualification_expiration_date: "",
-    availability: "",
     primary_credential_document: null,
     government_id_document: null,
   });
@@ -182,7 +181,6 @@ function ClinicOwnerStaff() {
       credential_number: "",
       qualification_name: "",
       qualification_expiration_date: "",
-      availability: "",
       primary_credential_document: null,
       government_id_document: null,
     });
@@ -299,7 +297,9 @@ function ClinicOwnerStaff() {
       payload.append("email", cleanEmail);
       payload.append("password", cleanPassword);
       payload.append("staff_role", formData.staff_role);
-      payload.append("availability", formData.availability.trim());
+      if (formData.staff_role !== "Dentist") {
+        payload.append("availability", formData.availability?.trim() || "");
+      }
 
       if (formData.staff_role === "Dentist") {
         payload.append("license_number", formData.license_number.trim());
@@ -805,17 +805,19 @@ function ClinicOwnerStaff() {
                   </small>
                 </div>
 
-                <div className="form-group">
-                  <label>Availability</label>
-                  <input
-                    type="text"
-                    name="availability"
-                    value={formData.availability}
-                    onChange={handleChange}
-                    placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
-                    disabled={creating}
-                  />
-                </div>
+                {formData.staff_role !== "Dentist" && (
+                  <div className="form-group">
+                    <label>Availability</label>
+                    <input
+                      type="text"
+                      name="availability"
+                      value={formData.availability || ""}
+                      onChange={handleChange}
+                      placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
+                      disabled={creating}
+                    />
+                  </div>
+                )}
               </div>
 
               {formData.staff_role === "Dentist" ? (
