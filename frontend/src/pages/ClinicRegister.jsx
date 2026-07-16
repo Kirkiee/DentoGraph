@@ -8,6 +8,211 @@ import AuthButton from "../components/auth/AuthButton";
 import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
 
+const CLINIC_SERVICE_CATEGORIES = [
+  {
+    category: "Consultation and Preventive Care",
+    services: [
+      "Dental Consultation",
+      "Comprehensive Oral Examination",
+      "Routine Dental Check-up",
+      "Treatment Planning",
+      "Oral Health Education",
+      "Dental Prophylaxis / Teeth Cleaning",
+      "Deep Cleaning / Scaling and Root Planing",
+      "Fluoride Treatment",
+      "Pit and Fissure Sealants",
+      "Oral Cancer Screening",
+      "Periodontal Screening",
+      "Halitosis / Bad Breath Management",
+      "Preventive Dentistry",
+    ],
+  },
+  {
+    category: "Diagnostic and Imaging Services",
+    services: [
+      "Digital Dental X-ray",
+      "Periapical X-ray",
+      "Bitewing X-ray",
+      "Occlusal X-ray",
+      "Panoramic X-ray",
+      "Cephalometric X-ray",
+      "Cone Beam CT / CBCT Scan",
+      "Intraoral Photography",
+      "Digital Dental Scanning",
+      "Study Casts / Dental Impressions",
+      "Temporomandibular Joint / TMJ Assessment",
+    ],
+  },
+  {
+    category: "Restorative Dentistry",
+    services: [
+      "Tooth-Colored Filling / Composite Restoration",
+      "Amalgam Filling",
+      "Temporary Filling",
+      "Glass Ionomer Restoration",
+      "Inlay and Onlay",
+      "Dental Bonding",
+      "Full-Mouth Rehabilitation",
+      "Restoration Repair or Replacement",
+    ],
+  },
+  {
+    category: "Endodontic Services",
+    services: [
+      "Root Canal Treatment",
+      "Root Canal Retreatment",
+      "Pulpotomy",
+      "Pulpectomy",
+      "Vital Pulp Therapy",
+      "Apicoectomy",
+      "Management of Dental Abscess",
+      "Emergency Endodontic Treatment",
+    ],
+  },
+  {
+    category: "Oral Surgery and Extractions",
+    services: [
+      "Simple Tooth Extraction",
+      "Surgical Tooth Extraction",
+      "Wisdom Tooth Extraction",
+      "Impacted Tooth Surgery",
+      "Alveoloplasty",
+      "Frenectomy",
+      "Gingivectomy",
+      "Incision and Drainage",
+      "Biopsy of Oral Lesions",
+      "Removal of Oral Cysts",
+      "Pre-Prosthetic Surgery",
+      "Management of Dental Trauma",
+      "Emergency Dental Care",
+    ],
+  },
+  {
+    category: "Periodontal and Gum Care",
+    services: [
+      "Gingivitis Treatment",
+      "Periodontitis Treatment",
+      "Scaling and Root Planing",
+      "Periodontal Maintenance",
+      "Gum Contouring",
+      "Gum Grafting",
+      "Crown Lengthening",
+      "Periodontal Surgery",
+      "Bone Grafting",
+      "Guided Tissue Regeneration",
+      "Peri-Implant Disease Management",
+    ],
+  },
+  {
+    category: "Prosthodontics and Tooth Replacement",
+    services: [
+      "Complete Dentures",
+      "Partial Dentures",
+      "Flexible Dentures",
+      "Immediate Dentures",
+      "Denture Repair",
+      "Denture Reline or Rebase",
+      "Dental Crowns",
+      "Dental Bridges",
+      "Porcelain-Fused-to-Metal Crowns",
+      "Zirconia Crowns",
+      "E-Max Crowns and Veneers",
+      "Implant-Supported Crown",
+      "Implant-Supported Bridge",
+      "Implant-Supported Denture",
+      "Dental Implant Placement",
+      "Dental Implant Restoration",
+      "Maxillofacial Prosthetics",
+    ],
+  },
+  {
+    category: "Orthodontic Services",
+    services: [
+      "Orthodontic Consultation",
+      "Metal Braces",
+      "Ceramic Braces",
+      "Self-Ligating Braces",
+      "Lingual Braces",
+      "Clear Aligners",
+      "Retainers",
+      "Space Maintainers",
+      "Habit-Breaking Appliances",
+      "Palatal Expander",
+      "Functional Orthodontic Appliances",
+      "Interceptive Orthodontics",
+      "Orthodontic Adjustment",
+      "Braces Removal",
+      "Dentofacial Orthopedics",
+    ],
+  },
+  {
+    category: "Cosmetic and Aesthetic Dentistry",
+    services: [
+      "Professional Teeth Whitening",
+      "Dental Veneers",
+      "Composite Veneers",
+      "Porcelain Veneers",
+      "Smile Design",
+      "Cosmetic Dental Bonding",
+      "Tooth Recontouring",
+      "Gum Depigmentation",
+      "Gummy Smile Correction",
+      "Diastema / Gap Closure",
+      "Tooth Jewelry",
+    ],
+  },
+  {
+    category: "Pediatric Dentistry",
+    services: [
+      "Pediatric Dental Consultation",
+      "Pediatric Oral Examination",
+      "Pediatric Dental Cleaning",
+      "Fluoride Treatment for Children",
+      "Pit and Fissure Sealants for Children",
+      "Pediatric Tooth Filling",
+      "Pulpotomy for Primary Teeth",
+      "Pulpectomy for Primary Teeth",
+      "Stainless Steel Crown",
+      "Primary Tooth Extraction",
+      "Space Maintainer",
+      "Early Orthodontic Assessment",
+      "Behavior Management for Children",
+      "Special Needs Pediatric Dentistry",
+    ],
+  },
+  {
+    category: "TMJ, Orofacial Pain, and Sleep Dentistry",
+    services: [
+      "TMJ Disorder Management",
+      "Orofacial Pain Management",
+      "Bruxism / Teeth Grinding Management",
+      "Night Guard / Occlusal Splint",
+      "Sports Mouthguard",
+      "Sleep Apnea Oral Appliance",
+      "Snoring Appliance",
+      "Occlusal Adjustment",
+    ],
+  },
+  {
+    category: "Special Care and Sedation",
+    services: [
+      "Dental Care for Persons with Disabilities",
+      "Geriatric Dentistry",
+      "Dental Care for Medically Compromised Patients",
+      "Dental Anxiety Management",
+      "Conscious Sedation",
+      "Nitrous Oxide Sedation",
+      "Local Anesthesia",
+      "Hospital-Based Dental Treatment",
+      "Home-Service Dentistry",
+    ],
+  },
+];
+
+const CLINIC_SERVICE_OPTIONS = CLINIC_SERVICE_CATEGORIES.flatMap(
+  (group) => group.services,
+);
+
 function ClinicRegister() {
   const navigate = useNavigate();
   const turnstileRef = useRef(null);
@@ -21,8 +226,10 @@ function ClinicRegister() {
     confirmPassword: "",
     clinic_name: "",
     address: "",
+    latitude: "",
+    longitude: "",
     contact_number: "",
-    services: "",
+    services: [],
     opening_hours: "",
   });
 
@@ -33,6 +240,9 @@ function ClinicRegister() {
   const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeResults, setGeocodeResults] = useState([]);
+  const [coordinateMessage, setCoordinateMessage] = useState("");
 
   const isValidEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
@@ -84,12 +294,16 @@ function ClinicRegister() {
       confirmPassword: "",
       clinic_name: "",
       address: "",
+      latitude: "",
+      longitude: "",
       contact_number: "",
-      services: "",
+      services: [],
       opening_hours: "",
     });
 
     setAgree(false);
+    setGeocodeResults([]);
+    setCoordinateMessage("");
     resetTurnstile();
   };
 
@@ -98,10 +312,91 @@ function ClinicRegister() {
     setPasswordRules([]);
     setSuccess("");
 
+    if (e.target.name === "address") {
+      setCoordinateMessage("");
+    }
+
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
+      ...(e.target.name === "address" ? { latitude: "", longitude: "" } : {}),
     }));
+
+    if (e.target.name === "address") {
+      setGeocodeResults([]);
+    }
+  };
+
+  const handleServiceToggle = (service) => {
+    setError("");
+    setPasswordRules([]);
+    setSuccess("");
+
+    setFormData((previous) => {
+      const currentServices = Array.isArray(previous.services)
+        ? previous.services
+        : [];
+
+      const isSelected = currentServices.includes(service);
+
+      return {
+        ...previous,
+        services: isSelected
+          ? currentServices.filter((item) => item !== service)
+          : [...currentServices, service],
+      };
+    });
+  };
+
+  const handleLocateAddress = async () => {
+    const address = cleanText(formData.address);
+
+    if (address.length < 5) {
+      setError("Enter a more complete clinic address before locating it.");
+      return;
+    }
+
+    try {
+      setGeocoding(true);
+      setError("");
+      setSuccess("");
+      setGeocodeResults([]);
+
+      const response = await API.get("/api/clinics/geocode", {
+        params: { address },
+      });
+
+      const results = response.data?.results || [];
+      setGeocodeResults(results);
+
+      if (results.length === 0) {
+        setError(
+          "No matching Philippine address was found. Add the street, barangay, city, and province, then try again.",
+        );
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          "Unable to locate the clinic address right now.",
+      );
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
+  const selectGeocodeResult = (result) => {
+    setFormData((prev) => ({
+      ...prev,
+      address: result.display_name || prev.address,
+      latitude: String(result.latitude),
+      longitude: String(result.longitude),
+    }));
+
+    setGeocodeResults([]);
+    setError("");
+    setCoordinateMessage(
+      "Clinic coordinates were generated from the selected address.",
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -112,6 +407,7 @@ function ClinicRegister() {
     setError("");
     setPasswordRules([]);
     setSuccess("");
+    setCoordinateMessage("");
 
     const ownerName = cleanText(formData.owner_name);
     const ownerEmail = cleanText(formData.owner_email).toLowerCase();
@@ -119,8 +415,13 @@ function ClinicRegister() {
     const confirmPassword = formData.confirmPassword;
     const clinicName = cleanText(formData.clinic_name);
     const address = cleanText(formData.address);
+    const latitude = cleanText(formData.latitude);
+    const longitude = cleanText(formData.longitude);
     const contactNumber = cleanText(formData.contact_number);
-    const services = cleanText(formData.services);
+    const selectedServices = Array.isArray(formData.services)
+      ? formData.services
+      : [];
+    const services = selectedServices.join(", ");
     const openingHours = cleanText(formData.opening_hours);
 
     if (!ownerName) {
@@ -160,8 +461,15 @@ function ClinicRegister() {
       return;
     }
 
+    if (!latitude || !longitude) {
+      setError(
+        "Locate the clinic address and select a matching result before registering.",
+      );
+      return;
+    }
+
     if (!services) {
-      setError("Please enter at least one clinic service.");
+      setError("Please select at least one clinic service.");
       return;
     }
 
@@ -189,6 +497,8 @@ function ClinicRegister() {
         password,
         clinic_name: clinicName,
         address,
+        latitude: Number(latitude),
+        longitude: Number(longitude),
         contact_number: contactNumber || null,
         services,
         opening_hours: openingHours,
@@ -264,6 +574,12 @@ function ClinicRegister() {
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            {coordinateMessage && (
+              <div className="auth-success clinic-coordinate-success">
+                {coordinateMessage}
+              </div>
+            )}
+
             <div className="auth-required-note">
               Fields marked with <span>*</span> are required.
             </div>
@@ -338,17 +654,88 @@ function ClinicRegister() {
               required
             />
 
-            <AuthInput
-              label="Clinic Location Address"
-              name="address"
-              placeholder="123 Sample Street, Quezon City"
-              value={formData.address}
-              onChange={handleChange}
-              icon="📍"
-              autoComplete="street-address"
-              disabled={loading}
-              required
-            />
+            <div className="clinic-register-address-field">
+              <label className="auth-label" htmlFor="clinic-register-address">
+                Clinic Location Address <span className="auth-required">*</span>
+              </label>
+
+              <div className="clinic-register-address-row">
+                <input
+                  id="clinic-register-address"
+                  type="text"
+                  name="address"
+                  className="auth-input"
+                  placeholder="Street, barangay, city, province"
+                  value={formData.address}
+                  onChange={handleChange}
+                  autoComplete="street-address"
+                  disabled={loading}
+                  required
+                />
+
+                <button
+                  type="button"
+                  className="auth-secondary-button clinic-register-locate-button"
+                  onClick={handleLocateAddress}
+                  disabled={
+                    loading ||
+                    geocoding ||
+                    cleanText(formData.address).length < 5
+                  }
+                >
+                  {geocoding ? "Locating..." : "Locate Address"}
+                </button>
+              </div>
+
+              <small className="clinic-register-address-help">
+                Enter the complete Philippine address, then select the correct
+                result to generate the coordinates automatically.
+              </small>
+
+              {geocodeResults.length > 0 && (
+                <div className="clinic-register-address-results">
+                  {geocodeResults.map((result) => (
+                    <button
+                      type="button"
+                      className="clinic-register-address-result"
+                      key={`${result.place_id}-${result.latitude}-${result.longitude}`}
+                      onClick={() => selectGeocodeResult(result)}
+                      disabled={loading}
+                    >
+                      <strong>{result.display_name}</strong>
+                      <span>
+                        {Number(result.latitude).toFixed(6)},{" "}
+                        {Number(result.longitude).toFixed(6)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="auth-row clinic-register-coordinate-grid">
+              <div className="auth-field">
+                <label>Generated Latitude</label>
+                <input
+                  type="text"
+                  className="auth-input"
+                  value={formData.latitude || "Locate the address first"}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div className="auth-field">
+                <label>Generated Longitude</label>
+                <input
+                  type="text"
+                  className="auth-input"
+                  value={formData.longitude || "Locate the address first"}
+                  readOnly
+                  disabled
+                />
+              </div>
+            </div>
 
             <AuthInput
               label="Clinic Location Contact Number"
@@ -369,20 +756,61 @@ function ClinicRegister() {
               Owner portal.
             </div>
 
-            <div className="auth-textarea-group">
-              <label>
+            <fieldset className="clinic-service-selector">
+              <legend>
                 Services Offered <span className="auth-required">*</span>
-              </label>
-              <textarea
-                name="services"
-                value={formData.services}
-                onChange={handleChange}
-                placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
-                rows="4"
-                disabled={loading}
-                required
-              />
-            </div>
+              </legend>
+
+              <p className="clinic-service-selector-help">
+                Select all dental services available at this clinic location.
+              </p>
+
+              <div className="clinic-service-category-list">
+                {CLINIC_SERVICE_CATEGORIES.map((group) => (
+                  <section
+                    className="clinic-service-category"
+                    key={group.category}
+                  >
+                    <h4>{group.category}</h4>
+
+                    <div className="clinic-service-options">
+                      {group.services.map((service) => {
+                        const isSelected = formData.services.includes(service);
+
+                        return (
+                          <label
+                            key={service}
+                            className={`clinic-service-option ${
+                              isSelected ? "selected" : ""
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleServiceToggle(service)}
+                              disabled={loading}
+                            />
+
+                            <span className="clinic-service-option-check">
+                              {isSelected ? "✓" : ""}
+                            </span>
+
+                            <span>{service}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+
+              <div className="clinic-service-selection-summary">
+                <strong>{formData.services.length}</strong>{" "}
+                {formData.services.length === 1
+                  ? "service selected"
+                  : "services selected"}
+              </div>
+            </fieldset>
 
             <div className="auth-textarea-group">
               <label>
@@ -410,7 +838,24 @@ function ClinicRegister() {
                 disabled={loading}
               />
               <span>
-                I agree to the Terms of Service and Privacy Policy{" "}
+                I agree to the{" "}
+                <Link
+                  className="auth-policy-link"
+                  to="/terms-of-service"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  className="auth-policy-link"
+                  to="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Privacy Policy
+                </Link>{" "}
                 <strong className="auth-required">*</strong>
               </span>
             </label>

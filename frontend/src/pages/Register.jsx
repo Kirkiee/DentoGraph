@@ -220,6 +220,7 @@ function Register() {
   const [clinics, setClinics] = useState([]);
   const [loadingClinics, setLoadingClinics] = useState(true);
   const [clinicSearch, setClinicSearch] = useState("");
+  const [selectedService, setSelectedService] = useState("");
   const [userLocation, setUserLocation] = useState(null);
   const [gettingLocation, setGettingLocation] = useState(false);
 
@@ -387,23 +388,52 @@ function Register() {
     );
   }, [clinics]);
 
+  const availableServiceOptions = useMemo(() => {
+    const uniqueServices = new Set();
+
+    activeClinics.forEach((clinic) => {
+      getClinicServices(clinic).forEach((service) => {
+        const cleanedService = String(service || "").trim();
+
+        if (cleanedService) {
+          uniqueServices.add(cleanedService);
+        }
+      });
+    });
+
+    return Array.from(uniqueServices).sort((a, b) =>
+      a.localeCompare(b, "en", { sensitivity: "base" }),
+    );
+  }, [activeClinics]);
+
   const searchableClinics = useMemo(() => {
     const term = clinicSearch.trim().toLowerCase();
-
-    if (!term) return activeClinics;
+    const selectedServiceValue = selectedService.trim().toLowerCase();
 
     return activeClinics.filter((clinic) => {
       const clinicName = String(clinic.clinic_name || "").toLowerCase();
       const address = String(clinic.address || "").toLowerCase();
-      const services = getClinicServices(clinic).join(" ").toLowerCase();
+      const services = getClinicServices(clinic);
+      const servicesText = services.join(" ").toLowerCase();
 
-      return (
+      const matchesTextSearch =
+        !term ||
         clinicName.includes(term) ||
         address.includes(term) ||
-        services.includes(term)
-      );
+        servicesText.includes(term);
+
+      const matchesSelectedService =
+        !selectedServiceValue ||
+        services.some(
+          (service) =>
+            String(service || "")
+              .trim()
+              .toLowerCase() === selectedServiceValue,
+        );
+
+      return matchesTextSearch && matchesSelectedService;
     });
-  }, [activeClinics, clinicSearch]);
+  }, [activeClinics, clinicSearch, selectedService]);
 
   const markerClinics = useMemo(() => {
     return searchableClinics.filter((clinic) => {
@@ -440,18 +470,25 @@ function Register() {
   }, [activeClinics, userLocation]);
 
   const serviceSuggestedClinics = useMemo(() => {
-    const term = clinicSearch.trim().toLowerCase();
+    const selectedServiceValue = selectedService.trim().toLowerCase();
 
     const clinicsWithServices = activeClinics.filter(
       (clinic) => getClinicServices(clinic).length > 0,
     );
 
-    if (!term) return clinicsWithServices;
+    if (!selectedServiceValue) {
+      return clinicsWithServices;
+    }
 
-    return clinicsWithServices.filter((clinic) => {
-      return getClinicServices(clinic).join(" ").toLowerCase().includes(term);
-    });
-  }, [activeClinics, clinicSearch]);
+    return clinicsWithServices.filter((clinic) =>
+      getClinicServices(clinic).some(
+        (service) =>
+          String(service || "")
+            .trim()
+            .toLowerCase() === selectedServiceValue,
+      ),
+    );
+  }, [activeClinics, selectedService]);
 
   const getCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -768,19 +805,46 @@ function Register() {
               </div>
             )}
 
-            <div className="auth-field">
-              <label htmlFor="clinic-search">
-                Search Any Clinic or Available Service
-              </label>
-              <input
-                id="clinic-search"
-                type="search"
-                className="auth-input"
-                placeholder="Search clinic name, city, address, or service"
-                value={clinicSearch}
-                onChange={(event) => setClinicSearch(event.target.value)}
-                disabled={loadingClinics || loading}
-              />
+            <div className="registration-clinic-filter-grid">
+              <div className="auth-field">
+                <label htmlFor="clinic-search">Search Clinic or Location</label>
+                <input
+                  id="clinic-search"
+                  type="search"
+                  className="auth-input"
+                  placeholder="Search clinic name, city, or address"
+                  value={clinicSearch}
+                  onChange={(event) => setClinicSearch(event.target.value)}
+                  disabled={loadingClinics || loading}
+                />
+              </div>
+
+              <div className="auth-field">
+                <label htmlFor="clinic-service-filter">
+                  Select a Service Offered
+                </label>
+                <select
+                  id="clinic-service-filter"
+                  className="auth-input registration-service-select"
+                  value={selectedService}
+                  onChange={(event) => setSelectedService(event.target.value)}
+                  disabled={loadingClinics || loading}
+                >
+                  <option value="">All Available Services</option>
+
+                  {availableServiceOptions.map((service) => (
+                    <option key={service} value={service}>
+                      {service}
+                    </option>
+                  ))}
+                </select>
+
+                <small className="registration-service-filter-note">
+                  {availableServiceOptions.length > 0
+                    ? "This list only shows services currently offered by active registered clinics."
+                    : "No clinic services are available yet. You may still search and select a clinic location."}
+                </small>
+              </div>
             </div>
 
             <div className="registration-clinic-map">
@@ -911,61 +975,75 @@ function Register() {
               <section className="registration-suggestion-section">
                 <div className="registration-suggestion-heading">
                   <h4>2. Services Available</h4>
-                  <p>Search for a service to find clinics that provide it.</p>
+                  <p>
+                    Select a service from the list above to view clinics that
+                    currently offer it.
+                  </p>
                 </div>
 
                 {loadingClinics ? (
                   <div className="auth-note">Loading clinic services...</div>
                 ) : serviceSuggestedClinics.length === 0 ? (
                   <div className="auth-note">
-                    {clinicSearch.trim()
-                      ? "No clinic service matches your search."
+                    {selectedService
+                      ? `No active clinic currently offers ${selectedService}.`
                       : "No clinic services have been listed yet."}
                   </div>
                 ) : (
-                  <div className="registration-clinic-list">
-                    {serviceSuggestedClinics.map((clinic) => {
-                      const isSelected =
-                        Number(formData.clinic_id) === Number(clinic.clinic_id);
-                      const services = getClinicServices(clinic);
+                  <>
+                    {selectedService && (
+                      <div className="registration-selected-service-banner">
+                        Showing clinics offering:{" "}
+                        <strong>{selectedService}</strong>
+                      </div>
+                    )}
 
-                      return (
-                        <button
-                          key={`service-${clinic.clinic_id}`}
-                          type="button"
-                          className={
-                            isSelected
-                              ? "registration-clinic-option selected"
-                              : "registration-clinic-option"
-                          }
-                          onClick={() => selectClinic(clinic.clinic_id)}
-                          disabled={loading}
-                        >
-                          <span className="registration-clinic-option-main">
-                            <strong>{clinic.clinic_name}</strong>
-                            <small>
-                              {clinic.address || "No address provided"}
-                            </small>
-                            <small>Services: {services.join(", ")}</small>
-                          </span>
+                    <div className="registration-clinic-list">
+                      {serviceSuggestedClinics.map((clinic) => {
+                        const isSelected =
+                          Number(formData.clinic_id) ===
+                          Number(clinic.clinic_id);
+                        const services = getClinicServices(clinic);
 
-                          <span className="registration-clinic-select-label">
-                            {isSelected ? "Selected" : "Select"}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                        return (
+                          <button
+                            key={`service-${clinic.clinic_id}`}
+                            type="button"
+                            className={
+                              isSelected
+                                ? "registration-clinic-option selected"
+                                : "registration-clinic-option"
+                            }
+                            onClick={() => selectClinic(clinic.clinic_id)}
+                            disabled={loading}
+                          >
+                            <span className="registration-clinic-option-main">
+                              <strong>{clinic.clinic_name}</strong>
+                              <small>
+                                {clinic.address || "No address provided"}
+                              </small>
+                              <small>Services: {services.join(", ")}</small>
+                            </span>
+
+                            <span className="registration-clinic-select-label">
+                              {isSelected ? "Selected" : "Select"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </>
                 )}
               </section>
 
-              {clinicSearch.trim() && (
+              {(clinicSearch.trim() || selectedService) && (
                 <section className="registration-suggestion-section">
                   <div className="registration-suggestion-heading">
                     <h4>Search Results</h4>
                     <p>
-                      Select any clinic matching the clinic name, address, or
-                      service, even when it is outside the nearby distance.
+                      Select any clinic matching the entered location and
+                      selected service, even when it is outside the nearby
+                      distance.
                     </p>
                   </div>
 
@@ -1096,7 +1174,24 @@ function Register() {
               disabled={loading}
             />
             <span>
-              I agree to the Terms of Service and Privacy Policy{" "}
+              I agree to the{" "}
+              <Link
+                className="auth-policy-link"
+                to="/terms-of-service"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link
+                className="auth-policy-link"
+                to="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Privacy Policy
+              </Link>{" "}
               <strong className="auth-required">*</strong>
             </span>
           </label>

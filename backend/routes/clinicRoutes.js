@@ -21,11 +21,15 @@ const { verifyTurnstileMiddleware } = require("../utils/verifyTurnstile");
 router.get("/public/list", async (req, res) => {
   try {
     const clinics = await pool.query(
-      `SELECT 
+      `SELECT
           clinic_id,
           clinic_name,
           address,
+          latitude,
+          longitude,
+          services,
           contact_number,
+          opening_hours,
           status
        FROM public.clinics
        WHERE status = 'Active'
@@ -40,6 +44,174 @@ router.get("/public/list", async (req, res) => {
     console.error("Get public clinic list error:", err.message);
     res.status(500).json({
       error: "Error retrieving public clinic list.",
+    });
+  }
+});
+
+// ===============================
+// PUBLIC / CLINIC OWNER / ADMIN: GEOCODE A PHILIPPINE CLINIC ADDRESS
+// Public access is required because first-time clinic registration happens
+// before the clinic owner has an authentication token.
+// Uses OpenStreetMap Nominatim through the backend so the frontend does not
+// need to call the third-party service directly.
+// ===============================
+router.get("/geocode", async (req, res) => {
+  const address = String(req.query.address || "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (address.length < 3) {
+    return res.status(400).json({
+      error: "Enter a more complete clinic address before locating it.",
+    });
+  }
+
+  const normalizeQuery = (value) =>
+    String(value || "")
+      .replace(/\s*,\s*/g, ", ")
+      .replace(/\s+/g, " ")
+      .replace(/,+/g, ",")
+      .replace(/^,\s*|,\s*$/g, "")
+      .trim();
+
+  const ensurePhilippines = (value) => {
+    const cleaned = normalizeQuery(value);
+
+    if (/\b(philippines|pilipinas)\b/i.test(cleaned)) {
+      return cleaned;
+    }
+
+    return `${cleaned}, Philippines`;
+  };
+
+  const buildQueryVariants = (value) => {
+    const cleaned = normalizeQuery(value);
+    const parts = cleaned
+      .split(",")
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+    const variants = [cleaned, ensurePhilippines(cleaned)];
+
+    for (let startIndex = 1; startIndex < parts.length; startIndex += 1) {
+      const broaderAddress = parts.slice(startIndex).join(", ");
+
+      if (broaderAddress.length >= 3) {
+        variants.push(broaderAddress);
+        variants.push(ensurePhilippines(broaderAddress));
+      }
+    }
+
+    const withoutLabels = cleaned
+      .replace(
+        /\b(barangay|brgy\.?|municipality of|city of|province of)\b/gi,
+        " ",
+      )
+      .replace(/\s+/g, " ")
+      .replace(/\s*,\s*/g, ", ")
+      .trim();
+
+    if (withoutLabels && withoutLabels !== cleaned) {
+      variants.push(withoutLabels);
+      variants.push(ensurePhilippines(withoutLabels));
+    }
+
+    return [...new Set(variants.map(normalizeQuery).filter(Boolean))].slice(
+      0,
+      10,
+    );
+  };
+
+  const queryNominatim = async (query) => {
+    const params = new URLSearchParams({
+      q: query,
+      format: "jsonv2",
+      addressdetails: "1",
+      limit: "5",
+      countrycodes: "ph",
+      dedupe: "1",
+    });
+
+    const response = await fetch(
+      `https://nominatim.openstreetmap.org/search?${params.toString()}`,
+      {
+        headers: {
+          Accept: "application/json",
+          "Accept-Language": "en-PH,en;q=0.9",
+          "User-Agent":
+            process.env.NOMINATIM_USER_AGENT ||
+            "DentoGraph/1.0 (clinic address geocoding; Philippines)",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error(`Geocoding provider returned ${response.status}.`);
+    }
+
+    const rawResults = await response.json();
+
+    return (Array.isArray(rawResults) ? rawResults : [])
+      .map((item) => ({
+        place_id: item.place_id,
+        osm_type: item.osm_type || null,
+        osm_id: item.osm_id || null,
+        display_name: item.display_name,
+        latitude: Number(item.lat),
+        longitude: Number(item.lon),
+        type: item.type || null,
+        category: item.category || null,
+        address: item.address || {},
+        matched_query: query,
+      }))
+      .filter(
+        (item) =>
+          Number.isFinite(item.latitude) && Number.isFinite(item.longitude),
+      );
+  };
+
+  try {
+    const queryVariants = buildQueryVariants(address);
+    const collectedResults = [];
+    const seenResults = new Set();
+
+    for (const query of queryVariants) {
+      const results = await queryNominatim(query);
+
+      for (const result of results) {
+        const resultKey =
+          result.osm_type && result.osm_id
+            ? `${result.osm_type}-${result.osm_id}`
+            : `${result.latitude.toFixed(6)}-${result.longitude.toFixed(6)}`;
+
+        if (!seenResults.has(resultKey)) {
+          seenResults.add(resultKey);
+          collectedResults.push(result);
+        }
+      }
+
+      if (collectedResults.length >= 5) {
+        break;
+      }
+    }
+
+    const results = collectedResults.slice(0, 5);
+
+    return res.status(200).json({
+      message:
+        results.length > 0
+          ? "Address matches retrieved successfully."
+          : "No matching Philippine address was found.",
+      query: address,
+      attempted_queries: queryVariants,
+      results,
+    });
+  } catch (err) {
+    console.error("Clinic address geocoding error:", err.message);
+
+    return res.status(502).json({
+      error:
+        "The address lookup service is temporarily unavailable. Please try again.",
     });
   }
 });

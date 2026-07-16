@@ -13,6 +13,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
 import ResendVerification from "./pages/ResendVerification";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
@@ -31,6 +33,7 @@ import PatientDashboard from "./pages/PatientDashboard";
 import AssistantDashboard from "./pages/AssistantDashboard";
 
 import AdminUsers from "./pages/AdminUsers";
+import AdminStaffCredentials from "./pages/AdminStaffCredentials";
 import AdminClinics from "./pages/AdminClinics";
 import AdminSubscriptions from "./pages/AdminSubscriptions";
 import AdminReports from "./pages/AdminReports";
@@ -86,6 +89,8 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/terms-of-service" element={<TermsOfService />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
         <Route path="/login" element={<Navigate to="/auth/login" />} />
         <Route path="/auth/login" element={<Login />} />
@@ -134,6 +139,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminUsers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/staff-credentials"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminStaffCredentials />
             </ProtectedRoute>
           }
         />

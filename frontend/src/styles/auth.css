@@ -925,3 +925,370 @@ body.dark-mode .password-visibility-button {
     justify-content: flex-start;
   }
 }
+
+/* =========================================================
+   CLINIC REGISTRATION — SERVICES OFFERED LIST
+   Append this at the absolute bottom of auth.css.
+   ========================================================= */
+
+.clinic-service-selector {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--clinic-primary, var(--auth-accent, #2563eb));
+  border-radius: 16px;
+  background: var(--auth-input-bg, rgba(255, 255, 255, 0.04));
+}
+
+.clinic-service-selector legend {
+  padding: 0 8px;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.clinic-service-selector-help {
+  margin: 0 0 14px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.clinic-service-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.clinic-service-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 50%,
+      transparent
+    );
+  border-radius: 12px;
+  background: transparent;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.clinic-service-option:hover {
+  border-color: var(--clinic-primary, var(--auth-accent, #2563eb));
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--auth-accent, #2563eb)) 8%,
+    transparent
+  );
+}
+
+.clinic-service-option.selected {
+  border-color: var(--clinic-primary, var(--auth-accent, #2563eb));
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--auth-accent, #2563eb)) 14%,
+    transparent
+  );
+}
+
+.clinic-service-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.clinic-service-option-check {
+  display: inline-flex;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--clinic-primary, var(--auth-accent, #2563eb));
+  border-radius: 7px;
+  color: var(--clinic-primary-text, #ffffff);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.clinic-service-option.selected .clinic-service-option-check {
+  background: var(--clinic-primary, var(--auth-accent, #2563eb));
+}
+
+.clinic-service-option:has(input:focus-visible) {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 24%,
+      transparent
+    );
+  outline-offset: 2px;
+}
+
+.clinic-service-option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.clinic-service-selection-summary {
+  margin-top: 13px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.82rem;
+}
+
+.clinic-service-selection-summary strong {
+  color: var(--clinic-primary, var(--auth-accent, #2563eb));
+}
+
+@media (max-width: 640px) {
+  .clinic-service-options {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-service-selector {
+    padding: 15px;
+  }
+}
+
+/* =========================================================
+   COMPREHENSIVE SERVICE CATEGORIES
+   ========================================================= */
+
+.clinic-service-category-list {
+  display: grid;
+  gap: 18px;
+}
+
+.clinic-service-category {
+  margin: 0;
+  padding: 0;
+}
+
+.clinic-service-category h4 {
+  margin: 0 0 10px;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.clinic-service-category + .clinic-service-category {
+  padding-top: 16px;
+  border-top: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 34%,
+      transparent
+    );
+}
+
+.clinic-service-category-list {
+  max-height: 620px;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--clinic-primary, var(--auth-accent, #2563eb))
+    transparent;
+}
+
+.clinic-service-category-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.clinic-service-category-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.clinic-service-category-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--clinic-primary, var(--auth-accent, #2563eb));
+}
+
+/* =========================================================
+   PATIENT REGISTRATION — CLINIC SERVICE DROPDOWN
+   Append this at the absolute bottom of registerClinicLocator.css.
+   ========================================================= */
+
+.registration-clinic-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.registration-service-select {
+  width: 100%;
+  cursor: pointer;
+}
+
+.registration-service-select:disabled {
+  cursor: not-allowed;
+}
+
+.registration-service-filter-note {
+  display: block;
+  margin-top: 7px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.registration-selected-service-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 55%,
+      transparent
+    );
+  border-radius: 10px;
+  color: var(--auth-text, #f8fafc);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--auth-accent, #2563eb)) 10%,
+    transparent
+  );
+  font-size: 0.82rem;
+}
+
+.registration-selected-service-banner strong {
+  color: var(--clinic-primary, var(--auth-accent, #60a5fa));
+}
+
+@media (max-width: 760px) {
+  .registration-clinic-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   CLINIC REGISTRATION — AUTOMATIC ADDRESS GEOCODING
+   Append at the absolute bottom of auth.css.
+   ========================================================= */
+
+.clinic-register-address-field {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.clinic-register-address-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.clinic-register-locate-button {
+  min-width: 145px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.clinic-register-address-help {
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.clinic-register-address-results {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  max-height: 260px;
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--auth-accent, #2563eb);
+  border-radius: 12px;
+  background: var(--auth-card-bg, #ffffff);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+}
+
+.clinic-register-address-result {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--auth-accent, #2563eb) 35%, transparent);
+  border-radius: 10px;
+  color: var(--auth-text, #111827);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.clinic-register-address-result:hover,
+.clinic-register-address-result:focus-visible {
+  border-color: var(--auth-accent, #2563eb);
+  background: color-mix(in srgb, var(--auth-accent, #2563eb) 10%, transparent);
+  outline: none;
+}
+
+.clinic-register-address-result strong {
+  color: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.clinic-register-address-result span {
+  color: var(--auth-muted, #64748b);
+  font-size: 0.75rem;
+}
+
+.clinic-register-coordinate-grid input:disabled {
+  color: var(--auth-text, #111827) !important;
+  opacity: 1 !important;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  .clinic-register-address-row {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-register-locate-button {
+    width: 100%;
+  }
+}
+
+/* Keep address-selection confirmation inside the registration form. */
+.clinic-coordinate-success {
+  margin-bottom: 14px;
+}
+
+/* =========================================================
+   REGISTRATION POLICY LINKS
+   Append at the absolute bottom of auth.css.
+   ========================================================= */
+
+.auth-check .auth-policy-link {
+  color: var(--auth-accent, #60a5fa);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.auth-check .auth-policy-link:hover,
+.auth-check .auth-policy-link:focus-visible {
+  color: var(--auth-accent-hover, #93c5fd);
+  outline: none;
+}

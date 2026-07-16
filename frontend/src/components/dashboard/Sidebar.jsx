@@ -70,6 +70,10 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "Dashboard", path: "/admin/dashboard" },
       { label: "My Profile", path: "/admin/profile" },
       { label: "User Management", path: "/admin/users" },
+      {
+        label: "Staff Credential Review",
+        path: "/admin/staff-credentials",
+      },
       { label: "Clinic Locations", path: "/admin/clinics" },
       { label: "Shared Subscriptions", path: "/admin/subscriptions" },
       { label: "Subscription Payments", path: "/admin/payments" },
