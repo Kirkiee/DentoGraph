@@ -139,6 +139,202 @@ const getNormalizedClinicServices = async (client, clinicId) => {
   return result.rows;
 };
 
+const CLINIC_WEEK_DAYS = [
+  { day_of_week: 1, day_name: "Monday" },
+  { day_of_week: 2, day_name: "Tuesday" },
+  { day_of_week: 3, day_name: "Wednesday" },
+  { day_of_week: 4, day_name: "Thursday" },
+  { day_of_week: 5, day_name: "Friday" },
+  { day_of_week: 6, day_name: "Saturday" },
+  { day_of_week: 7, day_name: "Sunday" },
+];
+
+const normalizeOperatingTime = (value) => {
+  const match = String(value || "").match(/^(\d{1,2}):(\d{2})/);
+
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+};
+
+const createDefaultOperatingHours = () =>
+  CLINIC_WEEK_DAYS.map(({ day_of_week, day_name }) => ({
+    day_of_week,
+    day_name,
+    is_open: day_of_week !== 7,
+    opening_time: day_of_week !== 7 ? "10:00" : null,
+    closing_time: day_of_week !== 7 ? "17:00" : null,
+  }));
+
+const parseOperatingHoursInput = (value) => {
+  let schedule = value;
+
+  if (typeof schedule === "string") {
+    try {
+      schedule = JSON.parse(schedule);
+    } catch {
+      schedule = null;
+    }
+  }
+
+  if (!Array.isArray(schedule) || schedule.length === 0) {
+    return createDefaultOperatingHours();
+  }
+
+  const byDay = new Map(
+    schedule.map((entry) => [Number(entry?.day_of_week), entry]),
+  );
+
+  return CLINIC_WEEK_DAYS.map(({ day_of_week, day_name }) => {
+    const entry = byDay.get(day_of_week);
+    const isOpen = Boolean(entry?.is_open);
+
+    return {
+      day_of_week,
+      day_name,
+      is_open: isOpen,
+      opening_time: isOpen ? normalizeOperatingTime(entry?.opening_time) : null,
+      closing_time: isOpen ? normalizeOperatingTime(entry?.closing_time) : null,
+    };
+  });
+};
+
+const validateOperatingHours = (schedule) => {
+  if (!schedule.some((entry) => entry.is_open)) {
+    return "At least one clinic operating day is required.";
+  }
+
+  for (const entry of schedule) {
+    if (!entry.is_open) continue;
+
+    if (!entry.opening_time || !entry.closing_time) {
+      return `${entry.day_name} requires opening and closing times.`;
+    }
+
+    if (entry.closing_time <= entry.opening_time) {
+      return `${entry.day_name} closing time must be later than opening time.`;
+    }
+  }
+
+  return "";
+};
+
+const formatOperatingTime = (value) => {
+  const normalized = normalizeOperatingTime(value);
+
+  if (!normalized) return "";
+
+  const [hourText, minuteText] = normalized.split(":");
+  const hour = Number(hourText);
+  const suffix = hour >= 12 ? "PM" : "AM";
+
+  return `${hour % 12 || 12}:${minuteText} ${suffix}`;
+};
+
+const operatingHoursToLegacyText = (schedule) =>
+  schedule
+    .map((entry) =>
+      entry.is_open
+        ? `${entry.day_name}: ${formatOperatingTime(
+            entry.opening_time,
+          )} - ${formatOperatingTime(entry.closing_time)}`
+        : `${entry.day_name}: Closed`,
+    )
+    .join(", ");
+
+const syncClinicOperatingHours = async (client, clinicId, scheduleInput) => {
+  const schedule = parseOperatingHoursInput(scheduleInput);
+  const validationError = validateOperatingHours(schedule);
+
+  if (validationError) {
+    const error = new Error(validationError);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  for (const entry of schedule) {
+    await client.query(
+      `INSERT INTO public.clinic_operating_hours
+       (
+         clinic_id,
+         day_of_week,
+         is_open,
+         opening_time,
+         closing_time
+       )
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (clinic_id, day_of_week)
+       DO UPDATE SET
+         is_open = EXCLUDED.is_open,
+         opening_time = EXCLUDED.opening_time,
+         closing_time = EXCLUDED.closing_time,
+         updated_at = CURRENT_TIMESTAMP`,
+      [
+        clinicId,
+        entry.day_of_week,
+        entry.is_open,
+        entry.opening_time,
+        entry.closing_time,
+      ],
+    );
+  }
+
+  return schedule;
+};
+
+const getClinicOperatingHours = async (client, clinicId) => {
+  const result = await client.query(
+    `SELECT
+       day_of_week,
+       CASE day_of_week
+         WHEN 1 THEN 'Monday'
+         WHEN 2 THEN 'Tuesday'
+         WHEN 3 THEN 'Wednesday'
+         WHEN 4 THEN 'Thursday'
+         WHEN 5 THEN 'Friday'
+         WHEN 6 THEN 'Saturday'
+         WHEN 7 THEN 'Sunday'
+       END AS day_name,
+       is_open,
+       CASE
+         WHEN opening_time IS NULL THEN NULL
+         ELSE TO_CHAR(opening_time, 'HH24:MI')
+       END AS opening_time,
+       CASE
+         WHEN closing_time IS NULL THEN NULL
+         ELSE TO_CHAR(closing_time, 'HH24:MI')
+       END AS closing_time
+     FROM public.clinic_operating_hours
+     WHERE clinic_id = $1
+     ORDER BY day_of_week`,
+    [clinicId],
+  );
+
+  return result.rows;
+};
+
+const attachNormalizedOperatingHours = async (client, clinic) => {
+  if (!clinic?.clinic_id) return clinic;
+
+  const schedule = await getClinicOperatingHours(client, clinic.clinic_id);
+
+  return {
+    ...clinic,
+    operating_hours_schedule: schedule,
+    opening_hours:
+      schedule.length > 0
+        ? operatingHoursToLegacyText(schedule)
+        : clinic.opening_hours || "",
+  };
+};
+
 const attachNormalizedServices = async (client, clinic) => {
   if (!clinic?.clinic_id) return clinic;
 
@@ -147,7 +343,7 @@ const attachNormalizedServices = async (client, clinic) => {
     clinic.clinic_id,
   );
 
-  return {
+  const clinicWithServices = {
     ...clinic,
     service_options: normalizedServices,
     services:
@@ -155,6 +351,8 @@ const attachNormalizedServices = async (client, clinic) => {
         ? normalizedServices.map((service) => service.service_name).join(", ")
         : clinic.services || "",
   };
+
+  return attachNormalizedOperatingHours(client, clinicWithServices);
 };
 
 // ===============================
@@ -189,9 +387,13 @@ router.get("/public/list", async (req, res) => {
        ORDER BY clinic_name ASC`,
     );
 
+    const normalizedClinics = await Promise.all(
+      clinics.rows.map((clinic) => attachNormalizedServices(pool, clinic)),
+    );
+
     res.status(200).json({
       message: "Public clinic list retrieved successfully.",
-      clinics: clinics.rows,
+      clinics: normalizedClinics,
     });
   } catch (err) {
     console.error("Get public clinic list error:", err.message);
@@ -740,34 +942,48 @@ const getClinicOwnerRole = async (client) => {
   return result.rows[0] || null;
 };
 
-const markExpiredSubscriptionIfNeeded = async (clinicId) => {
-  const result = await pool.query(
-    `UPDATE public.clinics
-     SET subscription_status = 'Expired'
-     WHERE clinic_id = $1
-     AND subscription_end_date IS NOT NULL
-     AND subscription_end_date < CURRENT_TIMESTAMP
-     AND COALESCE(subscription_status, 'Active') <> 'Expired'
-     RETURNING clinic_id, subscription_status`,
-    [clinicId],
+const markExpiredSubscriptionIfNeeded = async (client, ownerUserId) => {
+  const expired = await client.query(
+    `UPDATE public.owner_subscriptions
+     SET subscription_status = 'Expired',
+         updated_at = CURRENT_TIMESTAMP
+     WHERE owner_user_id = $1
+       AND end_date IS NOT NULL
+       AND end_date < CURRENT_TIMESTAMP
+       AND subscription_status <> 'Expired'
+     RETURNING
+       owner_subscription_id,
+       owner_user_id,
+       subscription_status`,
+    [ownerUserId],
   );
 
-  return result.rows[0] || null;
+  if (expired.rows.length > 0) {
+    await client.query(
+      `UPDATE public.clinics
+       SET subscription_status = 'Expired'
+       WHERE owner_user_id = $1`,
+      [ownerUserId],
+    );
+  }
+
+  return expired.rows[0] || null;
 };
 
 const getOwnerSubscriptionSource = async (client, ownerUserId) => {
   const result = await client.query(
     `SELECT
-        c.clinic_id,
-        c.clinic_name,
-        c.subscription_plan_id,
-        c.subscription_start_date,
-        c.subscription_end_date,
-        COALESCE(c.subscription_status, 'Active') AS subscription_status,
+        os.owner_subscription_id,
+        os.owner_user_id,
+        os.plan_id AS subscription_plan_id,
+        os.start_date AS subscription_start_date,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
+        os.auto_renew,
         sp.plan_name,
         sp.plan_tier,
         sp.price,
-        sp.billing_cycle,
+        COALESCE(os.billing_cycle, sp.billing_cycle) AS billing_cycle,
         sp.max_clinics,
         sp.max_dentists,
         sp.max_assistants,
@@ -775,15 +991,10 @@ const getOwnerSubscriptionSource = async (client, ownerUserId) => {
         sp.max_records,
         sp.max_xrays,
         sp.storage_limit_mb
-     FROM public.clinics c
+     FROM public.owner_subscriptions os
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
-     WHERE c.owner_user_id = $1
-     AND COALESCE(c.status, 'Active') = 'Active'
-     ORDER BY
-       CASE WHEN c.subscription_plan_id IS NULL THEN 1 ELSE 0 END,
-       c.created_at ASC NULLS LAST,
-       c.clinic_id ASC
+       ON os.plan_id = sp.plan_id
+     WHERE os.owner_user_id = $1
      LIMIT 1`,
     [ownerUserId],
   );
@@ -818,10 +1029,10 @@ const getOwnerLocations = async (client, ownerUserId) => {
         COALESCE(c.primary_color, '#2563EB') AS primary_color,
         COALESCE(c.secondary_color, '#0F172A') AS secondary_color,
         c.welcome_message,
-        c.subscription_plan_id,
-        c.subscription_start_date,
-        c.subscription_end_date,
-        COALESCE(c.subscription_status, 'Active') AS subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.start_date AS subscription_start_date,
+        os.end_date AS subscription_end_date,
+        COALESCE(os.subscription_status, 'Active') AS subscription_status,
         c.owner_user_id,
         owner_user.name AS owner_name,
         owner_user.email AS owner_email,
@@ -841,8 +1052,10 @@ const getOwnerLocations = async (client, ownerUserId) => {
      FROM public.clinics c
      LEFT JOIN public.users owner_user
        ON c.owner_user_id = owner_user.user_id
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.owner_user_id = $1
      ORDER BY c.created_at ASC NULLS LAST, c.clinic_id ASC`,
     [ownerUserId],
@@ -878,10 +1091,10 @@ const getOwnerLocationById = async (client, ownerUserId, clinicId) => {
         COALESCE(c.primary_color, '#2563EB') AS primary_color,
         COALESCE(c.secondary_color, '#0F172A') AS secondary_color,
         c.welcome_message,
-        c.subscription_plan_id,
-        c.subscription_start_date,
-        c.subscription_end_date,
-        COALESCE(c.subscription_status, 'Active') AS subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.start_date AS subscription_start_date,
+        os.end_date AS subscription_end_date,
+        COALESCE(os.subscription_status, 'Active') AS subscription_status,
         c.owner_user_id,
         owner_user.name AS owner_name,
         owner_user.email AS owner_email,
@@ -900,8 +1113,10 @@ const getOwnerLocationById = async (client, ownerUserId, clinicId) => {
      FROM public.clinics c
      LEFT JOIN public.users owner_user
        ON c.owner_user_id = owner_user.user_id
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.owner_user_id = $1
      AND c.clinic_id = $2
      LIMIT 1`,
@@ -1031,30 +1246,6 @@ const getOwnerAggregateUsage = async (client, ownerUserId) => {
   };
 };
 
-const syncOwnerLocationSubscriptions = async (
-  client,
-  ownerUserId,
-  subscriptionSource,
-) => {
-  if (!subscriptionSource) return;
-
-  await client.query(
-    `UPDATE public.clinics
-     SET subscription_plan_id = $1,
-         subscription_start_date = $2,
-         subscription_end_date = $3,
-         subscription_status = $4
-     WHERE owner_user_id = $5`,
-    [
-      subscriptionSource.subscription_plan_id || null,
-      subscriptionSource.subscription_start_date || null,
-      subscriptionSource.subscription_end_date || null,
-      subscriptionSource.subscription_status || "Active",
-      ownerUserId,
-    ],
-  );
-};
-
 // ===============================
 // PUBLIC: REGISTER CLINIC OWNER + FIRST CLINIC LOCATION
 // The owner and clinic remain inactive until an Admin approves the
@@ -1078,6 +1269,7 @@ router.post(
       services,
       contact_number,
       opening_hours,
+      operating_hours_schedule,
     } = req.body || {};
 
     const uploadedFiles = getUploadedClinicVerificationFiles(req);
@@ -1087,8 +1279,16 @@ router.post(
     const cleanAddress = cleanText(address);
     const normalizedServices = parseClinicServicesInput(services);
     const cleanServices = normalizedServices.join(", ");
+    const normalizedOperatingHours = parseOperatingHoursInput(
+      operating_hours_schedule,
+    );
+    const operatingHoursError = validateOperatingHours(
+      normalizedOperatingHours,
+    );
+    const cleanOpeningHours = operatingHoursToLegacyText(
+      normalizedOperatingHours,
+    );
     const cleanContactNumber = cleanText(contact_number);
-    const cleanOpeningHours = cleanText(opening_hours);
     const normalizedLatitude = normalizeNumber(latitude);
     const normalizedLongitude = normalizeNumber(longitude);
     const passwordError = validatePasswordStrength(password);
@@ -1130,9 +1330,9 @@ router.post(
       });
     }
 
-    if (!cleanOpeningHours) {
+    if (operatingHoursError) {
       return failRegistration(400, {
-        error: "Opening hours are required.",
+        error: operatingHoursError,
       });
     }
 
@@ -1254,12 +1454,11 @@ router.post(
            services,
            contact_number,
            opening_hours,
-           subscription_plan_id,
            owner_user_id,
            status,
            created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending Review', CURRENT_TIMESTAMP)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Pending Review', CURRENT_TIMESTAMP)
          RETURNING *`,
         [
           cleanClinicName,
@@ -1269,7 +1468,6 @@ router.post(
           normalizeNullable(cleanServices),
           normalizeNullable(cleanContactNumber),
           normalizeNullable(cleanOpeningHours),
-          freePlan.plan_id,
           ownerUserId,
         ],
       );
@@ -1277,6 +1475,32 @@ router.post(
       const clinicId = newClinic.rows[0].clinic_id;
 
       await syncClinicServices(client, clinicId, normalizedServices);
+      await syncClinicOperatingHours(
+        client,
+        clinicId,
+        normalizedOperatingHours,
+      );
+
+      await client.query(
+        `INSERT INTO public.owner_subscriptions
+         (
+           owner_user_id,
+           plan_id,
+           subscription_status,
+           billing_cycle,
+           start_date,
+           end_date,
+           auto_renew
+         )
+         VALUES ($1, $2, 'Active', $3, NULL, NULL, FALSE)
+         ON CONFLICT (owner_user_id)
+         DO UPDATE SET
+           plan_id = EXCLUDED.plan_id,
+           subscription_status = EXCLUDED.subscription_status,
+           billing_cycle = EXCLUDED.billing_cycle,
+           updated_at = CURRENT_TIMESTAMP`,
+        [ownerUserId, freePlan.plan_id, freePlan.billing_cycle || "Monthly"],
+      );
 
       const newApplication = await client.query(
         `INSERT INTO public.clinic_verification_applications
@@ -1835,7 +2059,7 @@ router.get(
             ) AS services,
             c.contact_number,
             c.opening_hours,
-            c.subscription_plan_id,
+            os.plan_id AS subscription_plan_id,
             c.owner_user_id,
             owner_user.name AS owner_name,
             owner_user.email AS owner_email,
@@ -1852,8 +2076,10 @@ router.get(
          FROM public.clinics c
          LEFT JOIN public.users owner_user
            ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id
          LEFT JOIN public.subscription_plans sp
-           ON c.subscription_plan_id = sp.plan_id
+           ON os.plan_id = sp.plan_id
          ORDER BY c.clinic_id DESC`,
       );
 
@@ -2369,11 +2595,6 @@ router.get(
       );
 
       if (subscriptionSource) {
-        await syncOwnerLocationSubscriptions(
-          client,
-          req.user.user_id,
-          subscriptionSource,
-        );
       }
 
       const locations = await getOwnerLocations(client, req.user.user_id);
@@ -2553,11 +2774,6 @@ router.get(
       );
 
       if (subscriptionSource) {
-        await syncOwnerLocationSubscriptions(
-          client,
-          req.user.user_id,
-          subscriptionSource,
-        );
       }
 
       const locations = await getOwnerLocations(client, req.user.user_id);
@@ -2642,14 +2858,23 @@ router.post(
       services,
       contact_number,
       opening_hours,
+      operating_hours_schedule,
     } = req.body || {};
 
     const cleanClinicName = cleanText(clinic_name);
     const cleanAddress = cleanText(address);
     const normalizedServices = parseClinicServicesInput(services);
     const cleanServices = normalizedServices.join(", ");
+    const normalizedOperatingHours = parseOperatingHoursInput(
+      operating_hours_schedule,
+    );
+    const operatingHoursError = validateOperatingHours(
+      normalizedOperatingHours,
+    );
+    const cleanOpeningHours = operatingHoursToLegacyText(
+      normalizedOperatingHours,
+    );
     const cleanContactNumber = cleanText(contact_number);
-    const cleanOpeningHours = cleanText(opening_hours);
 
     if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
@@ -2660,6 +2885,12 @@ router.post(
     if (normalizedServices.length === 0) {
       return res.status(400).json({
         error: "Select at least one clinic service.",
+      });
+    }
+
+    if (operatingHoursError) {
+      return res.status(400).json({
+        error: operatingHoursError,
       });
     }
 
@@ -2684,13 +2915,31 @@ router.post(
           });
         }
 
-        subscriptionSource = {
-          subscription_plan_id: freePlan.plan_id,
-          subscription_start_date: null,
-          subscription_end_date: null,
-          subscription_status: "Active",
-          ...freePlan,
-        };
+        await client.query(
+          `INSERT INTO public.owner_subscriptions
+           (
+             owner_user_id,
+             plan_id,
+             subscription_status,
+             billing_cycle,
+             start_date,
+             end_date,
+             auto_renew
+           )
+           VALUES ($1, $2, 'Active', $3, NULL, NULL, FALSE)
+           ON CONFLICT (owner_user_id)
+           DO NOTHING`,
+          [
+            req.user.user_id,
+            freePlan.plan_id,
+            freePlan.billing_cycle || "Monthly",
+          ],
+        );
+
+        subscriptionSource = await getOwnerSubscriptionSource(
+          client,
+          req.user.user_id,
+        );
       }
 
       const existingLocationCount = await client.query(
@@ -2750,12 +2999,6 @@ router.post(
         });
       }
 
-      await syncOwnerLocationSubscriptions(
-        client,
-        req.user.user_id,
-        subscriptionSource,
-      );
-
       const newLocation = await client.query(
         `INSERT INTO public.clinics
          (
@@ -2766,15 +3009,11 @@ router.post(
            services,
            contact_number,
            opening_hours,
-           subscription_plan_id,
-           subscription_start_date,
-           subscription_end_date,
-           subscription_status,
            owner_user_id,
            status,
            created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'Active', CURRENT_TIMESTAMP)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'Active', CURRENT_TIMESTAMP)
          RETURNING *`,
         [
           cleanClinicName,
@@ -2784,10 +3023,6 @@ router.post(
           normalizeNullable(cleanServices),
           normalizeNullable(cleanContactNumber),
           normalizeNullable(cleanOpeningHours),
-          subscriptionSource.subscription_plan_id || null,
-          subscriptionSource.subscription_start_date || null,
-          subscriptionSource.subscription_end_date || null,
-          subscriptionSource.subscription_status || "Active",
           req.user.user_id,
         ],
       );
@@ -2796,6 +3031,12 @@ router.post(
         client,
         newLocation.rows[0].clinic_id,
         normalizedServices,
+      );
+
+      await syncClinicOperatingHours(
+        client,
+        newLocation.rows[0].clinic_id,
+        normalizedOperatingHours,
       );
 
       await createAuditLog({
@@ -2851,6 +3092,7 @@ router.put(
       services,
       contact_number,
       opening_hours,
+      operating_hours_schedule,
       status,
     } = req.body || {};
 
@@ -2858,10 +3100,31 @@ router.put(
     const cleanAddress = cleanText(address);
     const normalizedServices = parseClinicServicesInput(services);
     const cleanServices = normalizedServices.join(", ");
+    const normalizedOperatingHours = parseOperatingHoursInput(
+      operating_hours_schedule,
+    );
+    const operatingHoursError = validateOperatingHours(
+      normalizedOperatingHours,
+    );
+    const cleanOpeningHours = operatingHoursToLegacyText(
+      normalizedOperatingHours,
+    );
 
     if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
         error: "Clinic location name and address are required.",
+      });
+    }
+
+    if (normalizedServices.length === 0) {
+      return res.status(400).json({
+        error: "Select at least one clinic service.",
+      });
+    }
+
+    if (operatingHoursError) {
+      return res.status(400).json({
+        error: operatingHoursError,
       });
     }
 
@@ -2915,11 +3178,6 @@ router.put(
       );
 
       if (subscriptionSource) {
-        await syncOwnerLocationSubscriptions(
-          client,
-          req.user.user_id,
-          subscriptionSource,
-        );
       }
 
       const updatedLocation = await client.query(
@@ -2942,7 +3200,7 @@ router.put(
           normalizeNumber(longitude),
           normalizeNullable(cleanServices),
           normalizeNullable(cleanText(contact_number)),
-          normalizeNullable(cleanText(opening_hours)),
+          normalizeNullable(cleanOpeningHours),
           normalizeNullable(status),
           clinic_id,
           req.user.user_id,
@@ -2953,6 +3211,12 @@ router.put(
         client,
         updatedLocation.rows[0].clinic_id,
         normalizedServices,
+      );
+
+      await syncClinicOperatingHours(
+        client,
+        updatedLocation.rows[0].clinic_id,
+        normalizedOperatingHours,
       );
 
       await createAuditLog({
@@ -2979,9 +3243,21 @@ router.put(
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
 
-      console.error("Update clinic owner location error:", err.message);
-      res.status(500).json({
-        error: "Error updating clinic owner location.",
+      console.error("Update clinic owner location error:", {
+        message: err.message,
+        code: err.code,
+        constraint: err.constraint,
+        detail: err.detail,
+      });
+
+      res.status(err.statusCode || 500).json({
+        error:
+          err.statusCode === 400
+            ? err.message
+            : "Error updating clinic owner location.",
+        database_code: err.code || null,
+        details:
+          process.env.NODE_ENV === "development" ? err.message : undefined,
       });
     } finally {
       client.release();
@@ -3014,8 +3290,10 @@ router.get(
         });
       }
 
-      const expiredSubscription =
-        await markExpiredSubscriptionIfNeeded(clinic_id);
+      const expiredSubscription = await markExpiredSubscriptionIfNeeded(
+        client,
+        req.user.user_id,
+      );
 
       const subscriptionSource = await getOwnerSubscriptionSource(
         client,
@@ -3071,11 +3349,6 @@ router.get(
       );
 
       if (subscriptionSource) {
-        await syncOwnerLocationSubscriptions(
-          client,
-          req.user.user_id,
-          subscriptionSource,
-        );
       }
 
       const locations = await getOwnerLocations(client, req.user.user_id);
@@ -3181,7 +3454,7 @@ router.put(
           normalizeNumber(longitude),
           normalizeNullable(cleanText(services)),
           normalizeNullable(cleanText(contact_number)),
-          normalizeNullable(cleanText(opening_hours)),
+          normalizeNullable(cleanOpeningHours),
           locations[0].clinic_id,
           req.user.user_id,
         ],
@@ -3235,20 +3508,19 @@ router.get(
         });
       }
 
-      await markExpiredSubscriptionIfNeeded(subscriptionSource.clinic_id);
-      await syncOwnerLocationSubscriptions(
-        client,
-        req.user.user_id,
-        subscriptionSource,
-      );
+      await markExpiredSubscriptionIfNeeded(client, req.user.user_id);
+
+      const refreshedSubscriptionSource =
+        (await getOwnerSubscriptionSource(client, req.user.user_id)) ||
+        subscriptionSource;
 
       const aggregate = await getOwnerAggregateUsage(client, req.user.user_id);
 
       res.status(200).json({
         message:
           "Clinic owner shared subscription usage retrieved successfully.",
-        clinic: subscriptionSource,
-        shared_subscription: subscriptionSource,
+        clinic: refreshedSubscriptionSource,
+        shared_subscription: refreshedSubscriptionSource,
         locations: aggregate.locations,
         usage_by_location: aggregate.usage_by_location,
         usage: aggregate.usage,
@@ -3281,119 +3553,97 @@ router.get(
   authorizeRoles("Admin"),
   async (req, res) => {
     try {
-      // Keep all active locations under the same owner aligned to one shared
-      // subscription source before returning the monitoring table.
       await pool.query(
-        `WITH subscription_source AS (
-           SELECT DISTINCT ON (owner_user_id)
-             owner_user_id,
-             subscription_plan_id,
-             subscription_start_date,
-             subscription_end_date,
-             COALESCE(subscription_status, 'Active') AS subscription_status
-           FROM public.clinics
-           WHERE owner_user_id IS NOT NULL
-           ORDER BY
-             owner_user_id,
-             CASE WHEN subscription_plan_id IS NULL THEN 1 ELSE 0 END,
-             created_at ASC NULLS LAST,
-             clinic_id ASC
-         )
-         UPDATE public.clinics c
-         SET subscription_plan_id = s.subscription_plan_id,
-             subscription_start_date = s.subscription_start_date,
-             subscription_end_date = s.subscription_end_date,
-             subscription_status = s.subscription_status
-         FROM subscription_source s
-         WHERE c.owner_user_id = s.owner_user_id
-         AND c.owner_user_id IS NOT NULL`,
-      );
-
-      await pool.query(
-        `UPDATE public.clinics
-         SET subscription_status = 'Expired'
-         WHERE subscription_end_date IS NOT NULL
-         AND subscription_end_date < CURRENT_TIMESTAMP
-         AND COALESCE(subscription_status, 'Active') <> 'Expired'`,
+        `UPDATE public.owner_subscriptions
+         SET subscription_status = 'Expired',
+             updated_at = CURRENT_TIMESTAMP
+         WHERE end_date IS NOT NULL
+           AND end_date < CURRENT_TIMESTAMP
+           AND subscription_status <> 'Expired'`,
       );
 
       const subscriptions = await pool.query(
-        `WITH owner_location_counts AS (
-           SELECT
-             owner_user_id,
-             COUNT(*)::int AS owner_location_count,
-             COUNT(*) FILTER (WHERE COALESCE(status, 'Active') = 'Active')::int
-               AS owner_active_location_count
-           FROM public.clinics
-           WHERE owner_user_id IS NOT NULL
-           GROUP BY owner_user_id
-         )
-         SELECT
-             c.clinic_id,
-             c.clinic_name,
-             c.owner_user_id,
-             owner_user.name AS owner_name,
-             owner_user.email AS owner_email,
+        `SELECT
+           c.clinic_id,
+           c.clinic_name,
+           c.owner_user_id,
+           owner_user.name AS owner_name,
+           owner_user.email AS owner_email,
 
-             COALESCE(olc.owner_location_count, 1) AS owner_location_count,
-             COALESCE(olc.owner_active_location_count, 0)
-               AS owner_active_location_count,
-             CASE
-               WHEN COALESCE(olc.owner_location_count, 1) > 1
-                 THEN 'Shared across locations'
-               ELSE 'Single location'
-             END AS subscription_scope,
+           COUNT(*) OVER (PARTITION BY c.owner_user_id)::int
+             AS owner_location_count,
 
-             c.subscription_plan_id,
-             sp.plan_name,
-             sp.plan_tier,
-             sp.price,
-             sp.billing_cycle,
-             sp.max_clinics,
-             sp.max_dentists,
-             sp.max_assistants,
-             sp.max_patients,
-             sp.max_records,
-             sp.max_xrays,
-             sp.storage_limit_mb,
+           COUNT(*) FILTER (
+             WHERE COALESCE(c.status, 'Active') = 'Active'
+           ) OVER (PARTITION BY c.owner_user_id)::int
+             AS owner_active_location_count,
 
-             c.subscription_start_date,
-             c.subscription_end_date,
-             COALESCE(c.subscription_status, 'Active') AS subscription_status,
-
-             CASE
-               WHEN c.subscription_plan_id IS NULL THEN 'No Plan'
-               WHEN c.subscription_end_date IS NULL THEN 'No End Date'
-               WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 'Expired'
-               WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days'
-                 THEN 'Expiring Soon'
-               ELSE COALESCE(c.subscription_status, 'Active')
-             END AS monitoring_status,
-
-             CASE
-               WHEN c.subscription_end_date IS NULL THEN NULL
-               ELSE CEIL(EXTRACT(EPOCH FROM (c.subscription_end_date - CURRENT_TIMESTAMP)) / 86400)::int
-             END AS days_remaining,
-
-             c.status AS clinic_status,
-             c.created_at
-          FROM public.clinics c
-          LEFT JOIN public.users owner_user
-            ON c.owner_user_id = owner_user.user_id
-          LEFT JOIN public.subscription_plans sp
-            ON c.subscription_plan_id = sp.plan_id
-          LEFT JOIN owner_location_counts olc
-            ON c.owner_user_id = olc.owner_user_id
-          ORDER BY
            CASE
-              WHEN c.subscription_plan_id IS NULL THEN 1
-              WHEN c.subscription_end_date < CURRENT_TIMESTAMP THEN 2
-              WHEN c.subscription_end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days' THEN 3
-              ELSE 4
+             WHEN COUNT(*) OVER (PARTITION BY c.owner_user_id) > 1
+               THEN 'Shared across locations'
+             ELSE 'Single location'
+           END AS subscription_scope,
+
+           os.owner_subscription_id,
+           os.plan_id AS subscription_plan_id,
+           sp.plan_name,
+           sp.plan_tier,
+           sp.price,
+           COALESCE(os.billing_cycle, sp.billing_cycle) AS billing_cycle,
+           sp.max_clinics,
+           sp.max_dentists,
+           sp.max_assistants,
+           sp.max_patients,
+           sp.max_records,
+           sp.max_xrays,
+           sp.storage_limit_mb,
+
+           os.start_date AS subscription_start_date,
+           os.end_date AS subscription_end_date,
+           COALESCE(os.subscription_status, 'Active')
+             AS subscription_status,
+           os.auto_renew,
+
+           CASE
+             WHEN os.plan_id IS NULL THEN 'No Plan'
+             WHEN os.end_date IS NULL
+               THEN COALESCE(os.subscription_status, 'Active')
+             WHEN os.end_date < CURRENT_TIMESTAMP THEN 'Expired'
+             WHEN os.end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days'
+               THEN 'Expiring Soon'
+             ELSE COALESCE(os.subscription_status, 'Active')
+           END AS monitoring_status,
+
+           CASE
+             WHEN os.end_date IS NULL THEN NULL
+             ELSE CEIL(
+               EXTRACT(
+                 EPOCH FROM (os.end_date - CURRENT_TIMESTAMP)
+               ) / 86400
+             )::int
+           END AS days_remaining,
+
+           c.status AS clinic_status,
+           c.created_at
+
+         FROM public.clinics c
+         LEFT JOIN public.users owner_user
+           ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id
+         LEFT JOIN public.subscription_plans sp
+           ON os.plan_id = sp.plan_id
+         ORDER BY
+           CASE
+             WHEN os.plan_id IS NULL THEN 1
+             WHEN os.end_date < CURRENT_TIMESTAMP THEN 2
+             WHEN os.end_date <= CURRENT_TIMESTAMP + INTERVAL '7 days'
+               THEN 3
+             ELSE 4
            END,
-            owner_user.name ASC NULLS LAST,
-            c.subscription_end_date ASC NULLS LAST,
-            c.clinic_name ASC`,
+           owner_user.name ASC NULLS LAST,
+           os.end_date ASC NULLS LAST,
+           c.clinic_name ASC`,
       );
 
       const rows = subscriptions.rows;
@@ -3450,7 +3700,7 @@ router.get(
         `SELECT 
             c.clinic_id,
             c.clinic_name,
-            c.subscription_plan_id,
+            os.plan_id AS subscription_plan_id,
             c.owner_user_id,
             owner_user.name AS owner_name,
             owner_user.email AS owner_email,
@@ -3464,8 +3714,10 @@ router.get(
          FROM public.clinics c
          LEFT JOIN public.users owner_user
            ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id
          LEFT JOIN public.subscription_plans sp
-           ON c.subscription_plan_id = sp.plan_id
+           ON os.plan_id = sp.plan_id
          WHERE c.clinic_id = $1`,
         [clinic_id],
       );
@@ -3590,7 +3842,7 @@ router.get(
             ) AS services,
             c.contact_number,
             c.opening_hours,
-            c.subscription_plan_id,
+            os.plan_id AS subscription_plan_id,
             c.owner_user_id,
             owner_user.name AS owner_name,
             owner_user.email AS owner_email,
@@ -3607,8 +3859,10 @@ router.get(
          FROM public.clinics c
          LEFT JOIN public.users owner_user
            ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id
          LEFT JOIN public.subscription_plans sp
-           ON c.subscription_plan_id = sp.plan_id
+           ON os.plan_id = sp.plan_id
          WHERE c.clinic_id = $1`,
         [clinic_id],
       );
@@ -3619,9 +3873,14 @@ router.get(
         });
       }
 
+      const normalizedClinic = await attachNormalizedServices(
+        pool,
+        clinic.rows[0],
+      );
+
       res.status(200).json({
         message: "Clinic retrieved successfully",
-        clinic: clinic.rows[0],
+        clinic: normalizedClinic,
       });
     } catch (err) {
       console.error("Get clinic error:", err.message);
@@ -3649,6 +3908,7 @@ router.post(
       services,
       contact_number,
       opening_hours,
+      operating_hours_schedule,
       subscription_plan_id,
       status,
       owner_user_id,
@@ -3665,10 +3925,25 @@ router.post(
 
     const normalizedServices = parseClinicServicesInput(services);
     const cleanServices = normalizedServices.join(", ");
+    const normalizedOperatingHours = parseOperatingHoursInput(
+      operating_hours_schedule,
+    );
+    const operatingHoursError = validateOperatingHours(
+      normalizedOperatingHours,
+    );
+    const cleanOpeningHours = operatingHoursToLegacyText(
+      normalizedOperatingHours,
+    );
 
     if (normalizedServices.length === 0) {
       return res.status(400).json({
         error: "Select at least one clinic service.",
+      });
+    }
+
+    if (operatingHoursError) {
+      return res.status(400).json({
+        error: operatingHoursError,
       });
     }
 
@@ -3731,12 +4006,11 @@ router.post(
            services,
            contact_number,
            opening_hours,
-           subscription_plan_id,
            owner_user_id,
            status,
            created_at
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10, 'Active'), CURRENT_TIMESTAMP)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'Active'), CURRENT_TIMESTAMP)
          RETURNING *`,
         [
           cleanClinicName,
@@ -3745,8 +4019,7 @@ router.post(
           normalizeNumber(longitude),
           normalizeNullable(cleanServices),
           normalizeNullable(cleanText(contact_number)),
-          normalizeNullable(cleanText(opening_hours)),
-          normalizeNumber(subscription_plan_id),
+          normalizeNullable(cleanOpeningHours),
           normalizeNumber(owner_user_id),
           status || "Active",
         ],
@@ -3757,6 +4030,46 @@ router.post(
         newClinic.rows[0].clinic_id,
         normalizedServices,
       );
+
+      await syncClinicOperatingHours(
+        client,
+        newClinic.rows[0].clinic_id,
+        normalizedOperatingHours,
+      );
+
+      if (owner_user_id && subscription_plan_id) {
+        const selectedPlan = await client.query(
+          `SELECT plan_id, billing_cycle
+           FROM public.subscription_plans
+           WHERE plan_id = $1`,
+          [subscription_plan_id],
+        );
+
+        await client.query(
+          `INSERT INTO public.owner_subscriptions
+           (
+             owner_user_id,
+             plan_id,
+             subscription_status,
+             billing_cycle,
+             start_date,
+             end_date,
+             auto_renew
+           )
+           VALUES ($1, $2, 'Active', $3, CURRENT_TIMESTAMP, NULL, FALSE)
+           ON CONFLICT (owner_user_id)
+           DO UPDATE SET
+             plan_id = EXCLUDED.plan_id,
+             subscription_status = 'Active',
+             billing_cycle = EXCLUDED.billing_cycle,
+             updated_at = CURRENT_TIMESTAMP`,
+          [
+            owner_user_id,
+            subscription_plan_id,
+            selectedPlan.rows[0]?.billing_cycle || "Monthly",
+          ],
+        );
+      }
 
       await createAuditLog({
         user_id: req.user.user_id,
@@ -3808,6 +4121,7 @@ router.put(
       services,
       contact_number,
       opening_hours,
+      operating_hours_schedule,
       subscription_plan_id,
       status,
       owner_user_id,
@@ -3815,6 +4129,23 @@ router.put(
 
     const normalizedServices = parseClinicServicesInput(services);
     const cleanServices = normalizedServices.join(", ");
+    const normalizedOperatingHours =
+      operating_hours_schedule === undefined
+        ? null
+        : parseOperatingHoursInput(operating_hours_schedule);
+    const operatingHoursError = normalizedOperatingHours
+      ? validateOperatingHours(normalizedOperatingHours)
+      : "";
+    const cleanOpeningHours = normalizedOperatingHours
+      ? operatingHoursToLegacyText(normalizedOperatingHours)
+      : normalizeNullable(cleanText(opening_hours));
+
+    if (operatingHoursError) {
+      return res.status(400).json({
+        error: operatingHoursError,
+      });
+    }
+
     const client = await pool.connect();
 
     try {
@@ -3873,10 +4204,9 @@ router.put(
              services = $5,
              contact_number = $6,
              opening_hours = $7,
-             subscription_plan_id = $8,
-             owner_user_id = $9,
-             status = COALESCE($10, status)
-         WHERE clinic_id = $11
+             owner_user_id = COALESCE($8, owner_user_id),
+             status = COALESCE($9, status)
+         WHERE clinic_id = $10
          RETURNING *`,
         [
           normalizeNullable(cleanText(clinic_name)),
@@ -3885,19 +4215,92 @@ router.put(
           normalizeNumber(longitude),
           normalizeNullable(cleanServices),
           normalizeNullable(cleanText(contact_number)),
-          normalizeNullable(cleanText(opening_hours)),
-          normalizeNumber(subscription_plan_id),
+          normalizeNullable(cleanOpeningHours),
           normalizeNumber(owner_user_id),
           normalizeNullable(status),
           clinic_id,
         ],
       );
 
+      const targetOwnerUserId =
+        normalizeNumber(owner_user_id) ||
+        updatedClinic.rows[0].owner_user_id ||
+        oldClinic.owner_user_id;
+
+      if (
+        subscription_plan_id !== undefined &&
+        subscription_plan_id !== null &&
+        subscription_plan_id !== "" &&
+        targetOwnerUserId
+      ) {
+        const selectedPlan = await client.query(
+          `SELECT
+             plan_id,
+             billing_cycle
+           FROM public.subscription_plans
+           WHERE plan_id = $1`,
+          [subscription_plan_id],
+        );
+
+        if (selectedPlan.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({
+            error: "Subscription plan not found",
+          });
+        }
+
+        await client.query(
+          `INSERT INTO public.owner_subscriptions
+           (
+             owner_user_id,
+             plan_id,
+             subscription_status,
+             billing_cycle,
+             start_date,
+             end_date,
+             auto_renew
+           )
+           VALUES (
+             $1,
+             $2,
+             'Active',
+             $3,
+             CURRENT_TIMESTAMP,
+             NULL,
+             FALSE
+           )
+           ON CONFLICT (owner_user_id)
+           DO UPDATE SET
+             plan_id = EXCLUDED.plan_id,
+             subscription_status = 'Active',
+             billing_cycle = EXCLUDED.billing_cycle,
+             updated_at = CURRENT_TIMESTAMP`,
+          [
+            targetOwnerUserId,
+            subscription_plan_id,
+            selectedPlan.rows[0].billing_cycle || "Monthly",
+          ],
+        );
+
+        const ownerSubscription = await getOwnerSubscriptionSource(
+          client,
+          targetOwnerUserId,
+        );
+      }
+
       if (services !== undefined) {
         await syncClinicServices(
           client,
           updatedClinic.rows[0].clinic_id,
           normalizedServices,
+        );
+      }
+
+      if (operating_hours_schedule !== undefined) {
+        await syncClinicOperatingHours(
+          client,
+          updatedClinic.rows[0].clinic_id,
+          normalizedOperatingHours,
         );
       }
 

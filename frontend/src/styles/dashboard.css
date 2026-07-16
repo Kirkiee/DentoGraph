@@ -5476,6 +5476,66 @@ body textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder {
   color: #94a3b8;
 }
@@ -5780,6 +5840,138 @@ body .appointment-filters select:focus {
 }
 
 /* Placeholder text */
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::-webkit-input-placeholder,
 body textarea::-webkit-input-placeholder,
 body .modal-form input::-webkit-input-placeholder,
@@ -17803,6 +17995,66 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::-webkit-input-placeholder, .patient-xray-control-panel input::-webkit-input-placeholder {
   color: #94a3b8 !important;
 }
@@ -21709,6 +21961,66 @@ body {
   color: #718096 !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: #718096 !important;
 }
@@ -23391,6 +23703,114 @@ body {
   ) !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: color-mix(
     in srgb,
@@ -23784,6 +24204,114 @@ body {
   border-color: var(--clinic-primary) !important;
   box-shadow: 0 0 0 4px
     color-mix(in srgb, var(--clinic-primary) 16%, transparent) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
@@ -28217,4 +28745,437 @@ body {
   .admin-clinic-service-selector .clinic-service-options {
     grid-template-columns: 1fr;
   }
+}
+
+/* NORMALIZED CLINIC OPERATING HOURS EDITOR */
+.clinic-hours-editor {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.18);
+}
+.clinic-hours-editor legend {
+  padding: 0 7px;
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.clinic-hours-editor-help {
+  margin: 0 0 12px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.78rem;
+}
+.clinic-hours-editor-list {
+  display: grid;
+  gap: 8px;
+}
+.clinic-hours-editor-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(260px, 1.7fr);
+  align-items: center;
+  gap: 13px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.28);
+}
+.clinic-hours-open-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+.clinic-hours-open-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--clinic-primary, #2563eb);
+}
+.clinic-hours-time-fields {
+  display: grid;
+  grid-template-columns: minmax(105px, 1fr) auto minmax(105px, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+.clinic-hours-time-fields label {
+  display: grid;
+  gap: 4px;
+}
+.clinic-hours-time-fields label > span {
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.clinic-hours-time-fields input {
+  width: 100%;
+  min-height: 39px;
+  box-sizing: border-box;
+}
+.clinic-hours-separator {
+  padding-bottom: 10px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.75rem;
+}
+.clinic-hours-closed-label {
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+@media (max-width: 650px) {
+  .clinic-hours-editor-row {
+    grid-template-columns: 1fr;
+  }
+  .clinic-hours-time-fields {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
+/* =========================================================
+   DENTOGRAPH — WEEKLY OPERATING HOURS
+   Consistent dashboard/auth styling
+   Append at the absolute bottom of:
+   - frontend/src/styles/auth.css
+   - frontend/src/styles/dashboard.css
+   ========================================================= */
+
+.clinic-hours-editor {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 52%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--clinic-primary, #22d3ee) 4%, transparent),
+      transparent
+    ),
+    var(--clinic-surface, var(--dg-surface, rgba(15, 23, 42, 0.72)));
+  color: var(--clinic-body-text, var(--dg-text, #f8fafc));
+  box-shadow: none;
+}
+
+.clinic-hours-editor legend {
+  padding: 0 8px;
+  color: var(--clinic-heading-text, var(--dg-text, #f8fafc));
+  background: var(--clinic-surface, var(--dg-surface, #0f172a));
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.clinic-hours-editor-help {
+  margin: 0 0 14px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.clinic-hours-editor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.clinic-hours-editor-row {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.75fr) minmax(300px, 1.7fr);
+  align-items: center;
+  gap: 18px;
+  min-height: 72px;
+  padding: 13px 15px;
+  box-sizing: border-box;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, #22d3ee) 24%,
+      rgba(148, 163, 184, 0.2)
+    );
+  border-radius: 13px;
+  background: var(
+    --clinic-surface-elevated,
+    var(--dg-surface-soft, rgba(15, 23, 42, 0.58))
+  );
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.clinic-hours-editor-row:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, #22d3ee) 48%,
+    transparent
+  );
+}
+
+.clinic-hours-open-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--clinic-heading-text, var(--dg-text, #f8fafc));
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clinic-hours-open-toggle input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 auto;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 55%, #94a3b8);
+  border-radius: 5px;
+  background: var(--clinic-surface, var(--dg-surface, #0f172a));
+  cursor: pointer;
+  position: relative;
+}
+
+.clinic-hours-open-toggle input:checked {
+  border-color: var(--clinic-primary, #22d3ee);
+  background: var(--clinic-primary, #22d3ee);
+}
+
+.clinic-hours-open-toggle input:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--clinic-button-text, #04131a);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.clinic-hours-open-toggle input:focus-visible {
+  outline: 2px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 72%, white);
+  outline-offset: 2px;
+}
+
+.clinic-hours-time-fields {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto minmax(130px, 1fr);
+  align-items: end;
+  gap: 10px;
+}
+
+.clinic-hours-time-fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.clinic-hours-time-fields label > span {
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.clinic-hours-time-fields input[type="time"] {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  box-sizing: border-box;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 34%, #64748b);
+  border-radius: 9px;
+  color: var(--clinic-body-text, var(--dg-text, #f8fafc));
+  background: var(--clinic-input-bg, rgba(2, 6, 23, 0.5));
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color-scheme: dark;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.clinic-hours-time-fields input[type="time"]:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, #22d3ee) 56%,
+    transparent
+  );
+}
+
+.clinic-hours-time-fields input[type="time"]:focus {
+  border-color: var(--clinic-primary, #22d3ee);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 18%, transparent);
+}
+
+.clinic-hours-time-fields
+  input[type="time"]::-webkit-calendar-picker-indicator {
+  -webkit-filter: invert(1);
+  filter: invert(1);
+  opacity: 0.72;
+  cursor: pointer;
+}
+
+.clinic-hours-separator {
+  padding-bottom: 12px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.clinic-hours-closed-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.clinic-hours-editor input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.clinic-hours-editor-compact {
+  padding: 16px;
+}
+
+.clinic-hours-editor-compact .clinic-hours-editor-row {
+  grid-template-columns: minmax(130px, 0.7fr) minmax(280px, 1.6fr);
+}
+
+@media (max-width: 760px) {
+  .clinic-hours-editor-row,
+  .clinic-hours-editor-compact .clinic-hours-editor-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .clinic-hours-time-fields {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .clinic-hours-editor {
+    padding: 14px;
+  }
+
+  .clinic-hours-editor-row {
+    padding: 12px;
+  }
+
+  .clinic-hours-time-fields {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .clinic-hours-separator {
+    display: none;
+  }
+}
+
+/* =========================================================
+   DENTOGRAPH — OPERATING HOURS ICON COLOR FIX
+   Append at the absolute bottom of auth.css and dashboard.css.
+   All icons inherit the active clinic theme color.
+   ========================================================= */
+
+/* Checkbox outline follows the clinic primary color. */
+.clinic-hours-open-toggle input[type="checkbox"] {
+  -moz-appearance: none;
+       appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  position: relative;
+  flex: 0 0 auto;
+  border: 1.5px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-accent)) 62%,
+      var(--clinic-muted-text, var(--dg-muted))
+    );
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.clinic-hours-open-toggle input[type="checkbox"]:hover {
+  border-color: var(--clinic-primary, var(--dg-accent));
+}
+
+.clinic-hours-open-toggle input[type="checkbox"]:checked {
+  border-color: var(--clinic-primary, var(--dg-accent));
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-accent)) 20%,
+    transparent
+  );
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--clinic-primary, var(--dg-accent)) 20%, transparent);
+}
+
+/* Theme-colored checkmark instead of a black native check. */
+.clinic-hours-open-toggle input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--clinic-primary, var(--dg-accent));
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.clinic-hours-open-toggle input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary, var(--dg-accent)) 20%, transparent);
+}
+
+/* Replace the browser's black clock with a clinic-theme clock icon. */
+.clinic-hours-time-fields
+  input[type="time"]::-webkit-calendar-picker-indicator {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-left: 8px;
+  opacity: 1;
+  cursor: pointer;
+  background: var(--clinic-primary, var(--dg-accent));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16a8 8 0 0 1 0-16Zm-1 3h2v4.59l3.2 3.2l-1.41 1.42L11 12.41V7Z'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16a8 8 0 0 1 0-16Zm-1 3h2v4.59l3.2 3.2l-1.41 1.42L11 12.41V7Z'/%3E%3C/svg%3E");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-filter: none;
+          filter: none;
+}
+
+/* Keep disabled controls readable while preserving the clinic color. */
+.clinic-hours-open-toggle input[type="checkbox"]:disabled,
+.clinic-hours-time-fields input[type="time"]:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
 }

@@ -7,6 +7,13 @@ import {
   CLINIC_SERVICE_CATEGORIES,
   getClinicServiceNames,
 } from "../utils/clinicServices";
+import ClinicOperatingHoursEditor from "../components/ClinicOperatingHoursEditor";
+import {
+  clinicOperatingHoursToSummary,
+  createDefaultClinicOperatingHours,
+  normalizeClinicOperatingHours,
+  validateClinicOperatingHours,
+} from "../utils/clinicOperatingHours";
 import "leaflet/dist/leaflet.css";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -91,6 +98,7 @@ function AdminClinics() {
     services: [],
     contact_number: "",
     opening_hours: "",
+    operating_hours_schedule: createDefaultClinicOperatingHours(),
     subscription_plan_id: "",
     status: "Active",
   });
@@ -374,6 +382,7 @@ function AdminClinics() {
       services: [],
       contact_number: "",
       opening_hours: "",
+      operating_hours_schedule: createDefaultClinicOperatingHours(),
       subscription_plan_id: "",
       status: "Active",
     });
@@ -398,7 +407,8 @@ function AdminClinics() {
       longitude: clinic.longitude || "",
       services: getClinicServiceNames(clinic),
       contact_number: clinic.contact_number || "",
-      opening_hours: clinic.opening_hours || clinic.operating_hours || "",
+      opening_hours: clinic.opening_hours || "",
+      operating_hours_schedule: normalizeClinicOperatingHours(clinic),
       subscription_plan_id: clinic.subscription_plan_id || "",
       status: clinic.status || "Active",
     });
@@ -485,6 +495,15 @@ function AdminClinics() {
       return;
     }
 
+    const operatingHoursError = validateClinicOperatingHours(
+      clinicForm.operating_hours_schedule,
+    );
+
+    if (operatingHoursError) {
+      setModalError(operatingHoursError);
+      return;
+    }
+
     if (!validateCoordinates()) {
       return;
     }
@@ -502,7 +521,10 @@ function AdminClinics() {
         longitude: clinicForm.longitude || null,
         services: clinicForm.services,
         contact_number: clinicForm.contact_number,
-        opening_hours: clinicForm.opening_hours,
+        opening_hours: clinicOperatingHoursToSummary(
+          clinicForm.operating_hours_schedule,
+        ),
+        operating_hours_schedule: clinicForm.operating_hours_schedule,
         subscription_plan_id: clinicForm.subscription_plan_id || null,
         status: clinicForm.status,
       };
@@ -1510,16 +1532,20 @@ function AdminClinics() {
                 />
               </div>
 
-              <div className="form-group">
-                <label>Opening Hours</label>
-                <textarea
-                  name="opening_hours"
-                  value={clinicForm.opening_hours}
-                  onChange={handleClinicChange}
-                  placeholder="Example: Monday to Saturday, 9:00 AM - 6:00 PM"
-                  rows="3"
-                />
-              </div>
+              <ClinicOperatingHoursEditor
+                value={clinicForm.operating_hours_schedule}
+                onChange={(operatingHoursSchedule) =>
+                  setClinicForm((previous) => ({
+                    ...previous,
+                    operating_hours_schedule: operatingHoursSchedule,
+                    opening_hours: clinicOperatingHoursToSummary(
+                      operatingHoursSchedule,
+                    ),
+                  }))
+                }
+                disabled={saving}
+                compact
+              />
 
               <div className="form-group">
                 <label>Shared Subscription Plan</label>

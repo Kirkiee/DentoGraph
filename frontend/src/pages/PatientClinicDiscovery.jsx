@@ -19,6 +19,7 @@ import {
   clinicServicesToDisplayText,
   getClinicServiceNames,
 } from "../utils/clinicServices";
+import { clinicOperatingHoursToSummary } from "../utils/clinicOperatingHours";
 
 delete L.Icon.Default.prototype._getIconUrl;
 
@@ -644,7 +645,9 @@ function PatientClinicDiscovery() {
 
                 <p>
                   <strong>Opening Hours:</strong>{" "}
-                  {clinic.opening_hours || "No schedule listed"}
+                  {clinicOperatingHoursToSummary(clinic) ||
+                    clinic.opening_hours ||
+                    "No schedule listed"}
                 </p>
 
                 <p>

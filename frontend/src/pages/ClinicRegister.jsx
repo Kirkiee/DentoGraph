@@ -8,6 +8,12 @@ import AuthButton from "../components/auth/AuthButton";
 import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
 import { CLINIC_SERVICE_CATEGORIES } from "../utils/clinicServices";
+import ClinicOperatingHoursEditor from "../components/ClinicOperatingHoursEditor";
+import {
+  clinicOperatingHoursToSummary,
+  createDefaultClinicOperatingHours,
+  validateClinicOperatingHours,
+} from "../utils/clinicOperatingHours";
 
 function ClinicRegister() {
   const navigate = useNavigate();
@@ -31,6 +37,7 @@ function ClinicRegister() {
     contact_number: "",
     services: [],
     opening_hours: "",
+    operating_hours_schedule: createDefaultClinicOperatingHours(),
   });
 
   const [verificationFiles, setVerificationFiles] = useState({
@@ -106,6 +113,7 @@ function ClinicRegister() {
       contact_number: "",
       services: [],
       opening_hours: "",
+      operating_hours_schedule: createDefaultClinicOperatingHours(),
     });
 
     setVerificationFiles({
@@ -295,7 +303,12 @@ function ClinicRegister() {
       ? formData.services
       : [];
     const servicesPayload = JSON.stringify(selectedServices);
-    const openingHours = cleanText(formData.opening_hours);
+    const operatingHoursError = validateClinicOperatingHours(
+      formData.operating_hours_schedule,
+    );
+    const openingHours = clinicOperatingHoursToSummary(
+      formData.operating_hours_schedule,
+    );
 
     if (!ownerName) {
       setError("Clinic owner name is required.");
@@ -346,8 +359,8 @@ function ClinicRegister() {
       return;
     }
 
-    if (!openingHours) {
-      setError("Opening hours are required.");
+    if (operatingHoursError) {
+      setError(operatingHoursError);
       return;
     }
 
@@ -391,6 +404,10 @@ function ClinicRegister() {
       registrationPayload.append("contact_number", contactNumber);
       registrationPayload.append("services", servicesPayload);
       registrationPayload.append("opening_hours", openingHours);
+      registrationPayload.append(
+        "operating_hours_schedule",
+        JSON.stringify(formData.operating_hours_schedule),
+      );
       registrationPayload.append("turnstileToken", turnstileToken);
 
       registrationPayload.append(
@@ -724,20 +741,19 @@ function ClinicRegister() {
               </div>
             </fieldset>
 
-            <div className="auth-textarea-group">
-              <label>
-                Opening Hours <span className="auth-required">*</span>
-              </label>
-              <textarea
-                name="opening_hours"
-                value={formData.opening_hours}
-                onChange={handleChange}
-                placeholder="Example: Monday to Saturday, 9:00 AM - 5:00 PM"
-                rows="4"
-                disabled={loading}
-                required
-              />
-            </div>
+            <ClinicOperatingHoursEditor
+              value={formData.operating_hours_schedule}
+              onChange={(operatingHoursSchedule) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  operating_hours_schedule: operatingHoursSchedule,
+                  opening_hours: clinicOperatingHoursToSummary(
+                    operatingHoursSchedule,
+                  ),
+                }))
+              }
+              disabled={loading}
+            />
 
             <fieldset className="clinic-verification-section">
               <legend>

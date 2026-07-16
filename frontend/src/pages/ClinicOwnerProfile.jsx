@@ -7,6 +7,13 @@ import {
   CLINIC_SERVICE_CATEGORIES,
   getClinicServiceNames,
 } from "../utils/clinicServices";
+import ClinicOperatingHoursEditor from "../components/ClinicOperatingHoursEditor";
+import {
+  clinicOperatingHoursToSummary,
+  createDefaultClinicOperatingHours,
+  normalizeClinicOperatingHours,
+  validateClinicOperatingHours,
+} from "../utils/clinicOperatingHours";
 
 function ClinicOwnerProfile() {
   const navigate = useNavigate();
@@ -19,6 +26,7 @@ function ClinicOwnerProfile() {
     services: [],
     contact_number: "",
     opening_hours: "",
+    operating_hours_schedule: createDefaultClinicOperatingHours(),
     status: "Active",
   };
 
@@ -107,6 +115,8 @@ function ClinicOwnerProfile() {
         services: getClinicServiceNames(selectedLocation.services),
         contact_number: selectedLocation.contact_number || "",
         opening_hours: selectedLocation.opening_hours || "",
+        operating_hours_schedule:
+          normalizeClinicOperatingHours(selectedLocation),
         status: selectedLocation.status || "Active",
       });
     }
@@ -372,7 +382,10 @@ function ClinicOwnerProfile() {
           longitude: locationForm.longitude || null,
           services: locationForm.services,
           contact_number: locationForm.contact_number || null,
-          opening_hours: locationForm.opening_hours || null,
+          opening_hours: clinicOperatingHoursToSummary(
+            locationForm.operating_hours_schedule,
+          ),
+          operating_hours_schedule: locationForm.operating_hours_schedule,
           status: locationForm.status || "Active",
         },
       );
@@ -443,7 +456,10 @@ function ClinicOwnerProfile() {
         longitude: newLocationForm.longitude || null,
         services: newLocationForm.services,
         contact_number: newLocationForm.contact_number || null,
-        opening_hours: newLocationForm.opening_hours || null,
+        opening_hours: clinicOperatingHoursToSummary(
+          newLocationForm.operating_hours_schedule,
+        ),
+        operating_hours_schedule: newLocationForm.operating_hours_schedule,
         status: newLocationForm.status || "Active",
       });
 
@@ -480,7 +496,10 @@ function ClinicOwnerProfile() {
           longitude: location.longitude || null,
           services: getClinicServiceNames(location),
           contact_number: location.contact_number || null,
-          opening_hours: location.opening_hours || null,
+          opening_hours: clinicOperatingHoursToSummary(
+            normalizeClinicOperatingHours(location),
+          ),
+          operating_hours_schedule: normalizeClinicOperatingHours(location),
           status: nextStatus,
         },
       );
@@ -678,17 +697,19 @@ function ClinicOwnerProfile() {
             />
           </div>
 
-          <div className="form-group">
-            <label>Opening Hours</label>
-            <input
-              type="text"
-              name="opening_hours"
-              value={data.opening_hours}
-              onChange={onChange}
-              placeholder="Example: Mon-Sat, 9:00 AM - 5:00 PM"
-              disabled={disabled}
-            />
-          </div>
+          <ClinicOperatingHoursEditor
+            value={data.operating_hours_schedule}
+            onChange={(operatingHoursSchedule) =>
+              onChange({
+                target: {
+                  name: "operating_hours_schedule",
+                  value: operatingHoursSchedule,
+                },
+              })
+            }
+            disabled={disabled}
+            compact
+          />
         </div>
 
         <fieldset className="clinic-owner-service-selector">
@@ -1015,6 +1036,10 @@ function ClinicOwnerProfile() {
                           ),
                           contact_number: selectedLocation.contact_number || "",
                           opening_hours: selectedLocation.opening_hours || "",
+                          operating_hours_schedule:
+                            normalizeClinicOperatingHours(selectedLocation),
+                          operating_hours_schedule:
+                            normalizeClinicOperatingHours(selectedLocation),
                           status: selectedLocation.status || "Active",
                         });
                       }}
