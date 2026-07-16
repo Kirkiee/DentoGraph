@@ -5536,6 +5536,26 @@ body textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder {
   color: #94a3b8;
 }
@@ -5840,6 +5860,50 @@ body .appointment-filters select:focus {
 }
 
 /* Placeholder text */
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::-webkit-input-placeholder,
 body textarea::-webkit-input-placeholder,
 body .modal-form input::-webkit-input-placeholder,
@@ -18055,6 +18119,26 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::-webkit-input-placeholder, .patient-xray-control-panel input::-webkit-input-placeholder {
   color: #94a3b8 !important;
 }
@@ -22021,6 +22105,26 @@ body {
   color: #718096 !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: #718096 !important;
 }
@@ -23811,6 +23915,42 @@ body {
   ) !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
 .dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
   color: color-mix(
     in srgb,
@@ -24204,6 +24344,42 @@ body {
   border-color: var(--clinic-primary) !important;
   box-shadow: 0 0 0 4px
     color-mix(in srgb, var(--clinic-primary) 16%, transparent) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
@@ -29094,7 +29270,7 @@ body {
 /* Checkbox outline follows the clinic primary color. */
 .clinic-hours-open-toggle input[type="checkbox"] {
   -moz-appearance: none;
-       appearance: none;
+  appearance: none;
   -webkit-appearance: none;
   width: 18px;
   height: 18px;
@@ -29170,7 +29346,7 @@ body {
   mask-position: center;
   mask-size: contain;
   -webkit-filter: none;
-          filter: none;
+  filter: none;
 }
 
 /* Keep disabled controls readable while preserving the clinic color. */
@@ -29178,4 +29354,191 @@ body {
 .clinic-hours-time-fields input[type="time"]:disabled {
   opacity: 0.58;
   cursor: not-allowed;
+}
+
+/* =========================================================
+   PHASE 7E — ADMIN CLINIC MODAL SAFE RESPONSIVE FIX
+   Scoped only to the Admin clinic editor.
+   ========================================================= */
+
+.dashboard-layout .admin-clinic-editor-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-width: 760px;
+  max-height: calc(100vh - 32px);
+  overflow: hidden;
+}
+
+.dashboard-layout .admin-clinic-editor-modal .modal-header {
+  flex: 0 0 auto;
+}
+
+.dashboard-layout .admin-clinic-editor-form {
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.dashboard-layout .admin-clinic-editor-form .form-group,
+.dashboard-layout .admin-clinic-editor-form fieldset,
+.dashboard-layout .admin-clinic-editor-form .clinic-service-category,
+.dashboard-layout .admin-clinic-editor-form .clinic-service-options,
+.dashboard-layout .admin-clinic-editor-form .clinic-hours-editor,
+.dashboard-layout .admin-clinic-editor-form .clinic-hours-editor-list,
+.dashboard-layout .admin-clinic-editor-form .clinic-hours-editor-row,
+.dashboard-layout .admin-clinic-editor-form .clinic-hours-time-fields {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .admin-clinic-editor-form input,
+.dashboard-layout .admin-clinic-editor-form select,
+.dashboard-layout .admin-clinic-editor-form textarea {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.dashboard-layout .admin-clinic-address-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  min-width: 0;
+}
+
+.dashboard-layout .admin-clinic-locate-button {
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
+}
+
+.dashboard-layout .admin-clinic-location-status {
+  min-width: 0;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.8rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* Keep the established component layouts, but let their columns shrink. */
+.dashboard-layout
+  .admin-clinic-editor-form
+  .admin-clinic-service-selector
+  .clinic-service-options {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-layout
+  .admin-clinic-editor-form
+  .clinic-hours-editor-compact
+  .clinic-hours-editor-row {
+  grid-template-columns: minmax(120px, 0.7fr) minmax(0, 1.6fr);
+}
+
+.dashboard-layout .admin-clinic-editor-form .clinic-hours-time-fields {
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+/* Prevent a browser-level horizontal scrollbar inside the modal. */
+.dashboard-layout .admin-clinic-editor-modal,
+.dashboard-layout .admin-clinic-editor-form,
+.dashboard-layout .admin-clinic-editor-form .clinic-service-category-list,
+.dashboard-layout .admin-clinic-editor-form .clinic-hours-editor-list {
+  overflow-x: hidden;
+}
+
+@media (max-width: 760px) {
+  .dashboard-layout .admin-clinic-editor-modal {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+  }
+
+  .dashboard-layout .admin-clinic-address-tools {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-layout .admin-clinic-locate-button {
+    width: 100%;
+  }
+
+  .dashboard-layout
+    .admin-clinic-editor-form
+    .admin-clinic-service-selector
+    .clinic-service-options,
+  .dashboard-layout
+    .admin-clinic-editor-form
+    .clinic-hours-editor-compact
+    .clinic-hours-editor-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-layout .admin-clinic-editor-form .clinic-hours-time-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-layout .admin-clinic-editor-form .clinic-hours-separator {
+    display: none;
+  }
+}
+
+/* =========================================================
+   PHASE 7F — ADDRESS SEARCH RESULT PICKER
+   ========================================================= */
+
+.dashboard-layout .admin-clinic-address-suggestions {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  max-height: 230px;
+  margin-top: 12px;
+  padding: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid var(--clinic-border, rgba(148, 163, 184, 0.28));
+  border-radius: 12px;
+  background: var(--clinic-surface, #0f172a);
+  box-sizing: border-box;
+}
+
+.dashboard-layout .admin-clinic-address-suggestion {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--clinic-text, #f8fafc);
+  background: var(--clinic-surface-soft, rgba(30, 41, 59, 0.72));
+  border: 1px solid var(--clinic-border, rgba(148, 163, 184, 0.24));
+  border-radius: 10px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.dashboard-layout .admin-clinic-address-suggestion:hover,
+.dashboard-layout .admin-clinic-address-suggestion:focus-visible {
+  border-color: var(--clinic-primary, #3b82f6);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, #3b82f6) 14%,
+    var(--clinic-surface-soft, #1e293b)
+  );
+  outline: none;
+}
+
+.dashboard-layout .admin-clinic-address-suggestion-title {
+  min-width: 0;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.dashboard-layout .admin-clinic-address-suggestion-coordinates {
+  color: var(--clinic-muted-text, #94a3b8);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
 }

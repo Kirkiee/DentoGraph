@@ -71,6 +71,9 @@ function AdminClinics() {
   const [loading, setLoading] = useState(true);
   const [loadingPlans, setLoadingPlans] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [locatingAddress, setLocatingAddress] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const [showClinicModal, setShowClinicModal] = useState(false);
@@ -394,6 +397,8 @@ function AdminClinics() {
     setMessage("");
     setError("");
     setModalError("");
+    setLocationMessage("");
+    setAddressSuggestions([]);
     setShowClinicModal(true);
   };
 
@@ -416,6 +421,12 @@ function AdminClinics() {
     setMessage("");
     setError("");
     setModalError("");
+    setAddressSuggestions([]);
+    setLocationMessage(
+      clinic.latitude && clinic.longitude
+        ? "Saved map location is available. Change the address to locate it again."
+        : "The map location will be found automatically from the address.",
+    );
     setShowClinicModal(true);
   };
 
@@ -424,15 +435,35 @@ function AdminClinics() {
     setSelectedClinic(null);
     resetClinicForm();
     setModalError("");
+    setLocationMessage("");
+    setAddressSuggestions([]);
+    setLocatingAddress(false);
   };
 
   const handleClinicChange = (e) => {
+    const { name, value } = e.target;
+
     setModalError("");
 
     setClinicForm((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      [name]: value,
+      ...(name === "address"
+        ? {
+            latitude: "",
+            longitude: "",
+          }
+        : {}),
     }));
+
+    if (name === "address") {
+      setAddressSuggestions([]);
+      setLocationMessage(
+        value.trim()
+          ? "Search the address, then choose the correct result from the list."
+          : "",
+      );
+    }
   };
 
   const toggleClinicService = (serviceName) => {
@@ -452,26 +483,71 @@ function AdminClinics() {
     });
   };
 
-  const validateCoordinates = () => {
-    if (clinicForm.latitude !== "") {
-      const latitude = Number(clinicForm.latitude);
+  const searchClinicAddress = async () => {
+    const address = clinicForm.address.trim();
 
-      if (Number.isNaN(latitude) || latitude < -90 || latitude > 90) {
-        setModalError("Latitude must be a valid number between -90 and 90.");
-        return false;
-      }
+    if (address.length < 3) {
+      setAddressSuggestions([]);
+      setModalError("Enter a more complete clinic address before searching.");
+      return;
     }
 
-    if (clinicForm.longitude !== "") {
-      const longitude = Number(clinicForm.longitude);
+    try {
+      setLocatingAddress(true);
+      setAddressSuggestions([]);
+      setLocationMessage("Searching for matching Philippine addresses...");
 
-      if (Number.isNaN(longitude) || longitude < -180 || longitude > 180) {
-        setModalError("Longitude must be a valid number between -180 and 180.");
-        return false;
+      const response = await API.get("/api/clinics/geocode", {
+        params: { address },
+      });
+
+      const results = Array.isArray(response.data?.results)
+        ? response.data.results
+        : [];
+
+      if (results.length === 0) {
+        setLocationMessage("");
+        setModalError(
+          "No matching Philippine address was found. Add more address details and search again.",
+        );
+        return;
       }
-    }
 
-    return true;
+      setAddressSuggestions(results);
+      setLocationMessage(
+        `Found ${results.length} possible address${
+          results.length === 1 ? "" : "es"
+        }. Choose the correct location below.`,
+      );
+      setModalError("");
+    } catch (err) {
+      setAddressSuggestions([]);
+      setLocationMessage("");
+      setModalError(
+        err.response?.data?.error ||
+          "Unable to search for this address. Please try again.",
+      );
+    } finally {
+      setLocatingAddress(false);
+    }
+  };
+
+  const selectAddressSuggestion = (suggestion) => {
+    const selectedAddress =
+      suggestion.display_name ||
+      suggestion.formatted_address ||
+      clinicForm.address.trim();
+
+    setClinicForm((previous) => ({
+      ...previous,
+      address: selectedAddress,
+      latitude: String(suggestion.latitude),
+      longitude: String(suggestion.longitude),
+    }));
+
+    setAddressSuggestions([]);
+    setLocationMessage(`Selected map location: ${selectedAddress}`);
+    setModalError("");
   };
 
   const handleSaveClinic = async (e) => {
@@ -504,21 +580,29 @@ function AdminClinics() {
       return;
     }
 
-    if (!validateCoordinates()) {
-      return;
-    }
-
     try {
       setSaving(true);
       setMessage("");
       setError("");
       setModalError("");
 
+      const resolvedCoordinates = {
+        latitude: clinicForm.latitude,
+        longitude: clinicForm.longitude,
+      };
+
+      if (!resolvedCoordinates.latitude || !resolvedCoordinates.longitude) {
+        setModalError(
+          "Search the clinic address and select the correct result before saving.",
+        );
+        return;
+      }
+
       const payload = {
         clinic_name: clinicForm.clinic_name,
         address: clinicForm.address,
-        latitude: clinicForm.latitude || null,
-        longitude: clinicForm.longitude || null,
+        latitude: resolvedCoordinates.latitude,
+        longitude: resolvedCoordinates.longitude,
         services: clinicForm.services,
         contact_number: clinicForm.contact_number,
         opening_hours: clinicOperatingHoursToSummary(
@@ -1391,7 +1475,7 @@ function AdminClinics() {
 
       {showClinicModal && (
         <div className="modal-overlay">
-          <div className="modal-card">
+          <div className="modal-card admin-clinic-editor-modal">
             <div className="modal-header">
               <div>
                 <h3>
@@ -1401,8 +1485,8 @@ function AdminClinics() {
                 </h3>
                 <p>
                   {selectedClinic
-                    ? "Update clinic location information, map coordinates, and shared plan assignment."
-                    : "Create a new clinic location record for discovery and map display."}
+                    ? "Update the clinic information. The map location is generated automatically from the address."
+                    : "Create a clinic location. The map location is generated automatically from the address."}
                 </p>
               </div>
 
@@ -1415,7 +1499,10 @@ function AdminClinics() {
               </button>
             </div>
 
-            <form className="modal-form" onSubmit={handleSaveClinic}>
+            <form
+              className="modal-form admin-clinic-editor-form"
+              onSubmit={handleSaveClinic}
+            >
               {modalError && <div className="error-message">{modalError}</div>}
 
               <div className="form-group">
@@ -1436,34 +1523,54 @@ function AdminClinics() {
                   name="address"
                   value={clinicForm.address}
                   onChange={handleClinicChange}
-                  placeholder="Enter clinic address"
+                  placeholder="Type the clinic address, then search and choose a result"
                   rows="3"
                   required
                 />
-              </div>
 
-              <div className="form-group">
-                <label>Latitude</label>
-                <input
-                  type="number"
-                  name="latitude"
-                  value={clinicForm.latitude}
-                  onChange={handleClinicChange}
-                  placeholder="Example: 14.5995"
-                  step="0.0000001"
-                />
-              </div>
+                <div className="admin-clinic-address-tools">
+                  <button
+                    type="button"
+                    className="secondary-button admin-clinic-locate-button"
+                    onClick={searchClinicAddress}
+                    disabled={
+                      locatingAddress || saving || !clinicForm.address.trim()
+                    }
+                  >
+                    {locatingAddress ? "Searching..." : "Search Address"}
+                  </button>
 
-              <div className="form-group">
-                <label>Longitude</label>
-                <input
-                  type="number"
-                  name="longitude"
-                  value={clinicForm.longitude}
-                  onChange={handleClinicChange}
-                  placeholder="Example: 120.9842"
-                  step="0.0000001"
-                />
+                  <span className="admin-clinic-location-status">
+                    {locationMessage ||
+                      "Search the address and select the correct result from the list."}
+                  </span>
+                </div>
+
+                {addressSuggestions.length > 0 && (
+                  <div
+                    className="admin-clinic-address-suggestions"
+                    role="listbox"
+                    aria-label="Matching clinic addresses"
+                  >
+                    {addressSuggestions.map((suggestion, index) => (
+                      <button
+                        type="button"
+                        className="admin-clinic-address-suggestion"
+                        key={`${suggestion.latitude}-${suggestion.longitude}-${index}`}
+                        onClick={() => selectAddressSuggestion(suggestion)}
+                      >
+                        <span className="admin-clinic-address-suggestion-title">
+                          {suggestion.display_name ||
+                            suggestion.formatted_address ||
+                            `Address result ${index + 1}`}
+                        </span>
+                        <span className="admin-clinic-address-suggestion-coordinates">
+                          {suggestion.latitude}, {suggestion.longitude}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <fieldset className="clinic-service-selector admin-clinic-service-selector">
@@ -1576,11 +1683,6 @@ function AdminClinics() {
                 </select>
               </div>
 
-              <div className="info-message">
-                Tip: To get coordinates, open Google Maps, right-click the
-                clinic location, then copy the latitude and longitude.
-              </div>
-
               <div className="modal-actions">
                 <button
                   type="button"
@@ -1593,10 +1695,12 @@ function AdminClinics() {
                 <button
                   type="submit"
                   className="primary-button"
-                  disabled={saving}
+                  disabled={saving || locatingAddress}
                 >
-                  {saving
-                    ? "Saving..."
+                  {saving || locatingAddress
+                    ? locatingAddress
+                      ? "Locating..."
+                      : "Saving..."
                     : selectedClinic
                       ? "Save Changes"
                       : "Add Clinic"}

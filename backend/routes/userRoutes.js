@@ -262,10 +262,10 @@ const checkClinicSubscriptionLimit = async (
         c.clinic_id,
         c.clinic_name,
         c.owner_user_id,
-        c.subscription_plan_id,
-        c.subscription_status,
-        c.subscription_start_date,
-        c.subscription_end_date,
+        os.plan_id AS subscription_plan_id,
+        os.subscription_status,
+        os.start_date AS subscription_start_date,
+        os.end_date AS subscription_end_date,
         sp.plan_name,
         sp.max_dentists,
         sp.max_assistants,
@@ -274,8 +274,10 @@ const checkClinicSubscriptionLimit = async (
         sp.max_xrays,
         sp.storage_limit_mb
      FROM public.clinics c
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.clinic_id = $1`,
     [clinic_id],
   );
@@ -375,17 +377,19 @@ const getClinicsOwnedByUser = async (client, ownerUserId) => {
         c.clinic_id,
         c.clinic_name,
         c.address,
-        c.subscription_plan_id,
-        c.subscription_end_date,
-        c.subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
         c.owner_user_id,
         c.status,
         sp.plan_name,
         sp.max_dentists,
         sp.max_assistants
      FROM public.clinics c
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.owner_user_id = $1
      AND c.status = 'Active'
      ORDER BY c.clinic_name ASC`,
@@ -409,17 +413,19 @@ const getClinicOwnedByUser = async (client, ownerUserId, clinicId = null) => {
         c.clinic_id,
         c.clinic_name,
         c.address,
-        c.subscription_plan_id,
-        c.subscription_end_date,
-        c.subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
         c.owner_user_id,
         c.status,
         sp.plan_name,
         sp.max_dentists,
         sp.max_assistants
      FROM public.clinics c
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.owner_user_id = $1
      AND c.status = 'Active'
      ${clinicFilter}

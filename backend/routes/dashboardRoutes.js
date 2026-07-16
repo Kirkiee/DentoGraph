@@ -38,13 +38,15 @@ router.get(
         SELECT
           COUNT(*)::int AS total_clinics,
           COUNT(*)::int AS total_clinic_locations,
-          COUNT(DISTINCT owner_user_id) FILTER (WHERE owner_user_id IS NOT NULL)::int AS total_owner_accounts,
+          COUNT(DISTINCT c.owner_user_id) FILTER (WHERE c.owner_user_id IS NOT NULL)::int AS total_owner_accounts,
           COUNT(*) FILTER (WHERE status = 'Active')::int AS active_clinics,
           COUNT(*) FILTER (WHERE status = 'Active')::int AS active_clinic_locations,
           COUNT(*) FILTER (WHERE status = 'Inactive')::int AS inactive_clinics,
           COUNT(*) FILTER (WHERE status = 'Inactive')::int AS inactive_clinic_locations,
-          COUNT(*) FILTER (WHERE subscription_plan_id IS NOT NULL)::int AS subscribed_clinic_locations
-        FROM public.clinics
+          COUNT(*) FILTER (WHERE os.owner_subscription_id IS NOT NULL)::int AS subscribed_clinic_locations
+        FROM public.clinics c
+        LEFT JOIN public.owner_subscriptions os
+          ON os.owner_user_id = c.owner_user_id
       `);
 
       const appointmentsResult = await pool.query(`

@@ -272,9 +272,9 @@ const getRecordContext = async (record_id) => {
         c.clinic_name,
         c.status AS clinic_status,
         c.owner_user_id,
-        c.subscription_plan_id,
-        c.subscription_end_date,
-        c.subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
         sp.plan_name,
         sp.max_xrays,
         sp.storage_limit_mb
@@ -282,8 +282,10 @@ const getRecordContext = async (record_id) => {
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
      JOIN public.patients p ON dr.patient_id = p.patient_id
      LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE dr.record_id = $1`,
     [record_id],
   );

@@ -475,15 +475,17 @@ const checkClinicRecordLimit = async (clinic_id, patient_id) => {
         c.clinic_id,
         c.clinic_name,
         c.owner_user_id,
-        c.subscription_plan_id,
-        c.subscription_end_date,
-        c.subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
         sp.plan_name,
         sp.max_patients,
         sp.max_records
      FROM public.clinics c
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.clinic_id = $1`,
     [clinic_id],
   );

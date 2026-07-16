@@ -958,15 +958,6 @@ const markExpiredSubscriptionIfNeeded = async (client, ownerUserId) => {
     [ownerUserId],
   );
 
-  if (expired.rows.length > 0) {
-    await client.query(
-      `UPDATE public.clinics
-       SET subscription_status = 'Expired'
-       WHERE owner_user_id = $1`,
-      [ownerUserId],
-    );
-  }
-
   return expired.rows[0] || null;
 };
 
