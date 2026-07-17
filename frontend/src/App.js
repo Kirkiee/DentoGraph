@@ -24,6 +24,7 @@ import ClinicOwnerBranding from "./pages/ClinicOwnerBranding";
 import ClinicOwnerSubscription from "./pages/ClinicOwnerSubscription";
 import ClinicOwnerPaymentSuccess from "./pages/ClinicOwnerPaymentSuccess";
 import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
+import ClinicOwnerInventory from "./pages/ClinicOwnerInventory";
 import ClinicOwnerPaymentCancel from "./pages/ClinicOwnerPaymentCancel";
 import WalkInPatientRegistration from "./pages/WalkInPatientRegistration";
 
@@ -375,6 +376,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerPayments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/inventory"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerInventory />
             </ProtectedRoute>
           }
         />

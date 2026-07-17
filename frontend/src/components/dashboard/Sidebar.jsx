@@ -126,6 +126,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       },
       { label: "Shared Subscription", path: "/clinic-owner/subscription" },
       { label: "Payment History", path: "/clinic-owner/payments" },
+      { label: "Inventory", path: "/clinic-owner/inventory" },
       { label: "Dental Records", path: "/clinic-owner/dental-records" },
       { label: "Patient Transfers", path: "/clinic-owner/patient-transfers" },
       {

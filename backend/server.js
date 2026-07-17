@@ -56,6 +56,7 @@ const paymongoRoutes = require("./routes/paymongoRoutes");
 const arSimulationRoutes = require("./routes/arSimulationRoutes");
 const walkInPatientRoutes = require("./routes/walkInPatientRoutes");
 const patientTransferRoutes = require("./routes/patientTransferRoutes");
+const inventoryRoutes = require("./routes/inventoryRoutes");
 
 const app = express();
 
@@ -347,6 +348,7 @@ app.use("/api/payments", paymongoRoutes);
 app.use("/api/ar-simulations", arSimulationRoutes);
 app.use("/api/walk-in-patients", walkInPatientRoutes);
 app.use("/api/patient-transfers", patientTransferRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 // ===============================
 // 404 HANDLER
