@@ -13,6 +13,8 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
 import ResendVerification from "./pages/ResendVerification";
+import TermsOfService from "./pages/TermsOfService";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
@@ -22,7 +24,9 @@ import ClinicOwnerBranding from "./pages/ClinicOwnerBranding";
 import ClinicOwnerSubscription from "./pages/ClinicOwnerSubscription";
 import ClinicOwnerPaymentSuccess from "./pages/ClinicOwnerPaymentSuccess";
 import ClinicOwnerPayments from "./pages/ClinicOwnerPayments";
+import ClinicOwnerInventory from "./pages/ClinicOwnerInventory";
 import ClinicOwnerPaymentCancel from "./pages/ClinicOwnerPaymentCancel";
+import WalkInPatientRegistration from "./pages/WalkInPatientRegistration";
 
 import AdminDashboard from "./pages/AdminDashboard";
 import AdminProfile from "./pages/AdminProfile";
@@ -31,7 +35,9 @@ import PatientDashboard from "./pages/PatientDashboard";
 import AssistantDashboard from "./pages/AssistantDashboard";
 
 import AdminUsers from "./pages/AdminUsers";
+import AdminStaffCredentials from "./pages/AdminStaffCredentials";
 import AdminClinics from "./pages/AdminClinics";
+import AdminDocumentRenewals from "./pages/AdminDocumentRenewals";
 import AdminSubscriptions from "./pages/AdminSubscriptions";
 import AdminReports from "./pages/AdminReports";
 import AdminDentalRecords from "./pages/AdminDentalRecords";
@@ -50,6 +56,12 @@ import PatientDental3DViewer from "./pages/PatientDental3DViewer";
 import PatientXrayAnnotationView from "./pages/PatientXrayAnnotationView";
 import PatientClinicDiscovery from "./pages/PatientClinicDiscovery";
 import PatientARBracesSimulation from "./pages/PatientARBracesSimulation";
+import PatientTransfers from "./pages/PatientTransfers";
+import ClinicPatientTransfers from "./pages/ClinicPatientTransfers";
+import PatientHistoricalRecords from "./pages/PatientHistoricalRecords";
+import ClinicOwnerDentalRecords from "./pages/ClinicOwnerDentalRecords";
+import ClinicOwnerDentalRecordDetails from "./pages/ClinicOwnerDentalRecordDetails";
+import ClinicOwnerDental3DViewer from "./pages/ClinicOwnerDental3DViewer";
 
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
@@ -86,6 +98,8 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/terms-of-service" element={<TermsOfService />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
         <Route path="/login" element={<Navigate to="/auth/login" />} />
         <Route path="/auth/login" element={<Login />} />
@@ -139,10 +153,28 @@ function App() {
         />
 
         <Route
+          path="/admin/staff-credentials"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminStaffCredentials />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/admin/clinics"
           element={
             <ProtectedRoute allowedRoles={["Admin"]}>
               <AdminClinics />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/admin/document-renewals"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <AdminDocumentRenewals />
             </ProtectedRoute>
           }
         />
@@ -240,6 +272,33 @@ function App() {
         />
 
         <Route
+          path="/clinic-owner/dental-records"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerDentalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/dental-records/:record_id"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerDentalRecordDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/dental-records/:record_id/3d-view"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerDental3DViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/clinic-owner/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
@@ -253,6 +312,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerStaff />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/walk-in-registration"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <WalkInPatientRegistration />
             </ProtectedRoute>
           }
         />
@@ -313,10 +381,91 @@ function App() {
         />
 
         <Route
+          path="/clinic-owner/inventory"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerInventory />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/clinic-owner/payment-cancel"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
               <ClinicOwnerPaymentCancel />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/transfers"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/patient-transfers"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicPatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/patient-transfers"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <ClinicPatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/patient-transfers"
+          element={
+            <ProtectedRoute allowedRoles={assistantRoles}>
+              <ClinicPatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/historical-records"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientHistoricalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/patient-historical-records"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <PatientHistoricalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/patient-historical-records"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <PatientHistoricalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/patient-historical-records"
+          element={
+            <ProtectedRoute allowedRoles={assistantRoles}>
+              <PatientHistoricalRecords />
             </ProtectedRoute>
           }
         />
@@ -344,6 +493,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={["Dentist"]}>
               <DentistAppointments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/walk-in-registration"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <WalkInPatientRegistration />
             </ProtectedRoute>
           }
         />
@@ -515,6 +673,15 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={assistantRoles}>
               <AssistantAppointments />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/walk-in-registration"
+          element={
+            <ProtectedRoute allowedRoles={assistantRoles}>
+              <WalkInPatientRegistration />
             </ProtectedRoute>
           }
         />

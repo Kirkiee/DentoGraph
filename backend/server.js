@@ -15,8 +15,38 @@ const patientDocumentRoutes = require("./routes/patientDocumentRoutes");
 const dentistRoutes = require("./routes/dentistRoutes");
 const assistantRoutes = require("./routes/assistantRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
-const dentalRecordRoutes = require("./routes/dentalRecordRoutes");
-const xrayRoutes = require("./routes/xrayRoutes");
+const dentalRecordRoutesModule = require("./routes/dentalRecordRoutes");
+const xrayRoutesModule = require("./routes/xrayRoutes");
+
+const resolveRouter = (routeModule, moduleName) => {
+  const resolvedRouter =
+    typeof routeModule === "function"
+      ? routeModule
+      : routeModule?.router || routeModule?.default || routeModule?.routes;
+
+  if (typeof resolvedRouter !== "function") {
+    const exportedKeys =
+      routeModule && typeof routeModule === "object"
+        ? Object.keys(routeModule)
+        : [];
+
+    throw new TypeError(
+      `${moduleName} must export an Express router function. ` +
+        `Received ${typeof routeModule}` +
+        (exportedKeys.length > 0
+          ? ` with keys: ${exportedKeys.join(", ")}`
+          : ""),
+    );
+  }
+
+  return resolvedRouter;
+};
+
+const dentalRecordRoutes = resolveRouter(
+  dentalRecordRoutesModule,
+  "dentalRecordRoutes",
+);
+const xrayRoutes = resolveRouter(xrayRoutesModule, "xrayRoutes");
 const clinicRoutes = require("./routes/clinicRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
@@ -24,6 +54,9 @@ const reportRoutes = require("./routes/reportRoutes");
 const auditLogRoutes = require("./routes/auditLogRoutes");
 const paymongoRoutes = require("./routes/paymongoRoutes");
 const arSimulationRoutes = require("./routes/arSimulationRoutes");
+const walkInPatientRoutes = require("./routes/walkInPatientRoutes");
+const patientTransferRoutes = require("./routes/patientTransferRoutes");
+const inventoryRoutes = require("./routes/inventoryRoutes");
 
 const app = express();
 
@@ -313,6 +346,9 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/audit-logs", auditLogRoutes);
 app.use("/api/payments", paymongoRoutes);
 app.use("/api/ar-simulations", arSimulationRoutes);
+app.use("/api/walk-in-patients", walkInPatientRoutes);
+app.use("/api/patient-transfers", patientTransferRoutes);
+app.use("/api/inventory", inventoryRoutes);
 
 // ===============================
 // 404 HANDLER

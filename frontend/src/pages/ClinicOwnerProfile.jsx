@@ -3,6 +3,17 @@ import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
 import { useNavigate } from "react-router-dom";
 import PasswordInput from "../components/auth/PasswordInput";
+import {
+  CLINIC_SERVICE_CATEGORIES,
+  getClinicServiceNames,
+} from "../utils/clinicServices";
+import ClinicOperatingHoursEditor from "../components/ClinicOperatingHoursEditor";
+import {
+  clinicOperatingHoursToSummary,
+  createDefaultClinicOperatingHours,
+  normalizeClinicOperatingHours,
+  validateClinicOperatingHours,
+} from "../utils/clinicOperatingHours";
 
 function ClinicOwnerProfile() {
   const navigate = useNavigate();
@@ -12,9 +23,10 @@ function ClinicOwnerProfile() {
     address: "",
     latitude: "",
     longitude: "",
-    services: "",
+    services: [],
     contact_number: "",
     opening_hours: "",
+    operating_hours_schedule: createDefaultClinicOperatingHours(),
     status: "Active",
   };
 
@@ -41,6 +53,11 @@ function ClinicOwnerProfile() {
   const [addingLocation, setAddingLocation] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
   const [updatingLocationStatus, setUpdatingLocationStatus] = useState("");
+  const [geocodingTarget, setGeocodingTarget] = useState("");
+  const [geocodeResults, setGeocodeResults] = useState({
+    edit: [],
+    new: [],
+  });
 
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -95,9 +112,11 @@ function ClinicOwnerProfile() {
         address: selectedLocation.address || "",
         latitude: selectedLocation.latitude || "",
         longitude: selectedLocation.longitude || "",
-        services: selectedLocation.services || "",
+        services: getClinicServiceNames(selectedLocation.services),
         contact_number: selectedLocation.contact_number || "",
         opening_hours: selectedLocation.opening_hours || "",
+        operating_hours_schedule:
+          normalizeClinicOperatingHours(selectedLocation),
         status: selectedLocation.status || "Active",
       });
     }
@@ -181,7 +200,12 @@ function ClinicOwnerProfile() {
     setLocationForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
+      ...(e.target.name === "address" ? { latitude: "", longitude: "" } : {}),
     }));
+
+    if (e.target.name === "address") {
+      clearGeocodeResults("edit");
+    }
   };
 
   const handleNewLocationChange = (e) => {
@@ -191,7 +215,48 @@ function ClinicOwnerProfile() {
     setNewLocationForm((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
+      ...(e.target.name === "address" ? { latitude: "", longitude: "" } : {}),
     }));
+
+    if (e.target.name === "address") {
+      clearGeocodeResults("new");
+    }
+  };
+
+  const toggleLocationService = (service) => {
+    setMessage("");
+    setError("");
+
+    setLocationForm((previous) => {
+      const currentServices = Array.isArray(previous.services)
+        ? previous.services
+        : getClinicServiceNames(previous.services);
+
+      return {
+        ...previous,
+        services: currentServices.includes(service)
+          ? currentServices.filter((item) => item !== service)
+          : [...currentServices, service],
+      };
+    });
+  };
+
+  const toggleNewLocationService = (service) => {
+    setMessage("");
+    setError("");
+
+    setNewLocationForm((previous) => {
+      const currentServices = Array.isArray(previous.services)
+        ? previous.services
+        : getClinicServiceNames(previous.services);
+
+      return {
+        ...previous,
+        services: currentServices.includes(service)
+          ? currentServices.filter((item) => item !== service)
+          : [...currentServices, service],
+      };
+    });
   };
 
   const handlePasswordChange = (e) => {
@@ -203,6 +268,68 @@ function ClinicOwnerProfile() {
       ...prev,
       [e.target.name]: e.target.value,
     }));
+  };
+
+  const clearGeocodeResults = (target) => {
+    setGeocodeResults((previous) => ({
+      ...previous,
+      [target]: [],
+    }));
+  };
+
+  const handleLocateAddress = async (target, data) => {
+    const address = String(data.address || "").trim();
+
+    if (address.length < 5) {
+      setError("Enter a more complete clinic address before locating it.");
+      return;
+    }
+
+    try {
+      setGeocodingTarget(target);
+      setMessage("");
+      setError("");
+      clearGeocodeResults(target);
+
+      const response = await API.get("/api/clinics/geocode", {
+        params: { address },
+      });
+
+      const results = response.data?.results || [];
+
+      setGeocodeResults((previous) => ({
+        ...previous,
+        [target]: results,
+      }));
+
+      if (results.length === 0) {
+        setError(
+          "No matching Philippine address was found. Add the city, barangay, street, and province, then try again.",
+        );
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          "Unable to locate the clinic address right now.",
+      );
+    } finally {
+      setGeocodingTarget("");
+    }
+  };
+
+  const selectGeocodeResult = (target, result) => {
+    const updateForm = target === "edit" ? setLocationForm : setNewLocationForm;
+
+    updateForm((previous) => ({
+      ...previous,
+      address: result.display_name || previous.address,
+      latitude: String(result.latitude),
+      longitude: String(result.longitude),
+    }));
+
+    clearGeocodeResults(target);
+    setError("");
+    setMessage("Clinic coordinates were generated from the selected address.");
   };
 
   const openEditLocation = (location) => {
@@ -226,6 +353,21 @@ function ClinicOwnerProfile() {
       return;
     }
 
+    if (
+      !Array.isArray(locationForm.services) ||
+      locationForm.services.length === 0
+    ) {
+      setError("Please select at least one service offered by this clinic.");
+      return;
+    }
+
+    if (!locationForm.latitude || !locationForm.longitude) {
+      setError(
+        "Locate the clinic address and select a matching result before saving.",
+      );
+      return;
+    }
+
     try {
       setSavingLocation(true);
       setMessage("");
@@ -238,9 +380,12 @@ function ClinicOwnerProfile() {
           address: locationForm.address.trim(),
           latitude: locationForm.latitude || null,
           longitude: locationForm.longitude || null,
-          services: locationForm.services || null,
+          services: locationForm.services,
           contact_number: locationForm.contact_number || null,
-          opening_hours: locationForm.opening_hours || null,
+          opening_hours: clinicOperatingHoursToSummary(
+            locationForm.operating_hours_schedule,
+          ),
+          operating_hours_schedule: locationForm.operating_hours_schedule,
           status: locationForm.status || "Active",
         },
       );
@@ -277,6 +422,21 @@ function ClinicOwnerProfile() {
       return;
     }
 
+    if (
+      !Array.isArray(newLocationForm.services) ||
+      newLocationForm.services.length === 0
+    ) {
+      setError("Please select at least one service offered by this clinic.");
+      return;
+    }
+
+    if (!newLocationForm.latitude || !newLocationForm.longitude) {
+      setError(
+        "Locate the clinic address and select a matching result before adding the location.",
+      );
+      return;
+    }
+
     if (!canAddLocation) {
       setError(
         "Your current subscription has reached its clinic location limit.",
@@ -294,9 +454,12 @@ function ClinicOwnerProfile() {
         address,
         latitude: newLocationForm.latitude || null,
         longitude: newLocationForm.longitude || null,
-        services: newLocationForm.services || null,
+        services: newLocationForm.services,
         contact_number: newLocationForm.contact_number || null,
-        opening_hours: newLocationForm.opening_hours || null,
+        opening_hours: clinicOperatingHoursToSummary(
+          newLocationForm.operating_hours_schedule,
+        ),
+        operating_hours_schedule: newLocationForm.operating_hours_schedule,
         status: newLocationForm.status || "Active",
       });
 
@@ -331,9 +494,12 @@ function ClinicOwnerProfile() {
           address: location.address,
           latitude: location.latitude || null,
           longitude: location.longitude || null,
-          services: location.services || null,
+          services: getClinicServiceNames(location),
           contact_number: location.contact_number || null,
-          opening_hours: location.opening_hours || null,
+          opening_hours: clinicOperatingHoursToSummary(
+            normalizeClinicOperatingHours(location),
+          ),
+          operating_hours_schedule: normalizeClinicOperatingHours(location),
           status: nextStatus,
         },
       );
@@ -434,7 +600,13 @@ function ClinicOwnerProfile() {
     }
   };
 
-  const renderLocationFields = (data, onChange, disabled) => {
+  const renderLocationFields = (
+    data,
+    onChange,
+    onServiceToggle,
+    disabled,
+    geocodeTarget,
+  ) => {
     return (
       <>
         <div className="form-row">
@@ -453,19 +625,62 @@ function ClinicOwnerProfile() {
             />
           </div>
 
-          <div className="form-group">
+          <div className="form-group clinic-address-lookup-field">
             <label>
               Address <span className="auth-required">*</span>
             </label>
-            <input
-              type="text"
-              name="address"
-              value={data.address}
-              onChange={onChange}
-              placeholder="Enter clinic address"
-              disabled={disabled}
-              required
-            />
+
+            <div className="clinic-address-lookup-row">
+              <input
+                type="text"
+                name="address"
+                value={data.address}
+                onChange={onChange}
+                placeholder="Street, barangay, city, province"
+                disabled={disabled}
+                required
+              />
+
+              <button
+                type="button"
+                className="secondary-button clinic-address-locate-button"
+                onClick={() => handleLocateAddress(geocodeTarget, data)}
+                disabled={
+                  disabled ||
+                  geocodingTarget === geocodeTarget ||
+                  String(data.address || "").trim().length < 5
+                }
+              >
+                {geocodingTarget === geocodeTarget
+                  ? "Locating..."
+                  : "Locate Address"}
+              </button>
+            </div>
+
+            <small className="clinic-address-lookup-help">
+              Enter the complete Philippine address, then select the correct
+              result to generate the coordinates automatically.
+            </small>
+
+            {geocodeResults[geocodeTarget]?.length > 0 && (
+              <div className="clinic-address-results">
+                {geocodeResults[geocodeTarget].map((result) => (
+                  <button
+                    type="button"
+                    className="clinic-address-result"
+                    key={`${result.place_id}-${result.latitude}-${result.longitude}`}
+                    onClick={() => selectGeocodeResult(geocodeTarget, result)}
+                    disabled={disabled}
+                  >
+                    <strong>{result.display_name}</strong>
+                    <span>
+                      {Number(result.latitude).toFixed(6)},{" "}
+                      {Number(result.longitude).toFixed(6)}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -482,55 +697,104 @@ function ClinicOwnerProfile() {
             />
           </div>
 
-          <div className="form-group">
-            <label>Opening Hours</label>
-            <input
-              type="text"
-              name="opening_hours"
-              value={data.opening_hours}
-              onChange={onChange}
-              placeholder="Example: Mon-Sat, 9:00 AM - 5:00 PM"
-              disabled={disabled}
-            />
-          </div>
-        </div>
-
-        <div className="form-group">
-          <label>Services Offered</label>
-          <textarea
-            name="services"
-            value={data.services}
-            onChange={onChange}
-            placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
-            rows="4"
+          <ClinicOperatingHoursEditor
+            value={data.operating_hours_schedule}
+            onChange={(operatingHoursSchedule) =>
+              onChange({
+                target: {
+                  name: "operating_hours_schedule",
+                  value: operatingHoursSchedule,
+                },
+              })
+            }
             disabled={disabled}
+            compact
           />
         </div>
 
-        <div className="form-row">
+        <fieldset className="clinic-owner-service-selector">
+          <legend>
+            Services Offered <span className="auth-required">*</span>
+          </legend>
+
+          <p className="clinic-owner-service-help">
+            Select all dental services available at this clinic location.
+          </p>
+
+          <div className="clinic-owner-service-category-list">
+            {CLINIC_SERVICE_CATEGORIES.map((group) => (
+              <section
+                className="clinic-owner-service-category"
+                key={group.category}
+              >
+                <h4>{group.category}</h4>
+
+                <div className="clinic-owner-service-options">
+                  {group.services.map((service) => {
+                    const selectedServices = Array.isArray(data.services)
+                      ? data.services
+                      : getClinicServiceNames(data.services);
+                    const isSelected = selectedServices.includes(service);
+
+                    return (
+                      <label
+                        key={service}
+                        className={`clinic-owner-service-option ${
+                          isSelected ? "selected" : ""
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => onServiceToggle(service)}
+                          disabled={disabled}
+                        />
+
+                        <span className="clinic-owner-service-option-check">
+                          {isSelected ? "✓" : ""}
+                        </span>
+
+                        <span>{service}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <div className="clinic-owner-service-summary">
+            <strong>
+              {Array.isArray(data.services)
+                ? data.services.length
+                : getClinicServiceNames(data.services).length}
+            </strong>{" "}
+            {(Array.isArray(data.services)
+              ? data.services.length
+              : getClinicServiceNames(data.services).length) === 1
+              ? "service selected"
+              : "services selected"}
+          </div>
+        </fieldset>
+
+        <div className="form-row clinic-generated-coordinate-row">
           <div className="form-group">
-            <label>Latitude</label>
+            <label>Generated Latitude</label>
             <input
-              type="number"
-              step="any"
-              name="latitude"
-              value={data.latitude}
-              onChange={onChange}
-              placeholder="Optional"
-              disabled={disabled}
+              type="text"
+              value={data.latitude || "Locate the address first"}
+              readOnly
+              disabled
             />
           </div>
 
           <div className="form-group">
-            <label>Longitude</label>
+            <label>Generated Longitude</label>
             <input
-              type="number"
-              step="any"
-              name="longitude"
-              value={data.longitude}
-              onChange={onChange}
-              placeholder="Optional"
-              disabled={disabled}
+              type="text"
+              value={data.longitude || "Locate the address first"}
+              readOnly
+              disabled
             />
           </div>
         </div>
@@ -752,7 +1016,9 @@ function ClinicOwnerProfile() {
                   {renderLocationFields(
                     locationForm,
                     handleLocationFormChange,
+                    toggleLocationService,
                     savingLocation,
+                    "edit",
                   )}
 
                   <div className="appointment-actions">
@@ -765,9 +1031,15 @@ function ClinicOwnerProfile() {
                           address: selectedLocation.address || "",
                           latitude: selectedLocation.latitude || "",
                           longitude: selectedLocation.longitude || "",
-                          services: selectedLocation.services || "",
+                          services: getClinicServiceNames(
+                            selectedLocation.services,
+                          ),
                           contact_number: selectedLocation.contact_number || "",
                           opening_hours: selectedLocation.opening_hours || "",
+                          operating_hours_schedule:
+                            normalizeClinicOperatingHours(selectedLocation),
+                          operating_hours_schedule:
+                            normalizeClinicOperatingHours(selectedLocation),
                           status: selectedLocation.status || "Active",
                         });
                       }}
@@ -819,7 +1091,9 @@ function ClinicOwnerProfile() {
                   {renderLocationFields(
                     newLocationForm,
                     handleNewLocationChange,
+                    toggleNewLocationService,
                     addingLocation,
+                    "new",
                   )}
 
                   <button

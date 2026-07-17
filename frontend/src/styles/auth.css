@@ -925,3 +925,1314 @@ body.dark-mode .password-visibility-button {
     justify-content: flex-start;
   }
 }
+
+/* =========================================================
+   CLINIC REGISTRATION — SERVICES OFFERED LIST
+   Append this at the absolute bottom of auth.css.
+   ========================================================= */
+
+.clinic-service-selector {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid var(--clinic-primary, var(--auth-accent, #2563eb));
+  border-radius: 16px;
+  background: var(--auth-input-bg, rgba(255, 255, 255, 0.04));
+}
+
+.clinic-service-selector legend {
+  padding: 0 8px;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.clinic-service-selector-help {
+  margin: 0 0 14px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.clinic-service-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.clinic-service-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 50%,
+      transparent
+    );
+  border-radius: 12px;
+  background: transparent;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.86rem;
+  font-weight: 700;
+  cursor: pointer;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.clinic-service-option:hover {
+  border-color: var(--clinic-primary, var(--auth-accent, #2563eb));
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--auth-accent, #2563eb)) 8%,
+    transparent
+  );
+}
+
+.clinic-service-option.selected {
+  border-color: var(--clinic-primary, var(--auth-accent, #2563eb));
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--auth-accent, #2563eb)) 14%,
+    transparent
+  );
+}
+
+.clinic-service-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.clinic-service-option-check {
+  display: inline-flex;
+  flex: 0 0 22px;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--clinic-primary, var(--auth-accent, #2563eb));
+  border-radius: 7px;
+  color: var(--clinic-primary-text, #ffffff);
+  background: transparent;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.clinic-service-option.selected .clinic-service-option-check {
+  background: var(--clinic-primary, var(--auth-accent, #2563eb));
+}
+
+.clinic-service-option:has(input:focus-visible) {
+  outline: 3px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 24%,
+      transparent
+    );
+  outline-offset: 2px;
+}
+
+.clinic-service-option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.clinic-service-selection-summary {
+  margin-top: 13px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.82rem;
+}
+
+.clinic-service-selection-summary strong {
+  color: var(--clinic-primary, var(--auth-accent, #2563eb));
+}
+
+@media (max-width: 640px) {
+  .clinic-service-options {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-service-selector {
+    padding: 15px;
+  }
+}
+
+/* =========================================================
+   COMPREHENSIVE SERVICE CATEGORIES
+   ========================================================= */
+
+.clinic-service-category-list {
+  display: grid;
+  gap: 18px;
+}
+
+.clinic-service-category {
+  margin: 0;
+  padding: 0;
+}
+
+.clinic-service-category h4 {
+  margin: 0 0 10px;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.9rem;
+  font-weight: 850;
+}
+
+.clinic-service-category + .clinic-service-category {
+  padding-top: 16px;
+  border-top: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 34%,
+      transparent
+    );
+}
+
+.clinic-service-category-list {
+  max-height: 620px;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--clinic-primary, var(--auth-accent, #2563eb))
+    transparent;
+}
+
+.clinic-service-category-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.clinic-service-category-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.clinic-service-category-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--clinic-primary, var(--auth-accent, #2563eb));
+}
+
+/* =========================================================
+   PATIENT REGISTRATION — CLINIC SERVICE DROPDOWN
+   Append this at the absolute bottom of registerClinicLocator.css.
+   ========================================================= */
+
+.registration-clinic-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 14px;
+}
+
+.registration-service-select {
+  width: 100%;
+  cursor: pointer;
+}
+
+.registration-service-select:disabled {
+  cursor: not-allowed;
+}
+
+.registration-service-filter-note {
+  display: block;
+  margin-top: 7px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.registration-selected-service-banner {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--auth-accent, #2563eb)) 55%,
+      transparent
+    );
+  border-radius: 10px;
+  color: var(--auth-text, #f8fafc);
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--auth-accent, #2563eb)) 10%,
+    transparent
+  );
+  font-size: 0.82rem;
+}
+
+.registration-selected-service-banner strong {
+  color: var(--clinic-primary, var(--auth-accent, #60a5fa));
+}
+
+@media (max-width: 760px) {
+  .registration-clinic-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   CLINIC REGISTRATION — AUTOMATIC ADDRESS GEOCODING
+   Append at the absolute bottom of auth.css.
+   ========================================================= */
+
+.clinic-register-address-field {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.clinic-register-address-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.clinic-register-locate-button {
+  min-width: 145px;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.clinic-register-address-help {
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.clinic-register-address-results {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  max-height: 260px;
+  gap: 8px;
+  padding: 8px;
+  overflow-y: auto;
+  border: 1px solid var(--auth-accent, #2563eb);
+  border-radius: 12px;
+  background: var(--auth-card-bg, #ffffff);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16);
+}
+
+.clinic-register-address-result {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid
+    color-mix(in srgb, var(--auth-accent, #2563eb) 35%, transparent);
+  border-radius: 10px;
+  color: var(--auth-text, #111827);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.clinic-register-address-result:hover,
+.clinic-register-address-result:focus-visible {
+  border-color: var(--auth-accent, #2563eb);
+  background: color-mix(in srgb, var(--auth-accent, #2563eb) 10%, transparent);
+  outline: none;
+}
+
+.clinic-register-address-result strong {
+  color: inherit;
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.clinic-register-address-result span {
+  color: var(--auth-muted, #64748b);
+  font-size: 0.75rem;
+}
+
+.clinic-register-coordinate-grid input:disabled {
+  color: var(--auth-text, #111827) !important;
+  opacity: 1 !important;
+  cursor: default;
+}
+
+@media (max-width: 760px) {
+  .clinic-register-address-row {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-register-locate-button {
+    width: 100%;
+  }
+}
+
+/* Keep address-selection confirmation inside the registration form. */
+.clinic-coordinate-success {
+  margin-bottom: 14px;
+}
+
+/* =========================================================
+   REGISTRATION POLICY LINKS
+   Append at the absolute bottom of auth.css.
+   ========================================================= */
+
+.auth-check .auth-policy-link {
+  color: var(--auth-accent, #60a5fa);
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.auth-check .auth-policy-link:hover,
+.auth-check .auth-policy-link:focus-visible {
+  color: var(--auth-accent-hover, #93c5fd);
+  outline: none;
+}
+
+/* =========================================================
+   CLINIC REGISTRATION — ADMIN VALIDATION DOCUMENT UPLOADS
+   Append this at the absolute bottom of frontend/src/styles/auth.css
+   ========================================================= */
+
+.clinic-verification-section {
+  min-width: 0;
+  margin: 4px 0 2px;
+  padding: 20px;
+  border: 1px solid rgba(96, 165, 250, 0.42);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.clinic-verification-section legend {
+  padding: 0 8px;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.95rem;
+  font-weight: 850;
+}
+
+.clinic-verification-intro {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 17px;
+  padding: 12px 14px;
+  border: 1px solid rgba(59, 130, 246, 0.34);
+  border-radius: 12px;
+  color: #dbeafe;
+  background: rgba(37, 99, 235, 0.09);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.clinic-verification-intro strong {
+  color: #f8fafc;
+}
+
+.clinic-verification-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.clinic-verification-upload {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 13px;
+  background: rgba(2, 6, 23, 0.22);
+}
+
+.clinic-verification-upload > label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.84rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.clinic-verification-upload > small {
+  min-height: 42px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.clinic-verification-upload input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px dashed rgba(96, 165, 250, 0.52);
+  border-radius: 10px;
+  color: var(--auth-text, #e5e7eb);
+  background: rgba(15, 23, 42, 0.64);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.clinic-verification-upload input[type="file"]::file-selector-button {
+  margin-right: 9px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  background: var(--auth-accent, #2563eb);
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clinic-verification-upload input[type="file"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.68;
+}
+
+.clinic-verification-file-selected {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 9px;
+  color: #bbf7d0;
+  background: rgba(22, 163, 74, 0.1);
+  font-size: 0.74rem;
+}
+
+.clinic-verification-file-selected span {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clinic-verification-file-selected small {
+  color: #86efac;
+  white-space: nowrap;
+}
+
+.clinic-verification-optional {
+  padding: 3px 7px;
+  border-radius: 999px;
+  color: #cbd5e1;
+  background: rgba(100, 116, 139, 0.18);
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.clinic-verification-privacy-note {
+  margin-top: 14px;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 760px) {
+  .clinic-verification-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-verification-upload > small {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .clinic-verification-section {
+    padding: 15px;
+  }
+
+  .clinic-verification-file-selected {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   CLINIC REGISTRATION — PENDING APPLICATION CONFIRMATION
+   Append at the absolute bottom of frontend/src/styles/auth.css
+   ========================================================= */
+
+.clinic-application-confirmation {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  margin-top: 12px;
+  padding: clamp(24px, 5vw, 38px);
+  border: 1px solid rgba(96, 165, 250, 0.48);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.16), transparent 44%),
+    rgba(15, 23, 42, 0.72);
+  box-shadow: 0 20px 52px rgba(2, 6, 23, 0.28);
+  text-align: center;
+}
+
+.clinic-application-confirmation-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 62px;
+  border: 2px solid rgba(74, 222, 128, 0.62);
+  border-radius: 50%;
+  color: #dcfce7;
+  background: rgba(22, 163, 74, 0.15);
+  box-shadow: 0 0 0 8px rgba(22, 163, 74, 0.06);
+  font-size: 1.8rem;
+  font-weight: 900;
+}
+
+.clinic-application-confirmation-heading {
+  display: grid;
+  gap: 7px;
+  max-width: 680px;
+}
+
+.clinic-application-confirmation-heading > span {
+  color: #86efac;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.clinic-application-confirmation-heading h2 {
+  margin: 0;
+  color: var(--auth-text, #f8fafc);
+  font-size: clamp(1.35rem, 3vw, 1.85rem);
+  line-height: 1.25;
+}
+
+.clinic-application-confirmation-message {
+  max-width: 680px;
+  margin: 0;
+  color: var(--auth-muted, #cbd5e1);
+  font-size: 0.92rem;
+  line-height: 1.65;
+}
+
+.clinic-application-pending-status {
+  display: flex;
+  width: min(100%, 680px);
+  align-items: flex-start;
+  gap: 12px;
+  padding: 15px 16px;
+  box-sizing: border-box;
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  border-radius: 13px;
+  background: rgba(234, 179, 8, 0.08);
+  text-align: left;
+}
+
+.clinic-application-pending-dot {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #facc15;
+  box-shadow: 0 0 0 5px rgba(250, 204, 21, 0.12);
+}
+
+.clinic-application-pending-status strong {
+  color: #fef08a;
+  font-size: 0.88rem;
+}
+
+.clinic-application-pending-status p {
+  margin: 5px 0 0;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.clinic-application-next-steps {
+  width: min(100%, 680px);
+  padding: 17px 18px;
+  box-sizing: border-box;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 13px;
+  background: rgba(2, 6, 23, 0.24);
+  text-align: left;
+}
+
+.clinic-application-next-steps h3 {
+  margin: 0 0 10px;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.92rem;
+}
+
+.clinic-application-next-steps ol {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--auth-muted, #cbd5e1);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.clinic-application-next-steps li + li {
+  margin-top: 7px;
+}
+
+.clinic-application-confirmation-note {
+  width: min(100%, 680px);
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.clinic-application-confirmation-actions {
+  display: grid;
+  width: min(100%, 440px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 11px;
+  margin-top: 2px;
+}
+
+.clinic-application-confirmation-actions .auth-button,
+.clinic-application-confirmation-actions > button {
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+}
+
+.clinic-application-another-button {
+  border-radius: 10px;
+}
+
+@media (max-width: 560px) {
+  .clinic-application-confirmation {
+    padding: 24px 17px;
+  }
+
+  .clinic-application-confirmation-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* NORMALIZED CLINIC OPERATING HOURS EDITOR */
+.clinic-hours-editor {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.18);
+}
+.clinic-hours-editor legend {
+  padding: 0 7px;
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+.clinic-hours-editor-help {
+  margin: 0 0 12px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.78rem;
+}
+.clinic-hours-editor-list {
+  display: grid;
+  gap: 8px;
+}
+.clinic-hours-editor-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.8fr) minmax(260px, 1.7fr);
+  align-items: center;
+  gap: 13px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 10px;
+  background: rgba(15, 23, 42, 0.28);
+}
+.clinic-hours-open-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: inherit;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+.clinic-hours-open-toggle input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--clinic-primary, #2563eb);
+}
+.clinic-hours-time-fields {
+  display: grid;
+  grid-template-columns: minmax(105px, 1fr) auto minmax(105px, 1fr);
+  align-items: end;
+  gap: 8px;
+}
+.clinic-hours-time-fields label {
+  display: grid;
+  gap: 4px;
+}
+.clinic-hours-time-fields label > span {
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.66rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.clinic-hours-time-fields input {
+  width: 100%;
+  min-height: 39px;
+  box-sizing: border-box;
+}
+.clinic-hours-separator {
+  padding-bottom: 10px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.75rem;
+}
+.clinic-hours-closed-label {
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+@media (max-width: 650px) {
+  .clinic-hours-editor-row {
+    grid-template-columns: 1fr;
+  }
+  .clinic-hours-time-fields {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
+/* =========================================================
+   DENTOGRAPH — WEEKLY OPERATING HOURS
+   Consistent dashboard/auth styling
+   Append at the absolute bottom of:
+   - frontend/src/styles/auth.css
+   - frontend/src/styles/dashboard.css
+   ========================================================= */
+
+.clinic-hours-editor {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 52%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--clinic-primary, #22d3ee) 4%, transparent),
+      transparent
+    ),
+    var(--clinic-surface, var(--dg-surface, rgba(15, 23, 42, 0.72)));
+  color: var(--clinic-body-text, var(--dg-text, #f8fafc));
+  box-shadow: none;
+}
+
+.clinic-hours-editor legend {
+  padding: 0 8px;
+  color: var(--clinic-heading-text, var(--dg-text, #f8fafc));
+  background: var(--clinic-surface, var(--dg-surface, #0f172a));
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.clinic-hours-editor-help {
+  margin: 0 0 14px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.clinic-hours-editor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.clinic-hours-editor-row {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.75fr) minmax(300px, 1.7fr);
+  align-items: center;
+  gap: 18px;
+  min-height: 72px;
+  padding: 13px 15px;
+  box-sizing: border-box;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, #22d3ee) 24%,
+      rgba(148, 163, 184, 0.2)
+    );
+  border-radius: 13px;
+  background: var(
+    --clinic-surface-elevated,
+    var(--dg-surface-soft, rgba(15, 23, 42, 0.58))
+  );
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease;
+}
+
+.clinic-hours-editor-row:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, #22d3ee) 48%,
+    transparent
+  );
+}
+
+.clinic-hours-open-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--clinic-heading-text, var(--dg-text, #f8fafc));
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.clinic-hours-open-toggle input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 auto;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 55%, #94a3b8);
+  border-radius: 5px;
+  background: var(--clinic-surface, var(--dg-surface, #0f172a));
+  cursor: pointer;
+  position: relative;
+}
+
+.clinic-hours-open-toggle input:checked {
+  border-color: var(--clinic-primary, #22d3ee);
+  background: var(--clinic-primary, #22d3ee);
+}
+
+.clinic-hours-open-toggle input:checked::after {
+  content: "✓";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--clinic-button-text, #04131a);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.clinic-hours-open-toggle input:focus-visible {
+  outline: 2px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 72%, white);
+  outline-offset: 2px;
+}
+
+.clinic-hours-time-fields {
+  display: grid;
+  grid-template-columns: minmax(130px, 1fr) auto minmax(130px, 1fr);
+  align-items: end;
+  gap: 10px;
+}
+
+.clinic-hours-time-fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.clinic-hours-time-fields label > span {
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.clinic-hours-time-fields input[type="time"] {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  box-sizing: border-box;
+  border: 1px solid
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 34%, #64748b);
+  border-radius: 9px;
+  color: var(--clinic-body-text, var(--dg-text, #f8fafc));
+  background: var(--clinic-input-bg, rgba(2, 6, 23, 0.5));
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color-scheme: dark;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.clinic-hours-time-fields input[type="time"]:hover {
+  border-color: color-mix(
+    in srgb,
+    var(--clinic-primary, #22d3ee) 56%,
+    transparent
+  );
+}
+
+.clinic-hours-time-fields input[type="time"]:focus {
+  border-color: var(--clinic-primary, #22d3ee);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary, #22d3ee) 18%, transparent);
+}
+
+.clinic-hours-time-fields
+  input[type="time"]::-webkit-calendar-picker-indicator {
+  -webkit-filter: invert(1);
+  filter: invert(1);
+  opacity: 0.72;
+  cursor: pointer;
+}
+
+.clinic-hours-separator {
+  padding-bottom: 12px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.clinic-hours-closed-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  color: var(--clinic-muted-text, var(--dg-muted, #94a3b8));
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.clinic-hours-editor input:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.clinic-hours-editor-compact {
+  padding: 16px;
+}
+
+.clinic-hours-editor-compact .clinic-hours-editor-row {
+  grid-template-columns: minmax(130px, 0.7fr) minmax(280px, 1.6fr);
+}
+
+@media (max-width: 760px) {
+  .clinic-hours-editor-row,
+  .clinic-hours-editor-compact .clinic-hours-editor-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .clinic-hours-time-fields {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .clinic-hours-editor {
+    padding: 14px;
+  }
+
+  .clinic-hours-editor-row {
+    padding: 12px;
+  }
+
+  .clinic-hours-time-fields {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .clinic-hours-separator {
+    display: none;
+  }
+}
+
+/* =========================================================
+   DENTOGRAPH — OPERATING HOURS ICON COLOR FIX
+   Append at the absolute bottom of auth.css and dashboard.css.
+   All icons inherit the active clinic theme color.
+   ========================================================= */
+
+/* Checkbox outline follows the clinic primary color. */
+.clinic-hours-open-toggle input[type="checkbox"] {
+  -moz-appearance: none;
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  position: relative;
+  flex: 0 0 auto;
+  border: 1.5px solid
+    color-mix(
+      in srgb,
+      var(--clinic-primary, var(--dg-accent)) 62%,
+      var(--clinic-muted-text, var(--dg-muted))
+    );
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    background-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.clinic-hours-open-toggle input[type="checkbox"]:hover {
+  border-color: var(--clinic-primary, var(--dg-accent));
+}
+
+.clinic-hours-open-toggle input[type="checkbox"]:checked {
+  border-color: var(--clinic-primary, var(--dg-accent));
+  background: color-mix(
+    in srgb,
+    var(--clinic-primary, var(--dg-accent)) 20%,
+    transparent
+  );
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--clinic-primary, var(--dg-accent)) 20%, transparent);
+}
+
+/* Theme-colored checkmark instead of a black native check. */
+.clinic-hours-open-toggle input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--clinic-primary, var(--dg-accent));
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.clinic-hours-open-toggle input[type="checkbox"]:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--clinic-primary, var(--dg-accent)) 20%, transparent);
+}
+
+/* Replace the browser's black clock with a clinic-theme clock icon. */
+.clinic-hours-time-fields
+  input[type="time"]::-webkit-calendar-picker-indicator {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-left: 8px;
+  opacity: 1;
+  cursor: pointer;
+  background: var(--clinic-primary, var(--dg-accent));
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16a8 8 0 0 1 0-16Zm-1 3h2v4.59l3.2 3.2l-1.41 1.42L11 12.41V7Z'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='black' d='M12 2a10 10 0 1 0 0 20a10 10 0 0 0 0-20Zm0 2a8 8 0 1 1 0 16a8 8 0 0 1 0-16Zm-1 3h2v4.59l3.2 3.2l-1.41 1.42L11 12.41V7Z'/%3E%3C/svg%3E");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-filter: none;
+  filter: none;
+}
+
+/* Keep disabled controls readable while preserving the clinic color. */
+.clinic-hours-open-toggle input[type="checkbox"]:disabled,
+.clinic-hours-time-fields input[type="time"]:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   PHASE 10I — CLINIC VERIFICATION DOCUMENT CARD REFINEMENT
+   Append at the bottom of frontend/src/styles/auth.css
+   ========================================================= */
+
+.clinic-verification-grid {
+  align-items: stretch;
+  gap: 18px;
+}
+
+.clinic-verification-upload {
+  position: relative;
+  display: flex;
+  min-height: 292px;
+  padding: 18px;
+  gap: 14px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  border-radius: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.72),
+    rgba(2, 6, 23, 0.52)
+  );
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.clinic-verification-upload:hover {
+  border-color: rgba(45, 212, 191, 0.5);
+}
+
+.clinic-verification-card-header {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 11px;
+}
+
+.clinic-verification-card-header > div {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.clinic-verification-card-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(45, 212, 191, 0.42);
+  border-radius: 10px;
+  color: #5eead4;
+  background: rgba(13, 148, 136, 0.1);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.clinic-verification-card-header label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.35;
+}
+
+.clinic-verification-card-header small {
+  min-height: 0;
+  margin: 0;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.clinic-verification-upload input[type="file"] {
+  min-height: 52px;
+  padding: 9px;
+  border: 1px dashed rgba(45, 212, 191, 0.42);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.38);
+}
+
+.clinic-verification-upload input[type="file"]::file-selector-button {
+  min-height: 34px;
+  margin-right: 10px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+.clinic-verification-expiry-block {
+  display: grid;
+  gap: 8px;
+  margin-top: auto;
+  padding: 13px;
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  border-radius: 12px;
+  background: rgba(13, 148, 136, 0.065);
+}
+
+.clinic-verification-expiry-block label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--auth-text, #f8fafc);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.clinic-verification-expiry-block input[type="date"] {
+  width: 100%;
+  min-height: 43px;
+  padding: 9px 11px;
+  box-sizing: border-box;
+  border: 1px solid rgba(96, 165, 250, 0.45);
+  border-radius: 10px;
+  color: var(--auth-text, #f8fafc);
+  background: rgba(2, 6, 23, 0.72);
+  color-scheme: dark;
+}
+
+.clinic-verification-expiry-block small {
+  min-height: 0;
+  margin: 0;
+  color: var(--auth-muted, #94a3b8);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.clinic-verification-expiry-not-required {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  margin-top: auto;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  color: #cbd5e1;
+  background: rgba(100, 116, 139, 0.1);
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.clinic-verification-upload--no-expiry .clinic-verification-file-selected,
+.clinic-verification-upload--with-expiry .clinic-verification-file-selected {
+  margin-top: 0;
+}
+
+.clinic-verification-optional {
+  margin-left: 2px;
+}
+
+@media (max-width: 760px) {
+  .clinic-verification-upload {
+    min-height: 0;
+  }
+
+  .clinic-verification-expiry-not-required,
+  .clinic-verification-expiry-block {
+    margin-top: 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .clinic-verification-upload {
+    padding: 15px;
+  }
+
+  .clinic-verification-card-header {
+    grid-template-columns: 30px minmax(0, 1fr);
+  }
+
+  .clinic-verification-card-number {
+    width: 30px;
+    height: 30px;
+  }
+}

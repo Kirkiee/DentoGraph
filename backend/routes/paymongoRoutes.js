@@ -20,18 +20,27 @@ const getPayMongoAuthHeader = () => {
 
 const getOwnerSubscriptionSource = async (client, ownerUserId) => {
   const result = await client.query(
-    `SELECT 
+    `SELECT
+        os.owner_subscription_id,
+        os.owner_user_id,
+        os.plan_id AS subscription_plan_id,
+        os.subscription_status,
+        os.start_date AS subscription_start_date,
+        os.end_date AS subscription_end_date,
         c.clinic_id,
-        c.clinic_name,
-        c.subscription_plan_id,
-        c.owner_user_id
-     FROM public.clinics c
-     WHERE c.owner_user_id = $1
-     AND c.status = 'Active'
-     ORDER BY 
-       CASE WHEN c.subscription_plan_id IS NULL THEN 1 ELSE 0 END,
-       c.created_at ASC NULLS LAST,
-       c.clinic_id ASC
+        c.clinic_name
+     FROM public.owner_subscriptions os
+     LEFT JOIN LATERAL (
+       SELECT
+         clinic_id,
+         clinic_name
+       FROM public.clinics
+       WHERE owner_user_id = os.owner_user_id
+         AND status = 'Active'
+       ORDER BY created_at ASC NULLS LAST, clinic_id ASC
+       LIMIT 1
+     ) c ON TRUE
+     WHERE os.owner_user_id = $1
      LIMIT 1`,
     [ownerUserId],
   );
@@ -57,16 +66,49 @@ const syncOwnerSubscriptionToAllLocations = async (
   planId,
   billingCycle,
 ) => {
-  const result = await client.query(
-    `UPDATE public.clinics
-     SET ${buildSubscriptionDateUpdateSQL()}
+  const updatedSubscription = await client.query(
+    `UPDATE public.owner_subscriptions
+     SET plan_id = $1,
+         billing_cycle = COALESCE($3, billing_cycle),
+         start_date = CURRENT_TIMESTAMP,
+         end_date =
+           CASE
+             WHEN LOWER(COALESCE($3, 'monthly')) = 'yearly'
+               THEN CURRENT_TIMESTAMP + INTERVAL '1 year'
+             ELSE CURRENT_TIMESTAMP + INTERVAL '1 month'
+           END,
+         subscription_status = 'Active',
+         updated_at = CURRENT_TIMESTAMP
      WHERE owner_user_id = $2
-     AND status = 'Active'
-     RETURNING clinic_id, clinic_name, subscription_plan_id, subscription_status`,
+     RETURNING
+       owner_subscription_id,
+       owner_user_id,
+       plan_id,
+       subscription_status,
+       start_date,
+       end_date,
+       billing_cycle`,
     [planId, ownerUserId, billingCycle],
   );
 
-  return result.rows;
+  if (updatedSubscription.rows.length === 0) {
+    const error = new Error("Owner-level subscription record was not found.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const locations = await client.query(
+    `SELECT
+       clinic_id,
+       clinic_name,
+       status
+     FROM public.clinics
+     WHERE owner_user_id = $1
+     ORDER BY created_at ASC NULLS LAST, clinic_id ASC`,
+    [ownerUserId],
+  );
+
+  return locations.rows;
 };
 
 const validateOwnerUsageAgainstPlan = async (client, ownerUserId, plan) => {
@@ -244,20 +286,6 @@ const verifyPayMongoSignature = (req) => {
   return signatureHeader.includes(expectedSignature);
 };
 
-const buildSubscriptionDateUpdateSQL = () => {
-  return `
-    subscription_plan_id = $1,
-    subscription_start_date = CURRENT_TIMESTAMP,
-    subscription_end_date =
-      CASE
-        WHEN LOWER(COALESCE($3, 'monthly')) = 'yearly'
-          THEN CURRENT_TIMESTAMP + INTERVAL '1 year'
-        ELSE CURRENT_TIMESTAMP + INTERVAL '1 month'
-      END,
-    subscription_status = 'Active'
-  `;
-};
-
 // CREATE PAYMONGO CHECKOUT SESSION
 router.post(
   "/create-checkout",
@@ -411,18 +439,24 @@ router.post(
            clinic_id,
            plan_id,
            owner_user_id,
+           owner_subscription_id,
+           payment_type,
            checkout_session_id,
            checkout_url,
            amount,
            currency,
            status
          )
-         VALUES ($1, $2, $3, $4, $5, $6, 'PHP', 'Pending')
+         VALUES (
+           $1, $2, $3, $4, 'SUBSCRIPTION',
+           $5, $6, $7, 'PHP', 'Pending'
+         )
          RETURNING *`,
         [
           clinic.clinic_id,
           plan.plan_id,
           req.user.user_id,
+          clinic.owner_subscription_id,
           checkoutSessionId,
           checkoutUrl,
           price,
@@ -453,7 +487,7 @@ router.post(
         err.response?.data || err.message,
       );
 
-      res.status(500).json({
+      res.status(err.statusCode || 500).json({
         error:
           err.response?.data?.errors?.[0]?.detail ||
           err.message ||
@@ -486,6 +520,7 @@ router.put(
             p.clinic_id,
             p.plan_id,
             p.owner_user_id,
+            p.owner_subscription_id,
             p.status,
             sp.plan_name,
             sp.billing_cycle
@@ -541,7 +576,7 @@ router.put(
 
       console.error("Manual confirm payment error:", err.message);
 
-      res.status(500).json({
+      res.status(err.statusCode || 500).json({
         error: err.message || "Error confirming payment.",
       });
     } finally {
@@ -613,7 +648,7 @@ router.put(
     } catch (err) {
       console.error("Cancel pending payment error:", err.message);
 
-      res.status(500).json({
+      res.status(err.statusCode || 500).json({
         error: err.message || "Error cancelling pending payment.",
       });
     }
@@ -667,7 +702,7 @@ router.get(
     } catch (err) {
       console.error("Admin get all payments error:", err.message);
 
-      res.status(500).json({
+      res.status(err.statusCode || 500).json({
         error: err.message || "Error retrieving payment records.",
       });
     }
@@ -798,7 +833,7 @@ router.put(
 
       console.error("Change free plan error:", err.message);
 
-      res.status(500).json({
+      res.status(err.statusCode || 500).json({
         error: err.message || "Error changing subscription plan.",
       });
     } finally {
@@ -858,6 +893,7 @@ router.post("/webhook", async (req, res) => {
             p.clinic_id,
             p.plan_id,
             p.owner_user_id,
+            p.owner_subscription_id,
             p.status,
             sp.plan_name,
             sp.billing_cycle
@@ -983,7 +1019,7 @@ router.get(
     } catch (err) {
       console.error("Get payment history error:", err.message);
 
-      res.status(500).json({
+      res.status(err.statusCode || 500).json({
         error: err.message || "Error retrieving payment records.",
       });
     }

@@ -40,37 +40,74 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "X-rays", path: "/patient/xrays" },
       { label: "AR Braces Simulation", path: "/patient/ar-braces" },
       { label: "Clinic Discovery", path: "/patient/clinics" },
+      { label: "Information Transfers", path: "/patient/transfers" },
+      { label: "Historical Records", path: "/patient/historical-records" },
     ],
 
     Dentist: [
       { label: "Dashboard", path: "/dentist/dashboard" },
       { label: "My Profile", path: "/dentist/profile" },
       { label: "Appointments", path: "/dentist/appointments" },
+      {
+        label: "Walk-in Registration",
+        path: "/dentist/walk-in-registration",
+      },
       { label: "Dental Records", path: "/dentist/dental-records" },
       { label: "X-rays", path: "/dentist/xrays" },
+      { label: "Patient Transfers", path: "/dentist/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/dentist/patient-historical-records",
+      },
     ],
 
     Assistant: [
       { label: "Dashboard", path: "/assistant/dashboard" },
       { label: "My Profile", path: "/assistant/profile" },
       { label: "Appointments", path: "/assistant/appointments" },
+      {
+        label: "Walk-in Registration",
+        path: "/assistant/walk-in-registration",
+      },
       { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
+      { label: "Patient Transfers", path: "/assistant/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/assistant/patient-historical-records",
+      },
     ],
 
     "Dental Assistant": [
       { label: "Dashboard", path: "/assistant/dashboard" },
       { label: "My Profile", path: "/assistant/profile" },
       { label: "Appointments", path: "/assistant/appointments" },
+      {
+        label: "Walk-in Registration",
+        path: "/assistant/walk-in-registration",
+      },
       { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
+      { label: "Patient Transfers", path: "/assistant/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/assistant/patient-historical-records",
+      },
     ],
 
     Admin: [
       { label: "Dashboard", path: "/admin/dashboard" },
       { label: "My Profile", path: "/admin/profile" },
       { label: "User Management", path: "/admin/users" },
+      {
+        label: "Staff Credential Review",
+        path: "/admin/staff-credentials",
+      },
       { label: "Clinic Locations", path: "/admin/clinics" },
+      {
+        label: "Document Renewals",
+        path: "/admin/document-renewals",
+      },
       { label: "Shared Subscriptions", path: "/admin/subscriptions" },
       { label: "Subscription Payments", path: "/admin/payments" },
       { label: "Reports & Analytics", path: "/admin/reports" },
@@ -83,8 +120,19 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "Clinic Locations", path: "/clinic-owner/profile" },
       { label: "Clinic Customization", path: "/clinic-owner/branding" },
       { label: "Staff Management", path: "/clinic-owner/staff" },
+      {
+        label: "Walk-in Registration",
+        path: "/clinic-owner/walk-in-registration",
+      },
       { label: "Shared Subscription", path: "/clinic-owner/subscription" },
       { label: "Payment History", path: "/clinic-owner/payments" },
+      { label: "Inventory", path: "/clinic-owner/inventory" },
+      { label: "Dental Records", path: "/clinic-owner/dental-records" },
+      { label: "Patient Transfers", path: "/clinic-owner/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/clinic-owner/patient-historical-records",
+      },
     ],
   };
 

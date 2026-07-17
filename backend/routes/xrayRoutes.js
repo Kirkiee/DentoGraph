@@ -272,9 +272,9 @@ const getRecordContext = async (record_id) => {
         c.clinic_name,
         c.status AS clinic_status,
         c.owner_user_id,
-        c.subscription_plan_id,
-        c.subscription_end_date,
-        c.subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
         sp.plan_name,
         sp.max_xrays,
         sp.storage_limit_mb
@@ -282,13 +282,44 @@ const getRecordContext = async (record_id) => {
      JOIN public.dentists d ON dr.dentist_id = d.dentist_id
      JOIN public.patients p ON dr.patient_id = p.patient_id
      LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE dr.record_id = $1`,
     [record_id],
   );
 
   return result.rows[0] || null;
+};
+
+const getOwnedClinicIdsForXray = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT clinic_id
+     FROM public.clinics
+     WHERE owner_user_id = $1
+     ORDER BY clinic_id`,
+    [user_id],
+  );
+
+  return result.rows.map((row) => Number(row.clinic_id));
+};
+
+const hasPatientClinicHistoryForXray = async (
+  patient_id,
+  clinic_id,
+  queryClient = pool,
+) => {
+  const result = await queryClient.query(
+    `SELECT 1
+     FROM public.patient_clinic_assignments
+     WHERE patient_id = $1
+       AND clinic_id = $2
+     LIMIT 1`,
+    [patient_id, clinic_id],
+  );
+
+  return result.rows.length > 0;
 };
 
 const getAccessibleRecordForXray = async (req, record_id) => {
@@ -314,21 +345,99 @@ const getAccessibleRecordForXray = async (req, record_id) => {
     };
   }
 
-  if (
-    !record.clinic_id ||
-    !record.patient_clinic_id ||
-    Number(record.clinic_id) !== Number(record.patient_clinic_id)
-  ) {
+  if (!record.clinic_id || !record.patient_clinic_id) {
     return {
       allowed: false,
-      error:
-        "This dental record has an invalid cross-clinic assignment and cannot be used for X-ray operations.",
+      error: "This dental record has an incomplete clinic assignment.",
       statusCode: 409,
       record,
     };
   }
 
+  const isHistoricalClinicRecord =
+    Number(record.clinic_id) !== Number(record.patient_clinic_id);
+
+  if (isHistoricalClinicRecord) {
+    const historicalAccess = await hasPatientClinicHistoryForXray(
+      record.patient_id,
+      record.clinic_id,
+    );
+
+    if (!historicalAccess || req.method !== "GET") {
+      return {
+        allowed: false,
+        error:
+          "Historical X-rays are read-only and require a valid Patient clinic-assignment history.",
+        statusCode: 403,
+        record,
+      };
+    }
+  }
+
   if (role === "Admin") {
+    return {
+      allowed: true,
+      error: null,
+      statusCode: 200,
+      record,
+    };
+  }
+
+  if (role === "Clinic Owner") {
+    const clinicIds = await getOwnedClinicIdsForXray(user_id);
+
+    const ownsSourceClinic = clinicIds.includes(Number(record.clinic_id));
+
+    let hasTransferredAccess = false;
+
+    if (!ownsSourceClinic && clinicIds.length > 0) {
+      const transferredAccessResult = await pool.query(
+        `SELECT 1
+         FROM public.patient_transfer_requests transfer_request
+         WHERE transfer_request.patient_id = $1
+           AND transfer_request.transfer_status = 'Approved'
+           AND transfer_request.destination_clinic_id =
+             ANY($2::int[])
+           AND EXISTS (
+             SELECT 1
+             FROM public.patient_transfer_record_access transfer_access
+             WHERE transfer_access.transfer_id =
+                     transfer_request.transfer_id
+               AND (
+                 (
+                   transfer_access.record_type = 'DENTAL_RECORD'
+                   AND transfer_access.source_record_id = $3
+                 )
+                 OR
+                 (
+                   transfer_access.record_type = 'XRAY'
+                   AND EXISTS (
+                     SELECT 1
+                     FROM public.xray_images transferred_xray
+                     WHERE transferred_xray.xray_id =
+                             transfer_access.source_record_id
+                       AND transferred_xray.record_id = $3
+                   )
+                 )
+               )
+           )
+         LIMIT 1`,
+        [record.patient_id, clinicIds, record.record_id],
+      );
+
+      hasTransferredAccess = transferredAccessResult.rows.length > 0;
+    }
+
+    if (!ownsSourceClinic && !hasTransferredAccess) {
+      return {
+        allowed: false,
+        error:
+          "This X-ray record is not authorized for an owned clinic location.",
+        statusCode: 403,
+        record,
+      };
+    }
+
     return {
       allowed: true,
       error: null,
@@ -913,6 +1022,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { record_id } = req.params;
@@ -959,6 +1069,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { xray_id } = req.params;
@@ -1180,6 +1291,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { xray_id } = req.params;
@@ -1674,4 +1786,6 @@ router.delete(
   },
 );
 
-module.exports = router;
+module.exports = {
+  router,
+};

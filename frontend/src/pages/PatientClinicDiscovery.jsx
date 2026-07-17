@@ -15,6 +15,11 @@ import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import {
+  clinicServicesToDisplayText,
+  getClinicServiceNames,
+} from "../utils/clinicServices";
+import { clinicOperatingHoursToSummary } from "../utils/clinicOperatingHours";
 
 delete L.Icon.Default.prototype._getIconUrl;
 
@@ -229,18 +234,14 @@ function PatientClinicDiscovery() {
     const servicesSet = new Set();
 
     clinics.forEach((clinic) => {
-      if (!clinic.services) return;
-
-      clinic.services.split(",").forEach((service) => {
-        const cleaned = service.trim();
-
-        if (cleaned) {
-          servicesSet.add(cleaned);
-        }
+      getClinicServiceNames(clinic).forEach((serviceName) => {
+        servicesSet.add(serviceName);
       });
     });
 
-    return Array.from(servicesSet).sort();
+    return Array.from(servicesSet).sort((first, second) =>
+      first.localeCompare(second),
+    );
   }, [clinics]);
 
   const clinicsWithDistance = useMemo(() => {
@@ -269,15 +270,20 @@ function PatientClinicDiscovery() {
 
     return clinicsWithDistance
       .filter((clinic) => {
+        const clinicServiceNames = getClinicServiceNames(clinic);
+        const searchableServices = clinicServiceNames.join(" ").toLowerCase();
+
         const matchesSearch =
           !term ||
           clinic.clinic_name?.toLowerCase().includes(term) ||
           clinic.address?.toLowerCase().includes(term) ||
-          clinic.services?.toLowerCase().includes(term);
+          searchableServices.includes(term);
 
         const matchesService =
           !selectedService ||
-          clinic.services?.toLowerCase().includes(selectedService);
+          clinicServiceNames.some(
+            (serviceName) => serviceName.toLowerCase() === selectedService,
+          );
 
         let matchesRadius = true;
 
@@ -629,7 +635,7 @@ function PatientClinicDiscovery() {
 
                 <p>
                   <strong>Services:</strong>{" "}
-                  {clinic.services || "No services listed"}
+                  {clinicServicesToDisplayText(clinic) || "No services listed"}
                 </p>
 
                 <p>
@@ -639,7 +645,9 @@ function PatientClinicDiscovery() {
 
                 <p>
                   <strong>Opening Hours:</strong>{" "}
-                  {clinic.opening_hours || "No schedule listed"}
+                  {clinicOperatingHoursToSummary(clinic) ||
+                    clinic.opening_hours ||
+                    "No schedule listed"}
                 </p>
 
                 <p>
