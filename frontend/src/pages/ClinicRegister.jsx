@@ -7,10 +7,21 @@ import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
 import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
+import { CLINIC_SERVICE_CATEGORIES } from "../utils/clinicServices";
+import ClinicOperatingHoursEditor from "../components/ClinicOperatingHoursEditor";
+import {
+  clinicOperatingHoursToSummary,
+  createDefaultClinicOperatingHours,
+  validateClinicOperatingHours,
+} from "../utils/clinicOperatingHours";
 
 function ClinicRegister() {
   const navigate = useNavigate();
   const turnstileRef = useRef(null);
+  const businessRegistrationRef = useRef(null);
+  const businessPermitRef = useRef(null);
+  const ownerGovernmentIdRef = useRef(null);
+  const clinicLicenseRef = useRef(null);
 
   const siteKey = process.env.REACT_APP_TURNSTILE_SITE_KEY;
 
@@ -21,9 +32,21 @@ function ClinicRegister() {
     confirmPassword: "",
     clinic_name: "",
     address: "",
+    latitude: "",
+    longitude: "",
     contact_number: "",
-    services: "",
+    services: [],
     opening_hours: "",
+    operating_hours_schedule: createDefaultClinicOperatingHours(),
+    business_permit_expiration_date: "",
+    owner_government_id_expiration_date: "",
+  });
+
+  const [verificationFiles, setVerificationFiles] = useState({
+    business_registration: null,
+    business_permit: null,
+    owner_government_id: null,
+    clinic_license: null,
   });
 
   const [agree, setAgree] = useState(false);
@@ -33,6 +56,9 @@ function ClinicRegister() {
   const [passwordRules, setPasswordRules] = useState([]);
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeResults, setGeocodeResults] = useState([]);
+  const [coordinateMessage, setCoordinateMessage] = useState("");
 
   const isValidEmail = (email) => {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
@@ -84,12 +110,35 @@ function ClinicRegister() {
       confirmPassword: "",
       clinic_name: "",
       address: "",
+      latitude: "",
+      longitude: "",
       contact_number: "",
-      services: "",
+      services: [],
       opening_hours: "",
+      operating_hours_schedule: createDefaultClinicOperatingHours(),
+    });
+
+    setVerificationFiles({
+      business_registration: null,
+      business_permit: null,
+      owner_government_id: null,
+      clinic_license: null,
+    });
+
+    [
+      businessRegistrationRef,
+      businessPermitRef,
+      ownerGovernmentIdRef,
+      clinicLicenseRef,
+    ].forEach((inputRef) => {
+      if (inputRef.current) {
+        inputRef.current.value = "";
+      }
     });
 
     setAgree(false);
+    setGeocodeResults([]);
+    setCoordinateMessage("");
     resetTurnstile();
   };
 
@@ -98,10 +147,139 @@ function ClinicRegister() {
     setPasswordRules([]);
     setSuccess("");
 
+    if (e.target.name === "address") {
+      setCoordinateMessage("");
+    }
+
     setFormData((prev) => ({
       ...prev,
       [e.target.name]: e.target.value,
+      ...(e.target.name === "address" ? { latitude: "", longitude: "" } : {}),
     }));
+
+    if (e.target.name === "address") {
+      setGeocodeResults([]);
+    }
+  };
+
+  const handleServiceToggle = (service) => {
+    setError("");
+    setPasswordRules([]);
+    setSuccess("");
+
+    setFormData((previous) => {
+      const currentServices = Array.isArray(previous.services)
+        ? previous.services
+        : [];
+
+      const isSelected = currentServices.includes(service);
+
+      return {
+        ...previous,
+        services: isSelected
+          ? currentServices.filter((item) => item !== service)
+          : [...currentServices, service],
+      };
+    });
+  };
+
+  const handleLocateAddress = async () => {
+    const address = cleanText(formData.address);
+
+    if (address.length < 5) {
+      setError("Enter a more complete clinic address before locating it.");
+      return;
+    }
+
+    try {
+      setGeocoding(true);
+      setError("");
+      setSuccess("");
+      setGeocodeResults([]);
+
+      const response = await API.get("/api/clinics/geocode", {
+        params: { address },
+      });
+
+      const results = response.data?.results || [];
+      setGeocodeResults(results);
+
+      if (results.length === 0) {
+        setError(
+          "No matching Philippine address was found. Add the street, barangay, city, and province, then try again.",
+        );
+      }
+    } catch (err) {
+      setError(
+        err.response?.data?.error ||
+          "Unable to locate the clinic address right now.",
+      );
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
+  const selectGeocodeResult = (result) => {
+    setFormData((prev) => ({
+      ...prev,
+      address: result.display_name || prev.address,
+      latitude: String(result.latitude),
+      longitude: String(result.longitude),
+    }));
+
+    setGeocodeResults([]);
+    setError("");
+    setCoordinateMessage(
+      "Clinic coordinates were generated from the selected address.",
+    );
+  };
+
+  const ALLOWED_DOCUMENT_TYPES = [
+    "application/pdf",
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+  ];
+
+  const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
+
+  const handleVerificationFileChange = (fieldName, event) => {
+    setError("");
+    setSuccess("");
+
+    const file = event.target.files?.[0] || null;
+
+    if (!file) {
+      setVerificationFiles((previous) => ({
+        ...previous,
+        [fieldName]: null,
+      }));
+      return;
+    }
+
+    if (!ALLOWED_DOCUMENT_TYPES.includes(file.type)) {
+      event.target.value = "";
+      setError(
+        "Verification documents must be PDF, JPG, JPEG, PNG, or WEBP files.",
+      );
+      return;
+    }
+
+    if (file.size > MAX_DOCUMENT_SIZE_BYTES) {
+      event.target.value = "";
+      setError("Each verification document must not exceed 10 MB.");
+      return;
+    }
+
+    setVerificationFiles((previous) => ({
+      ...previous,
+      [fieldName]: file,
+    }));
+  };
+
+  const formatFileSize = (sizeInBytes) => {
+    const sizeInMb = Number(sizeInBytes || 0) / (1024 * 1024);
+    return `${sizeInMb.toFixed(sizeInMb >= 1 ? 2 : 3)} MB`;
   };
 
   const handleSubmit = async (e) => {
@@ -112,6 +290,7 @@ function ClinicRegister() {
     setError("");
     setPasswordRules([]);
     setSuccess("");
+    setCoordinateMessage("");
 
     const ownerName = cleanText(formData.owner_name);
     const ownerEmail = cleanText(formData.owner_email).toLowerCase();
@@ -119,9 +298,19 @@ function ClinicRegister() {
     const confirmPassword = formData.confirmPassword;
     const clinicName = cleanText(formData.clinic_name);
     const address = cleanText(formData.address);
+    const latitude = cleanText(formData.latitude);
+    const longitude = cleanText(formData.longitude);
     const contactNumber = cleanText(formData.contact_number);
-    const services = cleanText(formData.services);
-    const openingHours = cleanText(formData.opening_hours);
+    const selectedServices = Array.isArray(formData.services)
+      ? formData.services
+      : [];
+    const servicesPayload = JSON.stringify(selectedServices);
+    const operatingHoursError = validateClinicOperatingHours(
+      formData.operating_hours_schedule,
+    );
+    const openingHours = clinicOperatingHoursToSummary(
+      formData.operating_hours_schedule,
+    );
 
     if (!ownerName) {
       setError("Clinic owner name is required.");
@@ -160,13 +349,57 @@ function ClinicRegister() {
       return;
     }
 
-    if (!services) {
-      setError("Please enter at least one clinic service.");
+    if (!latitude || !longitude) {
+      setError(
+        "Locate the clinic address and select a matching result before registering.",
+      );
       return;
     }
 
-    if (!openingHours) {
-      setError("Opening hours are required.");
+    if (selectedServices.length === 0) {
+      setError("Please select at least one clinic service.");
+      return;
+    }
+
+    if (operatingHoursError) {
+      setError(operatingHoursError);
+      return;
+    }
+
+    if (!verificationFiles.business_registration) {
+      setError("Business registration document is required.");
+      return;
+    }
+
+    if (!verificationFiles.business_permit) {
+      setError("Current business or mayor's permit is required.");
+      return;
+    }
+
+    if (!verificationFiles.owner_government_id) {
+      setError("Clinic Owner government-issued ID is required.");
+      return;
+    }
+
+    if (!formData.business_permit_expiration_date) {
+      setError("Business permit expiration date is required.");
+      return;
+    }
+
+    if (!formData.owner_government_id_expiration_date) {
+      setError("Clinic Owner government ID expiration date is required.");
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    if (formData.business_permit_expiration_date < today) {
+      setError("The selected business permit is already expired.");
+      return;
+    }
+
+    if (formData.owner_government_id_expiration_date < today) {
+      setError("The selected Clinic Owner government ID is already expired.");
       return;
     }
 
@@ -183,21 +416,60 @@ function ClinicRegister() {
     try {
       setLoading(true);
 
-      const response = await API.post("/api/clinics/register", {
-        owner_name: ownerName,
-        owner_email: ownerEmail,
-        password,
-        clinic_name: clinicName,
-        address,
-        contact_number: contactNumber || null,
-        services,
-        opening_hours: openingHours,
-        turnstileToken,
-      });
+      const registrationPayload = new FormData();
+
+      registrationPayload.append("owner_name", ownerName);
+      registrationPayload.append("owner_email", ownerEmail);
+      registrationPayload.append("password", password);
+      registrationPayload.append("clinic_name", clinicName);
+      registrationPayload.append("address", address);
+      registrationPayload.append("latitude", latitude);
+      registrationPayload.append("longitude", longitude);
+      registrationPayload.append("contact_number", contactNumber);
+      registrationPayload.append("services", servicesPayload);
+      registrationPayload.append("opening_hours", openingHours);
+      registrationPayload.append(
+        "operating_hours_schedule",
+        JSON.stringify(formData.operating_hours_schedule),
+      );
+      registrationPayload.append("turnstileToken", turnstileToken);
+
+      registrationPayload.append(
+        "business_registration",
+        verificationFiles.business_registration,
+      );
+      registrationPayload.append(
+        "business_permit",
+        verificationFiles.business_permit,
+      );
+      registrationPayload.append(
+        "owner_government_id",
+        verificationFiles.owner_government_id,
+      );
+      registrationPayload.append(
+        "business_permit_expiration_date",
+        formData.business_permit_expiration_date,
+      );
+      registrationPayload.append(
+        "owner_government_id_expiration_date",
+        formData.owner_government_id_expiration_date,
+      );
+
+      if (verificationFiles.clinic_license) {
+        registrationPayload.append(
+          "clinic_license",
+          verificationFiles.clinic_license,
+        );
+      }
+
+      const response = await API.post(
+        "/api/clinics/register",
+        registrationPayload,
+      );
 
       setSuccess(
         response.data?.message ||
-          "Clinic owner account and first clinic location created successfully. Please check the clinic owner email to verify the account.",
+          "Clinic application submitted successfully. Your account and clinic will remain inactive until an Administrator approves the submitted documents.",
       );
 
       resetForm();
@@ -231,7 +503,7 @@ function ClinicRegister() {
   return (
     <AuthLayout
       title="Register Your Clinic"
-      subtitle="Create a clinic owner account and first clinic location workspace"
+      subtitle="Submit your first clinic location for Administrator verification"
       wide
     >
       <ThemeToggle />
@@ -253,17 +525,22 @@ function ClinicRegister() {
         </div>
       )}
 
-      {success && <div className="auth-success">{success}</div>}
-
       {!success && (
         <>
           <div className="info-message" style={{ marginBottom: "16px" }}>
-            <strong>Default Setup:</strong> This creates one Clinic Owner
-            account and the first clinic location. The account starts with the
-            Free shared subscription and can add more locations after upgrading.
+            <strong>Administrator Approval Required:</strong> Your Clinic Owner
+            account and first clinic location will remain inactive while the
+            submitted clinic documents are reviewed. The Free shared
+            subscription is assigned only after approval.
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
+            {coordinateMessage && (
+              <div className="auth-success clinic-coordinate-success">
+                {coordinateMessage}
+              </div>
+            )}
+
             <div className="auth-required-note">
               Fields marked with <span>*</span> are required.
             </div>
@@ -338,17 +615,88 @@ function ClinicRegister() {
               required
             />
 
-            <AuthInput
-              label="Clinic Location Address"
-              name="address"
-              placeholder="123 Sample Street, Quezon City"
-              value={formData.address}
-              onChange={handleChange}
-              icon="📍"
-              autoComplete="street-address"
-              disabled={loading}
-              required
-            />
+            <div className="clinic-register-address-field">
+              <label className="auth-label" htmlFor="clinic-register-address">
+                Clinic Location Address <span className="auth-required">*</span>
+              </label>
+
+              <div className="clinic-register-address-row">
+                <input
+                  id="clinic-register-address"
+                  type="text"
+                  name="address"
+                  className="auth-input"
+                  placeholder="Street, barangay, city, province"
+                  value={formData.address}
+                  onChange={handleChange}
+                  autoComplete="street-address"
+                  disabled={loading}
+                  required
+                />
+
+                <button
+                  type="button"
+                  className="auth-secondary-button clinic-register-locate-button"
+                  onClick={handleLocateAddress}
+                  disabled={
+                    loading ||
+                    geocoding ||
+                    cleanText(formData.address).length < 5
+                  }
+                >
+                  {geocoding ? "Locating..." : "Locate Address"}
+                </button>
+              </div>
+
+              <small className="clinic-register-address-help">
+                Enter the complete Philippine address, then select the correct
+                result to generate the coordinates automatically.
+              </small>
+
+              {geocodeResults.length > 0 && (
+                <div className="clinic-register-address-results">
+                  {geocodeResults.map((result) => (
+                    <button
+                      type="button"
+                      className="clinic-register-address-result"
+                      key={`${result.place_id}-${result.latitude}-${result.longitude}`}
+                      onClick={() => selectGeocodeResult(result)}
+                      disabled={loading}
+                    >
+                      <strong>{result.display_name}</strong>
+                      <span>
+                        {Number(result.latitude).toFixed(6)},{" "}
+                        {Number(result.longitude).toFixed(6)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="auth-row clinic-register-coordinate-grid">
+              <div className="auth-field">
+                <label>Generated Latitude</label>
+                <input
+                  type="text"
+                  className="auth-input"
+                  value={formData.latitude || "Locate the address first"}
+                  readOnly
+                  disabled
+                />
+              </div>
+
+              <div className="auth-field">
+                <label>Generated Longitude</label>
+                <input
+                  type="text"
+                  className="auth-input"
+                  value={formData.longitude || "Locate the address first"}
+                  readOnly
+                  disabled
+                />
+              </div>
+            </div>
 
             <AuthInput
               label="Clinic Location Contact Number"
@@ -369,35 +717,299 @@ function ClinicRegister() {
               Owner portal.
             </div>
 
-            <div className="auth-textarea-group">
-              <label>
+            <fieldset className="clinic-service-selector">
+              <legend>
                 Services Offered <span className="auth-required">*</span>
-              </label>
-              <textarea
-                name="services"
-                value={formData.services}
-                onChange={handleChange}
-                placeholder="Example: General Dentistry, Cleaning, Extraction, Orthodontics"
-                rows="4"
-                disabled={loading}
-                required
-              />
-            </div>
+              </legend>
 
-            <div className="auth-textarea-group">
-              <label>
-                Opening Hours <span className="auth-required">*</span>
-              </label>
-              <textarea
-                name="opening_hours"
-                value={formData.opening_hours}
-                onChange={handleChange}
-                placeholder="Example: Monday to Saturday, 9:00 AM - 5:00 PM"
-                rows="4"
-                disabled={loading}
-                required
-              />
-            </div>
+              <p className="clinic-service-selector-help">
+                Select all dental services available at this clinic location.
+              </p>
+
+              <div className="clinic-service-category-list">
+                {CLINIC_SERVICE_CATEGORIES.map((group) => (
+                  <section
+                    className="clinic-service-category"
+                    key={group.category}
+                  >
+                    <h4>{group.category}</h4>
+
+                    <div className="clinic-service-options">
+                      {group.services.map((service) => {
+                        const isSelected = formData.services.includes(service);
+
+                        return (
+                          <label
+                            key={service}
+                            className={`clinic-service-option ${
+                              isSelected ? "selected" : ""
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleServiceToggle(service)}
+                              disabled={loading}
+                            />
+
+                            <span className="clinic-service-option-check">
+                              {isSelected ? "✓" : ""}
+                            </span>
+
+                            <span>{service}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </section>
+                ))}
+              </div>
+
+              <div className="clinic-service-selection-summary">
+                <strong>{formData.services.length}</strong>{" "}
+                {formData.services.length === 1
+                  ? "service selected"
+                  : "services selected"}
+              </div>
+            </fieldset>
+
+            <ClinicOperatingHoursEditor
+              value={formData.operating_hours_schedule}
+              onChange={(operatingHoursSchedule) =>
+                setFormData((previous) => ({
+                  ...previous,
+                  operating_hours_schedule: operatingHoursSchedule,
+                  opening_hours: clinicOperatingHoursToSummary(
+                    operatingHoursSchedule,
+                  ),
+                }))
+              }
+              disabled={loading}
+            />
+
+            <fieldset className="clinic-verification-section">
+              <legend>
+                Clinic Verification Documents{" "}
+                <span className="auth-required">*</span>
+              </legend>
+
+              <div className="clinic-verification-intro">
+                <strong>Administrator validation is required.</strong>
+                <span>
+                  Upload clear and current documents. Accepted formats: PDF,
+                  JPG, JPEG, PNG, and WEBP. Maximum file size: 10 MB each.
+                </span>
+              </div>
+
+              <div className="clinic-verification-grid">
+                <div className="clinic-verification-upload clinic-verification-upload--no-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">01</span>
+                    <div>
+                      <label htmlFor="business_registration">
+                        Business Registration{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <small>
+                        SEC, DTI, CDA, or another applicable business
+                        registration document.
+                      </small>
+                    </div>
+                  </div>
+                  <input
+                    ref={businessRegistrationRef}
+                    id="business_registration"
+                    name="business_registration"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange(
+                        "business_registration",
+                        event,
+                      )
+                    }
+                    disabled={loading}
+                    required
+                  />
+                  <div className="clinic-verification-expiry-not-required">
+                    No expiration date required
+                  </div>
+                  {verificationFiles.business_registration && (
+                    <div className="clinic-verification-file-selected">
+                      <span>
+                        {verificationFiles.business_registration.name}
+                      </span>
+                      <small>
+                        {formatFileSize(
+                          verificationFiles.business_registration.size,
+                        )}
+                      </small>
+                    </div>
+                  )}
+                </div>
+
+                <div className="clinic-verification-upload clinic-verification-upload--with-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">02</span>
+                    <div>
+                      <label htmlFor="business_permit">
+                        Current Business / Mayor's Permit{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <small>
+                        Upload the current permit showing that the clinic is
+                        allowed to operate at the registered address.
+                      </small>
+                    </div>
+                  </div>
+                  <input
+                    ref={businessPermitRef}
+                    id="business_permit"
+                    name="business_permit"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange("business_permit", event)
+                    }
+                    disabled={loading}
+                    required
+                  />
+                  {verificationFiles.business_permit && (
+                    <div className="clinic-verification-file-selected">
+                      <span>{verificationFiles.business_permit.name}</span>
+                      <small>
+                        {formatFileSize(verificationFiles.business_permit.size)}
+                      </small>
+                    </div>
+                  )}
+
+                  <div className="clinic-verification-expiry-block">
+                    <label htmlFor="business_permit_expiration_date">
+                      Permit Expiration Date{" "}
+                      <span className="auth-required">*</span>
+                    </label>
+                    <input
+                      id="business_permit_expiration_date"
+                      name="business_permit_expiration_date"
+                      type="date"
+                      value={formData.business_permit_expiration_date}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={handleChange}
+                      disabled={loading}
+                      required
+                    />
+                    <small>
+                      DentoGraph will notify the Clinic Owner beginning 90 days
+                      before this permit expires.
+                    </small>
+                  </div>
+                </div>
+
+                <div className="clinic-verification-upload clinic-verification-upload--with-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">03</span>
+                    <div>
+                      <label htmlFor="owner_government_id">
+                        Clinic Owner Government-Issued ID{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <small>
+                        Upload a clear copy of a valid government-issued ID
+                        belonging to the registering Clinic Owner.
+                      </small>
+                    </div>
+                  </div>
+                  <input
+                    ref={ownerGovernmentIdRef}
+                    id="owner_government_id"
+                    name="owner_government_id"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange("owner_government_id", event)
+                    }
+                    disabled={loading}
+                    required
+                  />
+                  {verificationFiles.owner_government_id && (
+                    <div className="clinic-verification-file-selected">
+                      <span>{verificationFiles.owner_government_id.name}</span>
+                      <small>
+                        {formatFileSize(
+                          verificationFiles.owner_government_id.size,
+                        )}
+                      </small>
+                    </div>
+                  )}
+
+                  <div className="clinic-verification-expiry-block">
+                    <label htmlFor="owner_government_id_expiration_date">
+                      Government ID Expiration Date{" "}
+                      <span className="auth-required">*</span>
+                    </label>
+                    <input
+                      id="owner_government_id_expiration_date"
+                      name="owner_government_id_expiration_date"
+                      type="date"
+                      value={formData.owner_government_id_expiration_date}
+                      min={new Date().toISOString().split("T")[0]}
+                      onChange={handleChange}
+                      disabled={loading}
+                      required
+                    />
+                    <small>
+                      DentoGraph will notify the Clinic Owner beginning 90 days
+                      before this ID expires.
+                    </small>
+                  </div>
+                </div>
+
+                <div className="clinic-verification-upload clinic-verification-upload--no-expiry">
+                  <div className="clinic-verification-card-header">
+                    <span className="clinic-verification-card-number">04</span>
+                    <div>
+                      <label htmlFor="clinic_license">
+                        Clinic License / Accreditation
+                        <span className="clinic-verification-optional">
+                          Optional
+                        </span>
+                      </label>
+                      <small>
+                        Upload an operating license, accreditation, or another
+                        supporting clinic document when available.
+                      </small>
+                    </div>
+                  </div>
+                  <input
+                    ref={clinicLicenseRef}
+                    id="clinic_license"
+                    name="clinic_license"
+                    type="file"
+                    accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      handleVerificationFileChange("clinic_license", event)
+                    }
+                    disabled={loading}
+                  />
+                  <div className="clinic-verification-expiry-not-required">
+                    Expiration date not required in registration
+                  </div>
+                  {verificationFiles.clinic_license && (
+                    <div className="clinic-verification-file-selected">
+                      <span>{verificationFiles.clinic_license.name}</span>
+                      <small>
+                        {formatFileSize(verificationFiles.clinic_license.size)}
+                      </small>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="clinic-verification-privacy-note">
+                Documents are available only to authorized Administrators for
+                clinic application review.
+              </div>
+            </fieldset>
 
             <label className="auth-check">
               <input
@@ -410,7 +1022,24 @@ function ClinicRegister() {
                 disabled={loading}
               />
               <span>
-                I agree to the Terms of Service and Privacy Policy{" "}
+                I agree to the{" "}
+                <Link
+                  className="auth-policy-link"
+                  to="/terms-of-service"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  className="auth-policy-link"
+                  to="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Privacy Policy
+                </Link>{" "}
                 <strong className="auth-required">*</strong>
               </span>
             </label>
@@ -446,44 +1075,107 @@ function ClinicRegister() {
             )}
 
             <AuthButton type="submit" disabled={loading || !siteKey}>
-              {loading ? "Registering Clinic..." : "Register Clinic Location"}
+              {loading
+                ? "Submitting Application..."
+                : "Submit Clinic Application"}
             </AuthButton>
           </form>
         </>
       )}
 
-      {success && (
-        <div className="auth-form">
-          <AuthButton type="button" onClick={() => navigate("/auth/login")}>
-            Go to Login
-          </AuthButton>
+      {success ? (
+        <section
+          className="clinic-application-confirmation"
+          aria-live="polite"
+          aria-labelledby="clinic-application-confirmation-title"
+        >
+          <div
+            className="clinic-application-confirmation-icon"
+            aria-hidden="true"
+          >
+            ✓
+          </div>
 
+          <div className="clinic-application-confirmation-heading">
+            <span>Application Submitted</span>
+            <h2 id="clinic-application-confirmation-title">
+              Your clinic application is pending Administrator review
+            </h2>
+          </div>
+
+          <p className="clinic-application-confirmation-message">{success}</p>
+
+          <div className="clinic-application-pending-status">
+            <span
+              className="clinic-application-pending-dot"
+              aria-hidden="true"
+            />
+            <div>
+              <strong>Status: Pending Review</strong>
+              <p>
+                Your Clinic Owner account and clinic location remain inactive
+                until an Administrator validates the submitted information and
+                documents.
+              </p>
+            </div>
+          </div>
+
+          <div className="clinic-application-next-steps">
+            <h3>What happens next?</h3>
+
+            <ol>
+              <li>
+                An Administrator reviews the clinic details and verification
+                documents.
+              </li>
+              <li>
+                Once approved, the clinic and Clinic Owner account are
+                activated.
+              </li>
+              <li>
+                You may then sign in using the registered Clinic Owner email and
+                password.
+              </li>
+            </ol>
+          </div>
+
+          <div className="clinic-application-confirmation-note">
+            Attempting to sign in before approval will show that the clinic
+            application is still pending.
+          </div>
+
+          <div className="clinic-application-confirmation-actions">
+            <AuthButton type="button" onClick={() => navigate("/auth/login")}>
+              Go to Login
+            </AuthButton>
+
+            <button
+              type="button"
+              className="secondary-button clinic-application-another-button"
+              onClick={() => {
+                setSuccess("");
+                setError("");
+                setPasswordRules([]);
+                resetForm();
+              }}
+            >
+              Submit Another Application
+            </button>
+          </div>
+        </section>
+      ) : (
+        <p className="auth-footer">
+          Already have a clinic owner account?{" "}
           <button
             type="button"
             className="auth-link"
-            onClick={() => {
-              setSuccess("");
-              setError("");
-              setPasswordRules([]);
-              resetTurnstile();
-            }}
+            onClick={() => navigate("/auth/login")}
+            disabled={loading}
           >
-            Register another clinic owner
+            Sign in
           </button>
-        </div>
+        </p>
       )}
-
-      <p className="auth-footer">
-        Already have a clinic owner account?{" "}
-        <button
-          type="button"
-          className="auth-link"
-          onClick={() => navigate("/auth/login")}
-          disabled={loading}
-        >
-          Sign in
-        </button>
-      </p>
     </AuthLayout>
   );
 }

@@ -3,6 +3,9 @@ const router = express.Router();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
 const rateLimit = require("express-rate-limit");
 const pool = require("../config/db");
 const createAuditLog = require("../utils/auditLogger");
@@ -14,6 +17,59 @@ const {
   authenticateToken,
   authorizeRoles,
 } = require("../middleware/authMiddleware");
+
+// ===============================
+// STAFF CREDENTIAL DOCUMENT UPLOAD
+// ===============================
+
+const staffCredentialDirectory = path.join(
+  __dirname,
+  "..",
+  "uploads",
+  "staff-credentials",
+);
+
+fs.mkdirSync(staffCredentialDirectory, { recursive: true });
+
+const credentialStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, staffCredentialDirectory);
+  },
+  filename: (req, file, cb) => {
+    const safeExtension = path.extname(file.originalname || "").toLowerCase();
+    const randomName = crypto.randomBytes(18).toString("hex");
+    cb(null, `${Date.now()}-${randomName}${safeExtension}`);
+  },
+});
+
+const credentialUpload = multer({
+  storage: credentialStorage,
+  limits: {
+    fileSize: 8 * 1024 * 1024,
+    files: 2,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ["application/pdf", "image/jpeg", "image/png"];
+
+    if (!allowedTypes.includes(file.mimetype)) {
+      return cb(
+        new Error("Credential documents must be PDF, JPG, or PNG files."),
+      );
+    }
+
+    cb(null, true);
+  },
+});
+
+const deleteUploadedCredentialFiles = (files = []) => {
+  Object.values(files || {})
+    .flat()
+    .forEach((file) => {
+      if (file?.path) {
+        fs.unlink(file.path, () => {});
+      }
+    });
+};
 
 // ===============================
 // SECURITY LIMITERS
@@ -206,7 +262,10 @@ const checkClinicSubscriptionLimit = async (
         c.clinic_id,
         c.clinic_name,
         c.owner_user_id,
-        c.subscription_plan_id,
+        os.plan_id AS subscription_plan_id,
+        os.subscription_status,
+        os.start_date AS subscription_start_date,
+        os.end_date AS subscription_end_date,
         sp.plan_name,
         sp.max_dentists,
         sp.max_assistants,
@@ -215,8 +274,10 @@ const checkClinicSubscriptionLimit = async (
         sp.max_xrays,
         sp.storage_limit_mb
      FROM public.clinics c
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.clinic_id = $1`,
     [clinic_id],
   );
@@ -316,17 +377,19 @@ const getClinicsOwnedByUser = async (client, ownerUserId) => {
         c.clinic_id,
         c.clinic_name,
         c.address,
-        c.subscription_plan_id,
-        c.subscription_end_date,
-        c.subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
         c.owner_user_id,
         c.status,
         sp.plan_name,
         sp.max_dentists,
         sp.max_assistants
      FROM public.clinics c
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.owner_user_id = $1
      AND c.status = 'Active'
      ORDER BY c.clinic_name ASC`,
@@ -350,17 +413,19 @@ const getClinicOwnedByUser = async (client, ownerUserId, clinicId = null) => {
         c.clinic_id,
         c.clinic_name,
         c.address,
-        c.subscription_plan_id,
-        c.subscription_end_date,
-        c.subscription_status,
+        os.plan_id AS subscription_plan_id,
+        os.end_date AS subscription_end_date,
+        os.subscription_status,
         c.owner_user_id,
         c.status,
         sp.plan_name,
         sp.max_dentists,
         sp.max_assistants
      FROM public.clinics c
+     LEFT JOIN public.owner_subscriptions os
+       ON os.owner_user_id = c.owner_user_id
      LEFT JOIN public.subscription_plans sp
-       ON c.subscription_plan_id = sp.plan_id
+       ON os.plan_id = sp.plan_id
      WHERE c.owner_user_id = $1
      AND c.status = 'Active'
      ${clinicFilter}
@@ -452,7 +517,6 @@ router.post(
       specialization,
       availability,
       clinic_id,
-      contact_number,
     } = req.body || {};
 
     const cleanName = cleanText(name);
@@ -495,9 +559,6 @@ router.post(
 
       const roleName = roleCheck.rows[0].role_name;
       const normalizedClinicId = normalizeNullable(clinic_id);
-      const normalizedContactNumber = normalizeNullable(
-        cleanText(contact_number),
-      );
 
       const allowedRoles = [
         "Admin",
@@ -544,9 +605,128 @@ router.post(
         });
       }
 
-      let selectedPatientClinic = null;
+      if (roleName === "Dentist" && normalizedClinicId) {
+        const limitCheck = await checkClinicSubscriptionLimit(
+          client,
+          normalizedClinicId,
+          "Dentist",
+        );
+
+        if (!limitCheck.allowed) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: limitCheck.message });
+        }
+      }
+
+      if (isAssistantRole(roleName) && normalizedClinicId) {
+        const limitCheck = await checkClinicSubscriptionLimit(
+          client,
+          normalizedClinicId,
+          "Assistant",
+        );
+
+        if (!limitCheck.allowed) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({ error: limitCheck.message });
+        }
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const emailVerification = generateEmailVerification();
+
+      const newUser = await client.query(
+        `INSERT INTO public.users 
+         (
+           name,
+           email,
+           password,
+           status,
+           email_verified,
+           email_verification_token,
+           email_verification_expires
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING user_id, name, email, status, email_verified, created_at`,
+        [
+          cleanName,
+          cleanEmail,
+          hashedPassword,
+          "Active",
+          false,
+          emailVerification.hashedToken,
+          emailVerification.expiresAt,
+        ],
+      );
+
+      const userId = newUser.rows[0].user_id;
+
+      await client.query(
+        `INSERT INTO public.user_roles (user_id, role_id)
+         VALUES ($1, $2)`,
+        [userId, role_id],
+      );
+
+      if (roleName === "Dentist") {
+        await client.query(
+          `INSERT INTO public.dentists
+           (user_id, license_number, specialization, availability, status, clinic_id)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            userId,
+            license_number || `DEN-${userId}`,
+            specialization || "General Dentistry",
+            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            "Active",
+            normalizedClinicId,
+          ],
+        );
+      }
+
+      if (isAssistantRole(roleName)) {
+        await client.query(
+          `INSERT INTO public.assistants
+           (user_id, license_number, availability, status, clinic_id)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [
+            userId,
+            license_number || `AST-${userId}`,
+            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            "Active",
+            normalizedClinicId,
+          ],
+        );
+      }
 
       if (roleName === "Patient") {
+        if (!normalizedClinicId) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "Please select the clinic you are registering under.",
+          });
+        }
+
+        const clinicCheck = await client.query(
+          `SELECT clinic_id, clinic_name, status
+           FROM public.clinics
+           WHERE clinic_id = $1
+           LIMIT 1`,
+          [normalizedClinicId],
+        );
+
+        if (clinicCheck.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({
+            error: "Selected clinic was not found.",
+          });
+        }
+
+        if (clinicCheck.rows[0].status !== "Active") {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "Selected clinic is not currently active.",
+          });
+        }
+
         await client.query(
           `INSERT INTO public.patients (user_id, clinic_id)
            VALUES ($1, $2)`,
@@ -556,26 +736,11 @@ router.post(
 
       await client.query("COMMIT");
 
-      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
-
-      await sendVerificationEmail({
-        to: cleanEmail,
-        name: cleanName,
-        verificationUrl,
-      });
-
       await createAuditLog({
         user_id: req.user?.user_id || null,
         action: "CREATE_USER",
         module: "User Management",
-        description:
-          roleName === "Patient"
-            ? `Created patient account for ${newUser.rows[0].name} under clinic ${selectedPatientClinic?.clinic_name || normalizedClinicId}${
-                normalizedContactNumber
-                  ? ` with contact number ${normalizedContactNumber}`
-                  : ""
-              }.`
-            : `Created user account for ${newUser.rows[0].name} as ${roleName}.`,
+        description: `Created user account for ${newUser.rows[0].name} as ${roleName}.`,
         ip_address: req.ip,
       });
 
@@ -584,14 +749,6 @@ router.post(
           "User registered successfully. Please check your email to verify your account.",
         user: newUser.rows[0],
         role: roleName,
-        clinic:
-          roleName === "Patient"
-            ? {
-                clinic_id: selectedPatientClinic.clinic_id,
-                clinic_name: selectedPatientClinic.clinic_name,
-                address: selectedPatientClinic.address,
-              }
-            : null,
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
@@ -640,10 +797,21 @@ router.post("/login", loginLimiter, async (req, res) => {
           u.status,
           COALESCE(u.email_verified, false) AS email_verified,
           r.role_id,
-          r.role_name
+          r.role_name,
+          sc.credential_id,
+          sc.verification_status AS credential_verification_status,
+          c.clinic_id AS owned_clinic_id,
+          c.clinic_name AS owned_clinic_name,
+          c.status AS owned_clinic_status,
+          cva.verification_status AS clinic_application_status
        FROM public.users u
        JOIN public.user_roles ur ON u.user_id = ur.user_id
        JOIN public.roles r ON ur.role_id = r.role_id
+       LEFT JOIN public.staff_credentials sc ON u.user_id = sc.user_id
+       LEFT JOIN public.clinics c
+         ON c.owner_user_id = u.user_id
+       LEFT JOIN public.clinic_verification_applications cva
+         ON cva.clinic_id = c.clinic_id
        WHERE LOWER(u.email) = LOWER($1)
        LIMIT 1`,
       [cleanEmail],
@@ -661,13 +829,49 @@ router.post("/login", loginLimiter, async (req, res) => {
       return res.status(401).json({ error: AUTH_ERROR_MESSAGE });
     }
 
+    if (
+      ["Dentist", "Assistant", "Dental Assistant"].includes(user.role_name) &&
+      user.credential_verification_status &&
+      user.credential_verification_status !== "Approved"
+    ) {
+      const currentStatus = user.credential_verification_status;
+
+      return res.status(403).json({
+        error:
+          currentStatus === "Rejected"
+            ? "Your professional credentials were rejected. Please contact your clinic owner."
+            : "Your professional credentials are still pending administrator approval.",
+        credential_verification_required: true,
+        credential_verification_status: currentStatus,
+      });
+    }
+
     if (user.status === "Inactive") {
+      if (
+        user.role_name === "Clinic Owner" &&
+        user.clinic_application_status === "Pending"
+      ) {
+        return res.status(403).json({
+          error:
+            "Your clinic application is still pending Administrator review. You will be able to sign in after the clinic is approved.",
+          clinic_application_pending: true,
+          clinic_application_status: "Pending",
+          clinic_name: user.owned_clinic_name || null,
+        });
+      }
+
       return res.status(403).json({
         error: "This account is inactive. Please contact the administrator.",
       });
     }
 
-    if (!user.email_verified) {
+    const isStaffRole = ["Dentist", "Assistant", "Dental Assistant"].includes(
+      user.role_name,
+    );
+
+    const isLegacyStaffAccount = isStaffRole && !user.credential_id;
+
+    if (!user.email_verified && !isLegacyStaffAccount) {
       return res.status(403).json({
         error:
           "Your email address is not verified. Please verify your email before logging in.",
@@ -1746,7 +1950,17 @@ router.get(
             ac.clinic_name AS assistant_clinic_name,
 
             COALESCE(d.clinic_id, a.clinic_id) AS clinic_id,
-            COALESCE(dc.clinic_name, ac.clinic_name) AS clinic_name
+            COALESCE(dc.clinic_name, ac.clinic_name) AS clinic_name,
+
+            sc.credential_id,
+            sc.credential_number,
+            sc.license_expiration_date,
+            sc.qualification_name,
+            sc.qualification_expiration_date,
+            sc.verification_status,
+            sc.rejection_reason,
+            sc.submitted_at,
+            sc.reviewed_at
 
          FROM public.users u
          JOIN public.user_roles ur ON u.user_id = ur.user_id
@@ -1756,6 +1970,7 @@ router.get(
          LEFT JOIN public.clinics dc ON d.clinic_id = dc.clinic_id
          LEFT JOIN public.assistants a ON u.user_id = a.user_id
          LEFT JOIN public.clinics ac ON a.clinic_id = ac.clinic_id
+         LEFT JOIN public.staff_credentials sc ON u.user_id = sc.user_id
 
          WHERE 
            (
@@ -1794,6 +2009,10 @@ router.post(
   registerLimiter,
   authenticateToken,
   authorizeRoles("Clinic Owner"),
+  credentialUpload.fields([
+    { name: "primary_credential_document", maxCount: 1 },
+    { name: "government_id_document", maxCount: 1 },
+  ]),
   async (req, res) => {
     const {
       name,
@@ -1804,37 +2023,81 @@ router.post(
       specialization,
       availability,
       clinic_id,
+      license_expiration_date,
+      qualification_name,
+      qualification_expiration_date,
+      credential_number,
     } = req.body || {};
 
     const cleanName = cleanText(name);
     const cleanEmail = normalizeEmail(email);
     const passwordError = validatePasswordStrength(password);
     const normalizedClinicId = Number(clinic_id);
+    const normalizedRole =
+      staff_role === "Dental Assistant" ? "Assistant" : staff_role;
 
-    if (!cleanName || !cleanEmail || !password || !staff_role || !clinic_id) {
-      return res.status(400).json({
-        error:
-          "Name, email, password, staff role, and clinic location are required.",
-      });
+    const primaryCredential =
+      req.files?.primary_credential_document?.[0] || null;
+    const governmentId = req.files?.government_id_document?.[0] || null;
+
+    const failUpload = (status, error, extra = {}) => {
+      deleteUploadedCredentialFiles(req.files);
+      return res.status(status).json({ error, ...extra });
+    };
+
+    if (
+      !cleanName ||
+      !cleanEmail ||
+      !password ||
+      !normalizedRole ||
+      !clinic_id
+    ) {
+      return failUpload(
+        400,
+        "Name, email, password, staff role, and clinic location are required.",
+      );
     }
 
     if (!Number.isInteger(normalizedClinicId) || normalizedClinicId <= 0) {
-      return res.status(400).json({
-        error: "Please select a valid clinic location.",
-      });
+      return failUpload(400, "Please select a valid clinic location.");
     }
 
     if (!isValidEmail(cleanEmail)) {
-      return res.status(400).json({
-        error: "Please enter a valid email address.",
-      });
+      return failUpload(400, "Please enter a valid email address.");
     }
 
     if (passwordError) {
-      return res.status(400).json({
-        error: passwordError,
+      return failUpload(400, passwordError, {
         password_rules: getPasswordRules(),
       });
+    }
+
+    if (!primaryCredential || !governmentId) {
+      return failUpload(
+        400,
+        "A professional credential document and a valid government ID are required.",
+      );
+    }
+
+    if (normalizedRole === "Dentist") {
+      if (
+        !cleanText(license_number) ||
+        !cleanText(license_expiration_date) ||
+        !cleanText(specialization)
+      ) {
+        return failUpload(
+          400,
+          "Dentists must provide a PRC license number, license expiration date, and specialization.",
+        );
+      }
+    } else if (
+      !cleanText(credential_number) ||
+      !cleanText(qualification_name)
+    ) {
+      return failUpload(
+        400,
+        "Dental assistants must provide a credential or certificate number and qualification name.",
+      );
     }
 
     const client = await pool.connect();
@@ -1850,28 +2113,25 @@ router.post(
 
       if (!clinic) {
         await client.query("ROLLBACK");
-
-        return res.status(403).json({
-          error: "Selected clinic location does not belong to your account.",
-        });
+        return failUpload(
+          403,
+          "Selected clinic location does not belong to your account.",
+        );
       }
 
       if (clinic.status !== "Active") {
         await client.query("ROLLBACK");
-        return res.status(403).json({
-          error:
-            "Staff cannot be added to an inactive clinic location. Activate the location first.",
-        });
+        return failUpload(
+          403,
+          "Staff cannot be added to an inactive clinic location. Activate the location first.",
+        );
       }
 
-      const role = await getStaffRoleByName(client, staff_role);
+      const role = await getStaffRoleByName(client, normalizedRole);
 
       if (!role) {
         await client.query("ROLLBACK");
-
-        return res.status(400).json({
-          error: "Invalid staff role. Use Dentist or Assistant.",
-        });
+        return failUpload(400, "Invalid staff role. Use Dentist or Assistant.");
       }
 
       const emailCheck = await client.query(
@@ -1884,14 +2144,13 @@ router.post(
 
       if (emailCheck.rows.length > 0) {
         await client.query("ROLLBACK");
-
-        return res.status(400).json({
-          error: "Email already exists. Please use another email address.",
-        });
+        return failUpload(
+          400,
+          "Email already exists. Please use another email address.",
+        );
       }
 
       const limitType = role.role_name === "Dentist" ? "Dentist" : "Assistant";
-
       const limitCheck = await checkClinicSubscriptionLimit(
         client,
         clinic.clinic_id,
@@ -1900,14 +2159,10 @@ router.post(
 
       if (!limitCheck.allowed) {
         await client.query("ROLLBACK");
-
-        return res.status(400).json({
-          error: limitCheck.message,
-        });
+        return failUpload(400, limitCheck.message);
       }
 
       const hashedPassword = await bcrypt.hash(password, 12);
-      const emailVerification = generateEmailVerification();
 
       const newUser = await client.query(
         `INSERT INTO public.users
@@ -1920,23 +2175,15 @@ router.post(
            email_verification_token,
            email_verification_expires
          )
-         VALUES ($1, $2, $3, 'Active', $4, $5, $6)
+         VALUES ($1, $2, $3, 'Inactive', TRUE, NULL, NULL)
          RETURNING user_id, name, email, status, email_verified, created_at`,
-        [
-          cleanName,
-          cleanEmail,
-          hashedPassword,
-          false,
-          emailVerification.hashedToken,
-          emailVerification.expiresAt,
-        ],
+        [cleanName, cleanEmail, hashedPassword],
       );
 
       const newUserId = newUser.rows[0].user_id;
 
       await client.query(
-        `INSERT INTO public.user_roles
-         (user_id, role_id)
+        `INSERT INTO public.user_roles (user_id, role_id)
          VALUES ($1, $2)`,
         [newUserId, role.role_id],
       );
@@ -1952,12 +2199,12 @@ router.post(
              status,
              clinic_id
            )
-           VALUES ($1, $2, $3, $4, 'Active', $5)`,
+           VALUES ($1, $2, $3, $4, 'Inactive', $5)`,
           [
             newUserId,
-            license_number || `DEN-${newUserId}`,
-            specialization || "General Dentistry",
-            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            cleanText(license_number),
+            cleanText(specialization),
+            cleanText(availability) || "Monday to Friday, 9:00 AM - 5:00 PM",
             clinic.clinic_id,
           ],
         );
@@ -1971,59 +2218,411 @@ router.post(
              status,
              clinic_id
            )
-           VALUES ($1, $2, $3, 'Active', $4)`,
+           VALUES ($1, $2, $3, 'Inactive', $4)`,
           [
             newUserId,
-            license_number || `AST-${newUserId}`,
-            availability || "Monday to Friday, 9:00 AM - 5:00 PM",
+            cleanText(credential_number),
+            cleanText(availability) || "Monday to Friday, 9:00 AM - 5:00 PM",
             clinic.clinic_id,
           ],
         );
       }
 
+      const insertedCredential = await client.query(
+        `INSERT INTO public.staff_credentials
+         (
+           user_id,
+           clinic_id,
+           staff_role,
+           credential_number,
+           license_expiration_date,
+           qualification_name,
+           qualification_expiration_date,
+           primary_document_path,
+           primary_document_original_name,
+           primary_document_mime_type,
+           government_id_path,
+           government_id_original_name,
+           government_id_mime_type,
+           verification_status,
+           submitted_by_user_id,
+           submitted_at
+         )
+         VALUES
+         ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'Pending', $14, CURRENT_TIMESTAMP)
+         RETURNING *`,
+        [
+          newUserId,
+          clinic.clinic_id,
+          role.role_name,
+          role.role_name === "Dentist"
+            ? cleanText(license_number)
+            : cleanText(credential_number),
+          role.role_name === "Dentist"
+            ? normalizeNullable(license_expiration_date)
+            : null,
+          role.role_name === "Dentist"
+            ? cleanText(specialization)
+            : cleanText(qualification_name),
+          role.role_name === "Assistant"
+            ? normalizeNullable(qualification_expiration_date)
+            : null,
+          primaryCredential.filename,
+          primaryCredential.originalname,
+          primaryCredential.mimetype,
+          governmentId.filename,
+          governmentId.originalname,
+          governmentId.mimetype,
+          req.user.user_id,
+        ],
+      );
+
       await client.query("COMMIT");
 
-      const verificationUrl = `${getFrontendBaseUrl()}/verify-email/${emailVerification.rawToken}`;
-
-      await sendVerificationEmail({
-        to: cleanEmail,
-        name: cleanName,
-        verificationUrl,
-      });
-
-      await createAuditLog({
-        user_id: req.user.user_id,
-        action: "CREATE_CLINIC_STAFF",
-        module: "Clinic Owner Staff Management",
-        description: `Clinic owner created ${role.role_name} account ${cleanName} under ${clinic.clinic_name}.`,
-        ip_address: req.ip,
-      });
+      try {
+        await createAuditLog({
+          user_id: req.user.user_id,
+          action: "SUBMIT_STAFF_CREDENTIALS",
+          module: "Staff Credential Verification",
+          description: `Clinic owner submitted ${role.role_name} credentials for ${cleanName} under ${clinic.clinic_name}.`,
+          ip_address: req.ip,
+        });
+      } catch (auditError) {
+        console.error(
+          "Create staff credential audit log error:",
+          auditError.message,
+        );
+      }
 
       res.status(201).json({
-        message: `${role.role_name} account created successfully under ${clinic.clinic_name}. A verification email has been sent to the staff email address.`,
+        message: `${role.role_name} account and credentials were submitted successfully. The account is already email-verified because it was created by an authenticated clinic owner, but it will remain inactive until administrator credential approval is completed.`,
         user: newUser.rows[0],
+        credential: insertedCredential.rows[0],
         role: role.role_name,
         clinic,
-        shared_subscription_scope: {
-          owner_user_id: clinic.owner_user_id,
-          plan_name: clinic.plan_name,
-          max_dentists: clinic.max_dentists,
-          max_assistants: clinic.max_assistants,
-        },
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
+      deleteUploadedCredentialFiles(req.files);
 
       console.error("Create clinic owner staff error:", err.message);
 
       if (err.code === "23505") {
         return res.status(400).json({
-          error: "A duplicate record already exists.",
+          error: "A duplicate staff or credential record already exists.",
+        });
+      }
+
+      if (err.code === "42P01") {
+        return res.status(500).json({
+          error:
+            "The staff credential database table is missing. Run the staff credential migration first.",
+        });
+      }
+
+      if (err.code === "42703") {
+        return res.status(500).json({
+          error:
+            "The staff credential database schema is outdated. Re-run the latest migration.",
+        });
+      }
+
+      if (err.code === "23503") {
+        return res.status(400).json({
+          error:
+            "A required user, clinic, or staff relationship could not be created. Refresh the page and try again.",
         });
       }
 
       res.status(500).json({
-        error: "Error creating clinic staff account.",
+        error:
+          process.env.NODE_ENV === "production"
+            ? "Unable to create the staff credential application."
+            : `Unable to create the staff credential application: ${err.message}`,
+      });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
+// ADMIN: REVIEW STAFF CREDENTIAL APPLICATIONS
+// ===============================
+
+router.get(
+  "/admin/staff-credentials",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const status = cleanText(req.query.status || "All");
+
+    try {
+      const values = [];
+      let statusFilter = "";
+
+      if (status !== "All") {
+        values.push(status);
+        statusFilter = `AND sc.verification_status = $${values.length}`;
+      }
+
+      const result = await pool.query(
+        `SELECT
+           sc.*,
+           u.name,
+           u.email,
+           u.status AS account_status,
+           COALESCE(u.email_verified, false) AS email_verified,
+           c.clinic_name,
+           c.address AS clinic_address,
+           owner.name AS clinic_owner_name,
+           reviewer.name AS reviewed_by_name
+         FROM public.staff_credentials sc
+         JOIN public.users u ON sc.user_id = u.user_id
+         JOIN public.clinics c ON sc.clinic_id = c.clinic_id
+         LEFT JOIN public.users owner ON c.owner_user_id = owner.user_id
+         LEFT JOIN public.users reviewer ON sc.reviewed_by_user_id = reviewer.user_id
+         WHERE 1 = 1
+         ${statusFilter}
+         ORDER BY
+           CASE sc.verification_status
+             WHEN 'Pending' THEN 1
+             WHEN 'Rejected' THEN 2
+             ELSE 3
+           END,
+           sc.submitted_at DESC`,
+        values,
+      );
+
+      res.status(200).json({
+        applications: result.rows,
+      });
+    } catch (err) {
+      console.error("Get staff credentials error:", err.message);
+      res.status(500).json({
+        error: "Unable to retrieve staff credential applications.",
+      });
+    }
+  },
+);
+
+router.get(
+  "/admin/staff-credentials/:credential_id/document/:document_type",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { credential_id, document_type } = req.params;
+
+    try {
+      const credential = await pool.query(
+        `SELECT
+           primary_document_path,
+           primary_document_original_name,
+           primary_document_mime_type,
+           government_id_path,
+           government_id_original_name,
+           government_id_mime_type
+         FROM public.staff_credentials
+         WHERE credential_id = $1
+         LIMIT 1`,
+        [credential_id],
+      );
+
+      if (credential.rows.length === 0) {
+        return res.status(404).json({
+          error: "Credential application not found.",
+        });
+      }
+
+      const row = credential.rows[0];
+      const isGovernmentId = document_type === "government-id";
+      const storedName = isGovernmentId
+        ? row.government_id_path
+        : row.primary_document_path;
+      const originalName = isGovernmentId
+        ? row.government_id_original_name
+        : row.primary_document_original_name;
+      const mimeType = isGovernmentId
+        ? row.government_id_mime_type
+        : row.primary_document_mime_type;
+
+      const absolutePath = path.join(staffCredentialDirectory, storedName);
+
+      if (!storedName || !fs.existsSync(absolutePath)) {
+        return res.status(404).json({
+          error: "Credential document file was not found.",
+        });
+      }
+
+      res.setHeader("Content-Type", mimeType || "application/octet-stream");
+      res.setHeader(
+        "Content-Disposition",
+        `inline; filename="${String(originalName || "credential-document").replace(/"/g, "")}"`,
+      );
+
+      res.sendFile(absolutePath);
+    } catch (err) {
+      console.error("Read staff credential document error:", err.message);
+      res.status(500).json({
+        error: "Unable to retrieve the credential document.",
+      });
+    }
+  },
+);
+
+router.put(
+  "/admin/staff-credentials/:credential_id/review",
+  authenticateToken,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { credential_id } = req.params;
+    const decision = cleanText(req.body.decision);
+    const rejectionReason = cleanText(req.body.rejection_reason);
+
+    if (!["Approved", "Rejected"].includes(decision)) {
+      return res.status(400).json({
+        error: "Decision must be Approved or Rejected.",
+      });
+    }
+
+    if (decision === "Rejected" && !rejectionReason) {
+      return res.status(400).json({
+        error: "A rejection reason is required.",
+      });
+    }
+
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const application = await client.query(
+        `SELECT sc.*, u.name, c.clinic_name
+         FROM public.staff_credentials sc
+         JOIN public.users u ON sc.user_id = u.user_id
+         JOIN public.clinics c ON sc.clinic_id = c.clinic_id
+         WHERE sc.credential_id = $1
+         FOR UPDATE`,
+        [credential_id],
+      );
+
+      if (application.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res.status(404).json({
+          error: "Credential application not found.",
+        });
+      }
+
+      const row = application.rows[0];
+
+      if (decision === "Approved") {
+        const reviewed = await client.query(
+          `UPDATE public.staff_credentials
+           SET verification_status = 'Approved',
+               rejection_reason = NULL,
+               reviewed_by_user_id = $1,
+               reviewed_at = CURRENT_TIMESTAMP,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE credential_id = $2
+           RETURNING *`,
+          [req.user.user_id, credential_id],
+        );
+
+        await client.query(
+          `UPDATE public.users SET status = 'Active' WHERE user_id = $1`,
+          [row.user_id],
+        );
+
+        if (row.staff_role === "Dentist") {
+          await client.query(
+            `UPDATE public.dentists SET status = 'Active' WHERE user_id = $1`,
+            [row.user_id],
+          );
+        } else {
+          await client.query(
+            `UPDATE public.assistants SET status = 'Active' WHERE user_id = $1`,
+            [row.user_id],
+          );
+        }
+
+        await client.query("COMMIT");
+
+        try {
+          await createAuditLog({
+            user_id: req.user.user_id,
+            action: "APPROVE_STAFF_CREDENTIALS",
+            module: "Staff Credential Verification",
+            description: `Approved ${row.staff_role} credentials for ${row.name} under ${row.clinic_name}.`,
+            ip_address: req.ip,
+          });
+        } catch (auditError) {
+          console.error("Approve credential audit error:", auditError.message);
+        }
+
+        return res.status(200).json({
+          message: "Staff credentials approved and account activated.",
+          application: reviewed.rows[0],
+        });
+      }
+
+      const credentialFiles = [
+        row.primary_document_path,
+        row.government_id_path,
+      ]
+        .filter(Boolean)
+        .map((fileName) => path.join(staffCredentialDirectory, fileName));
+
+      if (row.staff_role === "Dentist") {
+        await client.query(`DELETE FROM public.dentists WHERE user_id = $1`, [
+          row.user_id,
+        ]);
+      } else {
+        await client.query(`DELETE FROM public.assistants WHERE user_id = $1`, [
+          row.user_id,
+        ]);
+      }
+
+      await client.query(
+        `DELETE FROM public.staff_credentials WHERE credential_id = $1`,
+        [credential_id],
+      );
+
+      await client.query(`DELETE FROM public.user_roles WHERE user_id = $1`, [
+        row.user_id,
+      ]);
+
+      await client.query(`DELETE FROM public.users WHERE user_id = $1`, [
+        row.user_id,
+      ]);
+
+      await client.query("COMMIT");
+
+      credentialFiles.forEach((filePath) => {
+        fs.unlink(filePath, () => {});
+      });
+
+      try {
+        await createAuditLog({
+          user_id: req.user.user_id,
+          action: "REJECT_AND_DELETE_STAFF_APPLICATION",
+          module: "Staff Credential Verification",
+          description: `Rejected and deleted the ${row.staff_role} application for ${row.name} under ${row.clinic_name}. Reason: ${rejectionReason}`,
+          ip_address: req.ip,
+        });
+      } catch (auditError) {
+        console.error("Reject credential audit error:", auditError.message);
+      }
+
+      return res.status(200).json({
+        message:
+          "Credentials rejected. The pending account, staff profile, credential record, and uploaded documents were deleted.",
+        deleted: true,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      console.error("Review staff credential error:", err.message);
+      res.status(500).json({
+        error: "Unable to review the credential application.",
       });
     } finally {
       client.release();
@@ -2111,6 +2710,27 @@ router.put(
       }
 
       const staffMember = staffCheck.rows[0];
+
+      const credentialCheck = await client.query(
+        `SELECT verification_status
+         FROM public.staff_credentials
+         WHERE user_id = $1
+         LIMIT 1`,
+        [user_id],
+      );
+
+      const credentialStatus =
+        credentialCheck.rows[0]?.verification_status || null;
+
+      if (credentialStatus && credentialStatus !== "Approved") {
+        await client.query("ROLLBACK");
+
+        return res.status(403).json({
+          error:
+            "Only the Admin can approve pending staff credentials. Clinic owners cannot activate or deactivate an unapproved account.",
+          credential_verification_status: credentialStatus,
+        });
+      }
 
       const updatedUser = await client.query(
         `UPDATE public.users

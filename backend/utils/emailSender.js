@@ -114,8 +114,156 @@ DentoGraph Team`,
   });
 };
 
+const escapeHtml = (value) =>
+  String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+
+const sendClinicApplicationReceivedEmail = async ({
+  to,
+  ownerName,
+  clinicName,
+  applicationId,
+}) => {
+  const safeOwnerName = escapeHtml(ownerName);
+  const safeClinicName = escapeHtml(clinicName);
+  const safeApplicationId = escapeHtml(applicationId);
+
+  return sendEmail({
+    to,
+    subject: "DentoGraph clinic application received",
+    text: `Hello ${ownerName},
+
+Your clinic application for ${clinicName} has been received.
+
+Application reference: ${applicationId}
+Status: Pending Administrator Review
+
+Your Clinic Owner account and clinic location will remain inactive while an Administrator validates the submitted information and documents.
+
+You will receive another email when the application is approved or rejected.
+
+DentoGraph Team`,
+    html: `
+      <div style="font-family:Arial,sans-serif;color:#1a202c;line-height:1.65;max-width:640px;margin:0 auto;">
+        <h2 style="margin-bottom:8px;">Clinic application received</h2>
+        <p>Hello ${safeOwnerName},</p>
+        <p>Your clinic application for <strong>${safeClinicName}</strong> has been received.</p>
+        <div style="padding:14px 16px;border:1px solid #f6c344;border-radius:10px;background:#fffaf0;">
+          <strong>Status: Pending Administrator Review</strong>
+          <p style="margin:6px 0 0;">Application reference: ${safeApplicationId}</p>
+        </div>
+        <p>Your Clinic Owner account and clinic location will remain inactive while an Administrator validates the submitted information and documents.</p>
+        <p>You will receive another email when the application is approved or rejected.</p>
+        <p>DentoGraph Team</p>
+      </div>
+    `,
+  });
+};
+
+const sendClinicApplicationApprovedEmail = async ({
+  to,
+  ownerName,
+  clinicName,
+  loginUrl,
+}) => {
+  const safeOwnerName = escapeHtml(ownerName);
+  const safeClinicName = escapeHtml(clinicName);
+  const safeLoginUrl = escapeHtml(loginUrl);
+
+  return sendEmail({
+    to,
+    subject: "Your DentoGraph clinic application was approved",
+    text: `Hello ${ownerName},
+
+Your clinic application for ${clinicName} has been approved.
+
+Your clinic location and Clinic Owner account are now active. You may sign in using your registered email address and password:
+${loginUrl}
+
+DentoGraph Team`,
+    html: `
+      <div style="font-family:Arial,sans-serif;color:#1a202c;line-height:1.65;max-width:640px;margin:0 auto;">
+        <h2 style="margin-bottom:8px;">Clinic application approved</h2>
+        <p>Hello ${safeOwnerName},</p>
+        <p>Your clinic application for <strong>${safeClinicName}</strong> has been approved.</p>
+        <div style="padding:14px 16px;border:1px solid #48bb78;border-radius:10px;background:#f0fff4;">
+          <strong>Your clinic and Clinic Owner account are now active.</strong>
+        </div>
+        <p>You may now sign in using your registered email address and password.</p>
+        <p>
+          <a href="${safeLoginUrl}"
+             style="display:inline-block;padding:12px 18px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;">
+            Sign In to DentoGraph
+          </a>
+        </p>
+        <p>If the button does not work, copy and paste this link into your browser:</p>
+        <p><a href="${safeLoginUrl}">${safeLoginUrl}</a></p>
+        <p>DentoGraph Team</p>
+      </div>
+    `,
+  });
+};
+
+const sendClinicApplicationRejectedEmail = async ({
+  to,
+  ownerName,
+  clinicName,
+  rejectionReason,
+  registrationUrl,
+}) => {
+  const safeOwnerName = escapeHtml(ownerName);
+  const safeClinicName = escapeHtml(clinicName);
+  const safeReason = escapeHtml(rejectionReason);
+  const safeRegistrationUrl = escapeHtml(registrationUrl);
+
+  return sendEmail({
+    to,
+    subject: "Your DentoGraph clinic application was not approved",
+    text: `Hello ${ownerName},
+
+Your clinic application for ${clinicName} was not approved.
+
+Reason:
+${rejectionReason}
+
+The pending Clinic Owner account, clinic application, and submitted verification documents have been removed from DentoGraph.
+
+You may submit a new application after correcting the stated issue:
+${registrationUrl}
+
+DentoGraph Team`,
+    html: `
+      <div style="font-family:Arial,sans-serif;color:#1a202c;line-height:1.65;max-width:640px;margin:0 auto;">
+        <h2 style="margin-bottom:8px;">Clinic application not approved</h2>
+        <p>Hello ${safeOwnerName},</p>
+        <p>Your clinic application for <strong>${safeClinicName}</strong> was not approved.</p>
+        <div style="padding:14px 16px;border:1px solid #fc8181;border-radius:10px;background:#fff5f5;">
+          <strong>Reason</strong>
+          <p style="margin:6px 0 0;white-space:pre-wrap;">${safeReason}</p>
+        </div>
+        <p>The pending Clinic Owner account, clinic application, and submitted verification documents have been removed from DentoGraph.</p>
+        <p>You may submit a new application after correcting the stated issue.</p>
+        <p>
+          <a href="${safeRegistrationUrl}"
+             style="display:inline-block;padding:12px 18px;background:#2563eb;color:#ffffff;text-decoration:none;border-radius:8px;">
+            Submit a New Application
+          </a>
+        </p>
+        <p>DentoGraph Team</p>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendVerificationEmail,
   sendPasswordResetEmail,
+  sendClinicApplicationReceivedEmail,
+  sendClinicApplicationApprovedEmail,
+  sendClinicApplicationRejectedEmail,
 };

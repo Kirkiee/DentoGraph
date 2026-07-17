@@ -20,8 +20,13 @@ function ClinicOwnerStaff() {
     password: "",
     staff_role: "Dentist",
     license_number: "",
+    license_expiration_date: "",
     specialization: "",
-    availability: "",
+    credential_number: "",
+    qualification_name: "",
+    qualification_expiration_date: "",
+    primary_credential_document: null,
+    government_id_document: null,
   });
 
   const [loading, setLoading] = useState(true);
@@ -152,6 +157,17 @@ function ClinicOwnerStaff() {
     }));
   };
 
+  const handleFileChange = (e) => {
+    const { name, files } = e.target;
+
+    setMessage("");
+    setError("");
+    setFormData((prev) => ({
+      ...prev,
+      [name]: files?.[0] || null,
+    }));
+  };
+
   const resetForm = () => {
     setFormData({
       clinic_id: selectedClinicId || "",
@@ -160,8 +176,13 @@ function ClinicOwnerStaff() {
       password: "",
       staff_role: "Dentist",
       license_number: "",
+      license_expiration_date: "",
       specialization: "",
-      availability: "",
+      credential_number: "",
+      qualification_name: "",
+      qualification_expiration_date: "",
+      primary_credential_document: null,
+      government_id_document: null,
     });
   };
 
@@ -235,23 +256,85 @@ function ClinicOwnerStaff() {
       return;
     }
 
+    if (
+      !formData.primary_credential_document ||
+      !formData.government_id_document
+    ) {
+      setError(
+        "Upload both the professional credential document and a valid government ID.",
+      );
+      return;
+    }
+
+    if (formData.staff_role === "Dentist") {
+      if (
+        !formData.license_number.trim() ||
+        !formData.license_expiration_date ||
+        !formData.specialization.trim()
+      ) {
+        setError(
+          "Dentists must provide a PRC license number, expiration date, and specialization.",
+        );
+        return;
+      }
+    } else if (
+      !formData.credential_number.trim() ||
+      !formData.qualification_name.trim()
+    ) {
+      setError(
+        "Dental assistants must provide a credential number and qualification name.",
+      );
+      return;
+    }
+
     try {
       setCreating(true);
 
-      const payload = {
-        ...formData,
-        clinic_id: Number(clinicId),
-        name: cleanName,
-        email: cleanEmail,
-        license_number: formData.license_number.trim() || null,
-        specialization:
-          formData.staff_role === "Dentist"
-            ? formData.specialization.trim() || null
-            : null,
-        availability: formData.availability.trim() || null,
-      };
+      const payload = new FormData();
 
-      const response = await API.post("/api/users/clinic-owner/staff", payload);
+      payload.append("clinic_id", String(Number(clinicId)));
+      payload.append("name", cleanName);
+      payload.append("email", cleanEmail);
+      payload.append("password", cleanPassword);
+      payload.append("staff_role", formData.staff_role);
+      if (formData.staff_role !== "Dentist") {
+        payload.append("availability", formData.availability?.trim() || "");
+      }
+
+      if (formData.staff_role === "Dentist") {
+        payload.append("license_number", formData.license_number.trim());
+        payload.append(
+          "license_expiration_date",
+          formData.license_expiration_date,
+        );
+        payload.append("specialization", formData.specialization.trim());
+      } else {
+        payload.append("credential_number", formData.credential_number.trim());
+        payload.append(
+          "qualification_name",
+          formData.qualification_name.trim(),
+        );
+        payload.append(
+          "qualification_expiration_date",
+          formData.qualification_expiration_date || "",
+        );
+      }
+
+      payload.append(
+        "primary_credential_document",
+        formData.primary_credential_document,
+      );
+      payload.append("government_id_document", formData.government_id_document);
+
+      const response = await API.post(
+        "/api/users/clinic-owner/staff",
+        payload,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        },
+      );
 
       setMessage(
         response.data.message ||
@@ -603,8 +686,10 @@ function ClinicOwnerStaff() {
             <div>
               <h2>Add Staff Account</h2>
               <p>
-                Create a user account under the selected clinic location. Staff
-                must verify their email before logging in.
+                Submit the account and required professional credentials.
+                Accounts created here are already email-verified, but access
+                remains disabled until administrator credential approval is
+                completed.
               </p>
             </div>
           </div>
@@ -720,49 +805,162 @@ function ClinicOwnerStaff() {
                   </small>
                 </div>
 
-                <div className="form-group">
-                  <label>License Number</label>
-                  <input
-                    type="text"
-                    name="license_number"
-                    value={formData.license_number}
-                    onChange={handleChange}
-                    placeholder={
-                      formData.staff_role === "Dentist"
-                        ? "Example: DEN-12345"
-                        : "Example: AST-12345"
-                    }
-                    disabled={creating}
-                  />
-                </div>
+                {formData.staff_role !== "Dentist" && (
+                  <div className="form-group">
+                    <label>Availability</label>
+                    <input
+                      type="text"
+                      name="availability"
+                      value={formData.availability || ""}
+                      onChange={handleChange}
+                      placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
+                      disabled={creating}
+                    />
+                  </div>
+                )}
               </div>
 
-              <div className="form-row">
-                {formData.staff_role === "Dentist" && (
+              {formData.staff_role === "Dentist" ? (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>
+                        PRC License Number{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="license_number"
+                        value={formData.license_number}
+                        onChange={handleChange}
+                        placeholder="Enter PRC license number"
+                        disabled={creating}
+                        required
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>
+                        License Expiration Date{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <input
+                        type="date"
+                        name="license_expiration_date"
+                        value={formData.license_expiration_date}
+                        onChange={handleChange}
+                        disabled={creating}
+                        required
+                      />
+                    </div>
+                  </div>
+
                   <div className="form-group">
-                    <label>Specialization</label>
+                    <label>
+                      Specialization <span className="auth-required">*</span>
+                    </label>
                     <input
                       type="text"
                       name="specialization"
                       value={formData.specialization}
                       onChange={handleChange}
-                      placeholder="Example: General Dentistry"
+                      placeholder="Example: General Dentistry or Orthodontics"
                       disabled={creating}
+                      required
                     />
                   </div>
-                )}
+                </>
+              ) : (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>
+                        Credential or Certificate Number{" "}
+                        <span className="auth-required">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="credential_number"
+                        value={formData.credential_number}
+                        onChange={handleChange}
+                        placeholder="Enter training or certificate number"
+                        disabled={creating}
+                        required
+                      />
+                    </div>
 
-                <div className="form-group">
-                  <label>Availability</label>
+                    <div className="form-group">
+                      <label>Credential Expiration Date</label>
+                      <input
+                        type="date"
+                        name="qualification_expiration_date"
+                        value={formData.qualification_expiration_date}
+                        onChange={handleChange}
+                        disabled={creating}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>
+                      Qualification or Training{" "}
+                      <span className="auth-required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="qualification_name"
+                      value={formData.qualification_name}
+                      onChange={handleChange}
+                      placeholder="Example: Dental Assisting NC II"
+                      disabled={creating}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+
+              <div className="staff-credential-upload-grid">
+                <div className="form-group staff-credential-upload">
+                  <label>
+                    {formData.staff_role === "Dentist"
+                      ? "PRC License Document"
+                      : "Training or Qualification Document"}{" "}
+                    <span className="auth-required">*</span>
+                  </label>
                   <input
-                    type="text"
-                    name="availability"
-                    value={formData.availability}
-                    onChange={handleChange}
-                    placeholder="Example: Monday to Friday, 9:00 AM - 5:00 PM"
+                    type="file"
+                    name="primary_credential_document"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={handleFileChange}
                     disabled={creating}
+                    required
                   />
+                  <small>PDF, JPG, or PNG; maximum 8 MB.</small>
                 </div>
+
+                <div className="form-group staff-credential-upload">
+                  <label>
+                    Valid Government ID <span className="auth-required">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    name="government_id_document"
+                    accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={handleFileChange}
+                    disabled={creating}
+                    required
+                  />
+                  <small>
+                    Upload a clear and readable government-issued ID.
+                  </small>
+                </div>
+              </div>
+
+              <div className="info-message staff-verification-notice">
+                The account is automatically marked as email-verified because it
+                was created by an authenticated clinic owner. It will remain
+                inactive until an administrator approves the submitted
+                credentials.
               </div>
 
               <button
@@ -770,7 +968,7 @@ function ClinicOwnerStaff() {
                 className="primary-button"
                 disabled={creating || !formData.clinic_id}
               >
-                {creating ? "Creating..." : "Create Staff Account"}
+                {creating ? "Submitting..." : "Submit Staff for Verification"}
               </button>
             </form>
           </div>
@@ -806,7 +1004,8 @@ function ClinicOwnerStaff() {
                     <th>Clinic Location</th>
                     <th>Role</th>
                     <th>Status</th>
-                    <th>Email Verification</th>
+                    <th>Email Status</th>
+                    <th>Credential Review</th>
                     <th>License</th>
                     <th>Specialization</th>
                     <th>Availability</th>
@@ -849,6 +1048,22 @@ function ClinicOwnerStaff() {
                           </span>
                         </td>
 
+                        <td>
+                          {person.credential_id ? (
+                            <span
+                              className={`status-badge credential-status-${String(
+                                person.verification_status || "Pending",
+                              ).toLowerCase()}`}
+                            >
+                              {person.verification_status || "Pending"}
+                            </span>
+                          ) : (
+                            <span className="status-badge credential-status-legacy">
+                              Legacy Account
+                            </span>
+                          )}
+                        </td>
+
                         <td>{getLicenseNumber(person)}</td>
 
                         <td>{getSpecialization(person)}</td>
@@ -859,34 +1074,30 @@ function ClinicOwnerStaff() {
 
                         <td>
                           <div className="staff-table-actions">
-                            {!isVerified && !isInactive && (
+                            {!person.credential_id ||
+                            person.verification_status === "Approved" ? (
                               <button
-                                className="secondary-button"
-                                onClick={() => handleResendVerification(person)}
-                                disabled={
-                                  updatingStatus ||
-                                  loading ||
-                                  creating ||
-                                  isResending
+                                className={
+                                  person.status === "Inactive"
+                                    ? "primary-button"
+                                    : "danger-button"
                                 }
+                                onClick={() => openStatusModal(person)}
+                                disabled={updatingStatus}
                               >
-                                {isResending ? "Sending..." : "Resend"}
+                                {person.status === "Inactive"
+                                  ? "Activate"
+                                  : "Deactivate"}
                               </button>
+                            ) : (
+                              <span
+                                className={`status-badge credential-status-${String(
+                                  person.verification_status || "Pending",
+                                ).toLowerCase()}`}
+                              >
+                                Awaiting Admin Review
+                              </span>
                             )}
-
-                            <button
-                              className={
-                                person.status === "Inactive"
-                                  ? "primary-button"
-                                  : "danger-button"
-                              }
-                              onClick={() => openStatusModal(person)}
-                              disabled={updatingStatus || isResending}
-                            >
-                              {person.status === "Inactive"
-                                ? "Activate"
-                                : "Deactivate"}
-                            </button>
                           </div>
                         </td>
                       </tr>

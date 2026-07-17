@@ -53,11 +53,13 @@ router.get(
         `SELECT 
             COUNT(*)::int AS total_clinics,
             COUNT(*)::int AS total_clinic_locations,
-            COUNT(DISTINCT owner_user_id) FILTER (WHERE owner_user_id IS NOT NULL)::int AS total_owner_accounts,
+            COUNT(DISTINCT c.owner_user_id) FILTER (WHERE c.owner_user_id IS NOT NULL)::int AS total_owner_accounts,
             COUNT(*) FILTER (WHERE status = 'Active')::int AS active_clinics,
-            COUNT(*) FILTER (WHERE status = 'Inactive')::int AS inactive_clinics,
-            COUNT(*) FILTER (WHERE subscription_plan_id IS NOT NULL)::int AS subscribed_clinics
-         FROM public.clinics`,
+            COUNT(*) FILTER (WHERE c.status = 'Inactive')::int AS inactive_clinics,
+            COUNT(*) FILTER (WHERE os.owner_subscription_id IS NOT NULL)::int AS subscribed_clinics
+         FROM public.clinics c
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id`,
       );
 
       const userSummary = await pool.query(
@@ -91,8 +93,10 @@ router.get(
             COUNT(c.clinic_id)::int AS clinic_count,
             COUNT(DISTINCT c.owner_user_id) FILTER (WHERE c.owner_user_id IS NOT NULL)::int AS owner_account_count
          FROM public.clinics c
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id
          LEFT JOIN public.subscription_plans sp 
-           ON c.subscription_plan_id = sp.plan_id
+           ON os.plan_id = sp.plan_id
          GROUP BY COALESCE(sp.plan_name, 'No Plan Assigned')
          ORDER BY clinic_count DESC`,
       );
@@ -252,8 +256,10 @@ router.get(
          FROM public.clinics c
          LEFT JOIN public.users owner_user
            ON c.owner_user_id = owner_user.user_id
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id
          LEFT JOIN public.subscription_plans sp 
-           ON c.subscription_plan_id = sp.plan_id
+           ON os.plan_id = sp.plan_id
          LEFT JOIN clinic_usage cu
            ON c.clinic_id = cu.clinic_id
          LEFT JOIN owner_location_counts olc
@@ -374,9 +380,9 @@ router.get(
             c.clinic_name,
             c.status,
             c.owner_user_id,
-            c.subscription_plan_id,
-            c.subscription_status,
-            c.subscription_end_date,
+            os.plan_id AS subscription_plan_id,
+            os.subscription_status,
+            os.end_date AS subscription_end_date,
             sp.plan_name,
             sp.max_clinics,
             sp.max_dentists,
@@ -386,8 +392,10 @@ router.get(
             sp.max_xrays,
             sp.storage_limit_mb
          FROM public.clinics c
+         LEFT JOIN public.owner_subscriptions os
+           ON os.owner_user_id = c.owner_user_id
          LEFT JOIN public.subscription_plans sp
-           ON c.subscription_plan_id = sp.plan_id
+           ON os.plan_id = sp.plan_id
          WHERE c.owner_user_id = $1
          ORDER BY c.clinic_name ASC`,
         [req.user.user_id],
