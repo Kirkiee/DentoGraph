@@ -60,6 +60,7 @@ import ClinicPatientTransfers from "./pages/ClinicPatientTransfers";
 import PatientHistoricalRecords from "./pages/PatientHistoricalRecords";
 import ClinicOwnerDentalRecords from "./pages/ClinicOwnerDentalRecords";
 import ClinicOwnerDentalRecordDetails from "./pages/ClinicOwnerDentalRecordDetails";
+import ClinicOwnerDental3DViewer from "./pages/ClinicOwnerDental3DViewer";
 
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
@@ -291,7 +292,7 @@ function App() {
           path="/clinic-owner/dental-records/:record_id/3d-view"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
-              <AdminDental3DViewer />
+              <ClinicOwnerDental3DViewer />
             </ProtectedRoute>
           }
         />

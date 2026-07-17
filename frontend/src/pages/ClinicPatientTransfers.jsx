@@ -7,6 +7,7 @@ function ClinicPatientTransfers() {
   const [authorizedClinicIds, setAuthorizedClinicIds] = useState([]);
   const [direction, setDirection] = useState("all");
   const [statusFilter, setStatusFilter] = useState("Pending");
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState(null);
   const [message, setMessage] = useState("");
@@ -54,20 +55,49 @@ function ClinicPatientTransfers() {
   }, [direction]);
 
   const filteredRequests = useMemo(() => {
-    if (statusFilter === "All") return requests;
+    const search = searchTerm.trim().toLowerCase();
 
-    if (statusFilter === "Pending") {
-      return requests.filter((request) =>
-        ["Pending Source Approval", "Pending Destination Approval"].includes(
-          request.transfer_status,
-        ),
-      );
-    }
+    return requests.filter((request) => {
+      const matchesStatus =
+        statusFilter === "All" ||
+        (statusFilter === "Pending"
+          ? [
+              "Pending Source Approval",
+              "Pending Destination Approval",
+            ].includes(request.transfer_status)
+          : request.transfer_status === statusFilter);
 
-    return requests.filter(
-      (request) => request.transfer_status === statusFilter,
-    );
-  }, [requests, statusFilter]);
+      const matchesSearch =
+        !search ||
+        String(request.patient_name || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(request.patient_email || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(request.source_clinic_name || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(request.destination_clinic_name || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(request.transfer_id || "").includes(search);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [requests, statusFilter, searchTerm]);
+
+  const formatDate = (value) => {
+    if (!value) return "N/A";
+
+    return new Date(value).toLocaleString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
 
   const canReview = (request) => {
     if (request.transfer_status === "Pending Source Approval") {
@@ -133,7 +163,7 @@ function ClinicPatientTransfers() {
       setSelectedPackage(response.data);
     } catch (err) {
       setError(
-        err.response?.data?.error || "Unable to open the transfer package.",
+        err.response?.data?.error || "Unable to open transferred records.",
       );
     } finally {
       setLoadingPackage(false);
@@ -145,10 +175,11 @@ function ClinicPatientTransfers() {
       <div className="appointments-list-card patient-transfer-page">
         <div className="appointments-header">
           <div>
-            <h1>Patient Information Transfers</h1>
+            <h1>Patient Transfers</h1>
             <p>
-              Review consent-based outgoing and incoming transfer requests. Both
-              clinics must approve before the package becomes available.
+              Review outgoing and incoming Patient transfer requests. Final
+              destination approval reassigns the Patient, closes the previous
+              care episode, and creates a new active care episode.
             </p>
           </div>
 
@@ -165,7 +196,73 @@ function ClinicPatientTransfers() {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        <div className="patient-transfer-filters">
+        <section className="patient-transfer-process clinic-transfer-process">
+          <div className="patient-transfer-process-heading">
+            <div>
+              <span className="patient-transfer-eyebrow">
+                Approval workflow
+              </span>
+              <h2>Review the correct stage before the Patient moves</h2>
+              <p>
+                Source approval confirms the outgoing transfer. Destination
+                approval completes the reassignment and starts a new care
+                episode.
+              </p>
+            </div>
+          </div>
+
+          <div className="patient-transfer-process-grid">
+            <article>
+              <span>1</span>
+              <div>
+                <strong>Patient Request</strong>
+                <p>
+                  The Patient selects a destination clinic and records consent.
+                </p>
+              </div>
+            </article>
+
+            <article>
+              <span>2</span>
+              <div>
+                <strong>Source Approval</strong>
+                <p>The current clinic confirms the Patient can transfer out.</p>
+              </div>
+            </article>
+
+            <article>
+              <span>3</span>
+              <div>
+                <strong>Destination Approval</strong>
+                <p>The receiving clinic accepts the Patient for future care.</p>
+              </div>
+            </article>
+
+            <article>
+              <span>4</span>
+              <div>
+                <strong>Clinic Reassignment</strong>
+                <p>
+                  The old episode becomes historical and the destination clinic
+                  becomes the active clinic.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <div className="patient-transfer-filters patient-transfer-filters-table">
+          <div className="form-group patient-transfer-search-filter">
+            <label htmlFor="transfer-search">Search</label>
+            <input
+              id="transfer-search"
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Patient, email, clinic, or request ID"
+            />
+          </div>
+
           <div className="form-group">
             <label htmlFor="transfer-direction">Direction</label>
             <select
@@ -203,134 +300,113 @@ function ClinicPatientTransfers() {
             No transfer requests match the selected filters.
           </div>
         ) : (
-          <div className="patient-transfer-list">
-            {filteredRequests.map((request) => (
-              <article
-                className="patient-transfer-card"
-                key={request.transfer_id}
-              >
-                <div className="patient-transfer-card-header">
-                  <div>
-                    <h3>{request.patient_name}</h3>
-                    <p>{request.patient_email}</p>
-                  </div>
+          <div className="patient-transfer-table-wrap">
+            <table className="patient-transfer-table clinic-transfer-review-table">
+              <thead>
+                <tr>
+                  <th>Request</th>
+                  <th>Patient</th>
+                  <th>Transfer Route</th>
+                  <th>Submitted</th>
+                  <th>Status</th>
+                  <th>Records</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
 
-                  <span
-                    className={`patient-transfer-status patient-transfer-status-${String(
-                      request.transfer_status,
-                    )
-                      .toLowerCase()
-                      .replaceAll(" ", "-")}`}
-                  >
-                    {request.transfer_status}
-                  </span>
-                </div>
-
-                <div className="patient-transfer-route">
-                  <strong>{request.source_clinic_name}</strong>
-                  <span>→</span>
-                  <strong>{request.destination_clinic_name}</strong>
-                </div>
-
-                <div className="patient-transfer-consent-box">
-                  <strong>Recorded Patient Consent</strong>
-                  <p>{request.consent_statement}</p>
-                  <small>
-                    Confirmed{" "}
-                    {new Date(request.patient_consent_at).toLocaleString(
-                      "en-PH",
-                    )}
-                  </small>
-                </div>
-
-                <div className="patient-transfer-meta">
-                  <span>
-                    Profile: {request.include_profile ? "Included" : "Excluded"}
-                  </span>
-                  <span>
-                    Records:{" "}
-                    {request.include_dental_records ? "Included" : "Excluded"}
-                  </span>
-                  <span>
-                    X-rays: {request.include_xrays ? "Included" : "Excluded"}
-                  </span>
-                  <span>
-                    Appointments:{" "}
-                    {request.include_appointments ? "Included" : "Excluded"}
-                  </span>
-                </div>
-
-                {request.source_reviewed_by_name && (
-                  <p>
-                    Source reviewed by {request.source_reviewed_by_name}
-                    {request.source_reviewed_at
-                      ? ` on ${new Date(
-                          request.source_reviewed_at,
-                        ).toLocaleString("en-PH")}`
-                      : ""}
-                  </p>
-                )}
-
-                {request.destination_reviewed_by_name && (
-                  <p>
-                    Destination reviewed by{" "}
-                    {request.destination_reviewed_by_name}
-                    {request.destination_reviewed_at
-                      ? ` on ${new Date(
-                          request.destination_reviewed_at,
-                        ).toLocaleString("en-PH")}`
-                      : ""}
-                  </p>
-                )}
-
-                {request.rejection_reason && (
-                  <div className="error-message">
-                    <strong>Rejection reason:</strong>{" "}
-                    {request.rejection_reason}
-                  </div>
-                )}
-
-                <div className="appointment-actions">
-                  {canReview(request) && (
-                    <>
-                      <button
-                        type="button"
-                        className="primary-button"
-                        onClick={() => openReview(request, "Approve")}
-                        disabled={reviewingId === request.transfer_id}
+              <tbody>
+                {filteredRequests.map((request) => (
+                  <tr key={request.transfer_id}>
+                    <td>#{request.transfer_id}</td>
+                    <td>
+                      <strong>{request.patient_name}</strong>
+                      <span>{request.patient_email}</span>
+                    </td>
+                    <td>
+                      <div className="patient-transfer-route-cell">
+                        <span>{request.source_clinic_name}</span>
+                        <strong>→</strong>
+                        <span>{request.destination_clinic_name}</span>
+                      </div>
+                    </td>
+                    <td>{formatDate(request.created_at)}</td>
+                    <td>
+                      <span
+                        className={`patient-transfer-status patient-transfer-status-${String(
+                          request.transfer_status,
+                        )
+                          .toLowerCase()
+                          .replaceAll(" ", "-")}`}
                       >
-                        Approve
-                      </button>
+                        {request.transfer_status}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="patient-transfer-table-records">
+                        <span>
+                          Profile:{" "}
+                          {request.include_profile ? "Included" : "Excluded"}
+                        </span>
+                        <span>
+                          Records:{" "}
+                          {request.include_dental_records
+                            ? "Included"
+                            : "Excluded"}
+                        </span>
+                        <span>
+                          X-rays:{" "}
+                          {request.include_xrays ? "Included" : "Excluded"}
+                        </span>
+                        <span>
+                          Appointments:{" "}
+                          {request.include_appointments
+                            ? "Included"
+                            : "Excluded"}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="patient-transfer-table-actions">
+                        {canReview(request) && (
+                          <>
+                            <button
+                              type="button"
+                              className="primary-button"
+                              onClick={() => openReview(request, "Approve")}
+                              disabled={reviewingId === request.transfer_id}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              className="danger-button"
+                              onClick={() => openReview(request, "Reject")}
+                              disabled={reviewingId === request.transfer_id}
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
 
-                      <button
-                        type="button"
-                        className="danger-button"
-                        onClick={() => openReview(request, "Reject")}
-                        disabled={reviewingId === request.transfer_id}
-                      >
-                        Reject
-                      </button>
-                    </>
-                  )}
-
-                  {request.transfer_status === "Approved" &&
-                    authorizedClinicIds.includes(
-                      Number(request.destination_clinic_id),
-                    ) && (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => openPackage(request.transfer_id)}
-                        disabled={loadingPackage}
-                      >
-                        {loadingPackage
-                          ? "Opening..."
-                          : "Open Transfer Package"}
-                      </button>
-                    )}
-                </div>
-              </article>
-            ))}
+                        {request.transfer_status === "Approved" &&
+                          authorizedClinicIds.includes(
+                            Number(request.destination_clinic_id),
+                          ) && (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => openPackage(request.transfer_id)}
+                              disabled={loadingPackage}
+                            >
+                              View Records
+                            </button>
+                          )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -359,7 +435,7 @@ function ClinicPatientTransfers() {
             <div className="info-message">
               Approving the source stage sends the request to the destination
               clinic. Approving the destination stage generates the authorized,
-              read-only transfer package.
+              read-only transferred records.
             </div>
 
             {reviewDecision === "Reject" && (

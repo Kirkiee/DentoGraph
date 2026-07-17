@@ -11,10 +11,10 @@ function PatientTransfers() {
     include_profile: true,
     include_dental_records: true,
     include_xrays: true,
-    include_appointments: false,
+    include_appointments: true,
     consent_confirmed: false,
     consent_statement:
-      "I authorize my current clinic to securely transfer the selected information to the destination clinic for continuity of dental care.",
+      "I authorize the transfer of my active clinic assignment to the selected destination clinic. I understand that my previous clinic records will remain preserved as read-only historical records for continuity of care.",
   });
 
   const [loading, setLoading] = useState(true);
@@ -24,6 +24,11 @@ function PatientTransfers() {
   const [error, setError] = useState("");
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [loadingPackage, setLoadingPackage] = useState(false);
+  const [historyStatusFilter, setHistoryStatusFilter] = useState("All");
+  const [historySearch, setHistorySearch] = useState("");
+  const [clinicSearch, setClinicSearch] = useState("");
+  const [clinicAreaFilter, setClinicAreaFilter] = useState("All");
+  const [clinicSort, setClinicSort] = useState("Name A-Z");
 
   const token = localStorage.getItem("token");
   const authHeaders = {
@@ -48,7 +53,7 @@ function PatientTransfers() {
     } catch (err) {
       setError(
         err.response?.data?.error ||
-          "Unable to load patient information transfers.",
+          "Unable to load Patient transfer requests.",
       );
     } finally {
       setLoading(false);
@@ -68,6 +73,87 @@ function PatientTransfers() {
       ) || null,
     [clinics, formData.destination_clinic_id],
   );
+
+  const clinicAreas = useMemo(() => {
+    const areas = new Set();
+
+    clinics.forEach((clinic) => {
+      const address = String(clinic.address || "").trim();
+      if (!address) return;
+
+      const parts = address
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      const area = parts.at(-1);
+      if (area) areas.add(area);
+    });
+
+    return Array.from(areas).sort((a, b) => a.localeCompare(b));
+  }, [clinics]);
+
+  const filteredClinics = useMemo(() => {
+    const search = clinicSearch.trim().toLowerCase();
+
+    const results = clinics.filter((clinic) => {
+      const address = String(clinic.address || "");
+      const parts = address
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      const area = parts.at(-1) || "";
+
+      const matchesSearch =
+        !search ||
+        String(clinic.clinic_name || "")
+          .toLowerCase()
+          .includes(search) ||
+        address.toLowerCase().includes(search) ||
+        String(clinic.contact_number || "")
+          .toLowerCase()
+          .includes(search);
+
+      const matchesArea =
+        clinicAreaFilter === "All" || area === clinicAreaFilter;
+
+      return matchesSearch && matchesArea;
+    });
+
+    return [...results].sort((a, b) => {
+      if (clinicSort === "Name Z-A") {
+        return String(b.clinic_name || "").localeCompare(
+          String(a.clinic_name || ""),
+        );
+      }
+
+      return String(a.clinic_name || "").localeCompare(
+        String(b.clinic_name || ""),
+      );
+    });
+  }, [clinics, clinicSearch, clinicAreaFilter, clinicSort]);
+
+  const filteredRequests = useMemo(() => {
+    const search = historySearch.trim().toLowerCase();
+
+    return requests.filter((request) => {
+      const matchesStatus =
+        historyStatusFilter === "All" ||
+        request.transfer_status === historyStatusFilter;
+
+      const matchesSearch =
+        !search ||
+        String(request.source_clinic_name || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(request.destination_clinic_name || "")
+          .toLowerCase()
+          .includes(search) ||
+        String(request.transfer_id || "").includes(search);
+
+      return matchesStatus && matchesSearch;
+    });
+  }, [requests, historyStatusFilter, historySearch]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -89,6 +175,9 @@ function PatientTransfers() {
         destination_clinic_id: "",
         consent_confirmed: false,
       }));
+      setClinicSearch("");
+      setClinicAreaFilter("All");
+      setClinicSort("Name A-Z");
       await loadData();
     } catch (err) {
       setError(
@@ -135,7 +224,7 @@ function PatientTransfers() {
       setSelectedPackage(response.data);
     } catch (err) {
       setError(
-        err.response?.data?.error || "Unable to open the transfer package.",
+        err.response?.data?.error || "Unable to open transferred records.",
       );
     } finally {
       setLoadingPackage(false);
@@ -147,15 +236,28 @@ function PatientTransfers() {
       .toLowerCase()
       .replaceAll(" ", "-")}`;
 
+  const formatDate = (value) => {
+    if (!value) return "N/A";
+
+    return new Date(value).toLocaleString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+  };
+
   return (
     <DashboardLayout>
       <div className="appointments-list-card patient-transfer-page">
         <div className="appointments-header">
           <div>
-            <h1>Patient Information Transfer</h1>
+            <h1>Transfer to Another Clinic</h1>
             <p>
-              Request a controlled, consent-based transfer to another clinic.
-              Your current clinic and the destination clinic must both approve.
+              Move your active clinic assignment to another clinic. Your current
+              clinic and destination clinic must both approve before the
+              transfer takes effect.
             </p>
           </div>
 
@@ -172,16 +274,73 @@ function PatientTransfers() {
         {message && <div className="success-message">{message}</div>}
         {error && <div className="error-message">{error}</div>}
 
-        <div className="info-message">
-          <strong>Privacy notice:</strong> The original clinic keeps its
-          historical records. The destination clinic receives a read-only
-          package containing only the categories you authorize.
+        <section className="patient-transfer-process">
+          <div className="patient-transfer-process-heading">
+            <div>
+              <span className="patient-transfer-eyebrow">
+                How the transfer works
+              </span>
+              <h2>One request, two clinic approvals</h2>
+              <p>
+                Your account stays the same. Only your active clinic assignment
+                changes after both clinics approve.
+              </p>
+            </div>
+          </div>
+
+          <div className="patient-transfer-process-grid">
+            <article>
+              <span>1</span>
+              <div>
+                <strong>Submit Request</strong>
+                <p>
+                  Select the clinic that will become your new active clinic.
+                </p>
+              </div>
+            </article>
+
+            <article>
+              <span>2</span>
+              <div>
+                <strong>Current Clinic Review</strong>
+                <p>Your current clinic confirms the outgoing transfer.</p>
+              </div>
+            </article>
+
+            <article>
+              <span>3</span>
+              <div>
+                <strong>Destination Review</strong>
+                <p>
+                  The destination clinic accepts responsibility for future care.
+                </p>
+              </div>
+            </article>
+
+            <article>
+              <span>4</span>
+              <div>
+                <strong>Transfer Completed</strong>
+                <p>
+                  Your previous care episode becomes historical and a new active
+                  care episode begins at the destination clinic.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <div className="info-message patient-transfer-privacy-note">
+          <strong>Your records are preserved:</strong> Previous dental records,
+          X-rays, treatments, and appointment history remain connected to the
+          clinic and Dentist that originally created them. They become read-only
+          historical records after the transfer.
         </div>
 
         <section className="patient-dashboard-section">
           <div className="appointments-header">
             <div>
-              <h2>New Transfer Request</h2>
+              <h2>Request a Clinic Transfer</h2>
               <p>
                 Current clinic:{" "}
                 <strong>{sourceClinic?.clinic_name || "Loading..."}</strong>
@@ -190,60 +349,192 @@ function PatientTransfers() {
           </div>
 
           <form className="patient-transfer-form" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="destination_clinic_id">
-                Destination Clinic <span className="auth-required">*</span>
-              </label>
-              <select
-                id="destination_clinic_id"
+            <div className="patient-transfer-clinic-selector">
+              <div className="patient-transfer-clinic-selector-heading">
+                <div>
+                  <label>
+                    Destination Clinic <span className="auth-required">*</span>
+                  </label>
+                  <p>
+                    Search and compare active clinics before selecting your new
+                    clinic assignment.
+                  </p>
+                </div>
+
+                <span className="status-badge status-scheduled">
+                  {filteredClinics.length} clinic
+                  {filteredClinics.length === 1 ? "" : "s"} found
+                </span>
+              </div>
+
+              <div className="patient-transfer-clinic-filters">
+                <div className="form-group patient-transfer-clinic-search">
+                  <label htmlFor="destination_clinic_search">
+                    Search Clinic
+                  </label>
+                  <input
+                    id="destination_clinic_search"
+                    type="search"
+                    value={clinicSearch}
+                    onChange={(event) => setClinicSearch(event.target.value)}
+                    placeholder="Clinic name, address, or contact number"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="destination_clinic_area">Area</label>
+                  <select
+                    id="destination_clinic_area"
+                    value={clinicAreaFilter}
+                    onChange={(event) =>
+                      setClinicAreaFilter(event.target.value)
+                    }
+                  >
+                    <option value="All">All Areas</option>
+                    {clinicAreas.map((area) => (
+                      <option key={area} value={area}>
+                        {area}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="destination_clinic_sort">Sort</label>
+                  <select
+                    id="destination_clinic_sort"
+                    value={clinicSort}
+                    onChange={(event) => setClinicSort(event.target.value)}
+                  >
+                    <option value="Name A-Z">Name A-Z</option>
+                    <option value="Name Z-A">Name Z-A</option>
+                  </select>
+                </div>
+              </div>
+
+              <input
+                type="hidden"
+                name="destination_clinic_id"
                 value={formData.destination_clinic_id}
-                onChange={(event) =>
-                  setFormData((current) => ({
-                    ...current,
-                    destination_clinic_id: event.target.value,
-                  }))
-                }
                 required
-              >
-                <option value="">Select destination clinic</option>
-                {clinics.map((clinic) => (
-                  <option key={clinic.clinic_id} value={clinic.clinic_id}>
-                    {clinic.clinic_name}
-                  </option>
-                ))}
-              </select>
+              />
+
+              {loading ? (
+                <div className="loading-message">
+                  Loading destination clinics...
+                </div>
+              ) : filteredClinics.length === 0 ? (
+                <div className="empty-state">
+                  <h3>No destination clinics found</h3>
+                  <p>
+                    Change the search text or area filter to see more clinics.
+                  </p>
+                </div>
+              ) : (
+                <div className="patient-transfer-clinic-grid">
+                  {filteredClinics.map((clinic) => {
+                    const isSelected =
+                      Number(formData.destination_clinic_id) ===
+                      Number(clinic.clinic_id);
+
+                    return (
+                      <button
+                        key={clinic.clinic_id}
+                        type="button"
+                        className={`patient-transfer-clinic-option ${
+                          isSelected ? "selected" : ""
+                        }`}
+                        onClick={() =>
+                          setFormData((current) => ({
+                            ...current,
+                            destination_clinic_id: String(clinic.clinic_id),
+                          }))
+                        }
+                        aria-pressed={isSelected}
+                      >
+                        <span className="patient-transfer-clinic-option-main">
+                          <strong>{clinic.clinic_name}</strong>
+                          <small>
+                            {clinic.address || "Address not available"}
+                          </small>
+                          <small>
+                            {clinic.contact_number || "No contact number"}
+                          </small>
+                        </span>
+
+                        <span className="patient-transfer-clinic-option-action">
+                          {isSelected ? "Selected" : "Select Clinic"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {selectedClinic && (
-                <small>
-                  {selectedClinic.address || "Address not available"} ·{" "}
-                  {selectedClinic.contact_number || "No contact number"}
-                </small>
+                <div className="patient-transfer-selected-clinic">
+                  <div>
+                    <span>Selected destination</span>
+                    <strong>{selectedClinic.clinic_name}</strong>
+                    <small>
+                      {selectedClinic.address || "Address not available"} ·{" "}
+                      {selectedClinic.contact_number || "No contact number"}
+                    </small>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() =>
+                      setFormData((current) => ({
+                        ...current,
+                        destination_clinic_id: "",
+                      }))
+                    }
+                  >
+                    Change Selection
+                  </button>
+                </div>
               )}
             </div>
 
-            <fieldset className="patient-transfer-scopes">
-              <legend>Information to Transfer</legend>
+            <div className="patient-transfer-outcome">
+              <h3>What will happen after final approval</h3>
 
-              {[
-                ["include_profile", "Patient profile and contact information"],
-                ["include_dental_records", "Dental records and clinical notes"],
-                ["include_xrays", "X-ray records and related findings"],
-                ["include_appointments", "Appointment history"],
-              ].map(([name, label]) => (
-                <label key={name}>
-                  <input
-                    type="checkbox"
-                    checked={formData[name]}
-                    onChange={(event) =>
-                      setFormData((current) => ({
-                        ...current,
-                        [name]: event.target.checked,
-                      }))
-                    }
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </fieldset>
+              <div className="patient-transfer-outcome-grid">
+                <div>
+                  <strong>Active clinic changes</strong>
+                  <span>
+                    {sourceClinic?.clinic_name || "Current clinic"} →{" "}
+                    {selectedClinic?.clinic_name ||
+                      "Selected destination clinic"}
+                  </span>
+                </div>
+
+                <div>
+                  <strong>Previous care becomes historical</strong>
+                  <span>
+                    Existing records remain read-only under their original
+                    clinic.
+                  </span>
+                </div>
+
+                <div>
+                  <strong>New care episode begins</strong>
+                  <span>
+                    Future appointments and new clinical records belong to the
+                    destination clinic.
+                  </span>
+                </div>
+
+                <div>
+                  <strong>Same Patient account</strong>
+                  <span>
+                    Your Patient ID, login, and account remain unchanged.
+                  </span>
+                </div>
+              </div>
+            </div>
 
             <div className="form-group">
               <label htmlFor="consent_statement">
@@ -276,8 +567,8 @@ function PatientTransfers() {
                 required
               />
               <span>
-                I confirm that I am the patient or authorized representative,
-                and I voluntarily consent to this transfer.
+                I confirm that I am the Patient or authorized representative,
+                and I voluntarily request this clinic transfer.
               </span>
             </label>
 
@@ -294,98 +585,138 @@ function PatientTransfers() {
         <section className="patient-dashboard-section">
           <div className="appointments-header">
             <div>
-              <h2>Transfer History</h2>
+              <h2>My Transfer Requests</h2>
               <p>
-                Track source approval, destination approval, and final access.
+                Track each approval stage and the final clinic reassignment.
               </p>
+            </div>
+          </div>
+
+          <div className="patient-transfer-table-filters">
+            <div className="form-group">
+              <label htmlFor="patient-transfer-search">Search</label>
+              <input
+                id="patient-transfer-search"
+                type="search"
+                value={historySearch}
+                onChange={(event) => setHistorySearch(event.target.value)}
+                placeholder="Source clinic, destination clinic, or request ID"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="patient-transfer-status">Status</label>
+              <select
+                id="patient-transfer-status"
+                value={historyStatusFilter}
+                onChange={(event) => setHistoryStatusFilter(event.target.value)}
+              >
+                <option value="All">All Statuses</option>
+                <option value="Pending Source Approval">
+                  Pending Source Approval
+                </option>
+                <option value="Pending Destination Approval">
+                  Pending Destination Approval
+                </option>
+                <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Expired">Expired</option>
+              </select>
             </div>
           </div>
 
           {loading ? (
             <div className="loading-message">Loading transfer requests...</div>
-          ) : requests.length === 0 ? (
-            <div className="empty-state">No transfer requests found.</div>
+          ) : filteredRequests.length === 0 ? (
+            <div className="empty-state">
+              No transfer requests match the selected filters.
+            </div>
           ) : (
-            <div className="patient-transfer-list">
-              {requests.map((request) => (
-                <article
-                  className="patient-transfer-card"
-                  key={request.transfer_id}
-                >
-                  <div className="patient-transfer-card-header">
-                    <div>
-                      <h3>
-                        {request.source_clinic_name} →{" "}
-                        {request.destination_clinic_name}
-                      </h3>
-                      <p>
-                        Submitted{" "}
-                        {new Date(request.created_at).toLocaleString("en-PH")}
-                      </p>
-                    </div>
+            <div className="patient-transfer-table-wrap">
+              <table className="patient-transfer-table patient-transfer-history-table">
+                <thead>
+                  <tr>
+                    <th>Request</th>
+                    <th>Current Clinic</th>
+                    <th>Destination Clinic</th>
+                    <th>Submitted</th>
+                    <th>Status</th>
+                    <th>Records</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
 
-                    <span className={statusClass(request.transfer_status)}>
-                      {request.transfer_status}
-                    </span>
-                  </div>
+                <tbody>
+                  {filteredRequests.map((request) => (
+                    <tr key={request.transfer_id}>
+                      <td>#{request.transfer_id}</td>
+                      <td>{request.source_clinic_name}</td>
+                      <td>{request.destination_clinic_name}</td>
+                      <td>{formatDate(request.created_at)}</td>
+                      <td>
+                        <span className={statusClass(request.transfer_status)}>
+                          {request.transfer_status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="patient-transfer-table-records">
+                          <span>
+                            Profile:{" "}
+                            {request.include_profile ? "Included" : "Excluded"}
+                          </span>
+                          <span>
+                            Records:{" "}
+                            {request.include_dental_records
+                              ? "Included"
+                              : "Excluded"}
+                          </span>
+                          <span>
+                            X-rays:{" "}
+                            {request.include_xrays ? "Included" : "Excluded"}
+                          </span>
+                          <span>
+                            Appointments:{" "}
+                            {request.include_appointments
+                              ? "Included"
+                              : "Excluded"}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="patient-transfer-table-actions">
+                          {[
+                            "Pending Source Approval",
+                            "Pending Destination Approval",
+                          ].includes(request.transfer_status) && (
+                            <button
+                              type="button"
+                              className="danger-button"
+                              onClick={() => cancelRequest(request.transfer_id)}
+                              disabled={updatingId === request.transfer_id}
+                            >
+                              {updatingId === request.transfer_id
+                                ? "Cancelling..."
+                                : "Cancel"}
+                            </button>
+                          )}
 
-                  <div className="patient-transfer-meta">
-                    <span>
-                      Profile:{" "}
-                      {request.include_profile ? "Included" : "Excluded"}
-                    </span>
-                    <span>
-                      Records:{" "}
-                      {request.include_dental_records ? "Included" : "Excluded"}
-                    </span>
-                    <span>
-                      X-rays: {request.include_xrays ? "Included" : "Excluded"}
-                    </span>
-                    <span>
-                      Appointments:{" "}
-                      {request.include_appointments ? "Included" : "Excluded"}
-                    </span>
-                  </div>
-
-                  {request.rejection_reason && (
-                    <div className="error-message">
-                      <strong>Rejection reason:</strong>{" "}
-                      {request.rejection_reason}
-                    </div>
-                  )}
-
-                  <div className="appointment-actions">
-                    {[
-                      "Pending Source Approval",
-                      "Pending Destination Approval",
-                    ].includes(request.transfer_status) && (
-                      <button
-                        type="button"
-                        className="danger-button"
-                        onClick={() => cancelRequest(request.transfer_id)}
-                        disabled={updatingId === request.transfer_id}
-                      >
-                        {updatingId === request.transfer_id
-                          ? "Cancelling..."
-                          : "Cancel Request"}
-                      </button>
-                    )}
-
-                    {request.transfer_status === "Approved" && (
-                      <button
-                        type="button"
-                        className="secondary-button"
-                        onClick={() => openPackage(request.transfer_id)}
-                        disabled={loadingPackage}
-                      >
-                        {loadingPackage
-                          ? "Opening..."
-                          : "View Transferred Package"}
-                      </button>
-                    )}
-                  </div>
-                </article>
-              ))}
+                          {request.transfer_status === "Approved" && (
+                            <button
+                              type="button"
+                              className="secondary-button"
+                              onClick={() => openPackage(request.transfer_id)}
+                              disabled={loadingPackage}
+                            >
+                              View Records
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </section>

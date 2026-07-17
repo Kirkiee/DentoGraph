@@ -414,7 +414,21 @@ const getAccessibleRecord = async (req, record_id) => {
     const result = await pool.query(
       `${getDentalRecordBaseQuery()}
        WHERE dr.record_id = $1
-         AND d.clinic_id = ANY($2::int[])`,
+         AND (
+           d.clinic_id = ANY($2::int[])
+           OR EXISTS (
+             SELECT 1
+             FROM public.patient_transfer_record_access transfer_access
+             JOIN public.patient_transfer_requests transfer_request
+               ON transfer_request.transfer_id = transfer_access.transfer_id
+             WHERE transfer_access.record_type = 'DENTAL_RECORD'
+               AND transfer_access.source_record_id = dr.record_id
+               AND transfer_request.patient_id = dr.patient_id
+               AND transfer_request.transfer_status = 'Approved'
+               AND transfer_request.destination_clinic_id =
+                 ANY($2::int[])
+           )
+         )`,
       [record_id, clinicIds],
     );
 
@@ -423,7 +437,7 @@ const getAccessibleRecord = async (req, record_id) => {
       record: result.rows[0] || null,
       error:
         result.rows.length === 0
-          ? "Dental record not found or not associated with an owned clinic location."
+          ? "Dental record not found or not authorized for an owned clinic location."
           : null,
       statusCode: result.rows.length === 0 ? 403 : 200,
     };
@@ -1005,14 +1019,44 @@ router.get(
         if (selectedStatus === "All") {
           records = await pool.query(
             `${getDentalRecordBaseQuery()}
-             WHERE d.clinic_id = ANY($1::int[])
+             WHERE
+               d.clinic_id = ANY($1::int[])
+               OR EXISTS (
+                 SELECT 1
+                 FROM public.patient_transfer_record_access transfer_access
+                 JOIN public.patient_transfer_requests transfer_request
+                   ON transfer_request.transfer_id =
+                     transfer_access.transfer_id
+                 WHERE transfer_access.record_type = 'DENTAL_RECORD'
+                   AND transfer_access.source_record_id = dr.record_id
+                   AND transfer_request.patient_id = dr.patient_id
+                   AND transfer_request.transfer_status = 'Approved'
+                   AND transfer_request.destination_clinic_id =
+                     ANY($1::int[])
+               )
              ORDER BY dr.record_id DESC`,
             [clinicIds],
           );
         } else {
           records = await pool.query(
             `${getDentalRecordBaseQuery()}
-             WHERE d.clinic_id = ANY($1::int[])
+             WHERE
+               (
+                 d.clinic_id = ANY($1::int[])
+                 OR EXISTS (
+                   SELECT 1
+                   FROM public.patient_transfer_record_access transfer_access
+                   JOIN public.patient_transfer_requests transfer_request
+                     ON transfer_request.transfer_id =
+                       transfer_access.transfer_id
+                   WHERE transfer_access.record_type = 'DENTAL_RECORD'
+                     AND transfer_access.source_record_id = dr.record_id
+                     AND transfer_request.patient_id = dr.patient_id
+                     AND transfer_request.transfer_status = 'Approved'
+                     AND transfer_request.destination_clinic_id =
+                       ANY($1::int[])
+                 )
+               )
                AND COALESCE(dr.status, 'Active') = $2
              ORDER BY dr.record_id DESC`,
             [clinicIds, selectedStatus],
@@ -2078,4 +2122,6 @@ router.put(
   },
 );
 
-module.exports = router;
+module.exports = {
+  router,
+};

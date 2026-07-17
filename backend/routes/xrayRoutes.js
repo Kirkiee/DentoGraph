@@ -386,11 +386,53 @@ const getAccessibleRecordForXray = async (req, record_id) => {
   if (role === "Clinic Owner") {
     const clinicIds = await getOwnedClinicIdsForXray(user_id);
 
-    if (!clinicIds.includes(Number(record.clinic_id))) {
+    const ownsSourceClinic = clinicIds.includes(Number(record.clinic_id));
+
+    let hasTransferredAccess = false;
+
+    if (!ownsSourceClinic && clinicIds.length > 0) {
+      const transferredAccessResult = await pool.query(
+        `SELECT 1
+         FROM public.patient_transfer_requests transfer_request
+         WHERE transfer_request.patient_id = $1
+           AND transfer_request.transfer_status = 'Approved'
+           AND transfer_request.destination_clinic_id =
+             ANY($2::int[])
+           AND EXISTS (
+             SELECT 1
+             FROM public.patient_transfer_record_access transfer_access
+             WHERE transfer_access.transfer_id =
+                     transfer_request.transfer_id
+               AND (
+                 (
+                   transfer_access.record_type = 'DENTAL_RECORD'
+                   AND transfer_access.source_record_id = $3
+                 )
+                 OR
+                 (
+                   transfer_access.record_type = 'XRAY'
+                   AND EXISTS (
+                     SELECT 1
+                     FROM public.xray_images transferred_xray
+                     WHERE transferred_xray.xray_id =
+                             transfer_access.source_record_id
+                       AND transferred_xray.record_id = $3
+                   )
+                 )
+               )
+           )
+         LIMIT 1`,
+        [record.patient_id, clinicIds, record.record_id],
+      );
+
+      hasTransferredAccess = transferredAccessResult.rows.length > 0;
+    }
+
+    if (!ownsSourceClinic && !hasTransferredAccess) {
       return {
         allowed: false,
         error:
-          "This X-ray record is not associated with an owned clinic location.",
+          "This X-ray record is not authorized for an owned clinic location.",
         statusCode: 403,
         record,
       };
@@ -1744,4 +1786,6 @@ router.delete(
   },
 );
 
-module.exports = router;
+module.exports = {
+  router,
+};
