@@ -41,6 +41,7 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "AR Braces Simulation", path: "/patient/ar-braces" },
       { label: "Clinic Discovery", path: "/patient/clinics" },
       { label: "Information Transfers", path: "/patient/transfers" },
+      { label: "Historical Records", path: "/patient/historical-records" },
     ],
 
     Dentist: [
@@ -54,6 +55,10 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "Dental Records", path: "/dentist/dental-records" },
       { label: "X-rays", path: "/dentist/xrays" },
       { label: "Patient Transfers", path: "/dentist/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/dentist/patient-historical-records",
+      },
     ],
 
     Assistant: [
@@ -67,6 +72,10 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
       { label: "Patient Transfers", path: "/assistant/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/assistant/patient-historical-records",
+      },
     ],
 
     "Dental Assistant": [
@@ -80,6 +89,10 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       { label: "Dental Records", path: "/assistant/dental-records" },
       { label: "X-rays", path: "/assistant/xrays" },
       { label: "Patient Transfers", path: "/assistant/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/assistant/patient-historical-records",
+      },
     ],
 
     Admin: [
@@ -113,7 +126,12 @@ function Sidebar({ role, mobileMenuOpen, setMobileMenuOpen, closeMobileMenu }) {
       },
       { label: "Shared Subscription", path: "/clinic-owner/subscription" },
       { label: "Payment History", path: "/clinic-owner/payments" },
+      { label: "Dental Records", path: "/clinic-owner/dental-records" },
       { label: "Patient Transfers", path: "/clinic-owner/patient-transfers" },
+      {
+        label: "Historical Records",
+        path: "/clinic-owner/patient-historical-records",
+      },
     ],
   };
 

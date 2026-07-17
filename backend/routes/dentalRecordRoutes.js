@@ -157,6 +157,35 @@ const getAssistantProfile = async (user_id, queryClient = pool) => {
   return result.rows[0] || null;
 };
 
+const getOwnedClinicIds = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT clinic_id
+     FROM public.clinics
+     WHERE owner_user_id = $1
+     ORDER BY clinic_id`,
+    [user_id],
+  );
+
+  return result.rows.map((row) => Number(row.clinic_id));
+};
+
+const hasPatientClinicHistory = async (
+  patient_id,
+  clinic_id,
+  queryClient = pool,
+) => {
+  const result = await queryClient.query(
+    `SELECT 1
+     FROM public.patient_clinic_assignments
+     WHERE patient_id = $1
+       AND clinic_id = $2
+     LIMIT 1`,
+    [patient_id, clinic_id],
+  );
+
+  return result.rows.length > 0;
+};
+
 const getPatientProfile = async (user_id, queryClient = pool) => {
   const result = await queryClient.query(
     `SELECT
@@ -370,6 +399,36 @@ const getAccessibleRecord = async (req, record_id) => {
     };
   }
 
+  if (role === "Clinic Owner") {
+    const clinicIds = await getOwnedClinicIds(user_id);
+
+    if (clinicIds.length === 0) {
+      return {
+        allowed: false,
+        record: null,
+        error: "No owned clinic location is available.",
+        statusCode: 403,
+      };
+    }
+
+    const result = await pool.query(
+      `${getDentalRecordBaseQuery()}
+       WHERE dr.record_id = $1
+         AND d.clinic_id = ANY($2::int[])`,
+      [record_id, clinicIds],
+    );
+
+    return {
+      allowed: result.rows.length > 0,
+      record: result.rows[0] || null,
+      error:
+        result.rows.length === 0
+          ? "Dental record not found or not associated with an owned clinic location."
+          : null,
+      statusCode: result.rows.length === 0 ? 403 : 200,
+    };
+  }
+
   if (role === "Dentist") {
     const dentist = await getDentistProfile(user_id);
     const context = validateStaffClinicContext(dentist, "Dentist");
@@ -382,10 +441,23 @@ const getAccessibleRecord = async (req, record_id) => {
       `${getDentalRecordBaseQuery()}
        WHERE dr.record_id = $1
        AND dr.dentist_id = $2
-       AND d.clinic_id = $3
-       AND p.clinic_id = $3`,
+       AND d.clinic_id = $3`,
       [record_id, dentist.dentist_id, dentist.clinic_id],
     );
+
+    if (
+      result.rows.length > 0 &&
+      Number(result.rows[0].patient_clinic_id) !== Number(dentist.clinic_id)
+    ) {
+      const historicalAccess = await hasPatientClinicHistory(
+        result.rows[0].patient_id,
+        dentist.clinic_id,
+      );
+
+      if (!historicalAccess) {
+        result.rows = [];
+      }
+    }
 
     return {
       allowed: result.rows.length > 0,
@@ -409,10 +481,23 @@ const getAccessibleRecord = async (req, record_id) => {
     const result = await pool.query(
       `${getDentalRecordBaseQuery()}
        WHERE dr.record_id = $1
-       AND d.clinic_id = $2
-       AND p.clinic_id = $2`,
+       AND d.clinic_id = $2`,
       [record_id, assistant.clinic_id],
     );
+
+    if (
+      result.rows.length > 0 &&
+      Number(result.rows[0].patient_clinic_id) !== Number(assistant.clinic_id)
+    ) {
+      const historicalAccess = await hasPatientClinicHistory(
+        result.rows[0].patient_id,
+        assistant.clinic_id,
+      );
+
+      if (!historicalAccess) {
+        result.rows = [];
+      }
+    }
 
     return {
       allowed: result.rows.length > 0,
@@ -436,11 +521,20 @@ const getAccessibleRecord = async (req, record_id) => {
     const result = await pool.query(
       `${getDentalRecordBaseQuery()}
        WHERE dr.record_id = $1
-       AND dr.patient_id = $2
-       AND p.clinic_id = $3
-       AND d.clinic_id = $3`,
-      [record_id, patient.patient_id, patient.clinic_id],
+       AND dr.patient_id = $2`,
+      [record_id, patient.patient_id],
     );
+
+    if (result.rows.length > 0) {
+      const historicalAccess = await hasPatientClinicHistory(
+        patient.patient_id,
+        result.rows[0].clinic_id,
+      );
+
+      if (!historicalAccess) {
+        result.rows = [];
+      }
+    }
 
     return {
       allowed: result.rows.length > 0,
@@ -869,7 +963,13 @@ router.post(
 router.get(
   "/",
   authenticateToken,
-  authorizeRoles("Dentist", "Assistant", "Dental Assistant", "Admin"),
+  authorizeRoles(
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+    "Admin",
+    "Clinic Owner",
+  ),
   async (req, res) => {
     const role = req.user.role;
     const user_id = req.user.user_id;
@@ -891,6 +991,31 @@ router.get(
              WHERE COALESCE(dr.status, 'Active') = $1
              ORDER BY dr.record_id DESC`,
             [selectedStatus],
+          );
+        }
+      } else if (role === "Clinic Owner") {
+        const clinicIds = await getOwnedClinicIds(user_id);
+
+        if (clinicIds.length === 0) {
+          return res.status(403).json({
+            error: "No owned clinic location is available.",
+          });
+        }
+
+        if (selectedStatus === "All") {
+          records = await pool.query(
+            `${getDentalRecordBaseQuery()}
+             WHERE d.clinic_id = ANY($1::int[])
+             ORDER BY dr.record_id DESC`,
+            [clinicIds],
+          );
+        } else {
+          records = await pool.query(
+            `${getDentalRecordBaseQuery()}
+             WHERE d.clinic_id = ANY($1::int[])
+               AND COALESCE(dr.status, 'Active') = $2
+             ORDER BY dr.record_id DESC`,
+            [clinicIds, selectedStatus],
           );
         }
       } else if (role === "Dentist") {
@@ -1187,6 +1312,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { record_id } = req.params;
@@ -1227,6 +1353,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { record_id, tooth_number } = req.params;
@@ -1269,6 +1396,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { record_id } = req.params;
@@ -1280,7 +1408,10 @@ router.get(
         return res.status(access.statusCode).json({ error: access.error });
       }
 
-      if (access.record.status === "Archived" && req.user.role !== "Admin") {
+      if (
+        access.record.status === "Archived" &&
+        !["Admin", "Clinic Owner"].includes(req.user.role)
+      ) {
         return res.status(403).json({
           error: "This dental record has been archived.",
         });

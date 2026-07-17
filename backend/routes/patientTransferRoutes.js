@@ -717,6 +717,112 @@ router.put(
             );
           }
 
+          const activeEpisodeResult = await client.query(
+            `SELECT care_episode_id
+             FROM public.patient_care_episodes
+             WHERE patient_id = $1
+               AND episode_status = 'Active'
+             FOR UPDATE`,
+            [transfer.patient_id],
+          );
+
+          const previousEpisodeId =
+            activeEpisodeResult.rows[0]?.care_episode_id || null;
+
+          await client.query(
+            `UPDATE public.patient_clinic_assignments
+             SET assignment_status = 'Historical',
+                 ended_at = CURRENT_TIMESTAMP
+             WHERE patient_id = $1
+               AND assignment_status = 'Current'`,
+            [transfer.patient_id],
+          );
+
+          await client.query(
+            `UPDATE public.patient_care_episodes
+             SET episode_status = 'Historical',
+                 ended_at = CURRENT_TIMESTAMP
+             WHERE patient_id = $1
+               AND episode_status = 'Active'`,
+            [transfer.patient_id],
+          );
+
+          if (previousEpisodeId) {
+            await client.query(
+              `UPDATE public.dental_records
+               SET is_historical = TRUE,
+                   historical_at = COALESCE(
+                     historical_at,
+                     CURRENT_TIMESTAMP
+                   )
+               WHERE patient_id = $1
+                 AND care_episode_id = $2`,
+              [transfer.patient_id, previousEpisodeId],
+            );
+          }
+
+          await client.query(
+            `UPDATE public.patients
+             SET clinic_id = $1
+             WHERE patient_id = $2`,
+            [transfer.destination_clinic_id, transfer.patient_id],
+          );
+
+          await client.query(
+            `INSERT INTO public.patient_clinic_assignments
+             (
+               patient_id,
+               clinic_id,
+               transfer_id,
+               assignment_status,
+               started_at,
+               created_by_user_id
+             )
+             VALUES (
+               $1,
+               $2,
+               $3,
+               'Current',
+               CURRENT_TIMESTAMP,
+               $4
+             )`,
+            [
+              transfer.patient_id,
+              transfer.destination_clinic_id,
+              transferId,
+              req.user.user_id,
+            ],
+          );
+
+          await client.query(
+            `INSERT INTO public.patient_care_episodes
+             (
+               patient_id,
+               clinic_id,
+               transfer_id,
+               previous_episode_id,
+               episode_status,
+               started_at,
+               created_by_user_id
+             )
+             VALUES (
+               $1,
+               $2,
+               $3,
+               $4,
+               'Active',
+               CURRENT_TIMESTAMP,
+               $5
+             )`,
+            [
+              transfer.patient_id,
+              transfer.destination_clinic_id,
+              transferId,
+              previousEpisodeId,
+              req.user.user_id,
+            ],
+          );
+
           await client.query(
             `UPDATE public.patient_transfer_requests
              SET transfer_status = 'Approved',
@@ -757,7 +863,7 @@ router.put(
           decision === "Approve"
             ? transfer.transfer_status === "Pending Source Approval"
               ? "Source clinic approved the request. It is now waiting for destination clinic approval."
-              : "Destination clinic approved the request. The authorized transfer package is now available."
+              : "Destination clinic approved the request. The Patient was transferred and a new active care episode was created."
             : "Transfer request rejected.",
       });
     } catch (err) {
@@ -1011,12 +1117,448 @@ router.get(
           appointments: appointmentsResult.rows,
         },
         notice:
-          "These are the actual authorized patient records. Access is read-only and limited to continuity of care.",
+          "These are historical records from previous clinic assignments. They remain read-only and preserve their original clinic and Dentist.",
       });
     } catch (err) {
       console.error("Get patient transfer package error:", err.message);
       return res.status(500).json({
         error: "Unable to load the transfer package.",
+      });
+    }
+  },
+);
+
+router.get(
+  "/historical-patients",
+  authenticateToken,
+  authorizeRoles(
+    "Admin",
+    "Clinic Owner",
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+  ),
+  async (req, res) => {
+    try {
+      const search = cleanText(req.query.search);
+      const assignmentStatus = cleanText(req.query.assignment_status || "All");
+      const clinicFilter = parsePositiveInteger(req.query.clinic_id);
+
+      const clinicIds =
+        req.user.role === "Admin"
+          ? null
+          : await getAuthorizedClinicIds(req.user.user_id, req.user.role);
+
+      if (req.user.role !== "Admin" && (!clinicIds || clinicIds.length === 0)) {
+        return res.status(403).json({
+          error: "No authorized clinic location is available.",
+        });
+      }
+
+      const conditions = [];
+      const values = [];
+      let parameterIndex = 1;
+
+      if (req.user.role !== "Admin") {
+        conditions.push(
+          `EXISTS (
+             SELECT 1
+             FROM public.patient_clinic_assignments access_assignment
+             WHERE access_assignment.patient_id = p.patient_id
+               AND access_assignment.clinic_id =
+                 ANY($${parameterIndex}::int[])
+           )`,
+        );
+        values.push(clinicIds);
+        parameterIndex += 1;
+      }
+
+      if (search) {
+        conditions.push(
+          `(u.name ILIKE $${parameterIndex}
+            OR u.email ILIKE $${parameterIndex}
+            OR COALESCE(p.contact_number, '') ILIKE $${parameterIndex}
+            OR CAST(p.patient_id AS TEXT) ILIKE $${parameterIndex})`,
+        );
+        values.push(`%${search}%`);
+        parameterIndex += 1;
+      }
+
+      if (clinicFilter) {
+        conditions.push(
+          `EXISTS (
+             SELECT 1
+             FROM public.patient_clinic_assignments clinic_assignment
+             WHERE clinic_assignment.patient_id = p.patient_id
+               AND clinic_assignment.clinic_id = $${parameterIndex}
+           )`,
+        );
+        values.push(clinicFilter);
+        parameterIndex += 1;
+      }
+
+      if (assignmentStatus === "Current") {
+        conditions.push(`current_assignment.assignment_status = 'Current'`);
+      } else if (assignmentStatus === "Historical") {
+        conditions.push(
+          `EXISTS (
+             SELECT 1
+             FROM public.patient_clinic_assignments historical_assignment
+             WHERE historical_assignment.patient_id = p.patient_id
+               AND historical_assignment.assignment_status = 'Historical'
+           )`,
+        );
+      }
+
+      const whereClause =
+        conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+      const result = await pool.query(
+        `SELECT
+           p.patient_id,
+           u.name AS patient_name,
+           u.email AS patient_email,
+           p.contact_number,
+           p.clinic_id AS current_clinic_id,
+           current_clinic.clinic_name AS current_clinic_name,
+           current_assignment.started_at
+             AS current_assignment_started_at,
+           COUNT(
+             DISTINCT all_assignments.assignment_id
+           )::int AS total_assignments,
+           COUNT(
+             DISTINCT CASE
+               WHEN all_assignments.assignment_status = 'Historical'
+               THEN all_assignments.assignment_id
+             END
+           )::int AS historical_assignments,
+           MAX(all_assignments.ended_at) AS most_recent_transfer_at
+         FROM public.patients p
+         JOIN public.users u
+           ON u.user_id = p.user_id
+         LEFT JOIN public.clinics current_clinic
+           ON current_clinic.clinic_id = p.clinic_id
+         LEFT JOIN public.patient_clinic_assignments current_assignment
+           ON current_assignment.patient_id = p.patient_id
+          AND current_assignment.assignment_status = 'Current'
+         LEFT JOIN public.patient_clinic_assignments all_assignments
+           ON all_assignments.patient_id = p.patient_id
+         ${whereClause}
+         GROUP BY
+           p.patient_id,
+           u.name,
+           u.email,
+           p.contact_number,
+           p.clinic_id,
+           current_clinic.clinic_name,
+           current_assignment.assignment_status,
+           current_assignment.started_at
+         ORDER BY u.name ASC, p.patient_id ASC`,
+        values,
+      );
+
+      const clinicResult =
+        req.user.role === "Admin"
+          ? await pool.query(
+              `SELECT clinic_id, clinic_name
+               FROM public.clinics
+               ORDER BY clinic_name ASC`,
+            )
+          : await pool.query(
+              `SELECT clinic_id, clinic_name
+               FROM public.clinics
+               WHERE clinic_id = ANY($1::int[])
+               ORDER BY clinic_name ASC`,
+              [clinicIds],
+            );
+
+      return res.status(200).json({
+        patients: result.rows,
+        clinics: clinicResult.rows,
+      });
+    } catch (err) {
+      console.error("Get historical Patient list error:", {
+        message: err.message,
+        code: err.code,
+        detail: err.detail,
+      });
+
+      return res.status(500).json({
+        error: "Unable to load the Patient historical-record list.",
+        reference_code: err.code || "PATIENT_HISTORY_LIST_FAILED",
+      });
+    }
+  },
+);
+
+router.get(
+  "/historical-records",
+  authenticateToken,
+  authorizeRoles(
+    "Admin",
+    "Patient",
+    "Clinic Owner",
+    "Dentist",
+    "Assistant",
+    "Dental Assistant",
+  ),
+  async (req, res) => {
+    try {
+      let patientId = parsePositiveInteger(req.query.patient_id);
+
+      if (req.user.role === "Patient") {
+        const context = await getPatientContext(req.user.user_id);
+
+        if (!context.allowed) {
+          return res.status(context.status).json({ error: context.error });
+        }
+
+        patientId = Number(context.patient_id);
+      }
+
+      if (!patientId) {
+        return res.status(400).json({
+          error: "A valid Patient ID is required.",
+        });
+      }
+
+      const patientResult = await pool.query(
+        `SELECT
+           p.patient_id,
+           p.clinic_id AS current_clinic_id,
+           u.name AS patient_name,
+           u.email AS patient_email,
+           c.clinic_name AS current_clinic_name
+         FROM public.patients p
+         JOIN public.users u ON u.user_id = p.user_id
+         LEFT JOIN public.clinics c ON c.clinic_id = p.clinic_id
+         WHERE p.patient_id = $1
+         LIMIT 1`,
+        [patientId],
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({ error: "Patient not found." });
+      }
+
+      if (req.user.role !== "Patient" && req.user.role !== "Admin") {
+        const clinicIds = await getAuthorizedClinicIds(
+          req.user.user_id,
+          req.user.role,
+        );
+
+        const accessResult = await pool.query(
+          `SELECT 1
+           FROM public.patient_clinic_assignments
+           WHERE patient_id = $1
+             AND clinic_id = ANY($2::int[])
+           LIMIT 1`,
+          [patientId, clinicIds],
+        );
+
+        if (accessResult.rows.length === 0) {
+          return res.status(403).json({
+            error:
+              "You are not authorized to view this Patient's clinic history.",
+          });
+        }
+      }
+
+      const assignmentsResult = await pool.query(
+        `SELECT
+           a.assignment_id,
+           a.clinic_id,
+           c.clinic_name,
+           c.address,
+           a.assignment_status,
+           a.started_at,
+           a.ended_at,
+           a.transfer_id
+         FROM public.patient_clinic_assignments a
+         JOIN public.clinics c ON c.clinic_id = a.clinic_id
+         WHERE a.patient_id = $1
+         ORDER BY a.started_at DESC`,
+        [patientId],
+      );
+
+      const episodesResult = await pool.query(
+        `SELECT
+           e.care_episode_id,
+           e.clinic_id,
+           c.clinic_name,
+           e.previous_episode_id,
+           e.episode_status,
+           e.started_at,
+           e.ended_at,
+           e.transfer_id
+         FROM public.patient_care_episodes e
+         JOIN public.clinics c ON c.clinic_id = e.clinic_id
+         WHERE e.patient_id = $1
+         ORDER BY e.started_at DESC`,
+        [patientId],
+      );
+
+      const recordsResult = await pool.query(
+        `SELECT
+           dr.record_id,
+           dr.care_episode_id,
+           dr.patient_id,
+           dr.dentist_id,
+           dentist_user.name AS dentist_name,
+           d.clinic_id,
+           c.clinic_name,
+           dr.date_created,
+           dr.last_updated,
+           dr.status,
+           dr.record_source,
+           dr.source_notes,
+           dr.is_historical,
+           dr.historical_at,
+           dr.previous_record_id
+         FROM public.dental_records dr
+         JOIN public.dentists d ON d.dentist_id = dr.dentist_id
+         JOIN public.users dentist_user
+           ON dentist_user.user_id = d.user_id
+         JOIN public.clinics c ON c.clinic_id = d.clinic_id
+         WHERE dr.patient_id = $1
+         ORDER BY dr.date_created DESC`,
+        [patientId],
+      );
+
+      const recordIds = recordsResult.rows.map((row) => Number(row.record_id));
+
+      const teethResult =
+        recordIds.length > 0
+          ? await pool.query(
+              `SELECT
+                 tooth_id,
+                 record_id,
+                 tooth_number,
+                 tooth_status
+               FROM public.teeth
+               WHERE record_id = ANY($1::int[])
+               ORDER BY record_id, tooth_number`,
+              [recordIds],
+            )
+          : { rows: [] };
+
+      const toothIds = teethResult.rows.map((row) => Number(row.tooth_id));
+
+      const treatmentsResult =
+        toothIds.length > 0
+          ? await pool.query(
+              `SELECT
+                 treatment_id,
+                 tooth_id,
+                 procedure_type,
+                 description,
+                 treatment_date
+               FROM public.treatments
+               WHERE tooth_id = ANY($1::int[])
+               ORDER BY treatment_date DESC`,
+              [toothIds],
+            )
+          : { rows: [] };
+
+      const xraysResult = await pool.query(
+        `SELECT
+           x.xray_id,
+           x.record_id,
+           x.tooth_number,
+           x.file_path,
+           x.file_size_bytes,
+           x.upload_date
+         FROM public.xray_images x
+         JOIN public.dental_records dr
+           ON dr.record_id = x.record_id
+         WHERE dr.patient_id = $1
+         ORDER BY x.upload_date DESC`,
+        [patientId],
+      );
+
+      const appointmentsResult = await pool.query(
+        `SELECT
+           a.appointment_id,
+           a.appointment_date,
+           a.status,
+           a.notes,
+           a.appointment_type,
+           dentist_user.name AS dentist_name,
+           d.clinic_id,
+           c.clinic_name
+         FROM public.appointments a
+         JOIN public.dentists d ON d.dentist_id = a.dentist_id
+         JOIN public.users dentist_user
+           ON dentist_user.user_id = d.user_id
+         JOIN public.clinics c ON c.clinic_id = d.clinic_id
+         WHERE a.patient_id = $1
+         ORDER BY a.appointment_date DESC`,
+        [patientId],
+      );
+
+      const records = recordsResult.rows.map((record) => ({
+        ...record,
+        teeth: teethResult.rows
+          .filter(
+            (tooth) => Number(tooth.record_id) === Number(record.record_id),
+          )
+          .map((tooth) => ({
+            ...tooth,
+            treatments: treatmentsResult.rows.filter(
+              (treatment) =>
+                Number(treatment.tooth_id) === Number(tooth.tooth_id),
+            ),
+          })),
+        xrays: xraysResult.rows.filter(
+          (xray) => Number(xray.record_id) === Number(record.record_id),
+        ),
+      }));
+
+      const careEpisodes = episodesResult.rows.map((episode) => ({
+        ...episode,
+        records: records.filter(
+          (record) =>
+            Number(record.care_episode_id) === Number(episode.care_episode_id),
+        ),
+        appointments: appointmentsResult.rows.filter((appointment) => {
+          if (Number(appointment.clinic_id) !== Number(episode.clinic_id)) {
+            return false;
+          }
+
+          const appointmentDate = new Date(appointment.appointment_date);
+          const startDate = new Date(episode.started_at);
+          const endDate = episode.ended_at ? new Date(episode.ended_at) : null;
+
+          return (
+            appointmentDate >= startDate &&
+            (!endDate || appointmentDate <= endDate)
+          );
+        }),
+      }));
+
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action: "VIEW_PATIENT_HISTORICAL_RECORDS",
+        module: "Patient Transfer",
+        description: `${req.user.role} viewed historical records for Patient ${patientId}.`,
+        ip_address: req.ip,
+      });
+
+      return res.status(200).json({
+        patient: patientResult.rows[0],
+        assignments: assignmentsResult.rows,
+        care_episodes: careEpisodes,
+      });
+    } catch (err) {
+      console.error("Get Patient historical records error:", {
+        message: err.message,
+        code: err.code,
+        detail: err.detail,
+      });
+
+      return res.status(500).json({
+        error: "Unable to load Patient historical records.",
+        reference_code: err.code || "PATIENT_HISTORICAL_RECORDS_FAILED",
       });
     }
   },

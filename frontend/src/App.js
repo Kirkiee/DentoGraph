@@ -57,6 +57,9 @@ import PatientClinicDiscovery from "./pages/PatientClinicDiscovery";
 import PatientARBracesSimulation from "./pages/PatientARBracesSimulation";
 import PatientTransfers from "./pages/PatientTransfers";
 import ClinicPatientTransfers from "./pages/ClinicPatientTransfers";
+import PatientHistoricalRecords from "./pages/PatientHistoricalRecords";
+import ClinicOwnerDentalRecords from "./pages/ClinicOwnerDentalRecords";
+import ClinicOwnerDentalRecordDetails from "./pages/ClinicOwnerDentalRecordDetails";
 
 import DentistProfile from "./pages/DentistProfile";
 import DentistAppointments from "./pages/DentistAppointments";
@@ -267,6 +270,33 @@ function App() {
         />
 
         <Route
+          path="/clinic-owner/dental-records"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerDentalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/dental-records/:record_id"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <ClinicOwnerDentalRecordDetails />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/dental-records/:record_id/3d-view"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <AdminDental3DViewer />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/clinic-owner/dashboard"
           element={
             <ProtectedRoute allowedRoles={["Clinic Owner"]}>
@@ -389,6 +419,42 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={assistantRoles}>
               <ClinicPatientTransfers />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/patient/historical-records"
+          element={
+            <ProtectedRoute allowedRoles={["Patient"]}>
+              <PatientHistoricalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/clinic-owner/patient-historical-records"
+          element={
+            <ProtectedRoute allowedRoles={["Clinic Owner"]}>
+              <PatientHistoricalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dentist/patient-historical-records"
+          element={
+            <ProtectedRoute allowedRoles={["Dentist"]}>
+              <PatientHistoricalRecords />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/assistant/patient-historical-records"
+          element={
+            <ProtectedRoute allowedRoles={assistantRoles}>
+              <PatientHistoricalRecords />
             </ProtectedRoute>
           }
         />

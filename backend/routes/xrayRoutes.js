@@ -293,6 +293,35 @@ const getRecordContext = async (record_id) => {
   return result.rows[0] || null;
 };
 
+const getOwnedClinicIdsForXray = async (user_id, queryClient = pool) => {
+  const result = await queryClient.query(
+    `SELECT clinic_id
+     FROM public.clinics
+     WHERE owner_user_id = $1
+     ORDER BY clinic_id`,
+    [user_id],
+  );
+
+  return result.rows.map((row) => Number(row.clinic_id));
+};
+
+const hasPatientClinicHistoryForXray = async (
+  patient_id,
+  clinic_id,
+  queryClient = pool,
+) => {
+  const result = await queryClient.query(
+    `SELECT 1
+     FROM public.patient_clinic_assignments
+     WHERE patient_id = $1
+       AND clinic_id = $2
+     LIMIT 1`,
+    [patient_id, clinic_id],
+  );
+
+  return result.rows.length > 0;
+};
+
 const getAccessibleRecordForXray = async (req, record_id) => {
   const role = req.user.role;
   const user_id = req.user.user_id;
@@ -316,21 +345,57 @@ const getAccessibleRecordForXray = async (req, record_id) => {
     };
   }
 
-  if (
-    !record.clinic_id ||
-    !record.patient_clinic_id ||
-    Number(record.clinic_id) !== Number(record.patient_clinic_id)
-  ) {
+  if (!record.clinic_id || !record.patient_clinic_id) {
     return {
       allowed: false,
-      error:
-        "This dental record has an invalid cross-clinic assignment and cannot be used for X-ray operations.",
+      error: "This dental record has an incomplete clinic assignment.",
       statusCode: 409,
       record,
     };
   }
 
+  const isHistoricalClinicRecord =
+    Number(record.clinic_id) !== Number(record.patient_clinic_id);
+
+  if (isHistoricalClinicRecord) {
+    const historicalAccess = await hasPatientClinicHistoryForXray(
+      record.patient_id,
+      record.clinic_id,
+    );
+
+    if (!historicalAccess || req.method !== "GET") {
+      return {
+        allowed: false,
+        error:
+          "Historical X-rays are read-only and require a valid Patient clinic-assignment history.",
+        statusCode: 403,
+        record,
+      };
+    }
+  }
+
   if (role === "Admin") {
+    return {
+      allowed: true,
+      error: null,
+      statusCode: 200,
+      record,
+    };
+  }
+
+  if (role === "Clinic Owner") {
+    const clinicIds = await getOwnedClinicIdsForXray(user_id);
+
+    if (!clinicIds.includes(Number(record.clinic_id))) {
+      return {
+        allowed: false,
+        error:
+          "This X-ray record is not associated with an owned clinic location.",
+        statusCode: 403,
+        record,
+      };
+    }
+
     return {
       allowed: true,
       error: null,
@@ -915,6 +980,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { record_id } = req.params;
@@ -961,6 +1027,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { xray_id } = req.params;
@@ -1182,6 +1249,7 @@ router.get(
     "Dental Assistant",
     "Patient",
     "Admin",
+    "Clinic Owner",
   ),
   async (req, res) => {
     const { xray_id } = req.params;
