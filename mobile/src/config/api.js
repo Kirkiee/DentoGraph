@@ -1,40 +1,26 @@
-export const API_ORIGIN = "https://api.dentograph.site";
+export const API_BASE_URL = "https://api.dentograph.site/api";
 export const WEB_APP_ORIGIN = "https://dentograph.site";
-export const API_BASE_URL = `${API_ORIGIN}/api`;
 
-export const API_TIMEOUT_MS = 20000;
+export const buildFileUrl = (filePath) => {
+  if (!filePath) return null;
 
-export const buildApiUrl = (path = "") => {
-  const normalizedPath = String(path || "").trim();
+  const normalizedPath = String(filePath).replace(/\\/g, "/");
 
-  if (!normalizedPath) {
-    return API_BASE_URL;
-  }
-
-  if (/^https?:\/\//i.test(normalizedPath)) {
+  if (
+    normalizedPath.startsWith("http://") ||
+    normalizedPath.startsWith("https://")
+  ) {
     return normalizedPath;
   }
 
-  const withoutLeadingSlash = normalizedPath.replace(/^\/+/, "");
-  const withoutDuplicateApi = withoutLeadingSlash.replace(/^api\/+/, "");
+  const apiOrigin = API_BASE_URL.replace(/\/api\/?$/, "");
+  const pathWithSlash = normalizedPath.startsWith("/")
+    ? normalizedPath
+    : `/${normalizedPath}`;
 
-  return `${API_BASE_URL}/${withoutDuplicateApi}`;
+  return `${apiOrigin}${pathWithSlash}`;
 };
 
-export const buildFileUrl = (path = "") => {
-  const normalizedPath = String(path || "").trim();
-
-  if (!normalizedPath) {
-    return "";
-  }
-
-  if (/^https?:\/\//i.test(normalizedPath)) {
-    return normalizedPath;
-  }
-
-  return `${API_ORIGIN}/${normalizedPath.replace(/^\/+/, "")}`;
-};
-
-// For local backend testing on a physical phone, replace API_ORIGIN with
-// the computer's LAN address. Do not use localhost from the phone.
-// Example: http://192.168.1.10:5000
+// For local backend testing on your phone, do not use localhost.
+// Use your computer's local IP instead, for example:
+// export const API_BASE_URL = "http://192.168.1.10:5000/api";

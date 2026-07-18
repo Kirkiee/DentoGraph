@@ -1091,3 +1091,113 @@ body.dark-mode .ar-review-form textarea {
     width: 100%;
   }
 }
+
+/* =========================================================
+   MOBILE WEBVIEW EMBED MODE — AR BRACES
+   Append to frontend/src/styles/arBracesSimulation.css
+   ========================================================= */
+
+.dashboard-embedded {
+  width: 100%;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--clinic-page-background);
+  color: var(--clinic-body-text);
+}
+
+.dashboard-embedded-content {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0;
+  padding: 10px;
+  overflow-x: hidden;
+}
+
+.dashboard-embedded .appointments-layout {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-embedded .appointment-form-card {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 14px;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.dashboard-embedded .appointment-form-card > h2,
+.dashboard-embedded .appointment-form-card > h2 + p {
+  display: none;
+}
+
+.dashboard-embedded .appointment-form,
+.dashboard-embedded .ar-simulation-page,
+.dashboard-embedded .ar-annotation-layout,
+.dashboard-embedded .ar-viewer-section,
+.dashboard-embedded .ar-camera-frame {
+  width: 100%;
+  max-width: none;
+}
+
+.dashboard-embedded .ar-annotation-layout {
+  margin-top: 14px;
+}
+
+.dashboard-embedded .ar-viewer-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.dashboard-embedded .ar-xray-style-frame {
+  min-height: 0;
+}
+
+.dashboard-embedded .ar-camera-frame {
+  min-height: 420px;
+  aspect-ratio: 3 / 4;
+  border-radius: 14px;
+}
+
+.dashboard-embedded video,
+.dashboard-embedded canvas {
+  max-width: 100%;
+}
+
+.dashboard-embedded .brace-style-grid {
+  grid-template-columns: 1fr;
+}
+
+.dashboard-embedded .appointment-actions,
+.dashboard-embedded .ar-action-row,
+.dashboard-embedded .saved-preview-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.dashboard-embedded button,
+.dashboard-embedded select,
+.dashboard-embedded input,
+.dashboard-embedded textarea {
+  min-height: 44px;
+  font-size: 16px;
+}
+
+@media (max-width: 480px) {
+  .dashboard-embedded-content {
+    padding: 8px;
+  }
+
+  .dashboard-embedded .appointment-form-card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .dashboard-embedded .ar-camera-frame {
+    min-height: 390px;
+  }
+}

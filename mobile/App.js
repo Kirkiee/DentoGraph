@@ -267,9 +267,10 @@ export default function App() {
 
     return (
       <PatientDashboardScreen
+        token={token}
         user={currentUser}
-        onLogout={handleLogout}
         onOpenAppointments={() => setCurrentScreen("appointments")}
+        onOpenBookAppointment={() => setCurrentScreen("bookAppointment")}
         onOpenDentalRecords={() => setCurrentScreen("dentalRecords")}
         onOpenXrays={() => setCurrentScreen("xrays")}
         onOpenARBraces={() => setCurrentScreen("arBraces")}

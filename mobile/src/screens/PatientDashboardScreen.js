@@ -1,292 +1,584 @@
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
+import { getPatientDashboard } from "../services/dashboardService";
+
+const formatDateTime = (value) => {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const formatDate = (value) => {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleDateString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const StatCard = ({ icon, label, value, onPress }) => (
+  <Pressable
+    style={({ pressed }) => [
+      styles.statCard,
+      pressed && onPress && styles.pressedCard,
+    ]}
+    onPress={onPress}
+    disabled={!onPress}
+  >
+    <View style={styles.statIcon}>
+      <Ionicons name={icon} size={20} color="#1d4ed8" />
+    </View>
+    <Text style={styles.statValue}>{value}</Text>
+    <Text style={styles.statLabel}>{label}</Text>
+  </Pressable>
+);
+
+const QuickAction = ({ icon, title, description, onPress }) => (
+  <Pressable
+    style={({ pressed }) => [
+      styles.quickAction,
+      pressed && styles.pressedCard,
+    ]}
+    onPress={onPress}
+  >
+    <View style={styles.quickActionIcon}>
+      <Ionicons name={icon} size={22} color="#1d4ed8" />
+    </View>
+
+    <View style={styles.quickActionText}>
+      <Text style={styles.quickActionTitle}>{title}</Text>
+      <Text style={styles.quickActionDescription}>{description}</Text>
+    </View>
+
+    <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+  </Pressable>
+);
+
 export default function PatientDashboardScreen({
+  token,
   user,
-  onLogout,
   onOpenAppointments,
+  onOpenBookAppointment,
   onOpenDentalRecords,
   onOpenXrays,
   onOpenARBraces,
   onOpenClinicDiscovery,
   onOpenProfile,
 }) {
-  const patientName = user?.name || "Patient";
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadDashboard();
+  }, []);
+
+  const loadDashboard = async ({ refresh = false } = {}) => {
+    try {
+      refresh ? setRefreshing(true) : setLoading(true);
+      const response = await getPatientDashboard(token);
+      setDashboard(response);
+    } catch (error) {
+      Alert.alert(
+        "Dashboard Error",
+        error.message || "Unable to load your dashboard.",
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const patient = dashboard?.patient || {};
+  const appointments = dashboard?.appointments || {};
+  const records = dashboard?.dental_records || {};
+  const xrays = dashboard?.xrays || {};
+  const nextAppointment = dashboard?.next_appointment || null;
+  const recentRecords = Array.isArray(dashboard?.recent_records)
+    ? dashboard.recent_records
+    : [];
+
+  const patientName = patient.patient_name || user?.name || "Patient";
+
+  const firstName = useMemo(
+    () => String(patientName).trim().split(/\s+/)[0] || "Patient",
+    [patientName],
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.centerState}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.centerStateText}>Loading your dashboard...</Text>
+      </View>
+    );
+  }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => loadDashboard({ refresh: true })}
+        />
+      }
+    >
       <View style={styles.header}>
-        <View style={styles.userBlock}>
-          <Text style={styles.greeting}>Welcome back</Text>
-          <Text style={styles.name}>{patientName}</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.greeting}>Welcome back,</Text>
+          <Text style={styles.name}>{firstName}</Text>
         </View>
 
-        <Pressable style={styles.logoutButton} onPress={onLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#2b6cb0" />
-          <Text style={styles.logoutText}>Logout</Text>
+        <Pressable style={styles.profileButton} onPress={onOpenProfile}>
+          <Ionicons name="person-outline" size={22} color="#1d4ed8" />
         </Pressable>
       </View>
 
-      <View style={styles.heroCard}>
-        <View style={styles.heroIconCircle}>
-          <Ionicons name="medical-outline" size={30} color="#2b6cb0" />
+      <View style={styles.clinicCard}>
+        <View style={styles.clinicIcon}>
+          <Ionicons name="business-outline" size={25} color="#ffffff" />
         </View>
 
-        <View style={styles.heroTextBlock}>
-          <Text style={styles.heroTitle}>Your Dental Care Portal</Text>
-          <Text style={styles.heroText}>
-            Manage appointments, records, X-rays, AR previews, nearby clinics,
-            and your patient profile.
+        <View style={styles.clinicText}>
+          <Text style={styles.clinicLabel}>Assigned Clinic</Text>
+          <Text style={styles.clinicName}>
+            {patient.clinic_name || "No active clinic assignment"}
           </Text>
+          {patient.clinic_address ? (
+            <Text style={styles.clinicAddress}>{patient.clinic_address}</Text>
+          ) : null}
         </View>
+
+        <Pressable
+          style={styles.clinicArrow}
+          onPress={onOpenClinicDiscovery}
+        >
+          <Ionicons name="navigate-outline" size={20} color="#ffffff" />
+        </Pressable>
       </View>
 
-      <View style={styles.quickStatsRow}>
-        <View style={styles.quickStatCard}>
-          <Ionicons name="calendar-outline" size={18} color="#2b6cb0" />
-          <Text style={styles.quickStatText}>Appointments</Text>
-        </View>
-
-        <View style={styles.quickStatCard}>
-          <Ionicons name="document-text-outline" size={18} color="#2b6cb0" />
-          <Text style={styles.quickStatText}>Records</Text>
-        </View>
-
-        <View style={styles.quickStatCard}>
-          <Ionicons name="location-outline" size={18} color="#2b6cb0" />
-          <Text style={styles.quickStatText}>Clinics</Text>
-        </View>
+      <View style={styles.statsGrid}>
+        <StatCard
+          icon="calendar-outline"
+          label="Upcoming"
+          value={appointments.upcoming_appointments || 0}
+          onPress={onOpenAppointments}
+        />
+        <StatCard
+          icon="document-text-outline"
+          label="Records"
+          value={records.total_records || 0}
+          onPress={onOpenDentalRecords}
+        />
+        <StatCard
+          icon="image-outline"
+          label="X-rays"
+          value={xrays.total_xrays || 0}
+          onPress={onOpenXrays}
+        />
+        <StatCard
+          icon="checkmark-done-outline"
+          label="Completed"
+          value={appointments.completed_appointments || 0}
+          onPress={onOpenAppointments}
+        />
       </View>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Patient Tools</Text>
-        <Text style={styles.sectionSubtitle}>Choose what you want to manage</Text>
+        <Text style={styles.sectionTitle}>Next Appointment</Text>
+        <Pressable onPress={onOpenAppointments}>
+          <Text style={styles.sectionLink}>View all</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.grid}>
-        <FeatureCard
-          icon="calendar-outline"
-          title="Appointments"
-          description="Book, cancel, and request reschedules."
-          onPress={onOpenAppointments}
-        />
+      {nextAppointment ? (
+        <View style={styles.appointmentCard}>
+          <View style={styles.appointmentTopRow}>
+            <View style={styles.appointmentIcon}>
+              <Ionicons name="calendar" size={23} color="#1d4ed8" />
+            </View>
 
-        <FeatureCard
-          icon="document-text-outline"
-          title="Dental Records"
-          description="View tooth chart and treatment history."
-          onPress={onOpenDentalRecords}
-        />
+            <View style={styles.appointmentText}>
+              <Text style={styles.appointmentType}>
+                {nextAppointment.appointment_type || "Dental Appointment"}
+              </Text>
+              <Text style={styles.appointmentDate}>
+                {formatDateTime(nextAppointment.appointment_date)}
+              </Text>
+            </View>
 
-        <FeatureCard
-          icon="image-outline"
-          title="X-rays"
-          description="View images and AI annotations."
-          onPress={onOpenXrays}
-        />
+            <View style={styles.statusBadge}>
+              <Text style={styles.statusBadgeText}>
+                {nextAppointment.status}
+              </Text>
+            </View>
+          </View>
 
-        <FeatureCard
+          <View style={styles.appointmentDivider} />
+
+          <Text style={styles.appointmentDetail}>
+            Dentist: {nextAppointment.dentist_name || "Not available"}
+          </Text>
+          <Text style={styles.appointmentDetail}>
+            Clinic: {nextAppointment.clinic_name || "Not available"}
+          </Text>
+
+          {nextAppointment.reschedule_status === "Pending" ? (
+            <View style={styles.noticeBox}>
+              <Ionicons name="time-outline" size={17} color="#92400e" />
+              <Text style={styles.noticeText}>
+                Your reschedule request is pending clinic review.
+              </Text>
+            </View>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.emptyCard}>
+          <Ionicons name="calendar-clear-outline" size={34} color="#94a3b8" />
+          <Text style={styles.emptyTitle}>No upcoming appointment</Text>
+          <Text style={styles.emptyText}>
+            Book your next dental visit using available clinic schedules.
+          </Text>
+          <Pressable style={styles.bookButton} onPress={onOpenBookAppointment}>
+            <Text style={styles.bookButtonText}>Book Appointment</Text>
+          </Pressable>
+        </View>
+      )}
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Recent Dental Records</Text>
+        <Pressable onPress={onOpenDentalRecords}>
+          <Text style={styles.sectionLink}>View all</Text>
+        </Pressable>
+      </View>
+
+      {recentRecords.length === 0 ? (
+        <View style={styles.emptyCard}>
+          <Ionicons name="document-outline" size={34} color="#94a3b8" />
+          <Text style={styles.emptyTitle}>No dental records yet</Text>
+          <Text style={styles.emptyText}>
+            Records created by your Dentist will appear here.
+          </Text>
+        </View>
+      ) : (
+        recentRecords.map((record) => (
+          <Pressable
+            key={record.record_id}
+            style={({ pressed }) => [
+              styles.recordCard,
+              pressed && styles.pressedCard,
+            ]}
+            onPress={onOpenDentalRecords}
+          >
+            <View style={styles.recordIcon}>
+              <Ionicons name="document-text-outline" size={21} color="#1d4ed8" />
+            </View>
+
+            <View style={styles.recordText}>
+              <Text style={styles.recordTitle}>
+                Dental Record #{record.record_id}
+              </Text>
+              <Text style={styles.recordMeta}>
+                {record.dentist_name || "Dentist unavailable"}
+              </Text>
+              <Text style={styles.recordMeta}>
+                Updated {formatDate(record.last_updated || record.date_created)}
+              </Text>
+            </View>
+
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </Pressable>
+        ))
+      )}
+
+      <Text style={styles.quickActionsTitle}>Quick Actions</Text>
+
+      <View style={styles.quickActions}>
+        <QuickAction
+          icon="add-circle-outline"
+          title="Book an Appointment"
+          description="Choose a service, Dentist, date, and available time."
+          onPress={onOpenBookAppointment}
+        />
+        <QuickAction
           icon="happy-outline"
-          title="AR Braces"
-          description="Review saved braces previews."
+          title="Try AR Braces"
+          description="Preview Metal, Ceramic, or colored braces."
           onPress={onOpenARBraces}
         />
-
-        <FeatureCard
+        <QuickAction
           icon="location-outline"
-          title="Clinics"
-          description="Find nearby dental clinics."
+          title="Clinic Information"
+          description="View your assigned clinic location and directions."
           onPress={onOpenClinicDiscovery}
-        />
-
-        <FeatureCard
-          icon="person-outline"
-          title="Profile"
-          description="Update your patient information."
-          onPress={onOpenProfile}
         />
       </View>
     </ScrollView>
   );
 }
 
-function FeatureCard({ icon, title, description, onPress }) {
-  return (
-    <Pressable style={styles.featureCard} onPress={onPress}>
-      <View style={styles.featureTopRow}>
-        <View style={styles.featureIconCircle}>
-          <Ionicons name={icon} size={22} color="#2b6cb0" />
-        </View>
-
-        <Ionicons name="chevron-forward" size={18} color="#a0aec0" />
-      </View>
-
-      <Text style={styles.featureTitle}>{title}</Text>
-      <Text style={styles.featureDescription}>{description}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  content: { padding: 18, paddingBottom: 40 },
+  centerState: {
     flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
     backgroundColor: "#f8fafc",
   },
-  content: {
-    padding: 20,
-    paddingBottom: 38,
-  },
+  centerStateText: { color: "#64748b" },
   header: {
-    marginTop: 10,
-    marginBottom: 18,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-  },
-  userBlock: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: 15,
-    color: "#718096",
-    fontWeight: "700",
-    marginBottom: 2,
-  },
-  name: {
-    fontSize: 27,
-    fontWeight: "900",
-    color: "#1a202c",
-  },
-  logoutButton: {
-    backgroundColor: "#edf2f7",
-    paddingHorizontal: 13,
-    paddingVertical: 10,
-    borderRadius: 999,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  logoutText: {
-    color: "#2b6cb0",
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  heroCard: {
-    backgroundColor: "#2b6cb0",
-    borderRadius: 26,
-    padding: 20,
-    marginBottom: 14,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 15,
-    shadowColor: "#2b6cb0",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 4,
-  },
-  heroIconCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroTextBlock: {
-    flex: 1,
-  },
-  heroTitle: {
-    color: "#ffffff",
-    fontSize: 20,
-    fontWeight: "900",
-    marginBottom: 6,
-  },
-  heroText: {
-    color: "#e3f2fd",
-    fontSize: 13,
-    lineHeight: 19,
-    fontWeight: "600",
-  },
-  quickStatsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 24,
-  },
-  quickStatCard: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-    borderRadius: 17,
-    paddingVertical: 13,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  quickStatText: {
-    marginTop: 6,
-    color: "#4a5568",
-    fontSize: 11,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  sectionHeader: {
-    marginBottom: 14,
-  },
-  sectionTitle: {
-    fontSize: 21,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: "#718096",
-    fontWeight: "600",
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
     gap: 12,
+    marginBottom: 16,
   },
-  featureCard: {
-    width: "48%",
-    minHeight: 158,
-    backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  featureTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-  },
-  featureIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 15,
-    backgroundColor: "#e3f2fd",
+  headerText: { flex: 1 },
+  greeting: { color: "#64748b", fontSize: 13, fontWeight: "700" },
+  name: { marginTop: 2, color: "#0f172a", fontSize: 28, fontWeight: "900" },
+  profileButton: {
+    width: 46,
+    height: 46,
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 23,
   },
-  featureTitle: {
+  clinicCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 16,
+    padding: 16,
+    backgroundColor: "#2563eb",
+    borderRadius: 17,
+  },
+  clinicIcon: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+    borderRadius: 15,
+  },
+  clinicText: { flex: 1 },
+  clinicLabel: { color: "#bfdbfe", fontSize: 10, fontWeight: "800" },
+  clinicName: {
+    marginTop: 3,
+    color: "#ffffff",
     fontSize: 16,
     fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 7,
   },
-  featureDescription: {
-    fontSize: 12.5,
-    color: "#718096",
-    lineHeight: 18,
-    fontWeight: "600",
+  clinicAddress: { marginTop: 4, color: "#dbeafe", fontSize: 10 },
+  clinicArrow: {
+    width: 38,
+    height: 38,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+    borderRadius: 19,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 9,
+    marginBottom: 22,
+  },
+  statCard: {
+    width: "48.6%",
+    minHeight: 112,
+    padding: 13,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 15,
+  },
+  statIcon: {
+    width: 37,
+    height: 37,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 12,
+  },
+  statValue: {
+    marginTop: 9,
+    color: "#0f172a",
+    fontSize: 23,
+    fontWeight: "900",
+  },
+  statLabel: { marginTop: 2, color: "#64748b", fontSize: 11, fontWeight: "700" },
+  pressedCard: { opacity: 0.72 },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 10,
+  },
+  sectionTitle: { color: "#0f172a", fontSize: 18, fontWeight: "900" },
+  sectionLink: { color: "#1d4ed8", fontSize: 12, fontWeight: "800" },
+  appointmentCard: {
+    gap: 10,
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    borderRadius: 16,
+  },
+  appointmentTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  appointmentIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 14,
+  },
+  appointmentText: { flex: 1 },
+  appointmentType: { color: "#0f172a", fontSize: 14, fontWeight: "800" },
+  appointmentDate: { marginTop: 3, color: "#64748b", fontSize: 10.5 },
+  statusBadge: {
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    backgroundColor: "#dbeafe",
+    borderRadius: 999,
+  },
+  statusBadgeText: { color: "#1d4ed8", fontSize: 9, fontWeight: "800" },
+  appointmentDivider: { height: 1, backgroundColor: "#e2e8f0" },
+  appointmentDetail: { color: "#475569", fontSize: 11.5 },
+  noticeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+    padding: 9,
+    backgroundColor: "#fef3c7",
+    borderRadius: 9,
+  },
+  noticeText: { flex: 1, color: "#92400e", fontSize: 10.5 },
+  emptyCard: {
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 20,
+    padding: 22,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 15,
+  },
+  emptyTitle: { color: "#334155", fontSize: 14, fontWeight: "800" },
+  emptyText: {
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 17,
+    textAlign: "center",
+  },
+  bookButton: {
+    minHeight: 41,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 5,
+    paddingHorizontal: 16,
+    backgroundColor: "#2563eb",
+    borderRadius: 10,
+  },
+  bookButtonText: { color: "#ffffff", fontSize: 11, fontWeight: "800" },
+  recordCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginBottom: 9,
+    padding: 12,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 13,
+  },
+  recordIcon: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 13,
+  },
+  recordText: { flex: 1 },
+  recordTitle: { color: "#0f172a", fontSize: 12.5, fontWeight: "800" },
+  recordMeta: { marginTop: 3, color: "#64748b", fontSize: 10 },
+  quickActionsTitle: {
+    marginTop: 13,
+    marginBottom: 10,
+    color: "#0f172a",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  quickActions: { gap: 9 },
+  quickAction: {
+    minHeight: 70,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    padding: 12,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 14,
+  },
+  quickActionIcon: {
+    width: 43,
+    height: 43,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 13,
+  },
+  quickActionText: { flex: 1 },
+  quickActionTitle: { color: "#0f172a", fontSize: 13, fontWeight: "800" },
+  quickActionDescription: {
+    marginTop: 3,
+    color: "#64748b",
+    fontSize: 10,
+    lineHeight: 15,
   },
 });

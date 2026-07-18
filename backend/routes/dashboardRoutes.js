@@ -527,4 +527,149 @@ router.get(
   },
 );
 
+
+// PATIENT DASHBOARD SUMMARY
+router.get(
+  "/patient",
+  authenticateToken,
+  authorizeRoles("Patient"),
+  async (req, res) => {
+    const userId = req.user.user_id;
+
+    try {
+      const patientResult = await pool.query(
+        `SELECT
+            p.patient_id,
+            p.clinic_id,
+            u.name AS patient_name,
+            u.email AS patient_email,
+            c.clinic_name,
+            c.address AS clinic_address,
+            c.contact_number AS clinic_contact_number,
+            c.status AS clinic_status
+         FROM public.patients p
+         JOIN public.users u ON p.user_id = u.user_id
+         LEFT JOIN public.clinics c ON p.clinic_id = c.clinic_id
+         WHERE p.user_id = $1
+         LIMIT 1`,
+        [userId],
+      );
+
+      if (patientResult.rows.length === 0) {
+        return res.status(404).json({
+          error: "Patient profile not found.",
+        });
+      }
+
+      const patient = patientResult.rows[0];
+
+      const appointmentSummary = await pool.query(
+        `SELECT
+            COUNT(*)::int AS total_appointments,
+            COUNT(*) FILTER (
+              WHERE a.status IN ('Pending', 'Scheduled')
+              AND a.appointment_date >= CURRENT_TIMESTAMP
+            )::int AS upcoming_appointments,
+            COUNT(*) FILTER (
+              WHERE a.status = 'Completed'
+            )::int AS completed_appointments,
+            COUNT(*) FILTER (
+              WHERE a.reschedule_request = true
+              OR a.reschedule_status = 'Pending'
+            )::int AS pending_reschedule_requests
+         FROM public.appointments a
+         WHERE a.patient_id = $1`,
+        [patient.patient_id],
+      );
+
+      const recordSummary = await pool.query(
+        `SELECT
+            COUNT(*)::int AS total_records,
+            COUNT(*) FILTER (
+              WHERE COALESCE(dr.status, 'Active') = 'Active'
+            )::int AS active_records,
+            COUNT(*) FILTER (
+              WHERE COALESCE(dr.status, 'Active') <> 'Active'
+            )::int AS historical_records
+         FROM public.dental_records dr
+         WHERE dr.patient_id = $1`,
+        [patient.patient_id],
+      );
+
+      const xraySummary = await pool.query(
+        `SELECT COUNT(*)::int AS total_xrays
+         FROM public.xray_images xi
+         JOIN public.dental_records dr ON xi.record_id = dr.record_id
+         WHERE dr.patient_id = $1`,
+        [patient.patient_id],
+      );
+
+      const nextAppointment = await pool.query(
+        `SELECT
+            a.appointment_id,
+            a.appointment_date,
+            a.status,
+            a.appointment_type,
+            a.notes,
+            a.reschedule_request,
+            a.requested_appointment_date,
+            a.reschedule_status,
+            d.dentist_id,
+            du.name AS dentist_name,
+            c.clinic_id,
+            c.clinic_name
+         FROM public.appointments a
+         JOIN public.dentists d ON a.dentist_id = d.dentist_id
+         JOIN public.users du ON d.user_id = du.user_id
+         LEFT JOIN public.clinics c ON d.clinic_id = c.clinic_id
+         WHERE a.patient_id = $1
+         AND a.status IN ('Pending', 'Scheduled')
+         AND a.appointment_date >= CURRENT_TIMESTAMP
+         ORDER BY a.appointment_date ASC
+         LIMIT 1`,
+        [patient.patient_id],
+      );
+
+      const recentRecords = await pool.query(
+        `SELECT
+            dr.record_id,
+            dr.date_created,
+            dr.last_updated,
+            dr.status,
+            dr.record_source,
+            du.name AS dentist_name,
+            c.clinic_name
+         FROM public.dental_records dr
+         LEFT JOIN public.dentists d ON dr.dentist_id = d.dentist_id
+         LEFT JOIN public.users du ON d.user_id = du.user_id
+         LEFT JOIN public.clinics c ON dr.clinic_id = c.clinic_id
+         WHERE dr.patient_id = $1
+         ORDER BY COALESCE(dr.last_updated, dr.date_created) DESC
+         LIMIT 3`,
+        [patient.patient_id],
+      );
+
+      res.status(200).json({
+        message: "Patient dashboard data retrieved successfully",
+        patient,
+        appointments: appointmentSummary.rows[0],
+        dental_records: recordSummary.rows[0],
+        xrays: xraySummary.rows[0],
+        next_appointment: nextAppointment.rows[0] || null,
+        recent_records: recentRecords.rows,
+      });
+    } catch (err) {
+      console.error("Patient dashboard error:", {
+        message: err.message,
+        code: err.code,
+        detail: err.detail,
+      });
+
+      res.status(500).json({
+        error: "Error retrieving Patient dashboard data.",
+      });
+    }
+  },
+);
+
 module.exports = router;
