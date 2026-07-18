@@ -3,23 +3,28 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-export default function BottomNav({ currentScreen, onNavigate }) {
+const MORE_SCREENS = new Set(["xrays", "arBraces", "profile"]);
+
+const resolveActiveScreen = (currentScreen) => {
+  if (currentScreen === "bookAppointment") return "appointments";
+  if (currentScreen === "dentalRecordDetails") return "dentalRecords";
+  if (MORE_SCREENS.has(currentScreen)) return "more";
+  return currentScreen;
+};
+
+export default function BottomNav({
+  currentScreen,
+  onNavigate,
+  onOpenMenu,
+}) {
   const insets = useSafeAreaInsets();
-
-  const getActiveScreen = () => {
-    if (currentScreen === "bookAppointment") return "appointments";
-    return currentScreen;
-  };
-
-  const activeScreen = getActiveScreen();
+  const activeScreen = resolveActiveScreen(currentScreen);
 
   return (
     <View
       style={[
         styles.wrapper,
-        {
-          paddingBottom: Math.max(insets.bottom, 8),
-        },
+        { paddingBottom: Math.max(insets.bottom, 8) },
       ]}
     >
       <View style={styles.container}>
@@ -30,15 +35,13 @@ export default function BottomNav({ currentScreen, onNavigate }) {
           active={activeScreen === "dashboard"}
           onPress={() => onNavigate("dashboard")}
         />
-
         <NavItem
-          label="Appts"
+          label="Appointments"
           icon="calendar-outline"
           activeIcon="calendar"
           active={activeScreen === "appointments"}
           onPress={() => onNavigate("appointments")}
         />
-
         <NavItem
           label="Records"
           icon="document-text-outline"
@@ -46,15 +49,6 @@ export default function BottomNav({ currentScreen, onNavigate }) {
           active={activeScreen === "dentalRecords"}
           onPress={() => onNavigate("dentalRecords")}
         />
-
-        <NavItem
-          label="X-rays"
-          icon="image-outline"
-          activeIcon="image"
-          active={activeScreen === "xrays"}
-          onPress={() => onNavigate("xrays")}
-        />
-
         <NavItem
           label="Clinics"
           icon="location-outline"
@@ -62,21 +56,12 @@ export default function BottomNav({ currentScreen, onNavigate }) {
           active={activeScreen === "clinicDiscovery"}
           onPress={() => onNavigate("clinicDiscovery")}
         />
-
         <NavItem
-          label="AR"
-          icon="happy-outline"
-          activeIcon="happy"
-          active={activeScreen === "arBraces"}
-          onPress={() => onNavigate("arBraces")}
-        />
-
-        <NavItem
-          label="Me"
-          icon="person-outline"
-          activeIcon="person"
-          active={activeScreen === "profile"}
-          onPress={() => onNavigate("profile")}
+          label="Menu"
+          icon="menu-outline"
+          activeIcon="menu"
+          active={activeScreen === "more"}
+          onPress={onOpenMenu}
         />
       </View>
     </View>
@@ -86,6 +71,9 @@ export default function BottomNav({ currentScreen, onNavigate }) {
 function NavItem({ label, icon, activeIcon, active, onPress }) {
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={label}
       style={({ pressed }) => [
         styles.navItem,
         active && styles.activeNavItem,
@@ -96,11 +84,10 @@ function NavItem({ label, icon, activeIcon, active, onPress }) {
       <View style={[styles.iconCircle, active && styles.activeIconCircle]}>
         <Ionicons
           name={active ? activeIcon : icon}
-          size={active ? 21 : 20}
-          color={active ? "#2b6cb0" : "#718096"}
+          size={active ? 22 : 21}
+          color={active ? "#1d4ed8" : "#64748b"}
         />
       </View>
-
       <Text
         style={[styles.navText, active && styles.activeNavText]}
         numberOfLines={1}
@@ -117,7 +104,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#e2e8f0",
     paddingTop: 7,
-    paddingHorizontal: 5,
+    paddingHorizontal: 7,
   },
   container: {
     flexDirection: "row",
@@ -126,36 +113,38 @@ const styles = StyleSheet.create({
   },
   navItem: {
     flex: 1,
+    minHeight: 55,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: 3,
     paddingVertical: 5,
-    borderRadius: 18,
+    borderRadius: 16,
   },
   activeNavItem: {
-    backgroundColor: "#e3f2fd",
+    backgroundColor: "#eff6ff",
   },
   pressedNavItem: {
-    opacity: 0.75,
+    opacity: 0.72,
   },
   iconCircle: {
-    width: 30,
-    height: 28,
-    borderRadius: 14,
+    width: 34,
+    height: 29,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 2,
+    borderRadius: 15,
   },
   activeIconCircle: {
-    backgroundColor: "#d7ecff",
+    backgroundColor: "#dbeafe",
   },
   navText: {
+    color: "#64748b",
     fontSize: 9.5,
-    color: "#718096",
     fontWeight: "800",
     textAlign: "center",
   },
   activeNavText: {
-    color: "#2b6cb0",
+    color: "#1d4ed8",
     fontWeight: "900",
   },
 });

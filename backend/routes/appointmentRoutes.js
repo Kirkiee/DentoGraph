@@ -813,6 +813,7 @@ router.get(
             a.status,
             a.notes,
             a.appointment_type,
+            a.service_id,
             a.cancellation_reason,
             a.cancelled_at,
             a.cancelled_by,

@@ -1,15 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
-  Modal,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,929 +16,403 @@ import { Ionicons } from "@expo/vector-icons";
 import { getPatientDentalRecords } from "../services/dentalRecordService";
 import {
   buildXrayFileUrl,
-  getXrayAnnotations,
   getXraysByRecord,
 } from "../services/xrayService";
 
-export default function PatientXraysScreen({ token, onBack }) {
+const formatDate = (value) => {
+  if (!value) return "No upload date";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleDateString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+};
+
+const isPdf = (xray) =>
+  String(xray?.file_path || "").toLowerCase().endsWith(".pdf");
+
+const XrayCard = ({ xray, onOpen }) => (
+  <View style={styles.xrayCard}>
+    <View style={styles.previewContainer}>
+      {isPdf(xray) ? (
+        <View style={styles.pdfPreview}>
+          <Ionicons name="document-outline" size={42} color="#b91c1c" />
+          <Text style={styles.pdfPreviewText}>PDF X-ray</Text>
+        </View>
+      ) : (
+        <Image
+          source={{ uri: buildXrayFileUrl(xray.file_path) }}
+          style={styles.previewImage}
+          resizeMode="cover"
+        />
+      )}
+    </View>
+
+    <View style={styles.cardContent}>
+      <View style={styles.cardHeader}>
+        <View style={styles.cardHeaderText}>
+          <Text style={styles.cardTitle}>X-ray #{xray.xray_id}</Text>
+          <Text style={styles.cardSubtitle}>
+            Dental Record #{xray.record_id}
+          </Text>
+        </View>
+
+        <View style={styles.typeBadge}>
+          <Text style={styles.typeBadgeText}>
+            {isPdf(xray) ? "PDF" : "Image"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Ionicons name="business-outline" size={17} color="#2563eb" />
+        <Text style={styles.detailText}>
+          {xray.record_context?.clinic_name || "Origin clinic unavailable"}
+        </Text>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Ionicons name="medkit-outline" size={17} color="#2563eb" />
+        <Text style={styles.detailText}>
+          {xray.record_context?.dentist_name || "Dentist unavailable"}
+        </Text>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Ionicons name="calendar-outline" size={17} color="#2563eb" />
+        <Text style={styles.detailText}>{formatDate(xray.upload_date)}</Text>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Ionicons name="scan-outline" size={17} color="#2563eb" />
+        <Text style={styles.detailText}>
+          {xray.tooth_number ? `Tooth ${xray.tooth_number}` : "General X-ray"}
+        </Text>
+      </View>
+
+      <Pressable style={styles.openButton} onPress={() => onOpen(xray)}>
+        <Ionicons name="expand-outline" size={19} color="#ffffff" />
+        <Text style={styles.openButtonText}>Open X-ray Viewer</Text>
+      </Pressable>
+    </View>
+  </View>
+);
+
+export default function PatientXraysScreen({
+  token,
+  onOpenXray,
+}) {
   const [xrays, setXrays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const [selectedXray, setSelectedXray] = useState(null);
-  const [annotations, setAnnotations] = useState([]);
-  const [detailsModalVisible, setDetailsModalVisible] = useState(false);
-  const [loadingAnnotations, setLoadingAnnotations] = useState(false);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     loadPatientXrays();
   }, []);
 
-  const normalizeRecords = (data) => {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.dental_records)) return data.dental_records;
-    if (Array.isArray(data.records)) return data.records;
-    if (Array.isArray(data.data)) return data.data;
+  const normalizeRecords = (response) => {
+    if (Array.isArray(response?.dental_records)) {
+      return response.dental_records;
+    }
+
+    if (Array.isArray(response?.records)) {
+      return response.records;
+    }
+
     return [];
   };
 
-  const normalizeXrays = (data) => {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.xrays)) return data.xrays;
-    if (Array.isArray(data.xray_images)) return data.xray_images;
-    if (Array.isArray(data.data)) return data.data;
-    return [];
-  };
-
-  const loadPatientXrays = async () => {
+  const loadPatientXrays = async ({ refresh = false } = {}) => {
     try {
-      setLoading(true);
+      refresh ? setRefreshing(true) : setLoading(true);
 
-      const recordsData = await getPatientDentalRecords(token);
-      const records = normalizeRecords(recordsData);
+      const recordsResponse = await getPatientDentalRecords(token);
+      const records = normalizeRecords(recordsResponse);
 
-      const xrayResults = await Promise.all(
+      const results = await Promise.all(
         records.map(async (record) => {
           try {
-            const xrayData = await getXraysByRecord({
+            const response = await getXraysByRecord({
               token,
               recordId: record.record_id,
             });
 
-            const recordXrays = normalizeXrays(xrayData);
+            const recordXrays = Array.isArray(response.xrays)
+              ? response.xrays
+              : [];
 
             return recordXrays.map((xray) => ({
               ...xray,
               record_context: record,
             }));
           } catch (error) {
-            console.log(
-              `Failed to load X-rays for record ${record.record_id}:`,
-              error.message
-            );
             return [];
           }
-        })
+        }),
       );
 
-      setXrays(xrayResults.flat());
+      setXrays(results.flat());
     } catch (error) {
       Alert.alert(
         "X-rays Error",
-        error.message || "Unable to load patient X-rays."
+        error.message || "Unable to load Patient X-rays.",
       );
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-      await loadPatientXrays();
-    } finally {
       setRefreshing(false);
     }
   };
 
-  const openXrayDetails = async (xray) => {
-    setSelectedXray(xray);
-    setAnnotations([]);
-    setDetailsModalVisible(true);
+  const filteredXrays = useMemo(() => {
+    const term = search.trim().toLowerCase();
 
-    try {
-      setLoadingAnnotations(true);
+    return xrays
+      .filter((xray) => {
+        if (!term) return true;
 
-      const data = await getXrayAnnotations({
-        token,
-        xrayId: xray.xray_id,
-      });
-
-      if (Array.isArray(data.annotations)) {
-        setAnnotations(data.annotations);
-      } else {
-        setAnnotations([]);
-      }
-    } catch (error) {
-      console.log("Annotation load error:", error.message);
-      setAnnotations([]);
-    } finally {
-      setLoadingAnnotations(false);
-    }
-  };
-
-  const closeXrayDetails = () => {
-    setDetailsModalVisible(false);
-    setSelectedXray(null);
-    setAnnotations([]);
-  };
-
-  const formatDateTime = (value) => {
-    if (!value) return "No date available";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return String(value);
-    }
-
-    return `${date.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })} ${date.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    })}`;
-  };
-
-  const formatFileSize = (bytes) => {
-    const value = Number(bytes || 0);
-
-    if (!value) return "Unknown size";
-
-    const mb = value / (1024 * 1024);
-
-    if (mb >= 1) {
-      return `${mb.toFixed(2)} MB`;
-    }
-
-    const kb = value / 1024;
-    return `${kb.toFixed(1)} KB`;
-  };
-
-  const isPdfFile = (xray) => {
-    const path = String(xray?.file_path || "").toLowerCase();
-    return path.endsWith(".pdf");
-  };
-
-  const getStatusBadgeStyle = (status) => {
-    const normalized = String(status || "").toLowerCase();
-
-    if (normalized === "confirmed") return styles.confirmedBadge;
-    if (normalized === "rejected") return styles.rejectedBadge;
-    if (normalized === "suggested") return styles.suggestedBadge;
-
-    return styles.suggestedBadge;
-  };
-
-  const getStatusTextStyle = (status) => {
-    const normalized = String(status || "").toLowerCase();
-
-    if (normalized === "confirmed") return styles.confirmedText;
-    if (normalized === "rejected") return styles.rejectedText;
-    if (normalized === "suggested") return styles.suggestedText;
-
-    return styles.suggestedText;
-  };
-
-  const selectedXrayUrl = selectedXray
-    ? buildXrayFileUrl(selectedXray.file_path)
-    : null;
+        return [
+          xray.xray_id,
+          xray.record_id,
+          xray.tooth_number,
+          xray.record_context?.clinic_name,
+          xray.record_context?.dentist_name,
+        ]
+          .filter((value) => value !== null && value !== undefined)
+          .some((value) => String(value).toLowerCase().includes(term));
+      })
+      .sort(
+        (a, b) =>
+          new Date(b.upload_date).getTime() -
+          new Date(a.upload_date).getTime(),
+      );
+  }, [search, xrays]);
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading X-rays...</Text>
+      <View style={styles.centerState}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.centerStateText}>Loading X-rays...</Text>
       </View>
     );
   }
 
   return (
-    <>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        <View style={styles.header}>
-          <View style={styles.headerTopRow}>
-            <View style={styles.headerIconCircle}>
-              <Ionicons name="image-outline" size={27} color="#2b6cb0" />
-            </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => loadPatientXrays({ refresh: true })}
+        />
+      }
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.header}>
+        <Text style={styles.title}>My X-rays</Text>
+        <Text style={styles.subtitle}>
+          View read-only dental X-rays and Dentist-reviewed findings.
+        </Text>
+      </View>
 
-            <View style={styles.headerTextBlock}>
-              <Text style={styles.title}>X-rays</Text>
-              <Text style={styles.subtitle}>
-                View dental images and AI-assisted annotations.
-              </Text>
-            </View>
-          </View>
+      <View style={styles.readOnlyBanner}>
+        <Ionicons name="shield-checkmark-outline" size={20} color="#166534" />
+        <Text style={styles.readOnlyText}>
+          Patients can view Suggested and Confirmed annotations. Rejected
+          findings remain hidden from the Patient view.
+        </Text>
+      </View>
+
+      <View style={styles.searchBox}>
+        <Ionicons name="search-outline" size={19} color="#64748b" />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search X-ray, record, tooth, Dentist, or clinic"
+          placeholderTextColor="#94a3b8"
+        />
+        {search ? (
+          <Pressable onPress={() => setSearch("")}>
+            <Ionicons name="close-circle" size={19} color="#94a3b8" />
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.resultHeader}>
+        <Text style={styles.resultTitle}>Available X-rays</Text>
+        <Text style={styles.resultCount}>{filteredXrays.length}</Text>
+      </View>
+
+      {filteredXrays.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="image-outline" size={40} color="#94a3b8" />
+          <Text style={styles.emptyTitle}>No X-rays found</Text>
+          <Text style={styles.emptyText}>
+            No X-rays match the current search or dental records.
+          </Text>
         </View>
-
-        {xrays.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="images-outline" size={30} color="#2b6cb0" />
-            </View>
-
-            <Text style={styles.emptyTitle}>No X-rays found</Text>
-            <Text style={styles.emptyText}>
-              Your uploaded dental X-rays will appear here once your dentist or
-              assistant adds them to your record.
-            </Text>
-          </View>
-        ) : (
-          xrays.map((xray, index) => {
-            const imageUrl = buildXrayFileUrl(xray.file_path);
-            const record = xray.record_context;
-
-            return (
-              <View key={xray.xray_id || index} style={styles.xrayCard}>
-                <View style={styles.xrayPreviewBox}>
-                  {isPdfFile(xray) ? (
-                    <View style={styles.filePlaceholder}>
-                      <Ionicons
-                        name="document-text-outline"
-                        size={38}
-                        color="#2b6cb0"
-                      />
-                      <Text style={styles.filePlaceholderText}>
-                        X-ray PDF Document
-                      </Text>
-                    </View>
-                  ) : imageUrl ? (
-                    <Image
-                      source={{ uri: imageUrl }}
-                      style={styles.xrayPreviewImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.filePlaceholder}>
-                      <Ionicons name="image-outline" size={38} color="#2b6cb0" />
-                      <Text style={styles.filePlaceholderText}>
-                        No preview available
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.xrayTopRow}>
-                  <View style={styles.xrayTitleBlock}>
-                    <Text style={styles.xrayTitle}>X-ray #{xray.xray_id}</Text>
-                    <Text style={styles.xraySubtitle}>
-                      Record #{xray.record_id || record?.record_id || "N/A"}
-                    </Text>
-                  </View>
-
-                  <View style={styles.xrayBadge}>
-                    <Text style={styles.xrayBadgeText}>
-                      {isPdfFile(xray) ? "PDF" : "Image"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoList}>
-                  {xray.tooth_number ? (
-                    <InfoRow
-                      icon="medical-outline"
-                      label="Tooth"
-                      value={`#${xray.tooth_number}`}
-                    />
-                  ) : null}
-
-                  {record?.dentist_name ? (
-                    <InfoRow
-                      icon="person-outline"
-                      label="Dentist"
-                      value={record.dentist_name}
-                    />
-                  ) : null}
-
-                  {record?.clinic_name ? (
-                    <InfoRow
-                      icon="business-outline"
-                      label="Clinic"
-                      value={record.clinic_name}
-                    />
-                  ) : null}
-
-                  <InfoRow
-                    icon="cloud-upload-outline"
-                    label="Uploaded"
-                    value={formatDateTime(xray.upload_date)}
-                  />
-
-                  <InfoRow
-                    icon="document-attach-outline"
-                    label="File Size"
-                    value={formatFileSize(xray.file_size_bytes)}
-                  />
-                </View>
-
-                <Pressable
-                  style={styles.viewButton}
-                  onPress={() => openXrayDetails(xray)}
-                >
-                  <Text style={styles.viewButtonText}>View X-ray</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#ffffff" />
-                </Pressable>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
-
-      <Modal
-        visible={detailsModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeXrayDetails}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
-            >
-              <View style={styles.modalHeader}>
-                <View style={styles.modalIconCircle}>
-                  <Ionicons name="image-outline" size={24} color="#2b6cb0" />
-                </View>
-
-                <View style={styles.modalHeaderTextBlock}>
-                  <Text style={styles.modalTitle}>
-                    X-ray #{selectedXray?.xray_id}
-                  </Text>
-                  <Text style={styles.modalSubtitle}>
-                    Dental image and annotations
-                  </Text>
-                </View>
-              </View>
-
-              {selectedXrayUrl && isPdfFile(selectedXray) ? (
-                <View style={styles.pdfModalBox}>
-                  <Ionicons
-                    name="document-text-outline"
-                    size={44}
-                    color="#2b6cb0"
-                  />
-                  <Text style={styles.pdfText}>This X-ray is a PDF file.</Text>
-
-                  <Pressable
-                    style={styles.openFileButton}
-                    onPress={() => Linking.openURL(selectedXrayUrl)}
-                  >
-                    <Text style={styles.openFileButtonText}>Open PDF File</Text>
-                  </Pressable>
-                </View>
-              ) : selectedXrayUrl ? (
-                <Image
-                  source={{ uri: selectedXrayUrl }}
-                  style={styles.modalXrayImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={styles.pdfModalBox}>
-                  <Ionicons name="image-outline" size={44} color="#2b6cb0" />
-                  <Text style={styles.pdfText}>No X-ray preview available.</Text>
-                </View>
-              )}
-
-              <View style={styles.modalInfoCard}>
-                <DetailRow
-                  label="Record"
-                  value={`#${selectedXray?.record_id || "N/A"}`}
-                />
-
-                {selectedXray?.tooth_number ? (
-                  <DetailRow
-                    label="Tooth"
-                    value={`#${selectedXray.tooth_number}`}
-                  />
-                ) : null}
-
-                <DetailRow
-                  label="Uploaded"
-                  value={formatDateTime(selectedXray?.upload_date)}
-                />
-
-                <DetailRow
-                  label="File Size"
-                  value={formatFileSize(selectedXray?.file_size_bytes)}
-                />
-              </View>
-
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Annotations</Text>
-                <Text style={styles.sectionSubtitle}>
-                  {annotations.length} annotation
-                  {annotations.length === 1 ? "" : "s"} found
-                </Text>
-              </View>
-
-              {loadingAnnotations ? (
-                <View style={styles.annotationsLoadingBox}>
-                  <ActivityIndicator />
-                  <Text style={styles.loadingText}>Loading annotations...</Text>
-                </View>
-              ) : annotations.length === 0 ? (
-                <View style={styles.smallEmptyCard}>
-                  <Text style={styles.smallEmptyText}>
-                    No annotations available for this X-ray yet.
-                  </Text>
-                </View>
-              ) : (
-                annotations.map((annotation, index) => (
-                  <View
-                    key={annotation.annotation_id || index}
-                    style={styles.annotationCard}
-                  >
-                    <View style={styles.annotationTopRow}>
-                      <View style={styles.annotationIconCircle}>
-                        <Ionicons
-                          name="sparkles-outline"
-                          size={18}
-                          color="#2b6cb0"
-                        />
-                      </View>
-
-                      <View style={styles.annotationTextBlock}>
-                        <View style={styles.annotationTitleRow}>
-                          <Text style={styles.annotationLabel}>
-                            {annotation.label || "Annotation"}
-                          </Text>
-
-                          <View
-                            style={[
-                              styles.annotationStatusBadge,
-                              getStatusBadgeStyle(annotation.status),
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.annotationStatusText,
-                                getStatusTextStyle(annotation.status),
-                              ]}
-                            >
-                              {annotation.status || "Suggested"}
-                            </Text>
-                          </View>
-                        </View>
-
-                        {annotation.note ? (
-                          <Text style={styles.annotationNote}>
-                            {annotation.note}
-                          </Text>
-                        ) : null}
-
-                        {annotation.interpretation ? (
-                          <Text style={styles.annotationNote}>
-                            {annotation.interpretation}
-                          </Text>
-                        ) : null}
-
-                        {annotation.dentist_name ? (
-                          <Text style={styles.annotationMeta}>
-                            Reviewed by: {annotation.dentist_name}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-
-            <Pressable style={styles.closeButton} onPress={closeXrayDetails}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
-    </>
-  );
-}
-
-function InfoRow({ icon, label, value }) {
-  return (
-    <View style={styles.infoRow}>
-      <Ionicons name={icon} size={16} color="#718096" />
-      <Text style={styles.detailText}>
-        <Text style={styles.detailLabel}>{label}: </Text>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function DetailRow({ label, value }) {
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailRowLabel}>{label}</Text>
-      <Text style={styles.detailRowValue}>{value}</Text>
-    </View>
+      ) : (
+        filteredXrays.map((xray) => (
+          <XrayCard
+            key={xray.xray_id}
+            xray={xray}
+            onOpen={onOpenXray}
+          />
+        ))
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  content: { padding: 18, paddingBottom: 36 },
+  centerState: {
     flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-  },
-  loadingText: {
-    marginTop: 12,
-    color: "#718096",
-    fontSize: 14,
-  },
-  header: {
-    marginTop: 18,
-    marginBottom: 20,
-  },
-  headerTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: "#e3f2fd",
     alignItems: "center",
     justifyContent: "center",
-  },
-  headerTextBlock: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 27,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
-    fontWeight: "600",
-  },
-  emptyCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    alignItems: "center",
-  },
-  emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 22,
-    backgroundColor: "#e3f2fd",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 8,
-    textAlign: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
-    textAlign: "center",
-  },
-  xrayCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 14,
-  },
-  xrayPreviewBox: {
-    height: 180,
-    borderRadius: 20,
-    backgroundColor: "#edf2f7",
-    overflow: "hidden",
-    marginBottom: 15,
-  },
-  xrayPreviewImage: {
-    width: "100%",
-    height: "100%",
-  },
-  filePlaceholder: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  filePlaceholderText: {
-    fontSize: 14,
-    color: "#718096",
-    fontWeight: "800",
-  },
-  xrayTopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 12,
-  },
-  xrayTitleBlock: {
-    flex: 1,
-  },
-  xrayTitle: {
-    fontSize: 19,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
-  xraySubtitle: {
-    fontSize: 13,
-    color: "#718096",
-    fontWeight: "800",
-  },
-  xrayBadge: {
-    backgroundColor: "#e3f2fd",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  xrayBadgeText: {
-    color: "#2b6cb0",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  infoList: {
-    gap: 8,
-    marginBottom: 14,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 7,
-  },
-  detailText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#4a5568",
-    lineHeight: 20,
-    fontWeight: "600",
-  },
-  detailLabel: {
-    color: "#2d3748",
-    fontWeight: "900",
-  },
-  viewButton: {
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 13,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  viewButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
-    justifyContent: "center",
-    padding: 18,
-  },
-  modalCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 26,
-    padding: 18,
-    maxHeight: "90%",
-  },
-  modalScroll: {
-    maxHeight: "92%",
-  },
-  modalScrollContent: {
-    paddingBottom: 18,
-  },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 12,
-    marginBottom: 16,
-  },
-  modalIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: "#e3f2fd",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalHeaderTextBlock: {
-    flex: 1,
-  },
-  modalTitle: {
-    fontSize: 23,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 2,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    color: "#718096",
-    fontWeight: "700",
-  },
-  modalXrayImage: {
-    width: "100%",
-    height: 300,
-    backgroundColor: "#edf2f7",
-    borderRadius: 20,
-    marginBottom: 14,
-  },
-  pdfModalBox: {
-    backgroundColor: "#edf2f7",
-    borderRadius: 20,
-    padding: 24,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 14,
-    gap: 10,
-  },
-  pdfText: {
-    fontSize: 14,
-    color: "#718096",
-    fontWeight: "800",
-    textAlign: "center",
-  },
-  openFileButton: {
-    backgroundColor: "#2b6cb0",
-    paddingHorizontal: 18,
-    paddingVertical: 11,
-    borderRadius: 14,
-    marginTop: 4,
-  },
-  openFileButtonText: {
-    color: "#ffffff",
-    fontWeight: "900",
-  },
-  modalInfoCard: {
     backgroundColor: "#f8fafc",
-    borderRadius: 18,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 18,
   },
-  detailRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#edf2f7",
-    paddingTop: 9,
-    marginTop: 9,
-  },
-  detailRowLabel: {
-    fontSize: 12,
-    color: "#718096",
-    fontWeight: "900",
-    marginBottom: 3,
-  },
-  detailRowValue: {
-    fontSize: 14,
-    color: "#2d3748",
-    fontWeight: "700",
+  centerStateText: { color: "#64748b" },
+  header: { marginBottom: 14 },
+  title: { color: "#0f172a", fontSize: 27, fontWeight: "800" },
+  subtitle: {
+    marginTop: 6,
+    color: "#64748b",
+    fontSize: 13,
     lineHeight: 19,
   },
-  sectionHeader: {
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
-  sectionSubtitle: {
-    fontSize: 13,
-    color: "#718096",
-    fontWeight: "700",
-  },
-  annotationsLoadingBox: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 16,
-    alignItems: "center",
+  readOnlyBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
     marginBottom: 14,
-  },
-  smallEmptyCard: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 14,
+    padding: 13,
+    backgroundColor: "#f0fdf4",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#bbf7d0",
+    borderRadius: 13,
+  },
+  readOnlyText: {
+    flex: 1,
+    color: "#166534",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  searchBox: {
+    minHeight: 46,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
     marginBottom: 16,
-  },
-  smallEmptyText: {
-    color: "#718096",
-    fontSize: 14,
-    lineHeight: 20,
-    fontWeight: "600",
-  },
-  annotationCard: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 18,
-    padding: 14,
+    paddingHorizontal: 12,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#cbd5e1",
+    borderRadius: 12,
+  },
+  searchInput: { flex: 1, color: "#0f172a" },
+  resultHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
     marginBottom: 10,
   },
-  annotationTopRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
-  },
-  annotationIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 13,
-    backgroundColor: "#e3f2fd",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  annotationTextBlock: {
-    flex: 1,
-  },
-  annotationTitleRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 8,
-    marginBottom: 8,
-  },
-  annotationLabel: {
-    flex: 1,
-    fontSize: 15,
-    color: "#1a202c",
-    fontWeight: "900",
-  },
-  annotationStatusBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
+  resultTitle: { color: "#0f172a", fontSize: 19, fontWeight: "800" },
+  resultCount: {
+    minWidth: 24,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    color: "#1d4ed8",
+    backgroundColor: "#dbeafe",
     borderRadius: 999,
-  },
-  annotationStatusText: {
-    fontSize: 11,
-    fontWeight: "900",
-  },
-  suggestedBadge: {
-    backgroundColor: "#fef3c7",
-  },
-  suggestedText: {
-    color: "#92400e",
-  },
-  confirmedBadge: {
-    backgroundColor: "#c6f6d5",
-  },
-  confirmedText: {
-    color: "#2f855a",
-  },
-  rejectedBadge: {
-    backgroundColor: "#fed7d7",
-  },
-  rejectedText: {
-    color: "#c53030",
-  },
-  annotationNote: {
-    fontSize: 13,
-    color: "#4a5568",
-    lineHeight: 19,
-    marginBottom: 6,
-    fontWeight: "600",
-  },
-  annotationMeta: {
+    textAlign: "center",
     fontSize: 12,
-    color: "#718096",
     fontWeight: "800",
   },
-  closeButton: {
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 13,
+  xrayCard: {
+    marginBottom: 14,
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
     borderRadius: 16,
-    alignItems: "center",
-    marginTop: 8,
   },
-  closeButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
+  previewContainer: {
+    height: 190,
+    backgroundColor: "#0f172a",
+  },
+  previewImage: { width: "100%", height: "100%" },
+  pdfPreview: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#fef2f2",
+  },
+  pdfPreviewText: { color: "#991b1b", fontWeight: "800" },
+  cardContent: { gap: 11, padding: 14 },
+  cardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  cardHeaderText: { flex: 1 },
+  cardTitle: { color: "#0f172a", fontSize: 17, fontWeight: "800" },
+  cardSubtitle: { marginTop: 3, color: "#64748b", fontSize: 11 },
+  typeBadge: {
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    backgroundColor: "#dbeafe",
+    borderRadius: 999,
+  },
+  typeBadgeText: {
+    color: "#1d4ed8",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  detailRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 9,
+  },
+  detailText: { flex: 1, color: "#475569", fontSize: 12 },
+  openButton: {
+    minHeight: 45,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    marginTop: 2,
+    backgroundColor: "#2563eb",
+    borderRadius: 11,
+  },
+  openButtonText: { color: "#ffffff", fontWeight: "800" },
+  emptyState: {
+    alignItems: "center",
+    gap: 8,
+    padding: 24,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 15,
+  },
+  emptyTitle: { color: "#334155", fontWeight: "800" },
+  emptyText: {
+    color: "#64748b",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
   },
 });

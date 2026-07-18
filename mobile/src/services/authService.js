@@ -1,59 +1,17 @@
-import { API_BASE_URL } from "../config/api";
+import { apiGet, apiPost } from "./apiClient";
 
-const parseResponse = async (response, fallbackMessage) => {
-  const text = await response.text();
-
-  console.log("STATUS:", response.status);
-  console.log("RAW RESPONSE:", text.slice(0, 500));
-
-  let data;
-
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch (error) {
-    const customError = new Error("Server returned a non-JSON response.");
-    customError.status = response.status;
-    customError.data = {};
-    throw customError;
-  }
-
-  if (!response.ok) {
-    const customError = new Error(data.message || data.error || fallbackMessage);
-
-    customError.status = response.status;
-    customError.data = data;
-    customError.response = {
-      status: response.status,
-      data,
-    };
-
-    customError.email_unverified = data.email_unverified || false;
-
-    throw customError;
-  }
-
-  return data;
-};
-
-export const loginUser = async ({ email, password }) => {
-  const loginUrl = `${API_BASE_URL}/users/login`;
-
-  console.log("LOGIN URL:", loginUrl);
-
-  const response = await fetch(loginUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
+export const loginUser = async ({ email, password }) =>
+  apiPost(
+    "/users/login",
+    {
       email,
       password,
-    }),
-  });
-
-  return parseResponse(response, "Login failed");
-};
+    },
+    {
+      authenticated: false,
+      fallbackMessage: "Login failed.",
+    },
+  );
 
 export const registerPatient = async ({
   firstName,
@@ -63,112 +21,72 @@ export const registerPatient = async ({
   password,
   confirmPassword,
 }) => {
-  const registerUrl = `${API_BASE_URL}/users/register`;
+  const fullName = `${String(firstName || "").trim()} ${String(
+    lastName || "",
+  ).trim()}`.trim();
 
-  console.log("REGISTER URL:", registerUrl);
-
-  const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
-
-  const response = await fetch(registerUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
+  return apiPost(
+    "/users/register",
+    {
       name: fullName,
       email,
       contact_number: contactNumber,
       password,
       confirmPassword,
       role_id: 3,
-    }),
-  });
-
-  return parseResponse(
-    response,
-    "Unable to create patient account. Please try again."
+    },
+    {
+      authenticated: false,
+      fallbackMessage:
+        "Unable to create the Patient account. Please try again.",
+    },
   );
 };
 
-export const forgotPassword = async ({ email }) => {
-  const forgotPasswordUrl = `${API_BASE_URL}/users/forgot-password`;
-
-  console.log("FORGOT PASSWORD URL:", forgotPasswordUrl);
-
-  const response = await fetch(forgotPasswordUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
+export const forgotPassword = async ({ email }) =>
+  apiPost(
+    "/users/forgot-password",
+    { email },
+    {
+      authenticated: false,
+      fallbackMessage:
+        "Unable to send the password reset email. Please try again.",
     },
-    body: JSON.stringify({
-      email,
-    }),
-  });
-
-  return parseResponse(
-    response,
-    "Unable to send password reset email. Please try again."
   );
-};
 
-export const resetPassword = async ({ token, password, confirmPassword }) => {
-  const resetPasswordUrl = `${API_BASE_URL}/users/reset-password/${token}`;
-
-  console.log("RESET PASSWORD URL:", resetPasswordUrl);
-
-  const response = await fetch(resetPasswordUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
+export const resetPassword = async ({
+  token,
+  password,
+  confirmPassword,
+}) =>
+  apiPost(
+    `/users/reset-password/${encodeURIComponent(token)}`,
+    {
       password,
       confirmPassword,
-    }),
-  });
-
-  return parseResponse(response, "Unable to reset password. Please try again.");
-};
+    },
+    {
+      authenticated: false,
+      fallbackMessage: "Unable to reset the password. Please try again.",
+    },
+  );
 
 export const resendVerificationEmail = async (payload) => {
-  const email =
-    typeof payload === "string" ? payload : payload?.email;
+  const email = typeof payload === "string" ? payload : payload?.email;
 
-  const resendVerificationUrl = `${API_BASE_URL}/users/resend-verification`;
-
-  console.log("RESEND VERIFICATION URL:", resendVerificationUrl);
-
-  const response = await fetch(resendVerificationUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
+  return apiPost(
+    "/users/resend-verification",
+    { email },
+    {
+      authenticated: false,
+      fallbackMessage:
+        "Unable to resend the verification email. Please try again.",
     },
-    body: JSON.stringify({
-      email,
-    }),
-  });
-
-  return parseResponse(
-    response,
-    "Unable to resend verification email. Please try again."
   );
 };
 
-export const verifyEmail = async ({ token }) => {
-  const verifyEmailUrl = `${API_BASE_URL}/users/verify-email/${token}`;
-
-  console.log("VERIFY EMAIL URL:", verifyEmailUrl);
-
-  const response = await fetch(verifyEmailUrl, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-    },
+export const verifyEmail = async ({ token }) =>
+  apiGet(`/users/verify-email/${encodeURIComponent(token)}`, {
+    authenticated: false,
+    fallbackMessage: "Unable to verify the email address.",
   });
-
-  return parseResponse(response, "Unable to verify email.");
-};

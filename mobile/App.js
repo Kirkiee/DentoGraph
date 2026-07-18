@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  clearPatientSession,
+  loadPatientSession,
+  savePatientSession,
+  updateStoredPatientUser,
+} from "./src/services/sessionService";
+import { setSessionExpiredHandler } from "./src/services/apiClient";
 
 import LoginScreen from "./src/screens/LoginScreen";
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
@@ -11,11 +17,17 @@ import PatientDashboardScreen from "./src/screens/PatientDashboardScreen";
 import PatientAppointmentsScreen from "./src/screens/PatientAppointmentsScreen";
 import BookAppointmentScreen from "./src/screens/BookAppointmentScreen";
 import PatientDentalRecordsScreen from "./src/screens/PatientDentalRecordsScreen";
+import PatientDentalRecordDetailsScreen from "./src/screens/PatientDentalRecordDetailsScreen";
+import PatientDental3DViewerScreen from "./src/screens/PatientDental3DViewerScreen";
 import PatientXraysScreen from "./src/screens/PatientXraysScreen";
+import PatientXrayDetailsScreen from "./src/screens/PatientXrayDetailsScreen";
 import PatientARBracesScreen from "./src/screens/PatientARBracesScreen";
 import PatientClinicDiscoveryScreen from "./src/screens/PatientClinicDiscoveryScreen";
 import PatientProfileScreen from "./src/screens/PatientProfileScreen";
+import PatientTransfersScreen from "./src/screens/PatientTransfersScreen";
+import PatientHistoricalRecordsScreen from "./src/screens/PatientHistoricalRecordsScreen";
 import BottomNav from "./src/components/BottomNav";
+import PatientMoreMenu from "./src/components/PatientMoreMenu";
 
 export default function App() {
   const [loading, setLoading] = useState(true);
@@ -25,47 +37,65 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState("dashboard");
   const [authScreen, setAuthScreen] = useState("login");
   const [prefilledEmail, setPrefilledEmail] = useState("");
+  const [sessionMessage, setSessionMessage] = useState("");
+  const [selectedDentalRecordId, setSelectedDentalRecordId] = useState(null);
+  const [moreMenuVisible, setMoreMenuVisible] = useState(false);
+  const [selectedXrayId, setSelectedXrayId] = useState(null);
 
   useEffect(() => {
     checkSavedSession();
+
+    setSessionExpiredHandler(({ message }) => {
+      setToken(null);
+      setCurrentUser(null);
+      setCurrentScreen("dashboard");
+      setAuthScreen("login");
+      setSessionMessage(message || "Session expired. Please log in again.");
+    });
+
+    return () => {
+      setSessionExpiredHandler(null);
+    };
   }, []);
 
   const checkSavedSession = async () => {
     try {
-      const savedToken = await AsyncStorage.getItem("dentograph_token");
-      const savedUser = await AsyncStorage.getItem("dentograph_user");
+      const session = await loadPatientSession();
 
-      if (savedToken && savedUser) {
-        setToken(savedToken);
-        setCurrentUser(JSON.parse(savedUser));
+      if (session?.token && session?.user) {
+        setToken(session.token);
+        setCurrentUser(session.user);
         setCurrentScreen("dashboard");
       }
     } catch (error) {
-      console.log("Session load error:", error);
+      setSessionMessage(
+        "The saved session could not be restored. Please log in again.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
   const handleLoginSuccess = async ({ token, user }) => {
-    await AsyncStorage.setItem("dentograph_token", token);
-    await AsyncStorage.setItem("dentograph_user", JSON.stringify(user));
+    const session = await savePatientSession({ token, user });
 
-    setToken(token);
-    setCurrentUser(user);
+    setToken(session.token);
+    setCurrentUser(session.user);
     setCurrentScreen("dashboard");
     setAuthScreen("login");
+    setSessionMessage("");
   };
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("dentograph_token");
-    await AsyncStorage.removeItem("dentograph_user");
+    setMoreMenuVisible(false);
+    await clearPatientSession();
 
     setToken(null);
     setCurrentUser(null);
     setCurrentScreen("dashboard");
     setAuthScreen("login");
     setPrefilledEmail("");
+    setSessionMessage("");
   };
 
   const handleOpenForgotPassword = (email = "") => {
@@ -88,8 +118,8 @@ export default function App() {
       email: updatedProfile.email,
     };
 
-    await AsyncStorage.setItem("dentograph_user", JSON.stringify(updatedUser));
-    setCurrentUser(updatedUser);
+    const updatedSession = await updateStoredPatientUser(updatedUser);
+    setCurrentUser(updatedSession?.user || updatedUser);
   };
 
   const renderAuthScreen = () => {
@@ -111,6 +141,7 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
         onForgotPasswordPress={handleOpenForgotPassword}
         onRegisterPress={handleOpenRegister}
+        sessionMessage={sessionMessage}
       />
     );
   };
@@ -135,20 +166,93 @@ export default function App() {
       );
     }
 
+    if (currentScreen === "dental3DViewer") {
+      return (
+        <PatientDental3DViewerScreen
+          token={token}
+          user={currentUser}
+          recordId={selectedDentalRecordId}
+          onBack={() => setCurrentScreen("dentalRecordDetails")}
+        />
+      );
+    }
+
+    if (currentScreen === "dentalRecordDetails") {
+      return (
+        <PatientDentalRecordDetailsScreen
+          token={token}
+          recordId={selectedDentalRecordId}
+          onBack={() => setCurrentScreen("dentalRecords")}
+          onOpen3D={() => setCurrentScreen("dental3DViewer")}
+        />
+      );
+    }
+
     if (currentScreen === "dentalRecords") {
-      return <PatientDentalRecordsScreen token={token} />;
+      return (
+        <PatientDentalRecordsScreen
+          token={token}
+          onOpenRecord={(record) => {
+            setSelectedDentalRecordId(record.record_id);
+            setCurrentScreen("dentalRecordDetails");
+          }}
+        />
+      );
+    }
+
+    if (currentScreen === "xrayDetails") {
+      return (
+        <PatientXrayDetailsScreen
+          token={token}
+          xrayId={selectedXrayId}
+          onBack={() => setCurrentScreen("xrays")}
+        />
+      );
     }
 
     if (currentScreen === "xrays") {
-      return <PatientXraysScreen token={token} />;
+      return (
+        <PatientXraysScreen
+          token={token}
+          onOpenXray={(xray) => {
+            setSelectedXrayId(xray.xray_id);
+            setCurrentScreen("xrayDetails");
+          }}
+        />
+      );
     }
 
     if (currentScreen === "arBraces") {
-      return <PatientARBracesScreen token={token} />;
+      return (
+        <PatientARBracesScreen
+          token={token}
+          user={currentUser}
+        />
+      );
     }
 
     if (currentScreen === "clinicDiscovery") {
       return <PatientClinicDiscoveryScreen token={token} />;
+    }
+
+    if (currentScreen === "transfers") {
+      return <PatientTransfersScreen token={token} />;
+    }
+
+    if (currentScreen === "historicalRecords") {
+      return (
+        <PatientHistoricalRecordsScreen
+          token={token}
+          onOpenRecord={(record) => {
+            setSelectedDentalRecordId(record.record_id);
+            setCurrentScreen("dentalRecordDetails");
+          }}
+          onOpenXray={(xray) => {
+            setSelectedXrayId(xray.xray_id);
+            setCurrentScreen("xrayDetails");
+          }}
+        />
+      );
     }
 
     if (currentScreen === "profile") {
@@ -201,7 +305,7 @@ export default function App() {
     );
   }
 
-  const shouldShowBottomNav = currentScreen !== "bookAppointment";
+  const shouldShowBottomNav = !["bookAppointment", "dentalRecordDetails", "dental3DViewer", "xrayDetails"].includes(currentScreen);
 
   return (
     <SafeAreaProvider>
@@ -214,9 +318,22 @@ export default function App() {
         {shouldShowBottomNav ? (
           <BottomNav
             currentScreen={currentScreen}
-            onNavigate={(screen) => setCurrentScreen(screen)}
+            onNavigate={(screen) => {
+              setMoreMenuVisible(false);
+              setCurrentScreen(screen);
+            }}
+            onOpenMenu={() => setMoreMenuVisible(true)}
           />
         ) : null}
+
+        <PatientMoreMenu
+          visible={moreMenuVisible}
+          currentScreen={currentScreen}
+          currentUser={currentUser}
+          onClose={() => setMoreMenuVisible(false)}
+          onNavigate={setCurrentScreen}
+          onLogout={handleLogout}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   );

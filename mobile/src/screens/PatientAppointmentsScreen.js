@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -12,211 +11,510 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
   cancelPatientAppointment,
+  getBookingAvailableDates,
+  getBookingAvailableTimes,
   getPatientAppointments,
   requestPatientReschedule,
 } from "../services/appointmentService";
 
+const STATUS_OPTIONS = [
+  "All",
+  "Pending",
+  "Scheduled",
+  "Completed",
+  "Cancelled",
+];
+
+const formatDate = (value) => {
+  if (!value) return "No date";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short",
+  });
+};
+
+const formatTime = (value) => {
+  if (!value) return "";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleTimeString("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const formatDateOption = (value) =>
+  new Date(`${value}T00:00:00+08:00`).toLocaleDateString("en-PH", {
+    month: "short",
+    day: "numeric",
+    weekday: "short",
+  });
+
+const formatTimeOption = (value) => {
+  const [hourString, minuteString] = String(value).split(":");
+  const date = new Date(2000, 0, 1, Number(hourString), Number(minuteString));
+
+  return date.toLocaleTimeString("en-PH", {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const normalizeStatus = (value) =>
+  String(value || "Pending").trim().toLowerCase();
+
+const isPastOrCompleted = (appointment) => {
+  const status = normalizeStatus(appointment.status);
+  const appointmentDate = new Date(appointment.appointment_date);
+
+  return (
+    status === "completed" ||
+    status === "cancelled" ||
+    (!Number.isNaN(appointmentDate.getTime()) &&
+      appointmentDate.getTime() < Date.now())
+  );
+};
+
+const StatusBadge = ({ status }) => {
+  const normalized = normalizeStatus(status);
+
+  return (
+    <View
+      style={[
+        styles.badge,
+        normalized === "pending" && styles.pendingBadge,
+        normalized === "scheduled" && styles.scheduledBadge,
+        normalized === "completed" && styles.completedBadge,
+        normalized === "cancelled" && styles.cancelledBadge,
+      ]}
+    >
+      <Text
+        style={[
+          styles.badgeText,
+          normalized === "pending" && styles.pendingBadgeText,
+          normalized === "scheduled" && styles.scheduledBadgeText,
+          normalized === "completed" && styles.completedBadgeText,
+          normalized === "cancelled" && styles.cancelledBadgeText,
+        ]}
+      >
+        {status || "Pending"}
+      </Text>
+    </View>
+  );
+};
+
+const RescheduleBadge = ({ status }) => {
+  if (!status || status === "None") return null;
+
+  return (
+    <View style={styles.rescheduleBadge}>
+      <Text style={styles.rescheduleBadgeText}>Reschedule: {status}</Text>
+    </View>
+  );
+};
+
+const FilterChip = ({ label, selected, onPress }) => (
+  <Pressable
+    style={[styles.filterChip, selected && styles.filterChipSelected]}
+    onPress={onPress}
+  >
+    <Text
+      style={[
+        styles.filterChipText,
+        selected && styles.filterChipTextSelected,
+      ]}
+    >
+      {label}
+    </Text>
+  </Pressable>
+);
+
+const AppointmentCard = ({
+  appointment,
+  onCancel,
+  onReschedule,
+}) => {
+  const status = normalizeStatus(appointment.status);
+  const canManage =
+    status !== "cancelled" &&
+    status !== "completed" &&
+    new Date(appointment.appointment_date).getTime() > Date.now();
+
+  const hasPendingReschedule =
+    appointment.reschedule_request === true ||
+    String(appointment.reschedule_status || "").toLowerCase() === "pending";
+
+  return (
+    <View style={styles.appointmentCard}>
+      <View style={styles.cardHeader}>
+        <View style={styles.cardHeaderText}>
+          <Text style={styles.appointmentType}>
+            {appointment.appointment_type || "Dental Appointment"}
+          </Text>
+          <Text style={styles.appointmentId}>
+            Appointment #{appointment.appointment_id}
+          </Text>
+        </View>
+
+        <StatusBadge status={appointment.status} />
+      </View>
+
+      <RescheduleBadge status={appointment.reschedule_status} />
+
+      <View style={styles.detailRow}>
+        <Ionicons name="calendar-outline" size={18} color="#2563eb" />
+        <View style={styles.detailTextBlock}>
+          <Text style={styles.detailLabel}>Schedule</Text>
+          <Text style={styles.detailValue}>
+            {formatDate(appointment.appointment_date)} at{" "}
+            {formatTime(appointment.appointment_date)}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Ionicons name="medkit-outline" size={18} color="#2563eb" />
+        <View style={styles.detailTextBlock}>
+          <Text style={styles.detailLabel}>Dentist</Text>
+          <Text style={styles.detailValue}>
+            {appointment.dentist_name || "Not assigned"}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.detailRow}>
+        <Ionicons name="business-outline" size={18} color="#2563eb" />
+        <View style={styles.detailTextBlock}>
+          <Text style={styles.detailLabel}>Clinic</Text>
+          <Text style={styles.detailValue}>
+            {appointment.clinic_name || "Assigned clinic"}
+          </Text>
+        </View>
+      </View>
+
+      {appointment.notes ? (
+        <View style={styles.notesBox}>
+          <Text style={styles.notesLabel}>Notes</Text>
+          <Text style={styles.notesText}>{appointment.notes}</Text>
+        </View>
+      ) : null}
+
+      {appointment.requested_appointment_date ? (
+        <View style={styles.requestBox}>
+          <Text style={styles.requestTitle}>Requested New Schedule</Text>
+          <Text style={styles.requestText}>
+            {formatDate(appointment.requested_appointment_date)} at{" "}
+            {formatTime(appointment.requested_appointment_date)}
+          </Text>
+        </View>
+      ) : null}
+
+      {appointment.cancellation_reason ? (
+        <View style={styles.cancelledInfoBox}>
+          <Text style={styles.cancelledInfoTitle}>Cancellation Remarks</Text>
+          <Text style={styles.cancelledInfoText}>
+            {appointment.cancellation_reason}
+          </Text>
+          {appointment.cancelled_by_name ? (
+            <Text style={styles.cancelledByText}>
+              Cancelled by {appointment.cancelled_by_name}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {canManage ? (
+        <View style={styles.cardActions}>
+          <Pressable
+            style={[
+              styles.secondaryButton,
+              hasPendingReschedule && styles.disabledButton,
+            ]}
+            onPress={() => onReschedule(appointment)}
+            disabled={hasPendingReschedule}
+          >
+            <Ionicons name="time-outline" size={18} color="#1d4ed8" />
+            <Text style={styles.secondaryButtonText}>
+              {hasPendingReschedule ? "Reschedule Pending" : "Reschedule"}
+            </Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.dangerButton}
+            onPress={() => onCancel(appointment)}
+          >
+            <Ionicons name="close-circle-outline" size={18} color="#b91c1c" />
+            <Text style={styles.dangerButtonText}>Cancel</Text>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+};
+
 export default function PatientAppointmentsScreen({
   token,
-  onBack,
   onOpenBookAppointment,
 }) {
   const [appointments, setAppointments] = useState([]);
+  const [assignedClinicName, setAssignedClinicName] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [cancelModalVisible, setCancelModalVisible] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [dentistFilter, setDentistFilter] = useState("All");
+
+  const [cancelAppointment, setCancelAppointment] = useState(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [cancelling, setCancelling] = useState(false);
 
-  const [rescheduleModalVisible, setRescheduleModalVisible] = useState(false);
-  const [rescheduleDate, setRescheduleDate] = useState(new Date());
-  const [showRescheduleDatePicker, setShowRescheduleDatePicker] =
-    useState(false);
-  const [showRescheduleTimePicker, setShowRescheduleTimePicker] =
-    useState(false);
+  const [rescheduleAppointment, setRescheduleAppointment] = useState(null);
+  const [availableDates, setAvailableDates] = useState([]);
+  const [availableTimes, setAvailableTimes] = useState([]);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+  const [loadingDates, setLoadingDates] = useState(false);
+  const [loadingTimes, setLoadingTimes] = useState(false);
   const [rescheduling, setRescheduling] = useState(false);
 
   useEffect(() => {
     loadAppointments();
   }, []);
 
-  const normalizeAppointments = (data) => {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.appointments)) return data.appointments;
-    if (Array.isArray(data.data)) return data.data;
-    return [];
-  };
-
-  const loadAppointments = async () => {
+  const loadAppointments = async ({ refresh = false } = {}) => {
     try {
-      setLoading(true);
-      const data = await getPatientAppointments(token);
-      setAppointments(normalizeAppointments(data));
+      refresh ? setRefreshing(true) : setLoading(true);
+
+      const response = await getPatientAppointments(token);
+      setAppointments(
+        Array.isArray(response.appointments) ? response.appointments : [],
+      );
+      setAssignedClinicName(response.assigned_clinic_name || "");
     } catch (error) {
       Alert.alert(
         "Appointments Error",
-        error.message || "Unable to load appointments."
+        error.message || "Unable to load appointments.",
       );
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-      const data = await getPatientAppointments(token);
-      setAppointments(normalizeAppointments(data));
-    } catch (error) {
-      Alert.alert(
-        "Appointments Error",
-        error.message || "Unable to refresh appointments."
-      );
-    } finally {
       setRefreshing(false);
     }
   };
 
+  const dentistOptions = useMemo(() => {
+    const values = appointments
+      .map((appointment) => appointment.dentist_name)
+      .filter(Boolean);
+
+    return ["All", ...Array.from(new Set(values)).sort()];
+  }, [appointments]);
+
+  const filteredAppointments = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase();
+
+    return appointments.filter((appointment) => {
+      const matchesSearch =
+        !normalizedSearch ||
+        [
+          appointment.appointment_id,
+          appointment.appointment_type,
+          appointment.dentist_name,
+          appointment.clinic_name,
+          appointment.notes,
+        ]
+          .filter((value) => value !== null && value !== undefined)
+          .some((value) =>
+            String(value).toLowerCase().includes(normalizedSearch),
+          );
+
+      const matchesStatus =
+        statusFilter === "All" ||
+        normalizeStatus(appointment.status) === statusFilter.toLowerCase();
+
+      const matchesDentist =
+        dentistFilter === "All" ||
+        appointment.dentist_name === dentistFilter;
+
+      return matchesSearch && matchesStatus && matchesDentist;
+    });
+  }, [appointments, dentistFilter, search, statusFilter]);
+
+  const upcomingAppointments = useMemo(
+    () =>
+      filteredAppointments
+        .filter((appointment) => !isPastOrCompleted(appointment))
+        .sort(
+          (a, b) =>
+            new Date(a.appointment_date).getTime() -
+            new Date(b.appointment_date).getTime(),
+        ),
+    [filteredAppointments],
+  );
+
+  const previousAppointments = useMemo(
+    () =>
+      filteredAppointments
+        .filter(isPastOrCompleted)
+        .sort(
+          (a, b) =>
+            new Date(b.appointment_date).getTime() -
+            new Date(a.appointment_date).getTime(),
+        ),
+    [filteredAppointments],
+  );
+
   const openCancelModal = (appointment) => {
-    setSelectedAppointment(appointment);
+    setCancelAppointment(appointment);
     setCancellationReason("");
-    setCancelModalVisible(true);
   };
 
   const closeCancelModal = () => {
     if (cancelling) return;
-
-    Keyboard.dismiss();
-    setCancelModalVisible(false);
-    setSelectedAppointment(null);
+    setCancelAppointment(null);
     setCancellationReason("");
   };
 
-  const openRescheduleModal = (appointment) => {
-    const currentDate = new Date(appointment.appointment_date);
-    const fallbackDate = new Date();
-
-    fallbackDate.setDate(fallbackDate.getDate() + 1);
-    fallbackDate.setHours(9);
-    fallbackDate.setMinutes(0);
-    fallbackDate.setSeconds(0);
-    fallbackDate.setMilliseconds(0);
-
-    const initialDate = Number.isNaN(currentDate.getTime())
-      ? fallbackDate
-      : currentDate;
-
-    if (initialDate <= new Date()) {
-      setRescheduleDate(fallbackDate);
-    } else {
-      setRescheduleDate(initialDate);
-    }
-
-    setSelectedAppointment(appointment);
-    setShowRescheduleDatePicker(false);
-    setShowRescheduleTimePicker(false);
-    setRescheduleModalVisible(true);
-  };
-
-  const closeRescheduleModal = () => {
-    if (rescheduling) return;
-
-    setRescheduleModalVisible(false);
-    setSelectedAppointment(null);
-    setShowRescheduleDatePicker(false);
-    setShowRescheduleTimePicker(false);
-  };
-
-  const handleCancelAppointment = async () => {
-    if (!selectedAppointment?.appointment_id) {
-      Alert.alert("Error", "No appointment selected.");
-      return;
-    }
-
+  const submitCancellation = async () => {
     if (!cancellationReason.trim()) {
       Alert.alert(
-        "Missing Reason",
-        "Please enter a reason for cancelling this appointment."
+        "Cancellation Reason Required",
+        "Enter a reason before cancelling the appointment.",
       );
       return;
     }
 
     try {
-      Keyboard.dismiss();
       setCancelling(true);
 
-      await cancelPatientAppointment({
+      const response = await cancelPatientAppointment({
         token,
-        appointment_id: selectedAppointment.appointment_id,
+        appointment_id: cancelAppointment.appointment_id,
         cancellation_reason: cancellationReason.trim(),
       });
 
-      Alert.alert("Success", "Appointment cancelled successfully.");
-
-      setCancelModalVisible(false);
-      setSelectedAppointment(null);
-      setCancellationReason("");
-
+      closeCancelModal();
+      Alert.alert(
+        "Appointment Cancelled",
+        response.message || "The appointment was cancelled successfully.",
+      );
       await loadAppointments();
     } catch (error) {
       Alert.alert(
         "Cancellation Failed",
-        error.message || "Unable to cancel appointment."
+        error.message || "Unable to cancel the appointment.",
       );
     } finally {
       setCancelling(false);
     }
   };
 
-  const handleRescheduleDateChange = (event, selectedDate) => {
-    if (Platform.OS === "android") {
-      setShowRescheduleDatePicker(false);
-    }
-
-    if (selectedDate) {
-      const updatedDate = new Date(rescheduleDate);
-      updatedDate.setFullYear(selectedDate.getFullYear());
-      updatedDate.setMonth(selectedDate.getMonth());
-      updatedDate.setDate(selectedDate.getDate());
-      setRescheduleDate(updatedDate);
-    }
-  };
-
-  const handleRescheduleTimeChange = (event, selectedTime) => {
-    if (Platform.OS === "android") {
-      setShowRescheduleTimePicker(false);
-    }
-
-    if (selectedTime) {
-      const updatedDate = new Date(rescheduleDate);
-      updatedDate.setHours(selectedTime.getHours());
-      updatedDate.setMinutes(selectedTime.getMinutes());
-      updatedDate.setSeconds(0);
-      updatedDate.setMilliseconds(0);
-      setRescheduleDate(updatedDate);
-    }
-  };
-
-  const handleRequestReschedule = async () => {
-    if (!selectedAppointment?.appointment_id) {
-      Alert.alert("Error", "No appointment selected.");
+  const openRescheduleModal = async (appointment) => {
+    if (!appointment.service_id) {
+      Alert.alert(
+        "Service Information Missing",
+        "This older appointment does not have a linked service. Please contact the clinic to reschedule it.",
+      );
       return;
     }
 
-    if (rescheduleDate <= new Date()) {
+    setRescheduleAppointment(appointment);
+    setAvailableDates([]);
+    setAvailableTimes([]);
+    setSelectedDate("");
+    setSelectedTime("");
+
+    try {
+      setLoadingDates(true);
+      const response = await getBookingAvailableDates({
+        token,
+        clinic_id: appointment.clinic_id,
+        dentist_id: appointment.dentist_id,
+        service_id: appointment.service_id,
+      });
+
+      setAvailableDates(
+        Array.isArray(response.available_dates)
+          ? response.available_dates
+          : [],
+      );
+    } catch (error) {
+      setRescheduleAppointment(null);
       Alert.alert(
-        "Invalid Schedule",
-        "Please choose a future appointment date and time."
+        "Available Dates Error",
+        error.message || "Unable to load valid reschedule dates.",
+      );
+    } finally {
+      setLoadingDates(false);
+    }
+  };
+
+  const selectRescheduleDate = async (date) => {
+    setSelectedDate(date);
+    setSelectedTime("");
+    setAvailableTimes([]);
+
+    try {
+      setLoadingTimes(true);
+
+      const response = await getBookingAvailableTimes({
+        token,
+        clinic_id: rescheduleAppointment.clinic_id,
+        dentist_id: rescheduleAppointment.dentist_id,
+        service_id: rescheduleAppointment.service_id,
+        appointment_date: date,
+      });
+
+      setAvailableTimes(
+        Array.isArray(response.available_times)
+          ? response.available_times
+          : [],
+      );
+    } catch (error) {
+      Alert.alert(
+        "Available Times Error",
+        error.message || "Unable to load valid reschedule times.",
+      );
+    } finally {
+      setLoadingTimes(false);
+    }
+  };
+
+  const closeRescheduleModal = () => {
+    if (rescheduling) return;
+
+    setRescheduleAppointment(null);
+    setAvailableDates([]);
+    setAvailableTimes([]);
+    setSelectedDate("");
+    setSelectedTime("");
+  };
+
+  const submitReschedule = async () => {
+    if (!selectedDate || !selectedTime) {
+      Alert.alert(
+        "Incomplete Reschedule",
+        "Select an available date and time.",
       );
       return;
     }
@@ -224,123 +522,33 @@ export default function PatientAppointmentsScreen({
     try {
       setRescheduling(true);
 
-      await requestPatientReschedule({
+      const response = await requestPatientReschedule({
         token,
-        appointment_id: selectedAppointment.appointment_id,
-        new_appointment_date: formatBackendDateTime(rescheduleDate),
+        appointment_id: rescheduleAppointment.appointment_id,
+        new_appointment_date: `${selectedDate}T${selectedTime}:00+08:00`,
       });
 
-      Alert.alert("Success", "Reschedule request submitted successfully.");
-
-      setRescheduleModalVisible(false);
-      setSelectedAppointment(null);
-
+      closeRescheduleModal();
+      Alert.alert(
+        "Reschedule Requested",
+        response.message || "Your reschedule request was submitted.",
+      );
       await loadAppointments();
     } catch (error) {
       Alert.alert(
         "Reschedule Failed",
-        error.message || "Unable to request reschedule."
+        error.message || "Unable to submit the reschedule request.",
       );
     } finally {
       setRescheduling(false);
     }
   };
 
-  const formatDate = (value) => {
-    if (!value) return "No date set";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return String(value);
-    }
-
-    return date.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  };
-
-  const formatTime = (value) => {
-    if (!value) return "";
-
-    const date = new Date(value);
-
-    if (Number.isNaN(date.getTime())) {
-      return "";
-    }
-
-    return date.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  const formatBackendDateTime = (value) => {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, "0");
-    const day = String(value.getDate()).padStart(2, "0");
-    const hours = String(value.getHours()).padStart(2, "0");
-    const minutes = String(value.getMinutes()).padStart(2, "0");
-
-    return `${year}-${month}-${day} ${hours}:${minutes}`;
-  };
-
-  const canCancelAppointment = (appointment) => {
-    const status = String(appointment.status || "").toLowerCase();
-    return status !== "cancelled" && status !== "completed";
-  };
-
-  const canRescheduleAppointment = (appointment) => {
-    const status = String(appointment.status || "").toLowerCase();
-    return status !== "cancelled" && status !== "completed";
-  };
-
-  const getStatusBadgeStyle = (status) => {
-    const normalizedStatus = String(status || "").toLowerCase();
-
-    if (normalizedStatus === "pending") return styles.pendingBadge;
-    if (normalizedStatus === "scheduled") return styles.scheduledBadge;
-    if (normalizedStatus === "cancelled") return styles.cancelledBadge;
-    if (normalizedStatus === "completed") return styles.completedBadge;
-
-    return styles.defaultBadge;
-  };
-
-  const getStatusTextStyle = (status) => {
-    const normalizedStatus = String(status || "").toLowerCase();
-
-    if (normalizedStatus === "pending") return styles.pendingText;
-    if (normalizedStatus === "scheduled") return styles.scheduledText;
-    if (normalizedStatus === "cancelled") return styles.cancelledText;
-    if (normalizedStatus === "completed") return styles.completedText;
-
-    return styles.defaultStatusText;
-  };
-
-  const getAppointmentType = (appointment) => {
-    return (
-      appointment.appointment_type ||
-      appointment.type ||
-      "Dental Appointment"
-    );
-  };
-
-  const getDentistName = (appointment) => {
-    return (
-      appointment.dentist_name ||
-      appointment.dentist ||
-      appointment.name ||
-      "Not assigned"
-    );
-  };
-
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading appointments...</Text>
+      <View style={styles.centerState}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.centerStateText}>Loading appointments...</Text>
       </View>
     );
   }
@@ -351,347 +559,314 @@ export default function PatientAppointmentsScreen({
         style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadAppointments({ refresh: true })}
+          />
         }
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={styles.headerTopRow}>
-            <View style={styles.headerIconCircle}>
-              <Ionicons name="calendar-outline" size={26} color="#2b6cb0" />
-            </View>
-
-            <View style={styles.headerTextBlock}>
-              <Text style={styles.title}>Appointments</Text>
-              <Text style={styles.subtitle}>
-                View upcoming and recent dental visits.
-              </Text>
-            </View>
+          <View style={styles.headerText}>
+            <Text style={styles.title}>My Appointments</Text>
+            <Text style={styles.subtitle}>
+              {assignedClinicName
+                ? `Appointments for ${assignedClinicName}`
+                : "Manage upcoming and previous appointments."}
+            </Text>
           </View>
 
-          <Pressable style={styles.bookButton} onPress={onOpenBookAppointment}>
-            <Ionicons name="add-circle-outline" size={20} color="#ffffff" />
-            <Text style={styles.bookButtonText}>Book New Appointment</Text>
+          <Pressable
+            style={styles.primaryButton}
+            onPress={onOpenBookAppointment}
+          >
+            <Ionicons name="add" size={20} color="#ffffff" />
+            <Text style={styles.primaryButtonText}>Book</Text>
           </Pressable>
         </View>
 
-        {appointments.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="calendar-clear-outline" size={30} color="#2b6cb0" />
-            </View>
+        <View style={styles.filterCard}>
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={19} color="#64748b" />
+            <TextInput
+              style={styles.searchInput}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search Dentist, clinic, service, or ID"
+              placeholderTextColor="#94a3b8"
+            />
+            {search ? (
+              <Pressable onPress={() => setSearch("")}>
+                <Ionicons name="close-circle" size={19} color="#94a3b8" />
+              </Pressable>
+            ) : null}
+          </View>
 
-            <Text style={styles.emptyTitle}>No appointments found</Text>
+          <Text style={styles.filterLabel}>Status</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {STATUS_OPTIONS.map((status) => (
+              <FilterChip
+                key={status}
+                label={status}
+                selected={statusFilter === status}
+                onPress={() => setStatusFilter(status)}
+              />
+            ))}
+          </ScrollView>
+
+          <Text style={styles.filterLabel}>Dentist</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filterRow}
+          >
+            {dentistOptions.map((dentist) => (
+              <FilterChip
+                key={dentist}
+                label={dentist}
+                selected={dentistFilter === dentist}
+                onPress={() => setDentistFilter(dentist)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Upcoming</Text>
+          <Text style={styles.sectionCount}>{upcomingAppointments.length}</Text>
+        </View>
+
+        {upcomingAppointments.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="calendar-outline" size={34} color="#94a3b8" />
+            <Text style={styles.emptyTitle}>No upcoming appointments</Text>
             <Text style={styles.emptyText}>
-              Your scheduled clinic visits will appear here once available.
+              Book a new appointment or change the current filters.
             </Text>
           </View>
         ) : (
-          appointments.map((appointment, index) => (
-            <View
-              key={appointment.appointment_id || appointment.id || index}
-              style={styles.appointmentCard}
-            >
-              <View style={styles.cardHeader}>
-                <View style={styles.cardTitleBlock}>
-                  <Text style={styles.appointmentType} numberOfLines={2}>
-                    {getAppointmentType(appointment)}
-                  </Text>
+          upcomingAppointments.map((appointment) => (
+            <AppointmentCard
+              key={appointment.appointment_id}
+              appointment={appointment}
+              onCancel={openCancelModal}
+              onReschedule={openRescheduleModal}
+            />
+          ))
+        )}
 
-                  <View style={styles.dateRow}>
-                    <Ionicons name="time-outline" size={15} color="#718096" />
-                    <Text style={styles.dateInlineText}>
-                      {formatDate(appointment.appointment_date || appointment.date)}
-                    </Text>
-                  </View>
-                </View>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Previous</Text>
+          <Text style={styles.sectionCount}>{previousAppointments.length}</Text>
+        </View>
 
-                <View
-                  style={[
-                    styles.statusBadge,
-                    getStatusBadgeStyle(appointment.status),
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.statusText,
-                      getStatusTextStyle(appointment.status),
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {appointment.status || "Pending"}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.timePill}>
-                <Ionicons name="alarm-outline" size={15} color="#2b6cb0" />
-                <Text style={styles.timePillText}>
-                  {formatTime(appointment.appointment_date || appointment.date)}
-                </Text>
-              </View>
-
-              <View style={styles.infoList}>
-                <View style={styles.infoRow}>
-                  <Ionicons name="person-outline" size={16} color="#718096" />
-                  <Text style={styles.detailText}>
-                    Dentist: {getDentistName(appointment)}
-                  </Text>
-                </View>
-
-                {appointment.clinic_name ? (
-                  <View style={styles.infoRow}>
-                    <Ionicons name="business-outline" size={16} color="#718096" />
-                    <Text style={styles.detailText}>
-                      Clinic: {appointment.clinic_name}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {appointment.notes ? (
-                  <View style={styles.notesBox}>
-                    <Text style={styles.notesText}>{appointment.notes}</Text>
-                  </View>
-                ) : null}
-              </View>
-
-              {appointment.reschedule_status &&
-              appointment.reschedule_status !== "None" ? (
-                <View style={styles.rescheduleInfoBox}>
-                  <Text style={styles.rescheduleInfoTitle}>
-                    Reschedule Status: {appointment.reschedule_status}
-                  </Text>
-
-                  {appointment.requested_appointment_date ? (
-                    <Text style={styles.rescheduleInfoText}>
-                      Requested:{" "}
-                      {formatDate(appointment.requested_appointment_date)}{" "}
-                      {formatTime(appointment.requested_appointment_date)}
-                    </Text>
-                  ) : null}
-                </View>
-              ) : null}
-
-              {appointment.cancellation_reason ? (
-                <View style={styles.cancelInfoBox}>
-                  <Text style={styles.cancelInfoTitle}>Cancellation Reason</Text>
-                  <Text style={styles.cancelInfoText}>
-                    {appointment.cancellation_reason}
-                  </Text>
-                </View>
-              ) : null}
-
-              {(canCancelAppointment(appointment) ||
-                canRescheduleAppointment(appointment)) && (
-                <View style={styles.cardActions}>
-                  {canCancelAppointment(appointment) ? (
-                    <Pressable
-                      style={styles.cancelActionButton}
-                      onPress={() => openCancelModal(appointment)}
-                    >
-                      <Ionicons name="close-circle-outline" size={17} color="#e53e3e" />
-                      <Text style={styles.cancelActionText}>Cancel</Text>
-                    </Pressable>
-                  ) : null}
-
-                  {canRescheduleAppointment(appointment) ? (
-                    <Pressable
-                      style={styles.rescheduleActionButton}
-                      onPress={() => openRescheduleModal(appointment)}
-                    >
-                      <Ionicons name="calendar-number-outline" size={17} color="#2b6cb0" />
-                      <Text style={styles.rescheduleActionText}>
-                        Reschedule
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              )}
-            </View>
+        {previousAppointments.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>
+              No previous appointments match the current filters.
+            </Text>
+          </View>
+        ) : (
+          previousAppointments.map((appointment) => (
+            <AppointmentCard
+              key={appointment.appointment_id}
+              appointment={appointment}
+              onCancel={openCancelModal}
+              onReschedule={openRescheduleModal}
+            />
           ))
         )}
       </ScrollView>
 
       <Modal
-        visible={cancelModalVisible}
+        visible={Boolean(cancelAppointment)}
         transparent
         animationType="fade"
         onRequestClose={closeCancelModal}
       >
         <KeyboardAvoidingView
-          style={styles.modalKeyboardView}
+          style={styles.modalOverlay}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 20 : 0}
         >
-          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalCard}>
-                <Text style={styles.modalTitle}>Cancel Appointment</Text>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Cancel Appointment</Text>
+            <Text style={styles.modalSubtitle}>
+              Cancellation remarks are required and will be saved with the
+              appointment history.
+            </Text>
 
-                <Text style={styles.modalSubtitle}>
-                  Please provide a reason for cancelling this appointment.
+            {cancelAppointment ? (
+              <View style={styles.modalSummary}>
+                <Text style={styles.modalSummaryTitle}>
+                  {cancelAppointment.appointment_type || "Dental Appointment"}
                 </Text>
-
-                {selectedAppointment ? (
-                  <View style={styles.modalAppointmentBox}>
-                    <Text style={styles.modalAppointmentText}>
-                      {getAppointmentType(selectedAppointment)}
-                    </Text>
-
-                    <Text style={styles.modalAppointmentDate}>
-                      {formatDate(selectedAppointment.appointment_date)}{" "}
-                      {formatTime(selectedAppointment.appointment_date)}
-                    </Text>
-                  </View>
-                ) : null}
-
-                <TextInput
-                  style={styles.reasonInput}
-                  placeholder="Example: I am unavailable on this date."
-                  placeholderTextColor="#a0aec0"
-                  value={cancellationReason}
-                  onChangeText={setCancellationReason}
-                  multiline
-                  returnKeyType="done"
-                  blurOnSubmit
-                  onSubmitEditing={Keyboard.dismiss}
-                />
-
-                <View style={styles.modalActions}>
-                  <Pressable
-                    style={styles.modalSecondaryButton}
-                    onPress={closeCancelModal}
-                    disabled={cancelling}
-                  >
-                    <Text style={styles.modalSecondaryText}>
-                      Keep Appointment
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.modalDangerButton,
-                      cancelling && styles.disabledButton,
-                    ]}
-                    onPress={handleCancelAppointment}
-                    disabled={cancelling}
-                  >
-                    {cancelling ? (
-                      <ActivityIndicator color="#ffffff" />
-                    ) : (
-                      <Text style={styles.modalDangerText}>
-                        Confirm Cancel
-                      </Text>
-                    )}
-                  </Pressable>
-                </View>
+                <Text style={styles.modalSummaryText}>
+                  {formatDate(cancelAppointment.appointment_date)} at{" "}
+                  {formatTime(cancelAppointment.appointment_date)}
+                </Text>
               </View>
+            ) : null}
+
+            <Text style={styles.inputLabel}>Cancellation Reason *</Text>
+            <TextInput
+              style={styles.reasonInput}
+              value={cancellationReason}
+              onChangeText={setCancellationReason}
+              placeholder="Explain why you need to cancel"
+              placeholderTextColor="#94a3b8"
+              multiline
+              textAlignVertical="top"
+            />
+
+            <View style={styles.modalActions}>
+              <Pressable
+                style={styles.modalSecondaryButton}
+                onPress={closeCancelModal}
+                disabled={cancelling}
+              >
+                <Text style={styles.modalSecondaryButtonText}>
+                  Keep Appointment
+                </Text>
+              </Pressable>
+
+              <Pressable
+                style={styles.modalDangerButton}
+                onPress={submitCancellation}
+                disabled={cancelling}
+              >
+                {cancelling ? (
+                  <ActivityIndicator color="#ffffff" />
+                ) : (
+                  <Text style={styles.modalDangerButtonText}>
+                    Confirm Cancellation
+                  </Text>
+                )}
+              </Pressable>
             </View>
-          </TouchableWithoutFeedback>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
       <Modal
-        visible={rescheduleModalVisible}
+        visible={Boolean(rescheduleAppointment)}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={closeRescheduleModal}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Request Reschedule</Text>
-
-            <Text style={styles.modalSubtitle}>
-              Choose your preferred new appointment schedule. This will be sent
-              for approval.
-            </Text>
-
-            {selectedAppointment ? (
-              <View style={styles.modalAppointmentBox}>
-                <Text style={styles.modalAppointmentText}>
-                  Current Appointment
-                </Text>
-
-                <Text style={styles.modalAppointmentDate}>
-                  {formatDate(selectedAppointment.appointment_date)}{" "}
-                  {formatTime(selectedAppointment.appointment_date)}
+          <View style={[styles.modalCard, styles.rescheduleModalCard]}>
+            <View style={styles.modalTopRow}>
+              <View style={styles.modalTopText}>
+                <Text style={styles.modalTitle}>Request Reschedule</Text>
+                <Text style={styles.modalSubtitle}>
+                  Select only from the Dentist's valid available dates and time
+                  slots.
                 </Text>
               </View>
-            ) : null}
 
-            <View style={styles.pickerRow}>
-              <View style={styles.pickerCard}>
-                <Text style={styles.pickerLabel}>New Date</Text>
-                <Text style={styles.pickerValue}>
-                  {formatDate(rescheduleDate)}
-                </Text>
-
-                <Pressable
-                  style={styles.pickerButton}
-                  onPress={() => {
-                    setShowRescheduleDatePicker(true);
-                    setShowRescheduleTimePicker(false);
-                  }}
-                >
-                  <Text style={styles.pickerButtonText}>Choose Date</Text>
-                </Pressable>
-              </View>
-
-              <View style={styles.pickerCard}>
-                <Text style={styles.pickerLabel}>New Time</Text>
-                <Text style={styles.pickerValue}>
-                  {formatTime(rescheduleDate)}
-                </Text>
-
-                <Pressable
-                  style={styles.pickerButton}
-                  onPress={() => {
-                    setShowRescheduleTimePicker(true);
-                    setShowRescheduleDatePicker(false);
-                  }}
-                >
-                  <Text style={styles.pickerButtonText}>Choose Time</Text>
-                </Pressable>
-              </View>
-            </View>
-
-            {showRescheduleDatePicker ? (
-              <DateTimePicker
-                value={rescheduleDate}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                minimumDate={new Date()}
-                onChange={handleRescheduleDateChange}
-              />
-            ) : null}
-
-            {showRescheduleTimePicker ? (
-              <DateTimePicker
-                value={rescheduleDate}
-                mode="time"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={handleRescheduleTimeChange}
-              />
-            ) : null}
-
-            {Platform.OS === "ios" &&
-            (showRescheduleDatePicker || showRescheduleTimePicker) ? (
               <Pressable
-                style={styles.donePickerButton}
-                onPress={() => {
-                  setShowRescheduleDatePicker(false);
-                  setShowRescheduleTimePicker(false);
-                }}
+                style={styles.closeButton}
+                onPress={closeRescheduleModal}
+                disabled={rescheduling}
               >
-                <Text style={styles.donePickerButtonText}>Done</Text>
+                <Ionicons name="close" size={22} color="#475569" />
               </Pressable>
+            </View>
+
+            {rescheduleAppointment ? (
+              <View style={styles.modalSummary}>
+                <Text style={styles.modalSummaryTitle}>Current Schedule</Text>
+                <Text style={styles.modalSummaryText}>
+                  {formatDate(rescheduleAppointment.appointment_date)} at{" "}
+                  {formatTime(rescheduleAppointment.appointment_date)}
+                </Text>
+                <Text style={styles.modalSummaryText}>
+                  {rescheduleAppointment.dentist_name} ·{" "}
+                  {rescheduleAppointment.clinic_name}
+                </Text>
+              </View>
             ) : null}
 
-            <View style={styles.previewCard}>
-              <Text style={styles.previewTitle}>Request Preview</Text>
-              <Text style={styles.previewText}>
-                {formatBackendDateTime(rescheduleDate)}
+            <ScrollView
+              style={styles.rescheduleScroll}
+              contentContainerStyle={styles.rescheduleContent}
+            >
+              <Text style={styles.inputLabel}>Available Dates</Text>
+
+              {loadingDates ? (
+                <ActivityIndicator color="#2563eb" />
+              ) : availableDates.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No valid reschedule dates are currently available.
+                </Text>
+              ) : (
+                <View style={styles.optionGrid}>
+                  {availableDates.map((date) => (
+                    <Pressable
+                      key={date}
+                      style={[
+                        styles.optionButton,
+                        selectedDate === date && styles.optionButtonSelected,
+                      ]}
+                      onPress={() => selectRescheduleDate(date)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionButtonText,
+                          selectedDate === date &&
+                            styles.optionButtonTextSelected,
+                        ]}
+                      >
+                        {formatDateOption(date)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              <Text style={[styles.inputLabel, styles.timeLabel]}>
+                Available Times
               </Text>
-            </View>
+
+              {!selectedDate ? (
+                <Text style={styles.emptyText}>
+                  Choose an available date first.
+                </Text>
+              ) : loadingTimes ? (
+                <ActivityIndicator color="#2563eb" />
+              ) : availableTimes.length === 0 ? (
+                <Text style={styles.emptyText}>
+                  No available times remain for this date.
+                </Text>
+              ) : (
+                <View style={styles.optionGrid}>
+                  {availableTimes.map((time) => (
+                    <Pressable
+                      key={time}
+                      style={[
+                        styles.optionButton,
+                        selectedTime === time && styles.optionButtonSelected,
+                      ]}
+                      onPress={() => setSelectedTime(time)}
+                    >
+                      <Text
+                        style={[
+                          styles.optionButtonText,
+                          selectedTime === time &&
+                            styles.optionButtonTextSelected,
+                        ]}
+                      >
+                        {formatTimeOption(time)}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </ScrollView>
 
             <View style={styles.modalActions}>
               <Pressable
@@ -699,21 +874,23 @@ export default function PatientAppointmentsScreen({
                 onPress={closeRescheduleModal}
                 disabled={rescheduling}
               >
-                <Text style={styles.modalSecondaryText}>Cancel</Text>
+                <Text style={styles.modalSecondaryButtonText}>Cancel</Text>
               </Pressable>
 
               <Pressable
                 style={[
                   styles.modalPrimaryButton,
-                  rescheduling && styles.disabledButton,
+                  (!selectedDate || !selectedTime) && styles.disabledButton,
                 ]}
-                onPress={handleRequestReschedule}
-                disabled={rescheduling}
+                onPress={submitReschedule}
+                disabled={rescheduling || !selectedDate || !selectedTime}
               >
                 {rescheduling ? (
                   <ActivityIndicator color="#ffffff" />
                 ) : (
-                  <Text style={styles.modalPrimaryText}>Submit Request</Text>
+                  <Text style={styles.modalPrimaryButtonText}>
+                    Submit Request
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -730,465 +907,488 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
   },
   content: {
-    padding: 20,
-    paddingBottom: 40,
+    padding: 18,
+    paddingBottom: 36,
   },
-  loadingContainer: {
+  centerState: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
     backgroundColor: "#f8fafc",
   },
-  loadingText: {
-    marginTop: 12,
-    color: "#718096",
-    fontSize: 14,
+  centerStateText: {
+    color: "#64748b",
   },
   header: {
-    marginTop: 18,
-    marginBottom: 20,
-  },
-  headerTopRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
     gap: 14,
-    marginBottom: 18,
+    marginBottom: 15,
   },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: "#e3f2fd",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTextBlock: {
+  headerText: {
     flex: 1,
   },
   title: {
+    color: "#0f172a",
     fontSize: 27,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
+    fontWeight: "800",
   },
   subtitle: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
-    fontWeight: "600",
+    marginTop: 5,
+    color: "#64748b",
+    fontSize: 13,
+    lineHeight: 19,
   },
-  bookButton: {
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 15,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
+  primaryButton: {
     flexDirection: "row",
-    gap: 8,
-    shadowColor: "#2b6cb0",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 3,
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 13,
+    backgroundColor: "#2563eb",
+    borderRadius: 11,
   },
-  bookButtonText: {
+  primaryButtonText: {
     color: "#ffffff",
-    fontSize: 15,
-    fontWeight: "900",
+    fontWeight: "800",
   },
-  emptyCard: {
+  filterCard: {
+    gap: 11,
+    marginBottom: 19,
+    padding: 14,
     backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 24,
     borderWidth: 1,
-    borderColor: "#e2e8f0",
+    borderColor: "#dbeafe",
+    borderRadius: 15,
+  },
+  searchBox: {
+    minHeight: 45,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 9,
+    paddingHorizontal: 12,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 11,
   },
-  emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 22,
-    backgroundColor: "#e3f2fd",
+  searchInput: {
+    flex: 1,
+    color: "#0f172a",
+  },
+  filterLabel: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  filterRow: {
+    gap: 7,
+  },
+  filterChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#f1f5f9",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 999,
+  },
+  filterChipSelected: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  filterChipText: {
+    color: "#475569",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  filterChipTextSelected: {
+    color: "#ffffff",
+  },
+  sectionHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
+    gap: 8,
+    marginTop: 5,
+    marginBottom: 10,
   },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 8,
-    textAlign: "center",
+  sectionTitle: {
+    color: "#0f172a",
+    fontSize: 19,
+    fontWeight: "800",
   },
-  emptyText: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
+  sectionCount: {
+    minWidth: 24,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    color: "#1d4ed8",
+    backgroundColor: "#dbeafe",
+    borderRadius: 999,
     textAlign: "center",
+    fontSize: 12,
+    fontWeight: "800",
   },
   appointmentCard: {
+    gap: 13,
+    marginBottom: 13,
+    padding: 15,
     backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    marginBottom: 14,
+    borderRadius: 16,
   },
   cardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 10,
+    gap: 10,
   },
-  cardTitleBlock: {
+  cardHeaderText: {
     flex: 1,
   },
   appointmentType: {
-    fontSize: 19,
-    fontWeight: "900",
-    color: "#1a202c",
-    lineHeight: 24,
-    marginBottom: 7,
-  },
-  dateRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-  },
-  dateInlineText: {
-    fontSize: 13,
-    color: "#718096",
+    color: "#0f172a",
+    fontSize: 17,
     fontWeight: "800",
   },
-  statusBadge: {
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+  appointmentId: {
+    marginTop: 3,
+    color: "#94a3b8",
+    fontSize: 11,
+  },
+  badge: {
+    paddingVertical: 5,
+    paddingHorizontal: 9,
     borderRadius: 999,
-    minWidth: 84,
-    alignItems: "center",
-    justifyContent: "center",
   },
-  statusText: {
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  defaultBadge: {
-    backgroundColor: "#e3f2fd",
-  },
-  defaultStatusText: {
-    color: "#2b6cb0",
+  badgeText: {
+    fontSize: 11,
+    fontWeight: "800",
   },
   pendingBadge: {
     backgroundColor: "#fef3c7",
   },
-  pendingText: {
+  pendingBadgeText: {
     color: "#92400e",
   },
   scheduledBadge: {
-    backgroundColor: "#e3f2fd",
+    backgroundColor: "#dbeafe",
   },
-  scheduledText: {
-    color: "#2b6cb0",
-  },
-  cancelledBadge: {
-    backgroundColor: "#fed7d7",
-  },
-  cancelledText: {
-    color: "#c53030",
+  scheduledBadgeText: {
+    color: "#1d4ed8",
   },
   completedBadge: {
-    backgroundColor: "#c6f6d5",
+    backgroundColor: "#dcfce7",
   },
-  completedText: {
-    color: "#2f855a",
+  completedBadgeText: {
+    color: "#15803d",
   },
-  timePill: {
+  cancelledBadge: {
+    backgroundColor: "#fee2e2",
+  },
+  cancelledBadgeText: {
+    color: "#b91c1c",
+  },
+  rescheduleBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "#edf2f7",
+    paddingVertical: 5,
+    paddingHorizontal: 9,
+    backgroundColor: "#ede9fe",
     borderRadius: 999,
-    paddingHorizontal: 11,
-    paddingVertical: 7,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 13,
   },
-  timePillText: {
-    color: "#2b6cb0",
-    fontSize: 13,
-    fontWeight: "900",
+  rescheduleBadgeText: {
+    color: "#6d28d9",
+    fontSize: 11,
+    fontWeight: "800",
   },
-  infoList: {
-    gap: 7,
-  },
-  infoRow: {
+  detailRow: {
     flexDirection: "row",
     alignItems: "flex-start",
-    gap: 7,
+    gap: 10,
   },
-  detailText: {
+  detailTextBlock: {
     flex: 1,
-    fontSize: 14,
-    color: "#4a5568",
-    lineHeight: 20,
-    fontWeight: "600",
+  },
+  detailLabel: {
+    color: "#64748b",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  detailValue: {
+    marginTop: 2,
+    color: "#334155",
+    fontSize: 13,
+    lineHeight: 19,
   },
   notesBox: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 14,
     padding: 11,
-    marginTop: 3,
+    backgroundColor: "#f8fafc",
+    borderRadius: 10,
+  },
+  notesLabel: {
+    color: "#475569",
+    fontSize: 11,
+    fontWeight: "800",
   },
   notesText: {
-    fontSize: 13,
-    color: "#718096",
-    lineHeight: 19,
-    fontWeight: "600",
+    marginTop: 4,
+    color: "#475569",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  requestBox: {
+    padding: 11,
+    backgroundColor: "#f5f3ff",
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+    borderRadius: 10,
+  },
+  requestTitle: {
+    color: "#6d28d9",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  requestText: {
+    marginTop: 4,
+    color: "#5b21b6",
+    fontSize: 12,
+  },
+  cancelledInfoBox: {
+    padding: 11,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 10,
+  },
+  cancelledInfoTitle: {
+    color: "#991b1b",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  cancelledInfoText: {
+    marginTop: 4,
+    color: "#991b1b",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  cancelledByText: {
+    marginTop: 4,
+    color: "#b91c1c",
+    fontSize: 11,
   },
   cardActions: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 15,
+    gap: 9,
+    paddingTop: 3,
   },
-  cancelActionButton: {
+  secondaryButton: {
     flex: 1,
+    minHeight: 43,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#eff6ff",
     borderWidth: 1,
-    borderColor: "#e53e3e",
+    borderColor: "#bfdbfe",
+    borderRadius: 10,
+  },
+  secondaryButtonText: {
+    color: "#1d4ed8",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  dangerButton: {
+    flex: 1,
+    minHeight: 43,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 10,
+  },
+  dangerButtonText: {
+    color: "#b91c1c",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  disabledButton: {
+    opacity: 0.5,
+  },
+  emptyState: {
+    alignItems: "center",
+    gap: 7,
+    marginBottom: 18,
+    padding: 22,
     backgroundColor: "#ffffff",
-    paddingVertical: 11,
-    borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
-  },
-  cancelActionText: {
-    color: "#e53e3e",
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  rescheduleActionButton: {
-    flex: 1,
     borderWidth: 1,
-    borderColor: "#2b6cb0",
-    backgroundColor: "#f7fbff",
-    paddingVertical: 11,
+    borderColor: "#e2e8f0",
     borderRadius: 15,
-    alignItems: "center",
-    justifyContent: "center",
-    flexDirection: "row",
-    gap: 6,
   },
-  rescheduleActionText: {
-    color: "#2b6cb0",
-    fontSize: 13,
-    fontWeight: "900",
+  emptyTitle: {
+    color: "#334155",
+    fontWeight: "800",
   },
-  cancelInfoBox: {
-    backgroundColor: "#fff5f5",
-    borderRadius: 15,
-    padding: 12,
-    marginTop: 12,
-  },
-  cancelInfoTitle: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#c53030",
-    marginBottom: 4,
-  },
-  cancelInfoText: {
-    fontSize: 13,
-    color: "#742a2a",
+  emptyText: {
+    color: "#64748b",
+    fontSize: 12,
     lineHeight: 18,
-  },
-  rescheduleInfoBox: {
-    backgroundColor: "#ebf8ff",
-    borderRadius: 15,
-    padding: 12,
-    marginTop: 12,
-  },
-  rescheduleInfoTitle: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#2b6cb0",
-    marginBottom: 4,
-  },
-  rescheduleInfoText: {
-    fontSize: 13,
-    color: "#2c5282",
-    lineHeight: 18,
-  },
-  modalKeyboardView: {
-    flex: 1,
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
     justifyContent: "center",
-    padding: 20,
+    padding: 18,
+    backgroundColor: "rgba(15, 23, 42, 0.58)",
   },
   modalCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
+    maxHeight: "90%",
     padding: 20,
-    maxHeight: "88%",
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+  },
+  rescheduleModalCard: {
+    paddingBottom: 16,
+  },
+  modalTopRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  modalTopText: {
+    flex: 1,
+  },
+  closeButton: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 18,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 6,
+    color: "#0f172a",
+    fontSize: 21,
+    fontWeight: "800",
   },
   modalSubtitle: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
-    marginBottom: 14,
-  },
-  modalAppointmentBox: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 14,
-  },
-  modalAppointmentText: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 4,
-  },
-  modalAppointmentDate: {
+    marginTop: 6,
+    color: "#64748b",
     fontSize: 13,
-    color: "#718096",
-    fontWeight: "700",
+    lineHeight: 19,
+  },
+  modalSummary: {
+    marginTop: 14,
+    padding: 12,
+    backgroundColor: "#f8fafc",
+    borderRadius: 11,
+  },
+  modalSummaryTitle: {
+    color: "#334155",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  modalSummaryText: {
+    marginTop: 4,
+    color: "#64748b",
+    fontSize: 12,
+  },
+  inputLabel: {
+    marginTop: 16,
+    marginBottom: 7,
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "800",
   },
   reasonInput: {
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    minHeight: 90,
-    maxHeight: 130,
-    textAlignVertical: "top",
-    fontSize: 14,
-    color: "#1a202c",
-    marginBottom: 16,
-  },
-  pickerRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
-  pickerCard: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    padding: 13,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-  },
-  pickerLabel: {
-    fontSize: 12,
-    color: "#718096",
-    fontWeight: "900",
-    marginBottom: 5,
-  },
-  pickerValue: {
-    fontSize: 13,
-    color: "#1a202c",
-    fontWeight: "900",
-    marginBottom: 10,
-  },
-  pickerButton: {
-    backgroundColor: "#edf2f7",
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: "center",
-  },
-  pickerButtonText: {
-    color: "#2b6cb0",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  donePickerButton: {
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 11,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  donePickerButtonText: {
-    color: "#ffffff",
-    fontWeight: "900",
-  },
-  previewCard: {
+    minHeight: 105,
+    padding: 12,
+    color: "#0f172a",
     backgroundColor: "#f8fafc",
-    borderRadius: 16,
-    padding: 14,
     borderWidth: 1,
-    borderColor: "#bee3f8",
-    marginBottom: 14,
-  },
-  previewTitle: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#2b6cb0",
-    marginBottom: 4,
-  },
-  previewText: {
-    fontSize: 14,
-    color: "#1a202c",
-    fontWeight: "800",
+    borderColor: "#cbd5e1",
+    borderRadius: 11,
   },
   modalActions: {
     flexDirection: "row",
-    gap: 10,
+    gap: 9,
+    marginTop: 17,
   },
   modalSecondaryButton: {
     flex: 1,
-    backgroundColor: "#edf2f7",
-    paddingVertical: 13,
-    borderRadius: 14,
+    minHeight: 46,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 11,
   },
-  modalSecondaryText: {
-    color: "#2b6cb0",
-    fontWeight: "900",
-    fontSize: 13,
+  modalSecondaryButtonText: {
+    color: "#475569",
+    fontWeight: "800",
   },
   modalDangerButton: {
     flex: 1,
-    backgroundColor: "#e53e3e",
-    paddingVertical: 13,
-    borderRadius: 14,
+    minHeight: 46,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#dc2626",
+    borderRadius: 11,
   },
-  modalDangerText: {
+  modalDangerButtonText: {
     color: "#ffffff",
-    fontWeight: "900",
-    fontSize: 13,
+    fontWeight: "800",
   },
   modalPrimaryButton: {
     flex: 1,
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 13,
-    borderRadius: 14,
+    minHeight: 46,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2563eb",
+    borderRadius: 11,
   },
-  modalPrimaryText: {
+  modalPrimaryButtonText: {
     color: "#ffffff",
-    fontWeight: "900",
-    fontSize: 13,
+    fontWeight: "800",
   },
-  disabledButton: {
-    opacity: 0.7,
+  rescheduleScroll: {
+    maxHeight: 430,
+    marginTop: 4,
+  },
+  rescheduleContent: {
+    paddingBottom: 8,
+  },
+  optionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  optionButton: {
+    minWidth: 94,
+    paddingVertical: 10,
+    paddingHorizontal: 11,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    borderRadius: 10,
+  },
+  optionButtonSelected: {
+    backgroundColor: "#2563eb",
+    borderColor: "#2563eb",
+  },
+  optionButtonText: {
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  optionButtonTextSelected: {
+    color: "#ffffff",
+  },
+  timeLabel: {
+    marginTop: 20,
   },
 });

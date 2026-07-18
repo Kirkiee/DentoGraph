@@ -46,6 +46,8 @@ const BRACE_STYLE_OPTIONS = [
 
 function PatientARBracesSimulation() {
   const navigate = useNavigate();
+  const isMobileEmbed =
+    new URLSearchParams(window.location.search).get("embed") === "mobile";
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -242,8 +244,7 @@ function PatientARBracesSimulation() {
       console.error("Face tracker initialization error:", err);
 
       setError(
-        `Unable to load AR face tracking: ${
-          err?.message || "Unknown MediaPipe loading error"
+        `Unable to load AR face tracking: ${err?.message || "Unknown MediaPipe loading error"
         }. Please refresh and try again.`,
       );
 
@@ -296,7 +297,7 @@ function PatientARBracesSimulation() {
     } catch (err) {
       setError(
         err.response?.data?.error ||
-          "Unable to load AR previews for this record.",
+        "Unable to load AR previews for this record.",
       );
     } finally {
       setLoadingPreviews(false);
@@ -1156,7 +1157,7 @@ function PatientARBracesSimulation() {
   };
 
   return (
-    <DashboardLayout role="Patient">
+    <DashboardLayout role="Patient" embedded={isMobileEmbed}>
       <div className="appointments-layout">
         <div className="appointment-form-card">
           <h2>AR Braces Simulation</h2>

@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
   Image,
   Modal,
+  Platform,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -12,134 +14,316 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { WebView } from "react-native-webview";
 
+import { WEB_APP_ORIGIN } from "../config/api";
 import {
   buildARSimulationImageUrl,
+  deleteARPreview,
   getMyARPreviews,
 } from "../services/arSimulationService";
 
-export default function PatientARBracesScreen({ token }) {
-  const [simulations, setSimulations] = useState([]);
+const formatDateTime = (value) => {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toLocaleString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+const getStyleLabel = (value) => {
+  switch (String(value || "metal").toLowerCase()) {
+    case "ceramic":
+      return "Ceramic Braces";
+    case "blue":
+      return "Blue Braces";
+    case "pink":
+      return "Pink Braces";
+    case "green":
+      return "Green Braces";
+    case "purple":
+      return "Purple Braces";
+    default:
+      return "Metal Braces";
+  }
+};
+
+const getStatusStyle = (status) => {
+  const normalized = String(status || "Pending Review").toLowerCase();
+
+  if (normalized.includes("approved")) {
+    return {
+      container: styles.approvedBadge,
+      text: styles.approvedBadgeText,
+    };
+  }
+
+  if (normalized.includes("reject")) {
+    return {
+      container: styles.rejectedBadge,
+      text: styles.rejectedBadgeText,
+    };
+  }
+
+  return {
+    container: styles.pendingBadge,
+    text: styles.pendingBadgeText,
+  };
+};
+
+const buildInjectedSessionScript = ({ token, user }) => {
+  const safeToken = JSON.stringify(String(token || ""));
+  const safeUser = JSON.stringify(JSON.stringify(user || {}));
+
+  return `
+    (function () {
+      try {
+        localStorage.setItem("token", ${safeToken});
+        localStorage.setItem("user", ${safeUser});
+        localStorage.setItem("rememberMe", "true");
+        window.dispatchEvent(new Event("storage"));
+      } catch (error) {
+        window.ReactNativeWebView.postMessage(
+          JSON.stringify({
+            type: "SESSION_ERROR",
+            message: error && error.message
+              ? error.message
+              : "Unable to prepare the Patient session."
+          })
+        );
+      }
+    })();
+    true;
+  `;
+};
+
+const PreviewCard = ({ preview, onOpen, onDelete, deleting }) => {
+  const badge = getStatusStyle(preview.review_status);
+
+  return (
+    <View style={styles.previewCard}>
+      <Pressable onPress={() => onOpen(preview)}>
+        <Image
+          source={{ uri: buildARSimulationImageUrl(preview.image_path) }}
+          style={styles.previewImage}
+          resizeMode="cover"
+        />
+      </Pressable>
+
+      <View style={styles.previewContent}>
+        <View style={styles.previewHeader}>
+          <View style={styles.previewHeaderText}>
+            <Text style={styles.previewTitle}>
+              {getStyleLabel(preview.brace_style)}
+            </Text>
+            <Text style={styles.previewDate}>
+              {formatDateTime(preview.created_at)}
+            </Text>
+          </View>
+
+          <View style={[styles.statusBadge, badge.container]}>
+            <Text style={[styles.statusBadgeText, badge.text]}>
+              {preview.review_status || "Pending Review"}
+            </Text>
+          </View>
+        </View>
+
+        <Text style={styles.previewMeta}>
+          Dental Record #{preview.record_id || "Not linked"}
+        </Text>
+
+        {preview.notes ? (
+          <Text style={styles.previewNotes}>{preview.notes}</Text>
+        ) : null}
+
+        <View style={styles.previewActions}>
+          <Pressable
+            style={styles.viewButton}
+            onPress={() => onOpen(preview)}
+          >
+            <Ionicons name="expand-outline" size={17} color="#1d4ed8" />
+            <Text style={styles.viewButtonText}>View Preview</Text>
+          </Pressable>
+
+          <Pressable
+            style={styles.deleteButton}
+            onPress={() => onDelete(preview)}
+            disabled={deleting}
+          >
+            {deleting ? (
+              <ActivityIndicator color="#b91c1c" />
+            ) : (
+              <>
+                <Ionicons name="trash-outline" size={17} color="#b91c1c" />
+                <Text style={styles.deleteButtonText}>Delete</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
+      </View>
+    </View>
+  );
+};
+
+export default function PatientARBracesScreen({
+  token,
+  user,
+}) {
+  const webViewRef = useRef(null);
+
+  const [previews, setPreviews] = useState([]);
+  const [selectedPreview, setSelectedPreview] = useState(null);
+  const [previewVisible, setPreviewVisible] = useState(false);
+  const [simulatorVisible, setSimulatorVisible] = useState(false);
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [simulatorLoading, setSimulatorLoading] = useState(false);
+  const [simulatorError, setSimulatorError] = useState("");
+  const [webCanGoBack, setWebCanGoBack] = useState(false);
 
-  const [selectedSimulation, setSelectedSimulation] = useState(null);
-  const [previewModalVisible, setPreviewModalVisible] = useState(false);
+  const simulatorUrl = `${WEB_APP_ORIGIN}/patient/ar-braces?embed=mobile`;
+
+  const injectedSessionScript = useMemo(
+    () => buildInjectedSessionScript({ token, user }),
+    [token, user],
+  );
 
   useEffect(() => {
-    loadARPreviews();
+    loadPreviews();
   }, []);
 
-  const normalizeSimulations = (data) => {
-    if (Array.isArray(data)) return data;
-    if (Array.isArray(data.simulations)) return data.simulations;
-    if (Array.isArray(data.previews)) return data.previews;
-    if (Array.isArray(data.data)) return data.data;
-    return [];
-  };
+  useEffect(() => {
+    if (Platform.OS !== "android" || !simulatorVisible) {
+      return undefined;
+    }
 
-  const loadARPreviews = async () => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (webCanGoBack && webViewRef.current) {
+          webViewRef.current.goBack();
+          return true;
+        }
+
+        setSimulatorVisible(false);
+        return true;
+      },
+    );
+
+    return () => subscription.remove();
+  }, [simulatorVisible, webCanGoBack]);
+
+  const loadPreviews = async ({ refresh = false } = {}) => {
     try {
-      setLoading(true);
-      const data = await getMyARPreviews(token);
-      setSimulations(normalizeSimulations(data));
+      refresh ? setRefreshing(true) : setLoading(true);
+
+      const response = await getMyARPreviews(token);
+      setPreviews(
+        Array.isArray(response.simulations)
+          ? response.simulations
+          : Array.isArray(response.previews)
+            ? response.previews
+            : [],
+      );
     } catch (error) {
       Alert.alert(
         "AR Braces Error",
-        error.message || "Unable to load AR braces previews."
+        error.message || "Unable to load saved AR braces previews.",
       );
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-      const data = await getMyARPreviews(token);
-      setSimulations(normalizeSimulations(data));
-    } catch (error) {
-      Alert.alert(
-        "AR Braces Error",
-        error.message || "Unable to refresh AR braces previews."
-      );
-    } finally {
       setRefreshing(false);
     }
   };
 
-  const openPreviewModal = (simulation) => {
-    setSelectedSimulation(simulation);
-    setPreviewModalVisible(true);
+  const openPreview = (preview) => {
+    setSelectedPreview(preview);
+    setPreviewVisible(true);
   };
 
-  const closePreviewModal = () => {
-    setPreviewModalVisible(false);
-    setSelectedSimulation(null);
+  const confirmDelete = (preview) => {
+    Alert.alert(
+      "Delete AR Preview",
+      "Delete this saved braces simulation preview?",
+      [
+        { text: "Keep Preview", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setDeletingId(preview.simulation_id);
+
+              const response = await deleteARPreview({
+                token,
+                simulationId: preview.simulation_id,
+              });
+
+              Alert.alert(
+                "Preview Deleted",
+                response.message || "The AR braces preview was deleted.",
+              );
+
+              await loadPreviews();
+            } catch (error) {
+              Alert.alert(
+                "Delete Failed",
+                error.message || "Unable to delete the AR braces preview.",
+              );
+            } finally {
+              setDeletingId(null);
+            }
+          },
+        },
+      ],
+    );
   };
 
-  const formatDateTime = (value) => {
-    if (!value) return "No date available";
+  const openSimulator = () => {
+    setSimulatorError("");
+    setSimulatorLoading(true);
+    setSimulatorVisible(true);
+  };
 
-    const date = new Date(value);
+  const closeSimulator = () => {
+    setSimulatorVisible(false);
+    setSimulatorError("");
+    setWebCanGoBack(false);
+    loadPreviews({ refresh: true });
+  };
 
-    if (Number.isNaN(date.getTime())) {
-      return String(value);
+  const handleWebMessage = (event) => {
+    try {
+      const payload = JSON.parse(event.nativeEvent.data);
+
+      if (payload.type === "SESSION_ERROR") {
+        setSimulatorError(payload.message);
+      }
+    } catch (error) {
+      // Ignore non-JSON messages.
     }
-
-    return `${date.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })} ${date.toLocaleTimeString(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-    })}`;
   };
-
-  const formatBraceStyle = (style) => {
-    const value = String(style || "metal").toLowerCase();
-
-    if (value === "metal") return "Metal Braces";
-    if (value === "ceramic") return "Ceramic Braces";
-    if (value === "blue") return "Blue Braces";
-    if (value === "pink") return "Pink Braces";
-    if (value === "green") return "Green Braces";
-    if (value === "purple") return "Purple Braces";
-    if (value === "colored") return "Colored Braces";
-
-    return "Metal Braces";
-  };
-
-  const getStatusBadgeStyle = (status) => {
-    const normalized = String(status || "").toLowerCase();
-
-    if (normalized.includes("approved")) return styles.approvedBadge;
-    if (normalized.includes("reject")) return styles.rejectedBadge;
-    if (normalized.includes("review")) return styles.pendingBadge;
-
-    return styles.pendingBadge;
-  };
-
-  const getStatusTextStyle = (status) => {
-    const normalized = String(status || "").toLowerCase();
-
-    if (normalized.includes("approved")) return styles.approvedText;
-    if (normalized.includes("reject")) return styles.rejectedText;
-    if (normalized.includes("review")) return styles.pendingText;
-
-    return styles.pendingText;
-  };
-
-  const selectedImageUrl = selectedSimulation
-    ? buildARSimulationImageUrl(selectedSimulation.image_path)
-    : null;
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
-        <Text style={styles.loadingText}>Loading AR braces previews...</Text>
+      <View style={styles.centerState}>
+        <ActivityIndicator size="large" color="#2563eb" />
+        <Text style={styles.centerStateText}>
+          Loading AR braces previews...
+        </Text>
       </View>
     );
   }
@@ -150,633 +334,461 @@ export default function PatientARBracesScreen({ token }) {
         style={styles.container}
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => loadPreviews({ refresh: true })}
+          />
         }
       >
         <View style={styles.header}>
-          <View style={styles.headerTopRow}>
-            <View style={styles.headerIconCircle}>
-              <Ionicons name="happy-outline" size={27} color="#2b6cb0" />
-            </View>
-
-            <View style={styles.headerTextBlock}>
-              <Text style={styles.title}>AR Braces</Text>
-              <Text style={styles.subtitle}>
-                View your saved braces simulation previews.
-              </Text>
-            </View>
-          </View>
+          <Text style={styles.title}>AR Braces Simulation</Text>
+          <Text style={styles.subtitle}>
+            Preview braces styles using the camera and review saved simulations.
+          </Text>
         </View>
 
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryIconCircle}>
-            <Ionicons name="sparkles-outline" size={22} color="#2b6cb0" />
+        <View style={styles.noticeCard}>
+          <Ionicons name="information-circle-outline" size={21} color="#1d4ed8" />
+          <Text style={styles.noticeText}>
+            Simulations are visual previews only and are not a diagnosis,
+            treatment plan, or guarantee of orthodontic results.
+          </Text>
+        </View>
+
+        <Pressable style={styles.launchButton} onPress={openSimulator}>
+          <View style={styles.launchIcon}>
+            <Ionicons name="camera-outline" size={26} color="#ffffff" />
           </View>
 
-          <View style={styles.summaryTextBlock}>
-            <Text style={styles.summaryTitle}>Saved Preview Gallery</Text>
-            <Text style={styles.summaryText}>
-              {simulations.length} preview
-              {simulations.length === 1 ? "" : "s"} available
+          <View style={styles.launchText}>
+            <Text style={styles.launchTitle}>Open Live AR Simulator</Text>
+            <Text style={styles.launchSubtitle}>
+              Try Metal, Ceramic, and colored braces using live face tracking.
             </Text>
           </View>
+
+          <Ionicons name="chevron-forward" size={22} color="#ffffff" />
+        </Pressable>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Saved Previews</Text>
+          <Text style={styles.countBadge}>{previews.length}</Text>
         </View>
 
-        {simulations.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <View style={styles.emptyIconCircle}>
-              <Ionicons name="images-outline" size={30} color="#2b6cb0" />
-            </View>
-
-            <Text style={styles.emptyTitle}>No AR previews found</Text>
+        {previews.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="happy-outline" size={42} color="#94a3b8" />
+            <Text style={styles.emptyTitle}>No saved previews</Text>
             <Text style={styles.emptyText}>
-              Your saved braces simulation previews will appear here after one
-              is created from DentoGraph.
+              Open the live simulator, select a braces style, and save a
+              preview under one of your dental records.
             </Text>
           </View>
         ) : (
-          simulations.map((simulation, index) => {
-            const imageUrl = buildARSimulationImageUrl(simulation.image_path);
-
-            return (
-              <View
-                key={simulation.simulation_id || index}
-                style={styles.previewCard}
-              >
-                <View style={styles.previewImageBox}>
-                  {imageUrl ? (
-                    <Image
-                      source={{ uri: imageUrl }}
-                      style={styles.previewImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.noImageBox}>
-                      <Ionicons name="image-outline" size={38} color="#2b6cb0" />
-                      <Text style={styles.noImageText}>
-                        No preview available
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <View style={styles.previewTopRow}>
-                  <View style={styles.previewTitleBlock}>
-                    <Text style={styles.previewTitle}>
-                      Preview #{simulation.simulation_id}
-                    </Text>
-
-                    <Text style={styles.previewSubtitle}>
-                      {formatBraceStyle(simulation.brace_style)}
-                    </Text>
-                  </View>
-
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      getStatusBadgeStyle(simulation.review_status),
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.statusText,
-                        getStatusTextStyle(simulation.review_status),
-                      ]}
-                      numberOfLines={1}
-                    >
-                      {simulation.review_status || "Pending Review"}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.infoList}>
-                  <InfoRow
-                    icon="document-text-outline"
-                    label="Record"
-                    value={`#${simulation.record_id || "N/A"}`}
-                  />
-
-                  <InfoRow
-                    icon="color-palette-outline"
-                    label="Style"
-                    value={formatBraceStyle(simulation.brace_style)}
-                  />
-
-                  {simulation.dentist_name ? (
-                    <InfoRow
-                      icon="person-outline"
-                      label="Dentist"
-                      value={simulation.dentist_name}
-                    />
-                  ) : null}
-
-                  {simulation.clinic_name ? (
-                    <InfoRow
-                      icon="business-outline"
-                      label="Clinic"
-                      value={simulation.clinic_name}
-                    />
-                  ) : null}
-
-                  <InfoRow
-                    icon="time-outline"
-                    label="Created"
-                    value={formatDateTime(simulation.created_at)}
-                  />
-                </View>
-
-                {simulation.notes ? (
-                  <View style={styles.notesBox}>
-                    <Text style={styles.notesText}>{simulation.notes}</Text>
-                  </View>
-                ) : null}
-
-                <Pressable
-                  style={styles.viewButton}
-                  onPress={() => openPreviewModal(simulation)}
-                >
-                  <Text style={styles.viewButtonText}>Open Preview</Text>
-                  <Ionicons name="chevron-forward" size={18} color="#ffffff" />
-                </Pressable>
-              </View>
-            );
-          })
+          previews.map((preview) => (
+            <PreviewCard
+              key={preview.simulation_id}
+              preview={preview}
+              onOpen={openPreview}
+              onDelete={confirmDelete}
+              deleting={deletingId === preview.simulation_id}
+            />
+          ))
         )}
       </ScrollView>
 
       <Modal
-        visible={previewModalVisible}
+        visible={previewVisible}
         transparent
         animationType="fade"
-        onRequestClose={closePreviewModal}
+        onRequestClose={() => setPreviewVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView
-              style={styles.modalScroll}
-              contentContainerStyle={styles.modalScrollContent}
+        <View style={styles.previewModalOverlay}>
+          <View style={styles.previewModalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderText}>
+                <Text style={styles.modalTitle}>
+                  {getStyleLabel(selectedPreview?.brace_style)}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  {formatDateTime(selectedPreview?.created_at)}
+                </Text>
+              </View>
+
+              <Pressable
+                style={styles.closeButton}
+                onPress={() => setPreviewVisible(false)}
+              >
+                <Ionicons name="close" size={22} color="#475569" />
+              </Pressable>
+            </View>
+
+            {selectedPreview ? (
+              <Image
+                source={{
+                  uri: buildARSimulationImageUrl(selectedPreview.image_path),
+                }}
+                style={styles.fullPreviewImage}
+                resizeMode="contain"
+              />
+            ) : null}
+
+            {selectedPreview?.notes ? (
+              <Text style={styles.modalNotes}>{selectedPreview.notes}</Text>
+            ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={simulatorVisible}
+        animationType="slide"
+        onRequestClose={closeSimulator}
+      >
+        <View style={styles.simulatorContainer}>
+          <View style={styles.simulatorHeader}>
+            <Pressable style={styles.simulatorBack} onPress={closeSimulator}>
+              <Ionicons name="arrow-back" size={21} color="#1d4ed8" />
+            </Pressable>
+
+            <View style={styles.simulatorHeaderText}>
+              <Text style={styles.simulatorTitle}>Live AR Braces</Text>
+              <Text style={styles.simulatorSubtitle}>
+                Return here after saving your preview.
+              </Text>
+            </View>
+
+            <Pressable
+              style={styles.simulatorRefresh}
+              onPress={() => webViewRef.current?.reload()}
             >
-              <View style={styles.modalHeader}>
-                <View style={styles.modalIconCircle}>
-                  <Ionicons name="happy-outline" size={24} color="#2b6cb0" />
-                </View>
-
-                <View style={styles.modalHeaderTextBlock}>
-                  <Text style={styles.modalTitle}>
-                    Preview #{selectedSimulation?.simulation_id}
-                  </Text>
-                  <Text style={styles.modalSubtitle}>
-                    Saved AR braces simulation
-                  </Text>
-                </View>
-              </View>
-
-              {selectedImageUrl ? (
-                <Image
-                  source={{ uri: selectedImageUrl }}
-                  style={styles.modalImage}
-                  resizeMode="contain"
-                />
-              ) : (
-                <View style={styles.modalNoImageBox}>
-                  <Ionicons name="image-outline" size={42} color="#2b6cb0" />
-                  <Text style={styles.noImageText}>No preview available</Text>
-                </View>
-              )}
-
-              <View style={styles.modalInfoCard}>
-                <DetailRow
-                  label="Style"
-                  value={formatBraceStyle(selectedSimulation?.brace_style)}
-                />
-
-                <DetailRow
-                  label="Status"
-                  value={selectedSimulation?.review_status || "Pending Review"}
-                />
-
-                <DetailRow
-                  label="Record"
-                  value={`#${selectedSimulation?.record_id || "N/A"}`}
-                />
-
-                {selectedSimulation?.dentist_name ? (
-                  <DetailRow
-                    label="Dentist"
-                    value={selectedSimulation.dentist_name}
-                  />
-                ) : null}
-
-                {selectedSimulation?.clinic_name ? (
-                  <DetailRow
-                    label="Clinic"
-                    value={selectedSimulation.clinic_name}
-                  />
-                ) : null}
-
-                <DetailRow
-                  label="Created"
-                  value={formatDateTime(selectedSimulation?.created_at)}
-                />
-
-                {selectedSimulation?.notes ? (
-                  <View style={styles.modalNotesBox}>
-                    <Text style={styles.modalNotesLabel}>Notes</Text>
-                    <Text style={styles.modalNotes}>
-                      {selectedSimulation.notes}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </ScrollView>
-
-            <Pressable style={styles.closeButton} onPress={closePreviewModal}>
-              <Text style={styles.closeButtonText}>Close</Text>
+              <Ionicons name="refresh" size={20} color="#1d4ed8" />
             </Pressable>
           </View>
+
+          {simulatorError ? (
+            <View style={styles.simulatorErrorCard}>
+              <Ionicons name="warning-outline" size={28} color="#b91c1c" />
+              <Text style={styles.simulatorErrorTitle}>
+                Unable to open AR simulator
+              </Text>
+              <Text style={styles.simulatorErrorText}>{simulatorError}</Text>
+              <Pressable style={styles.retryButton} onPress={openSimulator}>
+                <Text style={styles.retryButtonText}>Try Again</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.webViewContainer}>
+              <WebView
+                ref={webViewRef}
+                source={{ uri: simulatorUrl }}
+                style={styles.webView}
+                originWhitelist={["https://*"]}
+                javaScriptEnabled
+                domStorageEnabled
+                mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                injectedJavaScriptBeforeContentLoaded={injectedSessionScript}
+                onMessage={handleWebMessage}
+                onNavigationStateChange={(state) =>
+                  setWebCanGoBack(Boolean(state.canGoBack))
+                }
+                onLoadStart={() => {
+                  setSimulatorLoading(true);
+                  setSimulatorError("");
+                }}
+                onLoadEnd={() => setSimulatorLoading(false)}
+                onHttpError={({ nativeEvent }) => {
+                  setSimulatorError(
+                    `The AR simulator returned HTTP ${nativeEvent.statusCode}.`,
+                  );
+                  setSimulatorLoading(false);
+                }}
+                onError={({ nativeEvent }) => {
+                  setSimulatorError(
+                    nativeEvent.description ||
+                      "Unable to connect to the AR braces simulator.",
+                  );
+                  setSimulatorLoading(false);
+                }}
+                setSupportMultipleWindows={false}
+              />
+
+              {simulatorLoading ? (
+                <View style={styles.webLoadingOverlay}>
+                  <ActivityIndicator size="large" color="#2563eb" />
+                  <Text style={styles.webLoadingText}>
+                    Loading AR braces simulator...
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          )}
         </View>
       </Modal>
     </>
   );
 }
 
-function InfoRow({ icon, label, value }) {
-  return (
-    <View style={styles.infoRow}>
-      <Ionicons name={icon} size={16} color="#718096" />
-      <Text style={styles.detailText}>
-        <Text style={styles.detailLabel}>{label}: </Text>
-        {value}
-      </Text>
-    </View>
-  );
-}
-
-function DetailRow({ label, value }) {
-  return (
-    <View style={styles.detailRow}>
-      <Text style={styles.detailRowLabel}>{label}</Text>
-      <Text style={styles.detailRowValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: {
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  content: { padding: 18, paddingBottom: 40 },
+  centerState: {
     flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#f8fafc",
-  },
-  loadingText: {
-    marginTop: 12,
-    color: "#718096",
-    fontSize: 14,
-  },
-  header: {
-    marginTop: 18,
-    marginBottom: 20,
-  },
-  headerTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: "#e3f2fd",
     alignItems: "center",
     justifyContent: "center",
+    gap: 12,
+    backgroundColor: "#f8fafc",
   },
-  headerTextBlock: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 27,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
+  centerStateText: { color: "#64748b" },
+  header: { marginBottom: 14 },
+  title: { color: "#0f172a", fontSize: 27, fontWeight: "800" },
   subtitle: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
-    fontWeight: "600",
+    marginTop: 6,
+    color: "#64748b",
+    fontSize: 13,
+    lineHeight: 19,
   },
-  summaryCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 22,
-    padding: 14,
+  noticeCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 9,
+    marginBottom: 14,
+    padding: 13,
+    backgroundColor: "#eff6ff",
     borderWidth: 1,
-    borderColor: "#bee3f8",
-    marginBottom: 18,
+    borderColor: "#bfdbfe",
+    borderRadius: 13,
+  },
+  noticeText: {
+    flex: 1,
+    color: "#1e40af",
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  launchButton: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: "#2563eb",
+    borderRadius: 16,
   },
-  summaryIconCircle: {
-    width: 42,
-    height: 42,
+  launchIcon: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
     borderRadius: 15,
-    backgroundColor: "#e3f2fd",
+  },
+  launchText: { flex: 1 },
+  launchTitle: { color: "#ffffff", fontSize: 16, fontWeight: "900" },
+  launchSubtitle: {
+    marginTop: 4,
+    color: "#dbeafe",
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  sectionHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 8,
+    marginBottom: 10,
   },
-  summaryTextBlock: {
-    flex: 1,
-  },
-  summaryTitle: {
-    fontSize: 15,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 2,
-  },
-  summaryText: {
-    fontSize: 13,
-    color: "#2b6cb0",
-    fontWeight: "900",
-  },
-  emptyCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    alignItems: "center",
-  },
-  emptyIconCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 22,
-    backgroundColor: "#e3f2fd",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 14,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 8,
+  sectionTitle: { color: "#0f172a", fontSize: 19, fontWeight: "800" },
+  countBadge: {
+    minWidth: 24,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    color: "#1d4ed8",
+    backgroundColor: "#dbeafe",
+    borderRadius: 999,
     textAlign: "center",
-  },
-  emptyText: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
-    textAlign: "center",
+    fontSize: 11,
+    fontWeight: "800",
   },
   previewCard: {
+    marginBottom: 14,
+    overflow: "hidden",
     backgroundColor: "#ffffff",
-    borderRadius: 24,
-    padding: 16,
     borderWidth: 1,
     borderColor: "#e2e8f0",
-    marginBottom: 14,
+    borderRadius: 16,
   },
-  previewImageBox: {
-    height: 220,
-    borderRadius: 20,
-    backgroundColor: "#edf2f7",
-    overflow: "hidden",
-    marginBottom: 15,
-  },
-  previewImage: {
-    width: "100%",
-    height: "100%",
-  },
-  noImageBox: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-  },
-  noImageText: {
-    fontSize: 14,
-    color: "#718096",
-    fontWeight: "800",
-  },
-  previewTopRow: {
+  previewImage: { width: "100%", height: 230, backgroundColor: "#0f172a" },
+  previewContent: { gap: 9, padding: 14 },
+  previewHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "flex-start",
     gap: 10,
-    marginBottom: 12,
   },
-  previewTitleBlock: {
-    flex: 1,
-  },
-  previewTitle: {
-    fontSize: 19,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
-  previewSubtitle: {
-    fontSize: 13,
-    color: "#718096",
-    fontWeight: "800",
-  },
+  previewHeaderText: { flex: 1 },
+  previewTitle: { color: "#0f172a", fontSize: 16, fontWeight: "800" },
+  previewDate: { marginTop: 3, color: "#64748b", fontSize: 10 },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    maxWidth: 120,
+    paddingVertical: 5,
+    paddingHorizontal: 8,
     borderRadius: 999,
-    maxWidth: 125,
   },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "900",
-  },
-  pendingBadge: {
-    backgroundColor: "#fef3c7",
-  },
-  pendingText: {
-    color: "#92400e",
-  },
-  approvedBadge: {
-    backgroundColor: "#c6f6d5",
-  },
-  approvedText: {
-    color: "#2f855a",
-  },
-  rejectedBadge: {
-    backgroundColor: "#fed7d7",
-  },
-  rejectedText: {
-    color: "#c53030",
-  },
-  infoList: {
-    gap: 8,
-    marginBottom: 14,
-  },
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 7,
-  },
-  detailText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#4a5568",
-    lineHeight: 20,
-    fontWeight: "600",
-  },
-  detailLabel: {
-    color: "#2d3748",
-    fontWeight: "900",
-  },
-  notesBox: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 15,
-    padding: 12,
-    marginBottom: 14,
-  },
-  notesText: {
-    fontSize: 13,
-    color: "#718096",
-    lineHeight: 19,
-    fontWeight: "600",
-  },
+  statusBadgeText: { fontSize: 9, fontWeight: "800", textAlign: "center" },
+  approvedBadge: { backgroundColor: "#dcfce7" },
+  approvedBadgeText: { color: "#15803d" },
+  rejectedBadge: { backgroundColor: "#fee2e2" },
+  rejectedBadgeText: { color: "#b91c1c" },
+  pendingBadge: { backgroundColor: "#fef3c7" },
+  pendingBadgeText: { color: "#92400e" },
+  previewMeta: { color: "#64748b", fontSize: 11 },
+  previewNotes: { color: "#475569", fontSize: 12, lineHeight: 18 },
+  previewActions: { flexDirection: "row", gap: 8 },
   viewButton: {
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 13,
-    borderRadius: 16,
+    flex: 1,
+    minHeight: 42,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    flexDirection: "row",
     gap: 6,
+    backgroundColor: "#eff6ff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    borderRadius: 10,
   },
-  viewButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  modalOverlay: {
+  viewButtonText: { color: "#1d4ed8", fontSize: 11, fontWeight: "800" },
+  deleteButton: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.35)",
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "#fef2f2",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 10,
+  },
+  deleteButtonText: { color: "#b91c1c", fontSize: 11, fontWeight: "800" },
+  emptyState: {
+    alignItems: "center",
+    gap: 8,
+    padding: 24,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 15,
+  },
+  emptyTitle: { color: "#334155", fontWeight: "800" },
+  emptyText: {
+    color: "#64748b",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  previewModalOverlay: {
+    flex: 1,
     justifyContent: "center",
     padding: 18,
+    backgroundColor: "rgba(15, 23, 42, 0.72)",
   },
-  modalCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 26,
-    padding: 18,
+  previewModalCard: {
     maxHeight: "90%",
-  },
-  modalScroll: {
-    maxHeight: "92%",
-  },
-  modalScrollContent: {
-    paddingBottom: 18,
+    overflow: "hidden",
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
   },
   modalHeader: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 16,
-  },
-  modalIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 17,
-    backgroundColor: "#e3f2fd",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalHeaderTextBlock: {
-    flex: 1,
-  },
-  modalTitle: {
-    fontSize: 23,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 2,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    color: "#718096",
-    fontWeight: "700",
-  },
-  modalImage: {
-    width: "100%",
-    height: 365,
-    backgroundColor: "#edf2f7",
-    borderRadius: 20,
-    marginBottom: 14,
-  },
-  modalNoImageBox: {
-    height: 280,
-    backgroundColor: "#edf2f7",
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 14,
-    gap: 8,
-  },
-  modalInfoCard: {
-    backgroundColor: "#f8fafc",
-    borderRadius: 18,
+    alignItems: "flex-start",
+    gap: 10,
     padding: 15,
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    marginBottom: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
   },
-  detailRow: {
-    borderTopWidth: 1,
-    borderTopColor: "#edf2f7",
-    paddingTop: 9,
-    marginTop: 9,
-  },
-  detailRowLabel: {
-    fontSize: 12,
-    color: "#718096",
-    fontWeight: "900",
-    marginBottom: 3,
-  },
-  detailRowValue: {
-    fontSize: 14,
-    color: "#2d3748",
-    fontWeight: "700",
-    lineHeight: 19,
-  },
-  modalNotesBox: {
-    borderTopWidth: 1,
-    borderTopColor: "#edf2f7",
-    paddingTop: 10,
-    marginTop: 10,
-  },
-  modalNotesLabel: {
-    fontSize: 12,
-    color: "#718096",
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-  modalNotes: {
-    fontSize: 14,
-    color: "#4a5568",
-    lineHeight: 20,
-    fontWeight: "600",
-  },
+  modalHeaderText: { flex: 1 },
+  modalTitle: { color: "#0f172a", fontSize: 17, fontWeight: "900" },
+  modalSubtitle: { marginTop: 3, color: "#64748b", fontSize: 10 },
   closeButton: {
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 13,
-    borderRadius: 16,
+    width: 38,
+    height: 38,
     alignItems: "center",
-    marginTop: 8,
+    justifyContent: "center",
+    backgroundColor: "#f1f5f9",
+    borderRadius: 19,
   },
-  closeButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
+  fullPreviewImage: { width: "100%", height: 430, backgroundColor: "#0f172a" },
+  modalNotes: {
+    padding: 14,
+    color: "#475569",
+    fontSize: 12,
+    lineHeight: 18,
   },
+  simulatorContainer: { flex: 1, backgroundColor: "#f8fafc" },
+  simulatorHeader: {
+    minHeight: 64,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 14,
+    backgroundColor: "#ffffff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#e2e8f0",
+  },
+  simulatorBack: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 20,
+  },
+  simulatorHeaderText: { flex: 1 },
+  simulatorTitle: { color: "#0f172a", fontSize: 16, fontWeight: "900" },
+  simulatorSubtitle: { marginTop: 2, color: "#64748b", fontSize: 10 },
+  simulatorRefresh: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 20,
+  },
+  webViewContainer: { flex: 1, backgroundColor: "#ffffff" },
+  webView: { flex: 1, backgroundColor: "#ffffff" },
+  webLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    backgroundColor: "rgba(248, 250, 252, 0.94)",
+  },
+  webLoadingText: { color: "#475569", fontWeight: "800" },
+  simulatorErrorCard: {
+    alignItems: "center",
+    gap: 9,
+    margin: 18,
+    padding: 22,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderRadius: 16,
+  },
+  simulatorErrorTitle: { color: "#991b1b", fontSize: 17, fontWeight: "900" },
+  simulatorErrorText: {
+    color: "#b91c1c",
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+  },
+  retryButton: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 6,
+    paddingHorizontal: 18,
+    backgroundColor: "#2563eb",
+    borderRadius: 10,
+  },
+  retryButtonText: { color: "#ffffff", fontWeight: "800" },
 });

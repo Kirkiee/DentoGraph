@@ -200,7 +200,7 @@ const buildAccessibleBrandingVariables = (branding) => {
   };
 };
 
-function DashboardLayout({ title, subtitle, children }) {
+function DashboardLayout({ title, subtitle, children, embedded = false }) {
   document.documentElement.classList.remove("light-mode");
   document.documentElement.classList.add("dark-mode");
   document.body.classList.remove("light-mode");
@@ -327,13 +327,25 @@ function DashboardLayout({ title, subtitle, children }) {
   };
 
   const activeBranding = branding || DEFAULT_BRANDING;
+  const brandingVariables =
+    buildAccessibleBrandingVariables(activeBranding);
+  const portalMode = brandingVariables["--portal-mode"];
+
+  if (embedded) {
+    return (
+      <div
+        className={`dashboard-embedded portal-theme-${portalMode}`}
+        style={brandingVariables}
+      >
+        <section className="dashboard-embedded-content">{children}</section>
+      </div>
+    );
+  }
 
   return (
     <div
-      className={`dashboard-layout portal-theme-${
-        buildAccessibleBrandingVariables(activeBranding)["--portal-mode"]
-      }`}
-      style={buildAccessibleBrandingVariables(activeBranding)}
+      className={`dashboard-layout portal-theme-${portalMode}`}
+      style={brandingVariables}
     >
       <Sidebar
         role={user?.role}

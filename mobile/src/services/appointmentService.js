@@ -1,76 +1,156 @@
-import { API_BASE_URL } from "../config/api";
+import { apiGet, apiPost, apiPut } from "./apiClient";
 
-const parseJsonResponse = async (response, fallbackMessage) => {
-  const text = await response.text();
+const withToken = (token, fallbackMessage) => ({
+  token,
+  fallbackMessage,
+});
 
-  console.log("STATUS:", response.status);
-  console.log("RAW RESPONSE:", text.slice(0, 500));
-
-  let data;
-
-  try {
-    data = JSON.parse(text);
-  } catch (error) {
-    throw new Error("Server returned non-JSON response.");
-  }
-
-  if (!response.ok) {
-    throw new Error(data.message || data.error || fallbackMessage);
-  }
-
-  return data;
-};
-
-export const getPatientAppointments = async (token) => {
-  const response = await fetch(`${API_BASE_URL}/appointments/my-appointments`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-
-  return parseJsonResponse(response, "Failed to load appointments");
-};
-
-export const getActiveClinics = async (token) => {
-  const response = await fetch(`${API_BASE_URL}/appointments/clinics/list`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-
-  return parseJsonResponse(response, "Failed to load clinics");
-};
-
-export const getActiveDentists = async (token) => {
-  const response = await fetch(`${API_BASE_URL}/appointments/dentists/list`, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-    },
-  });
-
-  return parseJsonResponse(response, "Failed to load dentists");
-};
-
-export const getDentistsByClinic = async ({ token, clinic_id }) => {
-  const response = await fetch(
-    `${API_BASE_URL}/appointments/dentists/by-clinic/${clinic_id}`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    }
+export const getPatientAppointments = async (token) =>
+  apiGet(
+    "/appointments/my-appointments",
+    withToken(token, "Failed to load appointments."),
   );
 
-  return parseJsonResponse(response, "Failed to load dentists for clinic");
+export const getBookingServices = async (token) =>
+  apiGet(
+    "/appointments/booking/services",
+    withToken(token, "Failed to load dental services."),
+  );
+
+export const getBookingClinics = async ({ token, service_id }) => {
+  const query = new URLSearchParams({
+    service_id: String(service_id),
+  });
+
+  return apiGet(
+    `/appointments/booking/clinics?${query.toString()}`,
+    withToken(token, "Failed to load clinic availability."),
+  );
 };
+
+export const getBookingDentists = async ({
+  token,
+  clinic_id,
+  service_id,
+}) => {
+  const query = new URLSearchParams({
+    clinic_id: String(clinic_id),
+    service_id: String(service_id),
+  });
+
+  return apiGet(
+    `/appointments/booking/dentists?${query.toString()}`,
+    withToken(token, "Failed to load eligible Dentists."),
+  );
+};
+
+export const getBookingAvailableDates = async ({
+  token,
+  clinic_id,
+  dentist_id,
+  service_id,
+}) => {
+  const query = new URLSearchParams({
+    clinic_id: String(clinic_id),
+    dentist_id: String(dentist_id),
+    service_id: String(service_id),
+  });
+
+  return apiGet(
+    `/appointments/booking/available-dates?${query.toString()}`,
+    withToken(token, "Failed to load available appointment dates."),
+  );
+};
+
+export const getBookingAvailableTimes = async ({
+  token,
+  clinic_id,
+  dentist_id,
+  service_id,
+  appointment_date,
+}) => {
+  const query = new URLSearchParams({
+    clinic_id: String(clinic_id),
+    dentist_id: String(dentist_id),
+    service_id: String(service_id),
+    appointment_date: String(appointment_date),
+  });
+
+  return apiGet(
+    `/appointments/booking/available-times?${query.toString()}`,
+    withToken(token, "Failed to load available appointment times."),
+  );
+};
+
+export const bookStructuredAppointment = async ({
+  token,
+  clinic_id,
+  dentist_id,
+  service_id,
+  appointment_date,
+  appointment_time,
+  appointment_type,
+  notes,
+}) =>
+  apiPost(
+    "/appointments/booking",
+    {
+      clinic_id,
+      dentist_id,
+      service_id,
+      appointment_date,
+      appointment_time,
+      appointment_type,
+      notes,
+    },
+    withToken(token, "Failed to book the appointment."),
+  );
+
+export const cancelPatientAppointment = async ({
+  token,
+  appointment_id,
+  cancellation_reason,
+}) =>
+  apiPut(
+    `/appointments/${appointment_id}/cancel`,
+    {
+      cancellation_reason,
+    },
+    withToken(token, "Failed to cancel the appointment."),
+  );
+
+export const requestPatientReschedule = async ({
+  token,
+  appointment_id,
+  new_appointment_date,
+}) =>
+  apiPut(
+    `/appointments/${appointment_id}/reschedule`,
+    {
+      new_appointment_date,
+    },
+    withToken(token, "Failed to request an appointment reschedule."),
+  );
+
+// Compatibility aliases for older screens. New booking screens should use
+// the structured service-first functions above.
+export const getActiveClinics = async (token) =>
+  apiGet(
+    "/appointments/clinics/list",
+    withToken(token, "Failed to load the assigned clinic."),
+  );
+
+export const getActiveDentists = async (token) =>
+  apiGet(
+    "/appointments/dentists/list",
+    withToken(token, "Failed to load Dentists."),
+  );
+
+export const getDentistsByClinic = async ({ token, clinic_id }) =>
+  apiGet(
+    `/appointments/dentists/by-clinic/${clinic_id}`,
+    withToken(token, "Failed to load Dentists for the clinic."),
+  );
 
 export const getAvailableTimes = async ({
   token,
@@ -82,91 +162,11 @@ export const getAvailableTimes = async ({
     appointment_date: String(appointment_date),
   });
 
-  const response = await fetch(
-    `${API_BASE_URL}/appointments/available-times?${query.toString()}`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Accept: "application/json",
-      },
-    }
+  return apiGet(
+    `/appointments/available-times?${query.toString()}`,
+    withToken(token, "Failed to load available time slots."),
   );
-
-  return parseJsonResponse(response, "Failed to load available time slots");
 };
 
-export const bookAppointment = async ({
-  token,
-  clinic_id,
-  dentist_id,
-  appointment_date,
-  appointment_time,
-  appointment_type,
-  notes,
-}) => {
-  const response = await fetch(`${API_BASE_URL}/appointments`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({
-      clinic_id,
-      dentist_id,
-      appointment_date,
-      appointment_time,
-      appointment_type,
-      notes,
-    }),
-  });
-
-  return parseJsonResponse(response, "Failed to book appointment");
-};
-
-export const cancelPatientAppointment = async ({
-  token,
-  appointment_id,
-  cancellation_reason,
-}) => {
-  const response = await fetch(
-    `${API_BASE_URL}/appointments/${appointment_id}/cancel`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        cancellation_reason,
-      }),
-    }
-  );
-
-  return parseJsonResponse(response, "Failed to cancel appointment");
-};
-
-export const requestPatientReschedule = async ({
-  token,
-  appointment_id,
-  new_appointment_date,
-}) => {
-  const response = await fetch(
-    `${API_BASE_URL}/appointments/${appointment_id}/reschedule`,
-    {
-      method: "PUT",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        new_appointment_date,
-      }),
-    }
-  );
-
-  return parseJsonResponse(response, "Failed to request reschedule");
-};
+export const bookAppointment = async (payload) =>
+  bookStructuredAppointment(payload);

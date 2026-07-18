@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -22,6 +22,7 @@ export default function LoginScreen({
   onLoginSuccess,
   onForgotPasswordPress,
   onRegisterPress,
+  sessionMessage = "",
 }) {
   const scrollViewRef = useRef(null);
 
@@ -33,8 +34,14 @@ export default function LoginScreen({
   const [showPassword, setShowPassword] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
-  const [successMessage, setSuccessMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState(sessionMessage);
   const [unverifiedEmail, setUnverifiedEmail] = useState("");
+
+  useEffect(() => {
+    if (sessionMessage) {
+      setSuccessMessage(sessionMessage);
+    }
+  }, [sessionMessage]);
 
   const scrollToForm = () => {
     setTimeout(() => {

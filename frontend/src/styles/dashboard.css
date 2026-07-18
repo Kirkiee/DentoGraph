@@ -5756,6 +5756,22 @@ body textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder, body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder, body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder, body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body input::placeholder,
 body textarea::placeholder {
   color: #94a3b8;
@@ -13480,6 +13496,22 @@ body .profile-field textarea::-ms-input-placeholder {
   color: #94a3b8 !important;
   opacity: 1 !important;
 }
+body input::-webkit-input-placeholder, body textarea::-webkit-input-placeholder, body .modal-form input::-webkit-input-placeholder, body .modal-form textarea::-webkit-input-placeholder, body .appointment-form input::-webkit-input-placeholder, body .appointment-form textarea::-webkit-input-placeholder, body .profile-field input::-webkit-input-placeholder, body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder, body textarea::-moz-placeholder, body .modal-form input::-moz-placeholder, body .modal-form textarea::-moz-placeholder, body .appointment-form input::-moz-placeholder, body .appointment-form textarea::-moz-placeholder, body .profile-field input::-moz-placeholder, body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder, body textarea:-ms-input-placeholder, body .modal-form input:-ms-input-placeholder, body .modal-form textarea:-ms-input-placeholder, body .appointment-form input:-ms-input-placeholder, body .appointment-form textarea:-ms-input-placeholder, body .profile-field input:-ms-input-placeholder, body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder, body textarea::-ms-input-placeholder, body .modal-form input::-ms-input-placeholder, body .modal-form textarea::-ms-input-placeholder, body .appointment-form input::-ms-input-placeholder, body .appointment-form textarea::-ms-input-placeholder, body .profile-field input::-ms-input-placeholder, body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::placeholder,
 body textarea::placeholder,
 body .modal-form input::placeholder,
@@ -18947,6 +18979,22 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder, .patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder, .patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder, .patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder, .patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::placeholder,
 .patient-xray-control-panel input::placeholder {
   color: #94a3b8 !important;
@@ -23117,6 +23165,22 @@ body {
   color: #718096 !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder, .dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder, .dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder, .dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
 .dashboard-layout input::placeholder,
 .dashboard-layout textarea::placeholder {
   color: #718096 !important;
@@ -25287,6 +25351,38 @@ body {
   ) !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder, .dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder, .dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder, .dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder, .dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
 .dashboard-layout input::placeholder,
 .dashboard-layout textarea::placeholder {
   color: color-mix(
@@ -27407,6 +27503,38 @@ body {
 
 .dashboard-layout.portal-theme-light input::-ms-input-placeholder,
 .dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder, .dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder, .dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder, .dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder, .dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
   color: color-mix(
     in srgb,
     var(--portal-light-input-text) 48%,
@@ -32950,6 +33078,26 @@ body {
   opacity: 1;
 }
 
+.phase11-dentist-availability-page .phase11-block-date-form input::-webkit-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.phase11-dentist-availability-page .phase11-block-date-form input::-moz-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.phase11-dentist-availability-page .phase11-block-date-form input:-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.phase11-dentist-availability-page .phase11-block-date-form input::-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
 .phase11-dentist-availability-page .phase11-block-date-form input::placeholder {
   color: var(--clinic-muted-text, #94a3b8);
   opacity: 1;
@@ -33543,6 +33691,26 @@ body {
 
 .patient-transfer-form textarea::-ms-input-placeholder,
 .patient-transfer-form input::-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.patient-transfer-form textarea::-webkit-input-placeholder, .patient-transfer-form input::-webkit-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.patient-transfer-form textarea::-moz-placeholder, .patient-transfer-form input::-moz-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.patient-transfer-form textarea:-ms-input-placeholder, .patient-transfer-form input:-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.patient-transfer-form textarea::-ms-input-placeholder, .patient-transfer-form input::-ms-input-placeholder {
   color: var(--clinic-muted-text, #94a3b8);
   opacity: 1;
 }
@@ -36267,5 +36435,67 @@ body:has(.inventory-history-modal) {
   .modal-overlay .inventory-movement-form > .modal-actions button {
     flex: 1 1 0 !important;
     min-width: 0 !important;
+  }
+}
+
+/* Mobile WebView embedded mode */
+.dashboard-embedded {
+  min-height: 100vh;
+  background: var(--clinic-page-background);
+  color: var(--clinic-body-text);
+}
+
+.dashboard-embedded-content {
+  width: 100%;
+  min-height: 100vh;
+  padding: 12px;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+.dashboard-embedded .appointments-layout {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.dashboard-embedded .appointment-form-card {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  border-radius: 14px;
+  box-shadow: none;
+}
+
+.dashboard-embedded .appointment-form-card > h2,
+.dashboard-embedded .appointment-form-card > h2 + p {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .dashboard-embedded-content {
+    padding: 10px;
+  }
+
+  .dashboard-embedded .appointment-form-card {
+    padding: 14px;
+  }
+
+  .dashboard-embedded .brace-style-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-embedded .appointment-actions,
+  .dashboard-embedded .appointments-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-embedded button,
+  .dashboard-embedded select,
+  .dashboard-embedded input,
+  .dashboard-embedded textarea {
+    min-height: 44px;
   }
 }
