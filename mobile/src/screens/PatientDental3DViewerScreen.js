@@ -30,6 +30,24 @@ const buildInjectedSessionScript = ({ token, user }) => {
         localStorage.setItem("rememberMe", "true");
         localStorage.setItem("dentograph-theme", "light");
         window.dispatchEvent(new Event("storage"));
+
+        var viewport = document.querySelector('meta[name="viewport"]');
+
+        if (!viewport) {
+          viewport = document.createElement("meta");
+          viewport.name = "viewport";
+          document.head.appendChild(viewport);
+        }
+
+        viewport.content =
+          "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
+
+        document.documentElement.style.width = "100%";
+        document.documentElement.style.maxWidth = "100%";
+        document.documentElement.style.overflowX = "hidden";
+        document.body.style.width = "100%";
+        document.body.style.maxWidth = "100%";
+        document.body.style.overflowX = "hidden";
       } catch (error) {
         window.ReactNativeWebView.postMessage(
           JSON.stringify({
@@ -56,7 +74,8 @@ export default function PatientDental3DViewerScreen({
   const [canGoBack, setCanGoBack] = useState(false);
 
   const viewerUrl = useMemo(
-    () => `${WEB_APP_ORIGIN}/patient/records/${recordId}/3d-view`,
+    () =>
+      `${WEB_APP_ORIGIN}/patient/records/${recordId}/3d-view?embedded=mobile`,
     [recordId],
   );
 
@@ -236,6 +255,10 @@ export default function PatientDental3DViewerScreen({
             }}
             allowsInlineMediaPlayback
             mediaPlaybackRequiresUserAction={false}
+            textZoom={100}
+            scalesPageToFit={false}
+            overScrollMode="never"
+            bounces={false}
             setSupportMultipleWindows={false}
           />
 

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Text } from "@react-three/drei";
 
@@ -313,6 +313,12 @@ function DentalArch({ teeth, selectedTooth, onSelect, dentitionType }) {
 function PatientDental3DViewer() {
   const { record_id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isEmbeddedMobile = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("embedded") === "mobile";
+  }, [location.search]);
 
   const [record, setRecord] = useState(null);
   const [teeth, setTeeth] = useState([]);
@@ -432,9 +438,15 @@ function PatientDental3DViewer() {
     }
   };
 
-  return (
-    <DashboardLayout role="Patient">
-      <div className="appointments-list-card">
+  const viewerContent = (
+    <div
+      className={`patient-dental-3d-shell ${isEmbeddedMobile ? "is-embedded-mobile" : ""
+        }`}
+    >
+      <div
+        className={`appointments-list-card patient-dental-3d-page ${isEmbeddedMobile ? "patient-dental-3d-embedded" : ""
+          }`}
+      >
         <div className="appointments-header">
           <div>
             <h2>My 3D Dental Visualization</h2>
@@ -586,8 +598,15 @@ function PatientDental3DViewer() {
           </>
         )}
       </div>
-    </DashboardLayout>
+
+    </div>
   );
+
+  if (isEmbeddedMobile) {
+    return viewerContent;
+  }
+
+  return <DashboardLayout role="Patient">{viewerContent}</DashboardLayout>;
 }
 
 export default PatientDental3DViewer;

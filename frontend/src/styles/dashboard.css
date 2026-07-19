@@ -36499,3 +36499,266 @@ body:has(.inventory-history-modal) {
     min-height: 44px;
   }
 }
+
+/* =========================================================
+   PATIENT 3D DENTAL VIEWER — RESPONSIVE + EMBEDDED MOBILE FIX
+   Append this block to frontend/src/styles/dashboard.css.
+   ========================================================= */
+
+.patient-dental-3d-shell,
+.patient-dental-3d-page,
+.patient-dental-3d-page * {
+  box-sizing: border-box;
+}
+
+.patient-dental-3d-shell {
+  width: 100%;
+  min-width: 0;
+}
+
+.patient-dental-3d-page {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.patient-dental-3d-page .appointments-header {
+  min-width: 0;
+  gap: 14px;
+}
+
+.patient-dental-3d-page .appointments-header > div:first-child {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.patient-dental-3d-page .appointments-header h2,
+.patient-dental-3d-page .appointments-header p,
+.patient-dental-3d-page .info-message,
+.patient-dental-3d-page .dental-3d-panel,
+.patient-dental-3d-page .dental-3d-panel p,
+.patient-dental-3d-page .dental-3d-panel strong,
+.patient-dental-3d-page .dental-legend p,
+.patient-dental-3d-page .empty-state,
+.patient-dental-3d-page .empty-state p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  white-space: normal;
+}
+
+.patient-dental-3d-page .dental-3d-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(260px, 0.8fr);
+  align-items: stretch;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.patient-dental-3d-page .dental-3d-viewer {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 520px;
+  overflow: hidden;
+  border-radius: 16px;
+}
+
+.patient-dental-3d-page .dental-3d-viewer canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  touch-action: none;
+}
+
+.patient-dental-3d-page .dental-3d-panel {
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  align-self: stretch;
+  overflow: visible;
+}
+
+.patient-dental-3d-page .dental-3d-panel > p {
+  display: grid;
+  grid-template-columns: minmax(92px, -webkit-max-content) minmax(0, 1fr);
+  grid-template-columns: minmax(92px, max-content) minmax(0, 1fr);
+  align-items: start;
+  gap: 5px 8px;
+  margin: 0 0 11px;
+  line-height: 1.5;
+}
+
+.patient-dental-3d-page .dental-3d-panel > p > strong {
+  min-width: 0;
+}
+
+.patient-dental-3d-page .dental-legend {
+  min-width: 0;
+}
+
+.patient-dental-3d-page .dental-legend p {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  line-height: 1.35;
+}
+
+.patient-dental-3d-page .legend-dot {
+  flex: none;
+  margin: 0;
+}
+
+.patient-dental-3d-page .appointment-actions {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.patient-dental-3d-page .appointment-actions button {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+}
+
+/* Embedded inside the React Native WebView. */
+.patient-dental-3d-shell.is-embedded-mobile {
+  min-height: 100dvh;
+  padding: 0;
+  background: var(--clinic-page-background, #070b14);
+}
+
+.patient-dental-3d-embedded {
+  margin: 0 !important;
+  padding: 12px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-height: 100dvh;
+}
+
+.patient-dental-3d-embedded .appointments-header {
+  display: none !important;
+}
+
+.patient-dental-3d-embedded .info-message {
+  margin: 0 0 10px !important;
+  padding: 10px 11px !important;
+  font-size: 0.78rem !important;
+  line-height: 1.45 !important;
+}
+
+.patient-dental-3d-embedded .dental-3d-layout {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+}
+
+.patient-dental-3d-embedded .dental-3d-viewer {
+  min-height: clamp(330px, 55dvh, 520px);
+  max-height: 58dvh;
+  border-radius: 12px;
+}
+
+.patient-dental-3d-embedded .dental-3d-panel {
+  padding: 13px !important;
+  border-radius: 12px !important;
+}
+
+.patient-dental-3d-embedded .dental-3d-panel h3 {
+  margin-top: 0;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.patient-dental-3d-embedded .dental-3d-panel > p {
+  grid-template-columns: minmax(86px, 0.44fr) minmax(0, 0.56fr);
+  font-size: 0.78rem;
+}
+
+.patient-dental-3d-embedded .dental-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.patient-dental-3d-embedded .dental-legend h3 {
+  grid-column: 1 / -1;
+  margin-bottom: 1px;
+}
+
+.patient-dental-3d-embedded .dental-legend p {
+  min-width: 0;
+  margin: 0;
+  padding: 8px;
+  font-size: 0.72rem;
+  background: color-mix(
+    in srgb,
+    var(--clinic-surface-soft, #1e293b) 76%,
+    transparent
+  );
+  border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .patient-dental-3d-page .dental-3d-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .patient-dental-3d-page .dental-3d-viewer {
+    min-height: clamp(390px, 58vh, 560px);
+  }
+
+  .patient-dental-3d-page .appointments-header {
+    align-items: stretch;
+  }
+
+  .patient-dental-3d-page .appointment-actions {
+    width: 100%;
+  }
+
+  .patient-dental-3d-page .appointment-actions button {
+    flex: 1 1 140px;
+  }
+}
+
+@media (max-width: 520px) {
+  .patient-dental-3d-page {
+    padding: 11px !important;
+  }
+
+  .patient-dental-3d-page .info-message {
+    font-size: 0.75rem;
+  }
+
+  .patient-dental-3d-page .dental-3d-viewer {
+    min-height: 340px;
+    max-height: 54dvh;
+  }
+
+  .patient-dental-3d-page .dental-3d-panel {
+    padding: 12px !important;
+  }
+
+  .patient-dental-3d-page .dental-3d-panel > p {
+    display: block;
+    font-size: 0.76rem;
+  }
+
+  .patient-dental-3d-page .dental-3d-panel > p > strong {
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  .patient-dental-3d-page .dental-legend {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .patient-dental-3d-page .dental-legend p {
+    font-size: 0.74rem;
+  }
+}
