@@ -13,6 +13,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 
 import { WEB_APP_ORIGIN } from "../config/api";
+import {
+  handleTrustedWebNavigation,
+  TRUSTED_WEBVIEW_PROPS,
+} from "../utils/webViewSecurity";
 
 const buildInjectedSessionScript = ({ token, user }) => {
   const safeToken = JSON.stringify(String(token || ""));
@@ -108,7 +112,19 @@ export default function PatientDental3DViewerScreen({
       return false;
     }
 
-    return true;
+    let allowed = true;
+
+    handleTrustedWebNavigation({
+      request,
+      onBlocked: () => {
+        allowed = false;
+        setPageError(
+          "A navigation request outside the trusted DentoGraph website was blocked.",
+        );
+      },
+    });
+
+    return allowed;
   };
 
   const reloadViewer = () => {
@@ -186,9 +202,7 @@ export default function PatientDental3DViewerScreen({
             ref={webViewRef}
             source={{ uri: viewerUrl }}
             style={styles.webView}
-            originWhitelist={["https://*"]}
-            javaScriptEnabled
-            domStorageEnabled
+            {...TRUSTED_WEBVIEW_PROPS}
             thirdPartyCookiesEnabled
             sharedCookiesEnabled
             injectedJavaScriptBeforeContentLoaded={

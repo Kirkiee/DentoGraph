@@ -14,9 +14,21 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import PermissionStateCard from "../components/PermissionStateCard";
+import {
+  getCameraPermissionState,
+  getPermissionMessage,
+  openApplicationSettings,
+  PERMISSION_STATUS,
+  requestCameraPermission,
+} from "../services/permissionService";
 import { WebView } from "react-native-webview";
 
 import { WEB_APP_ORIGIN } from "../config/api";
+import {
+  handleTrustedWebNavigation,
+  TRUSTED_WEBVIEW_PROPS,
+} from "../utils/webViewSecurity";
 import {
   buildARSimulationImageUrl,
   deleteARPreview,
@@ -193,6 +205,13 @@ export default function PatientARBracesScreen({
   const [simulatorLoading, setSimulatorLoading] = useState(false);
   const [simulatorError, setSimulatorError] = useState("");
   const [webCanGoBack, setWebCanGoBack] = useState(false);
+  const [cameraPermission, setCameraPermission] = useState({
+    status: PERMISSION_STATUS.UNDETERMINED,
+    granted: false,
+    canAskAgain: true,
+  });
+  const [checkingCameraPermission, setCheckingCameraPermission] =
+    useState(false);
 
   const simulatorUrl = `${WEB_APP_ORIGIN}/patient/ar-braces?embed=mobile`;
 
@@ -203,7 +222,35 @@ export default function PatientARBracesScreen({
 
   useEffect(() => {
     loadPreviews();
+    refreshCameraPermission();
   }, []);
+
+  const refreshCameraPermission = async () => {
+    try {
+      setCheckingCameraPermission(true);
+      const permission = await getCameraPermissionState();
+      setCameraPermission(permission);
+      return permission;
+    } finally {
+      setCheckingCameraPermission(false);
+    }
+  };
+
+  const ensureCameraPermission = async () => {
+    try {
+      setCheckingCameraPermission(true);
+      let permission = await getCameraPermissionState();
+
+      if (!permission.granted && permission.canAskAgain) {
+        permission = await requestCameraPermission();
+      }
+
+      setCameraPermission(permission);
+      return permission.granted;
+    } finally {
+      setCheckingCameraPermission(false);
+    }
+  };
 
   useEffect(() => {
     if (Platform.OS !== "android" || !simulatorVisible) {
@@ -292,7 +339,13 @@ export default function PatientARBracesScreen({
     );
   };
 
-  const openSimulator = () => {
+  const openSimulator = async () => {
+    const allowed = await ensureCameraPermission();
+
+    if (!allowed) {
+      return;
+    }
+
     setSimulatorError("");
     setSimulatorLoading(true);
     setSimulatorVisible(true);
@@ -315,6 +368,22 @@ export default function PatientARBracesScreen({
     } catch (error) {
       // Ignore non-JSON messages.
     }
+  };
+
+  const handleNavigationRequest = (request) => {
+    let allowed = true;
+
+    handleTrustedWebNavigation({
+      request,
+      onBlocked: () => {
+        allowed = false;
+        setSimulatorError(
+          "A navigation request outside the trusted DentoGraph website was blocked.",
+        );
+      },
+    });
+
+    return allowed;
   };
 
   if (loading) {
@@ -354,6 +423,33 @@ export default function PatientARBracesScreen({
             treatment plan, or guarantee of orthodontic results.
           </Text>
         </View>
+
+        {!cameraPermission.granted ? (
+          <View style={styles.permissionCardWrapper}>
+            <PermissionStateCard
+              icon="camera-outline"
+              title="Camera access needed"
+              message={getPermissionMessage({
+                permissionName: "Camera",
+                status: cameraPermission.status,
+                purpose: "show the live AR braces preview",
+              })}
+              actionLabel={
+                cameraPermission.status === PERMISSION_STATUS.BLOCKED
+                  ? "Open Settings"
+                  : "Allow Camera"
+              }
+              secondaryLabel="Check Permission Again"
+              busy={checkingCameraPermission}
+              onAction={
+                cameraPermission.status === PERMISSION_STATUS.BLOCKED
+                  ? openApplicationSettings
+                  : ensureCameraPermission
+              }
+              onSecondary={refreshCameraPermission}
+            />
+          </View>
+        ) : null}
 
         <Pressable style={styles.launchButton} onPress={openSimulator}>
           <View style={styles.launchIcon}>
@@ -483,12 +579,11 @@ export default function PatientARBracesScreen({
                 ref={webViewRef}
                 source={{ uri: simulatorUrl }}
                 style={styles.webView}
-                originWhitelist={["https://*"]}
-                javaScriptEnabled
-                domStorageEnabled
+                {...TRUSTED_WEBVIEW_PROPS}
                 mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"
                 allowsInlineMediaPlayback
                 mediaPlaybackRequiresUserAction={false}
+                onShouldStartLoadWithRequest={handleNavigationRequest}
                 injectedJavaScriptBeforeContentLoaded={injectedSessionScript}
                 onMessage={handleWebMessage}
                 onNavigationStateChange={(state) =>
@@ -566,6 +661,9 @@ const styles = StyleSheet.create({
     color: "#1e40af",
     fontSize: 12,
     lineHeight: 18,
+  },
+  permissionCardWrapper: {
+    marginBottom: 14,
   },
   launchButton: {
     flexDirection: "row",

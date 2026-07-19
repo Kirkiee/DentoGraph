@@ -3,6 +3,10 @@ import {
   clearPatientSession,
   loadPatientSession,
 } from "./sessionService";
+import {
+  isDeviceOffline,
+  refreshNetworkStatus,
+} from "./networkService";
 
 let sessionExpiredHandler = null;
 
@@ -36,9 +40,9 @@ const parseResponse = async (response, fallbackMessage) => {
   if (rawText) {
     try {
       data = JSON.parse(rawText);
-    } catch (error) {
+    } catch {
       throw createApiError({
-        message: "The server returned an invalid response.",
+        message: "DentoGraph returned an invalid server response.",
         status: response.status,
         code: "INVALID_SERVER_RESPONSE",
       });
@@ -76,143 +80,151 @@ const shouldExpireSession = (status, data) => {
   );
 };
 
-export const apiRequest = async (
-  path,
-  {
-    method = "GET",
-    body,
-    headers = {},
-    token,
-    authenticated = true,
-    timeoutMs = API_TIMEOUT_MS,
-    fallbackMessage = "The request could not be completed.",
-  } = {},
-) => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+const expireCurrentSession = async () => {
+  await clearPatientSession();
 
-  try {
-    let authToken = token;
-
-    if (authenticated && !authToken) {
-      const savedSession = await loadPatientSession();
-      authToken = savedSession?.token || null;
-    }
-
-    const requestHeaders = {
-      Accept: "application/json",
-      ...headers,
-    };
-
-    const hasFormData =
-      typeof FormData !== "undefined" && body instanceof FormData;
-
-    if (body !== undefined && body !== null && !hasFormData) {
-      requestHeaders["Content-Type"] =
-        requestHeaders["Content-Type"] || "application/json";
-    }
-
-    if (authenticated && authToken) {
-      requestHeaders.Authorization = `Bearer ${authToken}`;
-    }
-
-    const response = await fetch(buildApiUrl(path), {
-      method,
-      headers: requestHeaders,
-      body:
-        body === undefined || body === null
-          ? undefined
-          : hasFormData
-            ? body
-            : typeof body === "string"
-              ? body
-              : JSON.stringify(body),
-      signal: controller.signal,
-    });
-
-    const rawText = await response.text();
-    let data = {};
-
-    if (rawText) {
-      try {
-        data = JSON.parse(rawText);
-      } catch (error) {
-        throw createApiError({
-          message: "The server returned an invalid response.",
-          status: response.status,
-          code: "INVALID_SERVER_RESPONSE",
-        });
-      }
-    }
-
-    if (!response.ok) {
-      if (authenticated && shouldExpireSession(response.status, data)) {
-        await clearPatientSession();
-
-        if (sessionExpiredHandler) {
-          sessionExpiredHandler({
-            message:
-              data.error || data.message || "Session expired. Please log in again.",
-          });
-        }
-      }
-
-      throw createApiError({
-        message: data.error || data.message || fallbackMessage,
-        status: response.status,
-        data,
-        code: "HTTP_ERROR",
-      });
-    }
-
-    return data;
-  } catch (error) {
-    if (error?.name === "AbortError") {
-      throw createApiError({
-        message:
-          "The request timed out. Check your internet connection and try again.",
-        code: "REQUEST_TIMEOUT",
-      });
-    }
-
-    if (error?.code || error?.response) {
-      throw error;
-    }
-
-    throw createApiError({
-      message:
-        "Unable to connect to DentoGraph. Check your internet connection and try again.",
-      code: "NETWORK_ERROR",
-    });
-  } finally {
-    clearTimeout(timeoutId);
+  if (sessionExpiredHandler) {
+    sessionExpiredHandler();
   }
 };
 
+const wait = (milliseconds) =>
+  new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+const request = async (
+  path,
+  {
+    method = "GET",
+    token,
+    body,
+    headers = {},
+    fallbackMessage = "Unable to complete the request.",
+    timeoutMs = API_TIMEOUT_MS,
+    retryCount,
+  } = {},
+) => {
+  const normalizedMethod = String(method || "GET").toUpperCase();
+  const safeRetryCount =
+    retryCount === undefined
+      ? normalizedMethod === "GET"
+        ? 1
+        : 0
+      : Math.max(0, Number(retryCount) || 0);
+
+  const session = token ? null : await loadPatientSession();
+  const accessToken = token || session?.token || null;
+
+  const executeRequest = async (attempt) => {
+    await refreshNetworkStatus().catch(() => {});
+
+    if (isDeviceOffline()) {
+      throw createApiError({
+        message:
+          "You are offline. Reconnect to the internet and try again.",
+        code: "OFFLINE",
+      });
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(buildApiUrl(path), {
+        method: normalizedMethod,
+        headers: {
+          Accept: "application/json",
+          ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+          ...(accessToken
+            ? { Authorization: `Bearer ${accessToken}` }
+            : {}),
+          ...headers,
+        },
+        body:
+          body === undefined
+            ? undefined
+            : typeof body === "string"
+              ? body
+              : JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      const rawText = await response.clone().text();
+      let responseData = {};
+
+      if (rawText) {
+        try {
+          responseData = JSON.parse(rawText);
+        } catch {
+          responseData = {};
+        }
+      }
+
+      if (shouldExpireSession(response.status, responseData)) {
+        await expireCurrentSession();
+      }
+
+      if (
+        attempt < safeRetryCount &&
+        normalizedMethod === "GET" &&
+        response.status >= 500
+      ) {
+        await wait(650 * (attempt + 1));
+        return executeRequest(attempt + 1);
+      }
+
+      return parseResponse(response, fallbackMessage);
+    } catch (error) {
+      if (error?.code === "OFFLINE") {
+        throw error;
+      }
+
+      if (error?.name === "AbortError") {
+        throw createApiError({
+          message:
+            "DentoGraph took too long to respond. Check your connection and try again.",
+          code: "REQUEST_TIMEOUT",
+        });
+      }
+
+      if (
+        attempt < safeRetryCount &&
+        normalizedMethod === "GET" &&
+        (error instanceof TypeError || error?.code === "NETWORK_ERROR")
+      ) {
+        await wait(650 * (attempt + 1));
+        return executeRequest(attempt + 1);
+      }
+
+      if (error?.status || error?.code === "INVALID_SERVER_RESPONSE") {
+        throw error;
+      }
+
+      throw createApiError({
+        message:
+          "Unable to connect to DentoGraph. Check your internet connection and try again.",
+        code: "NETWORK_ERROR",
+      });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  return executeRequest(0);
+};
+
 export const apiGet = (path, options = {}) =>
-  apiRequest(path, {
-    ...options,
-    method: "GET",
-  });
+  request(path, { ...options, method: "GET" });
 
 export const apiPost = (path, body, options = {}) =>
-  apiRequest(path, {
-    ...options,
-    method: "POST",
-    body,
-  });
+  request(path, { ...options, method: "POST", body });
 
 export const apiPut = (path, body, options = {}) =>
-  apiRequest(path, {
-    ...options,
-    method: "PUT",
-    body,
-  });
+  request(path, { ...options, method: "PUT", body });
+
+export const apiPatch = (path, body, options = {}) =>
+  request(path, { ...options, method: "PATCH", body });
 
 export const apiDelete = (path, options = {}) =>
-  apiRequest(path, {
-    ...options,
-    method: "DELETE",
-  });
+  request(path, { ...options, method: "DELETE" });
 
-export { parseResponse };
+export { createApiError };

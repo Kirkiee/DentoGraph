@@ -8,6 +8,8 @@ import {
   updateStoredPatientUser,
 } from "./src/services/sessionService";
 import { setSessionExpiredHandler } from "./src/services/apiClient";
+import NetworkStatusBanner from "./src/components/NetworkStatusBanner";
+import AppErrorBoundary from "./src/components/AppErrorBoundary";
 
 import LoginScreen from "./src/screens/LoginScreen";
 import ForgotPasswordScreen from "./src/screens/ForgotPasswordScreen";
@@ -29,7 +31,7 @@ import PatientHistoricalRecordsScreen from "./src/screens/PatientHistoricalRecor
 import BottomNav from "./src/components/BottomNav";
 import PatientMoreMenu from "./src/components/PatientMoreMenu";
 
-export default function App() {
+function DentoGraphApp() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
   const [token, setToken] = useState(null);
@@ -300,6 +302,7 @@ export default function App() {
           style={styles.appContainer}
           edges={["top", "left", "right"]}
         >
+          <NetworkStatusBanner />
           {renderAuthScreen()}
         </SafeAreaView>
       </SafeAreaProvider>
@@ -314,6 +317,7 @@ export default function App() {
         style={styles.appContainer}
         edges={["top", "left", "right"]}
       >
+        <NetworkStatusBanner />
         <View style={styles.mainContainer}>{renderAuthenticatedScreen()}</View>
 
         {shouldShowBottomNav ? (
@@ -355,3 +359,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#f8fafc",
   },
 });
+
+export default function App() {
+  return (
+    <AppErrorBoundary>
+      <DentoGraphApp />
+    </AppErrorBoundary>
+  );
+}

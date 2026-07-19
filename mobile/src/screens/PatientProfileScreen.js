@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -11,291 +11,438 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
+  confirmProfileVerification,
   getPatientProfile,
+  requestProfileVerification,
   updatePatientProfile,
 } from "../services/patientService";
 
+const MEDICAL_OPTIONS = [
+  "Hypertension",
+  "Diabetes",
+  "Asthma",
+  "Heart condition",
+  "Bleeding disorder",
+  "Pregnancy",
+  "None declared",
+];
+
+const safeParse = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value === "object") return value;
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const parseAddress = (value) => {
+  const parsed = safeParse(value, null);
+
+  if (parsed && typeof parsed === "object") {
+    return {
+      line1: parsed.line1 || "",
+      barangay: parsed.barangay || "",
+      city: parsed.city || "",
+      province: parsed.province || "",
+      postal_code: parsed.postal_code || "",
+    };
+  }
+
+  return {
+    line1: typeof value === "string" ? value : "",
+    barangay: "",
+    city: "",
+    province: "",
+    postal_code: "",
+  };
+};
+
+const parseMedicalHistory = (value) => {
+  const parsed = safeParse(value, null);
+
+  if (parsed && typeof parsed === "object") {
+    return {
+      conditions: Array.isArray(parsed.conditions)
+        ? parsed.conditions
+        : [],
+      allergies: parsed.allergies || "",
+      medications: parsed.medications || "",
+      notes: parsed.notes || "",
+    };
+  }
+
+  return {
+    conditions: [],
+    allergies: "",
+    medications: "",
+    notes: typeof value === "string" ? value : "",
+  };
+};
+
+const formatAddress = (value) => {
+  const address = parseAddress(value);
+
+  return [
+    address.line1,
+    address.barangay,
+    address.city,
+    address.province,
+    address.postal_code,
+  ]
+    .filter(Boolean)
+    .join(", ") || "Not provided";
+};
+
+const formatMedicalHistory = (value) => {
+  const history = parseMedicalHistory(value);
+  const details = [];
+
+  if (history.conditions.length) {
+    details.push(history.conditions.join(", "));
+  }
+
+  if (history.allergies) {
+    details.push(`Allergies: ${history.allergies}`);
+  }
+
+  if (history.medications) {
+    details.push(`Medications: ${history.medications}`);
+  }
+
+  if (history.notes) {
+    details.push(history.notes);
+  }
+
+  return details.join("\n") || "No medical history provided";
+};
+
+const FormInput = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType = "default",
+  autoCapitalize = "sentences",
+  multiline = false,
+}) => (
+  <View style={styles.inputGroup}>
+    <Text style={styles.inputLabel}>{label}</Text>
+    <TextInput
+      style={[styles.input, multiline && styles.multilineInput]}
+      value={value}
+      onChangeText={onChangeText}
+      placeholder={placeholder}
+      placeholderTextColor="#94a3b8"
+      keyboardType={keyboardType}
+      autoCapitalize={autoCapitalize}
+      multiline={multiline}
+      textAlignVertical={multiline ? "top" : "center"}
+    />
+  </View>
+);
+
+const InfoRow = ({ icon, label, value, actionLabel, onAction }) => (
+  <View style={styles.infoRow}>
+    <View style={styles.infoIcon}>
+      <Ionicons name={icon} size={18} color="#2563eb" />
+    </View>
+
+    <View style={styles.infoText}>
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue}>{value || "Not provided"}</Text>
+    </View>
+
+    {actionLabel ? (
+      <Pressable style={styles.inlineAction} onPress={onAction}>
+        <Text style={styles.inlineActionText}>{actionLabel}</Text>
+      </Pressable>
+    ) : null}
+  </View>
+);
+
 export default function PatientProfileScreen({
   token,
-  user,
   onProfileUpdated,
 }) {
   const [profile, setProfile] = useState(null);
-
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    contact_number: "",
-    date_of_birth: "",
-    address: "",
-    gender: "",
-    medical_history: "",
-    dentition_type: "Adult",
-  });
-
+  const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  const [name, setName] = useState("");
+  const [address, setAddress] = useState(parseAddress(""));
+  const [medicalHistory, setMedicalHistory] = useState(
+    parseMedicalHistory(""),
+  );
+
+  const [verification, setVerification] = useState({
+    visible: false,
+    type: "email",
+    value: "",
+    code: "",
+    stage: "request",
+  });
+  const [verificationBusy, setVerificationBusy] = useState(false);
+
+  const initials = useMemo(
+    () => String(profile?.name || "P").trim().charAt(0).toUpperCase(),
+    [profile?.name],
+  );
 
   useEffect(() => {
     loadProfile();
   }, []);
 
-  const fillForm = (patient) => {
+  const fillProfile = (patient) => {
     setProfile(patient);
-
-    setForm({
-      name: patient?.name || "",
-      email: patient?.email || "",
-      contact_number: patient?.contact_number || "",
-      date_of_birth: patient?.date_of_birth || "",
-      address: patient?.address || "",
-      gender: patient?.gender || "",
-      medical_history: patient?.medical_history || "",
-      dentition_type: patient?.dentition_type || "Adult",
-    });
+    setName(patient?.name || "");
+    setAddress(parseAddress(patient?.address));
+    setMedicalHistory(parseMedicalHistory(patient?.medical_history));
   };
 
-  const loadProfile = async () => {
+  const loadProfile = async ({ refresh = false } = {}) => {
     try {
-      setLoading(true);
-
+      refresh ? setRefreshing(true) : setLoading(true);
       const data = await getPatientProfile(token);
-      fillForm(data.patient);
+      fillProfile(data.patient);
     } catch (error) {
       Alert.alert(
         "Profile Error",
-        error.message || "Unable to load patient profile."
+        error.message || "Unable to load patient profile.",
       );
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-
-      const data = await getPatientProfile(token);
-      fillForm(data.patient);
-    } catch (error) {
-      Alert.alert(
-        "Profile Error",
-        error.message || "Unable to refresh patient profile."
-      );
-    } finally {
       setRefreshing(false);
     }
   };
 
-  const updateField = (field, value) => {
-    setForm((current) => ({
+  const updateAddressField = (field, value) => {
+    setAddress((current) => ({
       ...current,
       [field]: value,
     }));
   };
 
-  const handleCancelEdit = () => {
-    Keyboard.dismiss();
-
-    if (profile) {
-      fillForm(profile);
-    }
-
-    setEditing(false);
+  const updateMedicalField = (field, value) => {
+    setMedicalHistory((current) => ({
+      ...current,
+      [field]: value,
+    }));
   };
 
-  const handleSaveProfile = async () => {
-    if (!form.name.trim()) {
+  const toggleCondition = (condition) => {
+    setMedicalHistory((current) => {
+      const exists = current.conditions.includes(condition);
+
+      let conditions = exists
+        ? current.conditions.filter((item) => item !== condition)
+        : [...current.conditions, condition];
+
+      if (condition === "None declared" && !exists) {
+        conditions = ["None declared"];
+      } else if (condition !== "None declared") {
+        conditions = conditions.filter(
+          (item) => item !== "None declared",
+        );
+      }
+
+      return {
+        ...current,
+        conditions,
+      };
+    });
+  };
+
+  const saveProfile = async () => {
+    if (!name.trim()) {
       Alert.alert("Missing Name", "Name is required.");
       return;
     }
 
-    if (!form.email.trim()) {
-      Alert.alert("Missing Email", "Email is required.");
-      return;
-    }
-
-    if (form.dentition_type !== "Adult" && form.dentition_type !== "Child") {
-      Alert.alert("Invalid Dentition", "Dentition type must be Adult or Child.");
+    if (!address.city.trim() || !address.province.trim()) {
+      Alert.alert(
+        "Incomplete Address",
+        "City or municipality and province are required.",
+      );
       return;
     }
 
     try {
-      Keyboard.dismiss();
       setSaving(true);
 
       const data = await updatePatientProfile({
         token,
         profile: {
-          name: form.name.trim(),
-          email: form.email.trim(),
-          contact_number: form.contact_number.trim() || null,
-          date_of_birth: form.date_of_birth.trim() || null,
-          address: form.address.trim() || null,
-          gender: form.gender.trim() || null,
-          medical_history: form.medical_history.trim() || null,
-          dentition_type: form.dentition_type,
+          name: name.trim(),
+          address,
+          medical_history: medicalHistory,
         },
       });
 
-      fillForm(data.patient);
-
-      if (onProfileUpdated) {
-        onProfileUpdated(data.patient);
-      }
-
+      fillProfile(data.patient);
+      onProfileUpdated?.(data.patient);
       setEditing(false);
 
-      Alert.alert("Success", "Profile updated successfully.");
+      Alert.alert("Profile Updated", data.message);
     } catch (error) {
       Alert.alert(
         "Update Failed",
-        error.message || "Unable to update patient profile."
+        error.message || "Unable to update patient profile.",
       );
     } finally {
       setSaving(false);
     }
   };
 
-  const displayValue = (value) => {
-    if (!value) return "Not set";
-    return value;
+  const openVerification = (type) => {
+    setVerification({
+      visible: true,
+      type,
+      value:
+        type === "email"
+          ? profile?.email || ""
+          : profile?.contact_number || "",
+      code: "",
+      stage: "request",
+    });
   };
 
-  const getInitial = () => {
-    return (form.name || user?.name || "P").charAt(0).toUpperCase();
+  const closeVerification = () => {
+    if (verificationBusy) return;
+
+    setVerification((current) => ({
+      ...current,
+      visible: false,
+    }));
   };
 
-  const renderInput = ({
-    label,
-    field,
-    placeholder,
-    icon,
-    multiline = false,
-    keyboardType = "default",
-    autoCapitalize = "sentences",
-  }) => {
-    return (
-      <View style={styles.inputGroup}>
-        <View style={styles.inputLabelRow}>
-          <Ionicons name={icon} size={15} color="#718096" />
-          <Text style={styles.inputLabel}>{label}</Text>
-        </View>
+  const sendVerification = async () => {
+    try {
+      setVerificationBusy(true);
 
-        <TextInput
-          style={[styles.input, multiline && styles.multilineInput]}
-          placeholder={placeholder}
-          placeholderTextColor="#a0aec0"
-          value={form[field]}
-          onChangeText={(value) => updateField(field, value)}
-          editable={editing && !saving}
-          multiline={multiline}
-          keyboardType={keyboardType}
-          autoCapitalize={autoCapitalize}
-          textAlignVertical={multiline ? "top" : "center"}
-        />
-      </View>
-    );
+      const data = await requestProfileVerification({
+        token,
+        type: verification.type,
+        value: verification.value,
+      });
+
+      setVerification((current) => ({
+        ...current,
+        stage: "confirm",
+        code: "",
+      }));
+
+      Alert.alert("Code Sent", data.message);
+      await loadProfile();
+    } catch (error) {
+      Alert.alert(
+        "Verification Error",
+        error.message || "Unable to send the verification code.",
+      );
+    } finally {
+      setVerificationBusy(false);
+    }
   };
 
-  function InfoRow({ icon, label, value }) {
-    return (
-      <View style={styles.infoRow}>
-        <View style={styles.infoIconCircle}>
-          <Ionicons name={icon} size={16} color="#2b6cb0" />
-        </View>
+  const confirmVerification = async () => {
+    if (!/^\d{6}$/.test(verification.code)) {
+      Alert.alert(
+        "Invalid Code",
+        "Enter the six-digit verification code.",
+      );
+      return;
+    }
 
-        <View style={styles.infoTextBlock}>
-          <Text style={styles.infoLabel}>{label}</Text>
-          <Text style={styles.infoValue}>{displayValue(value)}</Text>
-        </View>
-      </View>
-    );
-  }
+    try {
+      setVerificationBusy(true);
+
+      const data = await confirmProfileVerification({
+        token,
+        type: verification.type,
+        code: verification.code,
+      });
+
+      fillProfile(data.patient);
+      onProfileUpdated?.(data.patient);
+      closeVerification();
+
+      Alert.alert(
+        "Verified",
+        data.requires_relogin
+          ? `${data.message} Sign in again later using the new email address.`
+          : data.message,
+      );
+    } catch (error) {
+      Alert.alert(
+        "Verification Failed",
+        error.message || "Unable to verify the requested change.",
+      );
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator color="#2563eb" />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.keyboardView}
-      behavior={Platform.OS === "ios" ? "padding" : undefined}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
         <ScrollView
-          style={styles.container}
           contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadProfile({ refresh: true })}
+            />
           }
+          keyboardShouldPersistTaps="handled"
         >
-          <View style={styles.header}>
-            <View style={styles.headerTopRow}>
-              <View style={styles.headerIconCircle}>
-                <Ionicons name="person-outline" size={27} color="#2b6cb0" />
-              </View>
+          <View style={styles.headerCard}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
 
-              <View style={styles.headerTextBlock}>
-                <Text style={styles.title}>Profile</Text>
-                <Text style={styles.subtitle}>
-                  View and update your patient account information.
+            <View style={styles.headerText}>
+              <Text style={styles.name}>{profile?.name}</Text>
+              <Text style={styles.clinic}>
+                {profile?.clinic_name || "No assigned clinic"}
+              </Text>
+
+              <View style={styles.lockBadge}>
+                <Ionicons name="lock-closed" size={13} color="#1e40af" />
+                <Text style={styles.lockBadgeText}>
+                  {profile?.dentition_type || "Adult"} dentition
                 </Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.profileCard}>
-            <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>{getInitial()}</Text>
-            </View>
-
-            <View style={styles.profileTextBlock}>
-              <Text style={styles.profileName} numberOfLines={2}>
-                {form.name || user?.name || "Patient"}
-              </Text>
-
-              <Text style={styles.profileEmail} numberOfLines={1}>
-                {form.email || user?.email || "No email"}
-              </Text>
-
-              <View style={styles.profileMetaRow}>
-                <View style={styles.accountStatusBadge}>
-                  <Text style={styles.accountStatusText}>
-                    {profile?.account_status || "Active"}
-                  </Text>
-                </View>
-
-                <View style={styles.dentitionBadge}>
-                  <Text style={styles.dentitionBadgeText}>
-                    {form.dentition_type || "Adult"}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
           {!editing ? (
-            <View style={styles.infoCard}>
-              <View style={styles.cardTopRow}>
-                <View style={styles.cardTitleBlock}>
-                  <Text style={styles.cardTitle}>Patient Information</Text>
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <View>
+                  <Text style={styles.cardTitle}>Profile Details</Text>
                   <Text style={styles.cardSubtitle}>
-                    Your current personal and dental details
+                    Sensitive contact changes require verification.
                   </Text>
                 </View>
 
@@ -303,528 +450,582 @@ export default function PatientProfileScreen({
                   style={styles.editButton}
                   onPress={() => setEditing(true)}
                 >
-                  <Ionicons name="create-outline" size={16} color="#2b6cb0" />
+                  <Ionicons name="create-outline" size={17} color="#2563eb" />
                   <Text style={styles.editButtonText}>Edit</Text>
                 </Pressable>
               </View>
 
-              <View style={styles.infoList}>
-                <InfoRow
-                  icon="person-outline"
-                  label="Name"
-                  value={profile?.name}
-                />
+              <InfoRow
+                icon="mail-outline"
+                label="Verified Email"
+                value={profile?.email}
+                actionLabel="Change"
+                onAction={() => openVerification("email")}
+              />
 
-                <InfoRow
-                  icon="mail-outline"
-                  label="Email"
-                  value={profile?.email}
-                />
+              <InfoRow
+                icon="call-outline"
+                label="Verified Contact Number"
+                value={profile?.contact_number}
+                actionLabel="Change"
+                onAction={() => openVerification("contact_number")}
+              />
 
-                <InfoRow
-                  icon="call-outline"
-                  label="Contact Number"
-                  value={profile?.contact_number}
-                />
+              <InfoRow
+                icon="location-outline"
+                label="Address"
+                value={formatAddress(profile?.address)}
+              />
 
-                <InfoRow
-                  icon="calendar-outline"
-                  label="Date of Birth"
-                  value={profile?.date_of_birth}
-                />
+              <InfoRow
+                icon="medkit-outline"
+                label="Medical History"
+                value={formatMedicalHistory(profile?.medical_history)}
+              />
 
-                <InfoRow
-                  icon="male-female-outline"
-                  label="Gender"
-                  value={profile?.gender}
+              <View style={styles.readOnlyNotice}>
+                <Ionicons
+                  name="information-circle-outline"
+                  size={18}
+                  color="#1d4ed8"
                 />
-
-                <InfoRow
-                  icon="medical-outline"
-                  label="Dentition Type"
-                  value={profile?.dentition_type}
-                />
-
-                <InfoRow
-                  icon="location-outline"
-                  label="Address"
-                  value={profile?.address}
-                />
-
-                <InfoRow
-                  icon="heart-outline"
-                  label="Medical History"
-                  value={profile?.medical_history}
-                />
+                <Text style={styles.readOnlyNoticeText}>
+                  Dentition type is a clinical classification and cannot be
+                  changed from the Patient profile.
+                </Text>
               </View>
             </View>
           ) : (
-            <View style={styles.infoCard}>
-              <View style={styles.editHeader}>
-                <Text style={styles.cardTitle}>Edit Patient Information</Text>
-                <Text style={styles.cardSubtitle}>
-                  Update your details then tap Save Changes
-                </Text>
-              </View>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Edit Profile</Text>
+              <Text style={styles.cardSubtitle}>
+                Date of birth, gender, dentition, email, and contact number
+                are not directly editable here.
+              </Text>
 
-              {renderInput({
-                label: "Name",
-                field: "name",
-                placeholder: "Enter your full name",
-                icon: "person-outline",
-              })}
+              <FormInput
+                label="Full Name"
+                value={name}
+                onChangeText={setName}
+                placeholder="Enter your full name"
+              />
 
-              {renderInput({
-                label: "Email",
-                field: "email",
-                placeholder: "Enter your email",
-                icon: "mail-outline",
-                keyboardType: "email-address",
-                autoCapitalize: "none",
-              })}
+              <Text style={styles.sectionTitle}>Structured Address</Text>
 
-              {renderInput({
-                label: "Contact Number",
-                field: "contact_number",
-                placeholder: "Enter your contact number",
-                icon: "call-outline",
-                keyboardType: "phone-pad",
-              })}
+              <FormInput
+                label="House, Unit, Building, and Street"
+                value={address.line1}
+                onChangeText={(value) =>
+                  updateAddressField("line1", value)
+                }
+                placeholder="Example: Unit 4, 25 Rizal Street"
+              />
 
-              {renderInput({
-                label: "Date of Birth",
-                field: "date_of_birth",
-                placeholder: "YYYY-MM-DD",
-                icon: "calendar-outline",
-                autoCapitalize: "none",
-              })}
+              <FormInput
+                label="Barangay"
+                value={address.barangay}
+                onChangeText={(value) =>
+                  updateAddressField("barangay", value)
+                }
+                placeholder="Barangay"
+              />
 
-              {renderInput({
-                label: "Gender",
-                field: "gender",
-                placeholder: "Enter your gender",
-                icon: "male-female-outline",
-              })}
-
-              <View style={styles.inputGroup}>
-                <View style={styles.inputLabelRow}>
-                  <Ionicons name="medical-outline" size={15} color="#718096" />
-                  <Text style={styles.inputLabel}>Dentition Type</Text>
+              <View style={styles.twoColumnRow}>
+                <View style={styles.flexField}>
+                  <FormInput
+                    label="City / Municipality"
+                    value={address.city}
+                    onChangeText={(value) =>
+                      updateAddressField("city", value)
+                    }
+                    placeholder="City"
+                  />
                 </View>
 
-                <View style={styles.toggleRow}>
-                  <Pressable
-                    style={[
-                      styles.toggleButton,
-                      form.dentition_type === "Adult" &&
-                        styles.activeToggleButton,
-                    ]}
-                    onPress={() => updateField("dentition_type", "Adult")}
-                    disabled={saving}
-                  >
-                    <Ionicons
-                      name="person-outline"
-                      size={17}
-                      color={
-                        form.dentition_type === "Adult" ? "#2b6cb0" : "#718096"
-                      }
-                    />
-
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        form.dentition_type === "Adult" &&
-                          styles.activeToggleText,
-                      ]}
-                    >
-                      Adult
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    style={[
-                      styles.toggleButton,
-                      form.dentition_type === "Child" &&
-                        styles.activeToggleButton,
-                    ]}
-                    onPress={() => updateField("dentition_type", "Child")}
-                    disabled={saving}
-                  >
-                    <Ionicons
-                      name="happy-outline"
-                      size={17}
-                      color={
-                        form.dentition_type === "Child" ? "#2b6cb0" : "#718096"
-                      }
-                    />
-
-                    <Text
-                      style={[
-                        styles.toggleText,
-                        form.dentition_type === "Child" &&
-                          styles.activeToggleText,
-                      ]}
-                    >
-                      Child
-                    </Text>
-                  </Pressable>
+                <View style={styles.flexField}>
+                  <FormInput
+                    label="Postal Code"
+                    value={address.postal_code}
+                    onChangeText={(value) =>
+                      updateAddressField("postal_code", value)
+                    }
+                    placeholder="Postal"
+                    keyboardType="number-pad"
+                  />
                 </View>
               </View>
 
-              {renderInput({
-                label: "Address",
-                field: "address",
-                placeholder: "Enter your address",
-                icon: "location-outline",
-                multiline: true,
-              })}
+              <FormInput
+                label="Province"
+                value={address.province}
+                onChangeText={(value) =>
+                  updateAddressField("province", value)
+                }
+                placeholder="Province"
+              />
 
-              {renderInput({
-                label: "Medical History",
-                field: "medical_history",
-                placeholder: "Enter medical history, allergies, or notes",
-                icon: "heart-outline",
-                multiline: true,
-              })}
+              <Text style={styles.sectionTitle}>
+                Medical History Checklist
+              </Text>
+
+              <View style={styles.chipWrap}>
+                {MEDICAL_OPTIONS.map((condition) => {
+                  const active =
+                    medicalHistory.conditions.includes(condition);
+
+                  return (
+                    <Pressable
+                      key={condition}
+                      style={[
+                        styles.conditionChip,
+                        active && styles.conditionChipActive,
+                      ]}
+                      onPress={() => toggleCondition(condition)}
+                    >
+                      <Ionicons
+                        name={
+                          active
+                            ? "checkbox-outline"
+                            : "square-outline"
+                        }
+                        size={17}
+                        color={active ? "#ffffff" : "#475569"}
+                      />
+                      <Text
+                        style={[
+                          styles.conditionChipText,
+                          active && styles.conditionChipTextActive,
+                        ]}
+                      >
+                        {condition}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <FormInput
+                label="Allergies"
+                value={medicalHistory.allergies}
+                onChangeText={(value) =>
+                  updateMedicalField("allergies", value)
+                }
+                placeholder="Medicines, food, latex, or none"
+                multiline
+              />
+
+              <FormInput
+                label="Current Medications"
+                value={medicalHistory.medications}
+                onChangeText={(value) =>
+                  updateMedicalField("medications", value)
+                }
+                placeholder="List medicines and dosage, or none"
+                multiline
+              />
+
+              <FormInput
+                label="Other Medical Notes"
+                value={medicalHistory.notes}
+                onChangeText={(value) =>
+                  updateMedicalField("notes", value)
+                }
+                placeholder="Previous surgery, hospitalization, or other notes"
+                multiline
+              />
 
               <View style={styles.formActions}>
                 <Pressable
                   style={styles.cancelButton}
-                  onPress={handleCancelEdit}
+                  onPress={() => {
+                    fillProfile(profile);
+                    setEditing(false);
+                  }}
                   disabled={saving}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </Pressable>
 
                 <Pressable
-                  style={[styles.saveButton, saving && styles.disabledButton]}
-                  onPress={handleSaveProfile}
+                  style={[
+                    styles.saveButton,
+                    saving && styles.disabledButton,
+                  ]}
+                  onPress={saveProfile}
                   disabled={saving}
                 >
                   {saving ? (
                     <ActivityIndicator color="#ffffff" />
                   ) : (
-                    <>
-                      <Ionicons
-                        name="checkmark-circle-outline"
-                        size={18}
-                        color="#ffffff"
-                      />
-                      <Text style={styles.saveButtonText}>Save Changes</Text>
-                    </>
+                    <Text style={styles.saveButtonText}>Save Profile</Text>
                   )}
                 </Pressable>
               </View>
             </View>
           )}
         </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+
+      <Modal
+        visible={verification.visible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeVerification}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>
+                  Verify New{" "}
+                  {verification.type === "email"
+                    ? "Email"
+                    : "Contact Number"}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  The existing value remains active until verification succeeds.
+                </Text>
+              </View>
+
+              <Pressable onPress={closeVerification}>
+                <Ionicons name="close" size={23} color="#475569" />
+              </Pressable>
+            </View>
+
+            {verification.stage === "request" ? (
+              <>
+                <FormInput
+                  label={
+                    verification.type === "email"
+                      ? "New Email Address"
+                      : "New Philippine Mobile Number"
+                  }
+                  value={verification.value}
+                  onChangeText={(value) =>
+                    setVerification((current) => ({
+                      ...current,
+                      value,
+                    }))
+                  }
+                  placeholder={
+                    verification.type === "email"
+                      ? "name@example.com"
+                      : "09XXXXXXXXX"
+                  }
+                  keyboardType={
+                    verification.type === "email"
+                      ? "email-address"
+                      : "phone-pad"
+                  }
+                  autoCapitalize="none"
+                />
+
+                <Pressable
+                  style={[
+                    styles.fullButton,
+                    verificationBusy && styles.disabledButton,
+                  ]}
+                  onPress={sendVerification}
+                  disabled={verificationBusy}
+                >
+                  {verificationBusy ? (
+                    <ActivityIndicator color="#ffffff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>
+                      Send Verification Code
+                    </Text>
+                  )}
+                </Pressable>
+              </>
+            ) : (
+              <>
+                <FormInput
+                  label="Six-Digit Code"
+                  value={verification.code}
+                  onChangeText={(value) =>
+                    setVerification((current) => ({
+                      ...current,
+                      code: value.replace(/\D/g, "").slice(0, 6),
+                    }))
+                  }
+                  placeholder="000000"
+                  keyboardType="number-pad"
+                />
+
+                <Pressable
+                  style={[
+                    styles.fullButton,
+                    verificationBusy && styles.disabledButton,
+                  ]}
+                  onPress={confirmVerification}
+                  disabled={verificationBusy}
+                >
+                  {verificationBusy ? (
+                    <ActivityIndicator color="#ffffff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>
+                      Confirm and Update
+                    </Text>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  style={styles.resendButton}
+                  onPress={sendVerification}
+                  disabled={verificationBusy}
+                >
+                  <Text style={styles.resendText}>
+                    Send a new code
+                  </Text>
+                </Pressable>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  container: {
-    flex: 1,
-    backgroundColor: "#f8fafc",
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 40,
-  },
+  container: { flex: 1, backgroundColor: "#f8fafc" },
+  content: { padding: 18, paddingBottom: 40 },
   loadingContainer: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     backgroundColor: "#f8fafc",
   },
-  loadingText: {
-    marginTop: 12,
-    color: "#718096",
-    fontSize: 14,
-  },
-  header: {
-    marginTop: 18,
-    marginBottom: 20,
-  },
-  headerTopRow: {
+  loadingText: { marginTop: 10, color: "#64748b" },
+  headerCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: 14,
+    padding: 17,
+    marginBottom: 14,
+    backgroundColor: "#2563eb",
+    borderRadius: 19,
   },
-  headerIconCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 18,
-    backgroundColor: "#e3f2fd",
+  avatar: {
+    width: 66,
+    height: 66,
     alignItems: "center",
     justifyContent: "center",
-  },
-  headerTextBlock: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 27,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#718096",
-    lineHeight: 20,
-    fontWeight: "600",
-  },
-  profileCard: {
-    backgroundColor: "#2b6cb0",
-    borderRadius: 26,
-    padding: 18,
-    marginBottom: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 15,
-    shadowColor: "#2b6cb0",
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.16,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-  avatarCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
     backgroundColor: "#ffffff",
-    alignItems: "center",
-    justifyContent: "center",
+    borderRadius: 33,
   },
   avatarText: {
-    color: "#2b6cb0",
-    fontSize: 32,
+    color: "#2563eb",
+    fontSize: 28,
     fontWeight: "900",
   },
-  profileTextBlock: {
-    flex: 1,
-  },
-  profileName: {
-    color: "#ffffff",
-    fontSize: 21,
-    fontWeight: "900",
-    marginBottom: 4,
-  },
-  profileEmail: {
-    color: "#e3f2fd",
-    fontSize: 13,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  profileMetaRow: {
+  headerText: { flex: 1 },
+  name: { color: "#ffffff", fontSize: 20, fontWeight: "900" },
+  clinic: { marginTop: 3, color: "#dbeafe", fontSize: 11 },
+  lockBadge: {
+    alignSelf: "flex-start",
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  accountStatusBadge: {
-    backgroundColor: "#c6f6d5",
-    paddingHorizontal: 11,
+    alignItems: "center",
+    gap: 5,
+    marginTop: 9,
     paddingVertical: 6,
+    paddingHorizontal: 9,
+    backgroundColor: "#dbeafe",
     borderRadius: 999,
   },
-  accountStatusText: {
-    color: "#2f855a",
-    fontSize: 11,
+  lockBadgeText: {
+    color: "#1e40af",
+    fontSize: 10,
     fontWeight: "900",
   },
-  dentitionBadge: {
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 11,
-    paddingVertical: 6,
-    borderRadius: 999,
-  },
-  dentitionBadgeText: {
-    color: "#2b6cb0",
-    fontSize: 11,
-    fontWeight: "900",
-  },
-  infoCard: {
-    backgroundColor: "#ffffff",
-    borderRadius: 24,
+  card: {
     padding: 16,
+    backgroundColor: "#ffffff",
     borderWidth: 1,
     borderColor: "#e2e8f0",
+    borderRadius: 17,
   },
-  cardTopRow: {
+  cardHeader: {
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
     gap: 10,
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  cardTitleBlock: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 19,
-    fontWeight: "900",
-    color: "#1a202c",
-    marginBottom: 3,
-  },
+  cardTitle: { color: "#0f172a", fontSize: 18, fontWeight: "900" },
   cardSubtitle: {
-    fontSize: 13,
-    color: "#718096",
-    fontWeight: "700",
-    lineHeight: 18,
+    marginTop: 4,
+    marginBottom: 14,
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 17,
   },
   editButton: {
-    backgroundColor: "#e3f2fd",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     gap: 5,
-    alignSelf: "flex-start",
+    paddingVertical: 8,
+    paddingHorizontal: 11,
+    backgroundColor: "#eff6ff",
+    borderRadius: 999,
   },
-  editButtonText: {
-    color: "#2b6cb0",
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  infoList: {
-    gap: 10,
-  },
+  editButtonText: { color: "#2563eb", fontSize: 11, fontWeight: "900" },
   infoRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 10,
-    backgroundColor: "#f8fafc",
-    borderRadius: 16,
+    marginBottom: 9,
     padding: 12,
-    borderWidth: 1,
-    borderColor: "#edf2f7",
+    backgroundColor: "#f8fafc",
+    borderRadius: 12,
   },
-  infoIconCircle: {
+  infoIcon: {
     width: 34,
     height: 34,
-    borderRadius: 12,
-    backgroundColor: "#e3f2fd",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#eff6ff",
+    borderRadius: 11,
   },
-  infoTextBlock: {
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: "#718096",
-    fontWeight: "900",
-    marginBottom: 3,
-  },
+  infoText: { flex: 1 },
+  infoLabel: { color: "#64748b", fontSize: 10, fontWeight: "900" },
   infoValue: {
-    fontSize: 14,
-    color: "#1a202c",
+    marginTop: 3,
+    color: "#1e293b",
+    fontSize: 12,
+    lineHeight: 18,
     fontWeight: "700",
-    lineHeight: 20,
   },
-  editHeader: {
-    marginBottom: 16,
+  inlineAction: {
+    paddingVertical: 7,
+    paddingHorizontal: 9,
+    backgroundColor: "#dbeafe",
+    borderRadius: 9,
   },
-  inputGroup: {
-    marginBottom: 14,
-  },
-  inputLabelRow: {
+  inlineActionText: { color: "#1d4ed8", fontSize: 10, fontWeight: "900" },
+  readOnlyNotice: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 7,
+    alignItems: "flex-start",
+    gap: 8,
+    marginTop: 6,
+    padding: 11,
+    backgroundColor: "#eff6ff",
+    borderRadius: 11,
   },
+  readOnlyNoticeText: {
+    flex: 1,
+    color: "#1e40af",
+    fontSize: 10,
+    lineHeight: 16,
+  },
+  sectionTitle: {
+    marginTop: 8,
+    marginBottom: 11,
+    color: "#0f172a",
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  inputGroup: { marginBottom: 12 },
   inputLabel: {
-    fontSize: 13,
-    color: "#4a5568",
+    marginBottom: 6,
+    color: "#475569",
+    fontSize: 11,
     fontWeight: "900",
   },
   input: {
+    minHeight: 46,
+    paddingHorizontal: 12,
+    color: "#0f172a",
     backgroundColor: "#ffffff",
     borderWidth: 1,
-    borderColor: "#e2e8f0",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    color: "#1a202c",
-    fontSize: 14,
+    borderColor: "#cbd5e1",
+    borderRadius: 11,
   },
   multilineInput: {
-    minHeight: 92,
-    lineHeight: 20,
+    minHeight: 88,
+    paddingTop: 12,
   },
-  toggleRow: {
+  twoColumnRow: { flexDirection: "row", gap: 10 },
+  flexField: { flex: 1 },
+  chipWrap: {
     flexDirection: "row",
-    gap: 10,
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 13,
   },
-  toggleButton: {
-    flex: 1,
-    backgroundColor: "#edf2f7",
-    borderRadius: 15,
-    paddingVertical: 12,
+  conditionChip: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#e2e8f0",
-    flexDirection: "row",
-    gap: 7,
+    gap: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 10,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 999,
   },
-  activeToggleButton: {
-    backgroundColor: "#e3f2fd",
-    borderColor: "#2b6cb0",
+  conditionChipActive: { backgroundColor: "#2563eb" },
+  conditionChipText: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "800",
   },
-  toggleText: {
-    color: "#718096",
-    fontSize: 14,
-    fontWeight: "900",
-  },
-  activeToggleText: {
-    color: "#2b6cb0",
-  },
-  formActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 4,
-  },
+  conditionChipTextActive: { color: "#ffffff" },
+  formActions: { flexDirection: "row", gap: 10, marginTop: 5 },
   cancelButton: {
     flex: 1,
-    backgroundColor: "#edf2f7",
-    paddingVertical: 13,
-    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 48,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 12,
   },
-  cancelButtonText: {
-    color: "#2b6cb0",
-    fontSize: 14,
-    fontWeight: "900",
-  },
+  cancelButtonText: { color: "#334155", fontWeight: "900" },
   saveButton: {
-    flex: 1.25,
-    backgroundColor: "#2b6cb0",
-    paddingVertical: 13,
-    borderRadius: 16,
+    flex: 1.3,
     alignItems: "center",
     justifyContent: "center",
+    minHeight: 48,
+    backgroundColor: "#2563eb",
+    borderRadius: 12,
+  },
+  saveButtonText: { color: "#ffffff", fontWeight: "900" },
+  disabledButton: { opacity: 0.65 },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(15,23,42,0.55)",
+  },
+  modalSheet: {
+    padding: 18,
+    paddingBottom: 30,
+    backgroundColor: "#ffffff",
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+  },
+  modalHeader: {
     flexDirection: "row",
-    gap: 6,
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 15,
   },
-  saveButtonText: {
-    color: "#ffffff",
-    fontSize: 14,
-    fontWeight: "900",
+  modalTitle: { color: "#0f172a", fontSize: 18, fontWeight: "900" },
+  modalSubtitle: {
+    maxWidth: 290,
+    marginTop: 4,
+    color: "#64748b",
+    fontSize: 10,
+    lineHeight: 15,
   },
-  disabledButton: {
-    opacity: 0.7,
+  fullButton: {
+    minHeight: 49,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#2563eb",
+    borderRadius: 12,
   },
+  resendButton: {
+    alignItems: "center",
+    paddingVertical: 13,
+  },
+  resendText: { color: "#2563eb", fontSize: 11, fontWeight: "900" },
 });

@@ -259,6 +259,42 @@ DentoGraph Team`,
   });
 };
 
+
+const sendProfileEmailVerificationCode = async ({ to, name, code }) => {
+  const safeName = escapeHtml(name);
+  const safeCode = escapeHtml(code);
+
+  return sendEmail({
+    to,
+    subject: "Confirm your new DentoGraph email address",
+    text: `Hello ${name},
+
+Your DentoGraph email verification code is: ${code}
+
+This code expires in 10 minutes.
+
+Your account email will not change until this code is confirmed.
+
+If you did not request this change, keep your existing email and contact your clinic.
+
+DentoGraph Team`,
+    html: `
+      <div style="font-family:Arial,sans-serif;color:#1a202c;line-height:1.65;max-width:620px;margin:0 auto;">
+        <h2>Confirm your new email address</h2>
+        <p>Hello ${safeName},</p>
+        <p>Enter this verification code in the DentoGraph mobile app:</p>
+        <div style="font-size:30px;font-weight:800;letter-spacing:8px;padding:16px;text-align:center;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;">
+          ${safeCode}
+        </div>
+        <p>This code expires in 10 minutes.</p>
+        <p>Your account email will not change until this code is confirmed.</p>
+        <p>If you did not request this change, keep your existing email and contact your clinic.</p>
+        <p>DentoGraph Team</p>
+      </div>
+    `,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendVerificationEmail,
@@ -266,4 +302,5 @@ module.exports = {
   sendClinicApplicationReceivedEmail,
   sendClinicApplicationApprovedEmail,
   sendClinicApplicationRejectedEmail,
+  sendProfileEmailVerificationCode,
 };

@@ -14,6 +14,14 @@ import {
 import { WebView } from "react-native-webview";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
+import PermissionStateCard from "../components/PermissionStateCard";
+import {
+  getLocationPermissionState,
+  getPermissionMessage,
+  openApplicationSettings,
+  PERMISSION_STATUS,
+  requestLocationPermission,
+} from "../services/permissionService";
 
 import { getClinics } from "../services/clinicService";
 
@@ -22,11 +30,17 @@ export default function PatientClinicDiscoveryScreen({ token }) {
 
   const [clinics, setClinics] = useState([]);
   const [selectedClinic, setSelectedClinic] = useState(null);
+  const [expandedClinicId, setExpandedClinicId] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
 
   const [loading, setLoading] = useState(true);
   const [locationLoading, setLocationLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [locationPermission, setLocationPermission] = useState({
+    status: PERMISSION_STATUS.UNDETERMINED,
+    granted: false,
+    canAskAgain: true,
+  });
 
   useEffect(() => {
     initializeClinicDiscovery();
@@ -95,13 +109,301 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     );
   };
 
-  const getClinicHours = (clinic) => {
+  const normalizeServices = (clinic) => {
+    const rawServices =
+      clinic.services ||
+      clinic.clinic_services ||
+      clinic.service_names ||
+      [];
+
+    if (Array.isArray(rawServices)) {
+      return rawServices
+        .map((service) => {
+          if (typeof service === "string") return service.trim();
+
+          return (
+            service.service_name ||
+            service.name ||
+            service.label ||
+            ""
+          ).trim();
+        })
+        .filter(Boolean);
+    }
+
+    if (typeof rawServices === "string") {
+      return rawServices
+        .split(/[,;|\n]/)
+        .map((service) => service.trim())
+        .filter(Boolean);
+    }
+
+    return [];
+  };
+
+  const DAY_ORDER = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
+
+  const DAY_BY_NUMBER = {
+    0: "Sunday",
+    1: "Monday",
+    2: "Tuesday",
+    3: "Wednesday",
+    4: "Thursday",
+    5: "Friday",
+    6: "Saturday",
+    7: "Sunday",
+  };
+
+  const normalizeDayName = (value) => {
+    if (value === undefined || value === null || value === "") {
+      return "";
+    }
+
+    if (!Number.isNaN(Number(value))) {
+      return DAY_BY_NUMBER[Number(value)] || "";
+    }
+
+    const normalized = String(value).trim().toLowerCase();
+
     return (
-      clinic.opening_hours ||
-      clinic.operating_hours ||
-      clinic.hours ||
-      "No opening hours available"
+      DAY_ORDER.find(
+        (day) =>
+          day.toLowerCase() === normalized ||
+          day.slice(0, 3).toLowerCase() === normalized.slice(0, 3),
+      ) || ""
     );
+  };
+
+  const parseLegacyHoursText = (value) => {
+    const textValue = String(value || "").trim();
+
+    if (!textValue) {
+      return [];
+    }
+
+    /*
+     * The discovery endpoint currently returns clinics.opening_hours as a
+     * legacy comma-separated string, for example:
+     * "Monday: 9:00 AM - 5:00 PM, Tuesday: 9:00 AM - 5:00 PM".
+     *
+     * Split only where a new weekday begins so commas inside other text do
+     * not create false schedule rows.
+     */
+    const entries = textValue
+      .split(
+        /,\s*(?=(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*:)/i,
+      )
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    return entries
+      .map((entry) => {
+        const match = entry.match(
+          /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s*:\s*(.+)$/i,
+        );
+
+        if (!match) {
+          return null;
+        }
+
+        const day = normalizeDayName(match[1]);
+        const hours = String(match[2] || "").trim();
+        const isClosed = /\bclosed\b/i.test(hours);
+
+        return {
+          day,
+          hours: isClosed ? "Closed" : hours,
+          isOpen: !isClosed,
+        };
+      })
+      .filter(Boolean);
+  };
+
+  const normalizeOperatingHours = (clinic) => {
+    const rawHours =
+      clinic.operating_hours ||
+      clinic.opening_hours ||
+      clinic.hours ||
+      clinic.availability ||
+      [];
+
+    if (Array.isArray(rawHours)) {
+      return rawHours
+        .map((item) => {
+          if (typeof item === "string") {
+            return parseLegacyHoursText(item);
+          }
+
+          const day = normalizeDayName(
+            item.day_name ??
+              item.day ??
+              item.weekday ??
+              item.day_of_week,
+          );
+
+          if (!day) {
+            return null;
+          }
+
+          const rawIsOpen =
+            item.is_open ?? item.is_available ?? item.open;
+
+          const isOpen =
+            rawIsOpen === undefined
+              ? !String(item.hours || "").toLowerCase().includes("closed")
+              : rawIsOpen === true ||
+                rawIsOpen === 1 ||
+                String(rawIsOpen).toLowerCase() === "true";
+
+          const start =
+            item.opening_time ||
+            item.start_time ||
+            item.open_time ||
+            "";
+
+          const end =
+            item.closing_time ||
+            item.end_time ||
+            item.close_time ||
+            "";
+
+          return {
+            day,
+            hours: isOpen
+              ? start && end
+                ? `${start} – ${end}`
+                : item.hours || "Open"
+              : "Closed",
+            isOpen,
+          };
+        })
+        .flat()
+        .filter(Boolean)
+        .sort(
+          (first, second) =>
+            DAY_ORDER.indexOf(first.day) - DAY_ORDER.indexOf(second.day),
+        );
+    }
+
+    if (rawHours && typeof rawHours === "object") {
+      return Object.entries(rawHours)
+        .map(([dayValue, value]) => {
+          const day = normalizeDayName(dayValue);
+
+          if (!day) {
+            return null;
+          }
+
+          const normalizedValue =
+            typeof value === "string"
+              ? value
+              : value?.hours || value?.label || "Closed";
+
+          const isOpen =
+            value?.is_open !== undefined
+              ? Boolean(value.is_open)
+              : !String(normalizedValue).toLowerCase().includes("closed");
+
+          return {
+            day,
+            hours: isOpen ? normalizedValue : "Closed",
+            isOpen,
+          };
+        })
+        .filter(Boolean)
+        .sort(
+          (first, second) =>
+            DAY_ORDER.indexOf(first.day) - DAY_ORDER.indexOf(second.day),
+        );
+    }
+
+    if (typeof rawHours === "string") {
+      return parseLegacyHoursText(rawHours).sort(
+        (first, second) =>
+          DAY_ORDER.indexOf(first.day) - DAY_ORDER.indexOf(second.day),
+      );
+    }
+
+    return [];
+  };
+
+  const getGroupedSchedule = (clinic) => {
+    const schedule = normalizeOperatingHours(clinic);
+
+    if (schedule.length === 0) {
+      return [];
+    }
+
+    const groups = [];
+
+    schedule.forEach((item) => {
+      const dayIndex = DAY_ORDER.indexOf(item.day);
+      const signature = `${item.isOpen ? "open" : "closed"}|${item.hours}`;
+      const previous = groups[groups.length - 1];
+
+      const isConsecutive =
+        previous && dayIndex === previous.lastDayIndex + 1;
+
+      if (
+        previous &&
+        previous.signature === signature &&
+        isConsecutive
+      ) {
+        previous.endDay = item.day;
+        previous.lastDayIndex = dayIndex;
+        return;
+      }
+
+      groups.push({
+        startDay: item.day,
+        endDay: item.day,
+        hours: item.hours,
+        isOpen: item.isOpen,
+        signature,
+        lastDayIndex: dayIndex,
+      });
+    });
+
+    return groups.map((group) => ({
+      ...group,
+      label:
+        group.startDay === group.endDay
+          ? group.startDay
+          : `${group.startDay.slice(0, 3)}–${group.endDay.slice(0, 3)}`,
+    }));
+  };
+
+  const getTodayHours = (clinic) => {
+    const schedule = normalizeOperatingHours(clinic);
+
+    if (schedule.length === 0) {
+      return "Hours unavailable";
+    }
+
+    const today = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+    });
+
+    const todaySchedule = schedule.find(
+      (item) =>
+        String(item.day).toLowerCase() === today.toLowerCase(),
+    );
+
+    if (!todaySchedule) {
+      return `${schedule.length} day schedule`;
+    }
+
+    return todaySchedule.isOpen
+      ? `Today: ${todaySchedule.hours}`
+      : "Closed today";
   };
 
   const calculateDistanceKm = (from, to) => {
@@ -338,18 +640,21 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     `;
   }, [userLocation, clinicsWithLocation, mapCenter]);
 
-  const getCurrentLocation = async () => {
+  const getCurrentLocation = async ({ request = true } = {}) => {
     try {
       setLocationLoading(true);
 
-      const permission = await Location.requestForegroundPermissionsAsync();
+      let permission = await getLocationPermissionState();
 
-      if (permission.status !== "granted") {
-        Alert.alert(
-          "Location Permission Needed",
-          "Clinic Discovery needs your location to show nearby dental clinics."
-        );
-        return;
+      if (!permission.granted && request && permission.canAskAgain) {
+        permission = await requestLocationPermission();
+      }
+
+      setLocationPermission(permission);
+
+      if (!permission.granted) {
+        setUserLocation(null);
+        return null;
       }
 
       const location = await Location.getCurrentPositionAsync({
@@ -362,13 +667,24 @@ export default function PatientClinicDiscoveryScreen({ token }) {
       };
 
       setUserLocation(currentLocation);
+      return currentLocation;
     } catch (error) {
       Alert.alert(
         "Location Error",
-        error.message || "Unable to get your current location."
+        error.message || "Unable to get your current location.",
       );
+      return null;
     } finally {
       setLocationLoading(false);
+    }
+  };
+
+  const refreshLocationPermission = async () => {
+    const permission = await getLocationPermissionState();
+    setLocationPermission(permission);
+
+    if (permission.granted) {
+      await getCurrentLocation({ request: false });
     }
   };
 
@@ -398,6 +714,14 @@ export default function PatientClinicDiscoveryScreen({ token }) {
     } finally {
       setRefreshing(false);
     }
+  };
+
+  const toggleClinicDetails = (clinic, index) => {
+    const clinicKey = clinic.clinic_id || `clinic-${index}`;
+
+    setExpandedClinicId((current) =>
+      current === clinicKey ? null : clinicKey,
+    );
   };
 
   const focusClinicOnMap = (clinic) => {
@@ -527,6 +851,33 @@ export default function PatientClinicDiscoveryScreen({ token }) {
         </View>
       </View>
 
+      {!locationPermission.granted ? (
+        <View style={styles.permissionCardWrapper}>
+          <PermissionStateCard
+            icon="location-outline"
+            title="Location access unavailable"
+            message={getPermissionMessage({
+              permissionName: "Location",
+              status: locationPermission.status,
+              purpose: "calculate clinic distance and show your position",
+            })}
+            actionLabel={
+              locationPermission.status === PERMISSION_STATUS.BLOCKED
+                ? "Open Settings"
+                : "Allow Location"
+            }
+            secondaryLabel="Check Permission Again"
+            busy={locationLoading}
+            onAction={
+              locationPermission.status === PERMISSION_STATUS.BLOCKED
+                ? openApplicationSettings
+                : () => getCurrentLocation({ request: true })
+            }
+            onSecondary={refreshLocationPermission}
+          />
+        </View>
+      ) : null}
+
       <View style={styles.mapCard}>
         <WebView
           ref={webViewRef}
@@ -638,6 +989,12 @@ export default function PatientClinicDiscoveryScreen({ token }) {
             nearestClinic.clinic_id === clinic.clinic_id &&
             clinic._distanceKm !== null;
 
+          const clinicKey = clinic.clinic_id || `clinic-${index}`;
+          const services = normalizeServices(clinic);
+          const operatingHours = normalizeOperatingHours(clinic);
+          const groupedSchedule = getGroupedSchedule(clinic);
+          const isExpanded = expandedClinicId === clinicKey;
+
           return (
             <View
               key={clinic.clinic_id || index}
@@ -707,27 +1064,151 @@ export default function PatientClinicDiscoveryScreen({ token }) {
                 </View>
               </View>
 
-              <View style={styles.infoList}>
-                <InfoRow
-                  icon="call-outline"
-                  label="Contact"
-                  value={getClinicContact(clinic)}
-                />
+              <View style={styles.quickSummaryRow}>
+                <View style={styles.quickSummaryItem}>
+                  <Ionicons name="time-outline" size={16} color="#2563eb" />
+                  <Text style={styles.quickSummaryText} numberOfLines={1}>
+                    {getTodayHours(clinic)}
+                  </Text>
+                </View>
 
-                <InfoRow
-                  icon="time-outline"
-                  label="Hours"
-                  value={getClinicHours(clinic)}
-                />
-
-                {clinic.services ? (
-                  <InfoRow
-                    icon="medkit-outline"
-                    label="Services"
-                    value={clinic.services}
-                  />
-                ) : null}
+                <View style={styles.quickSummaryItem}>
+                  <Ionicons name="medkit-outline" size={16} color="#2563eb" />
+                  <Text style={styles.quickSummaryText}>
+                    {services.length > 0
+                      ? `${services.length} service${
+                          services.length === 1 ? "" : "s"
+                        }`
+                      : "Services unavailable"}
+                  </Text>
+                </View>
               </View>
+
+              {services.length > 0 ? (
+                <View style={styles.servicePreviewRow}>
+                  {services.slice(0, 2).map((service) => (
+                    <View key={service} style={styles.serviceChip}>
+                      <Text style={styles.serviceChipText} numberOfLines={1}>
+                        {service}
+                      </Text>
+                    </View>
+                  ))}
+
+                  {services.length > 2 ? (
+                    <View style={styles.moreServicesChip}>
+                      <Text style={styles.moreServicesText}>
+                        +{services.length - 2} more
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+
+              <Pressable
+                style={styles.detailsToggle}
+                onPress={() => toggleClinicDetails(clinic, index)}
+              >
+                <Text style={styles.detailsToggleText}>
+                  {isExpanded ? "Hide clinic details" : "View hours and services"}
+                </Text>
+                <Ionicons
+                  name={isExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color="#2563eb"
+                />
+              </Pressable>
+
+              {isExpanded ? (
+                <View style={styles.expandedDetails}>
+                  <View style={styles.detailSection}>
+                    <View style={styles.detailSectionHeader}>
+                      <Ionicons name="time-outline" size={18} color="#2563eb" />
+                      <Text style={styles.detailSectionTitle}>
+                        Operating Hours
+                      </Text>
+                    </View>
+
+                    {groupedSchedule.length === 0 ? (
+                      <Text style={styles.noDetailText}>
+                        No operating hours are available.
+                      </Text>
+                    ) : (
+                      <View style={styles.scheduleList}>
+                        {groupedSchedule.map((item, scheduleIndex) => (
+                          <View
+                            key={`${item.label}-${scheduleIndex}`}
+                            style={styles.scheduleGroupRow}
+                          >
+                            <View style={styles.scheduleDayBadge}>
+                              <Text style={styles.scheduleDayBadgeText}>
+                                {item.label}
+                              </Text>
+                            </View>
+
+                            <View style={styles.scheduleTimeBlock}>
+                              <Text
+                                style={[
+                                  styles.scheduleStatus,
+                                  item.isOpen
+                                    ? styles.openStatus
+                                    : styles.closedStatus,
+                                ]}
+                              >
+                                {item.isOpen ? "Open" : "Closed"}
+                              </Text>
+
+                              <Text
+                                style={[
+                                  styles.scheduleGroupHours,
+                                  !item.isOpen &&
+                                    styles.closedScheduleText,
+                                ]}
+                              >
+                                {item.isOpen ? item.hours : "Closed"}
+                              </Text>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  <View style={styles.detailSection}>
+                    <View style={styles.detailSectionHeader}>
+                      <Ionicons
+                        name="medkit-outline"
+                        size={18}
+                        color="#2563eb"
+                      />
+                      <Text style={styles.detailSectionTitle}>
+                        Dental Services
+                      </Text>
+                    </View>
+
+                    {services.length === 0 ? (
+                      <Text style={styles.noDetailText}>
+                        No dental services are listed.
+                      </Text>
+                    ) : (
+                      <View style={styles.allServicesWrap}>
+                        {services.map((service) => (
+                          <View key={service} style={styles.expandedServiceChip}>
+                            <Text style={styles.expandedServiceText}>
+                              {service}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  <InfoRow
+                    icon="call-outline"
+                    label="Contact"
+                    value={getClinicContact(clinic)}
+                  />
+                </View>
+              ) : null}
 
               <View style={styles.clinicActions}>
                 <Pressable
@@ -787,6 +1268,9 @@ function InfoRow({ icon, label, value }) {
 }
 
 const styles = StyleSheet.create({
+  permissionCardWrapper: {
+    marginBottom: 14,
+  },
   container: {
     flex: 1,
     backgroundColor: "#f8fafc",
@@ -1129,6 +1613,171 @@ const styles = StyleSheet.create({
   detailLabel: {
     color: "#2d3748",
     fontWeight: "900",
+  },
+  quickSummaryRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 14,
+  },
+  quickSummaryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    maxWidth: "100%",
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#eff6ff",
+    borderRadius: 10,
+  },
+  quickSummaryText: {
+    color: "#1e40af",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  servicePreviewRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+    marginTop: 10,
+  },
+  serviceChip: {
+    maxWidth: "42%",
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    backgroundColor: "#f1f5f9",
+    borderRadius: 999,
+  },
+  serviceChipText: {
+    color: "#475569",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  moreServicesChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    backgroundColor: "#dbeafe",
+    borderRadius: 999,
+  },
+  moreServicesText: {
+    color: "#1d4ed8",
+    fontSize: 10,
+    fontWeight: "900",
+  },
+  detailsToggle: {
+    minHeight: 43,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 12,
+    paddingHorizontal: 12,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 11,
+  },
+  detailsToggleText: {
+    color: "#2563eb",
+    fontSize: 11,
+    fontWeight: "900",
+  },
+  expandedDetails: {
+    gap: 13,
+    marginTop: 10,
+    padding: 13,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 13,
+  },
+  detailSection: {
+    gap: 8,
+  },
+  detailSectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+  detailSectionTitle: {
+    color: "#0f172a",
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  scheduleList: {
+    gap: 8,
+  },
+  scheduleGroupRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 11,
+  },
+  scheduleDayBadge: {
+    minWidth: 72,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    backgroundColor: "#eff6ff",
+    borderRadius: 9,
+  },
+  scheduleDayBadgeText: {
+    color: "#1d4ed8",
+    fontSize: 10,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  scheduleTimeBlock: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  scheduleStatus: {
+    fontSize: 9,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  openStatus: {
+    color: "#15803d",
+  },
+  closedStatus: {
+    color: "#b91c1c",
+  },
+  scheduleGroupHours: {
+    marginTop: 3,
+    color: "#334155",
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "right",
+  },
+  closedScheduleText: {
+    color: "#b91c1c",
+  },
+  noDetailText: {
+    color: "#64748b",
+    fontSize: 11,
+    lineHeight: 17,
+  },
+  allServicesWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 7,
+  },
+  expandedServiceChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: "#ffffff",
+    borderWidth: 1,
+    borderColor: "#bfdbfe",
+    borderRadius: 999,
+  },
+  expandedServiceText: {
+    color: "#1e40af",
+    fontSize: 10,
+    fontWeight: "800",
   },
   clinicActions: {
     flexDirection: "row",
