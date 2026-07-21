@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import API from "../api/axios";
+import PhilippineAddressFields from "../components/PhilippineAddressFields";
 
 const EMPTY_FORM = {
   clinic_id: "",
@@ -8,6 +9,17 @@ const EMPTY_FORM = {
   email: "",
   contact_number: "",
   address: "",
+  house_unit_number: "",
+  street_name: "",
+  subdivision: "",
+  region_designation: "",
+  region: "",
+  province: "",
+  city_municipality: "",
+  barangay: "",
+  barangay_code: "",
+  postal_code: "",
+  country: "Philippines",
   date_of_birth: "",
   gender: "",
   medical_history: "",
@@ -158,6 +170,17 @@ function WalkInPatientRegistration() {
         email: formData.email.trim().toLowerCase(),
         contact_number: formData.contact_number.trim(),
         address: formData.address.trim(),
+        house_unit_number: formData.house_unit_number.trim(),
+        street_name: formData.street_name.trim(),
+        subdivision: formData.subdivision.trim(),
+        region_designation: formData.region_designation.trim(),
+        region: formData.region.trim(),
+        province: formData.province.trim(),
+        city_municipality: formData.city_municipality.trim(),
+        barangay: formData.barangay.trim(),
+        barangay_code: formData.barangay_code || null,
+        postal_code: formData.postal_code.trim(),
+        country: formData.country || "Philippines",
         medical_history: formData.medical_history.trim(),
         emergency_contact_name: formData.emergency_contact_name.trim(),
         emergency_contact_number: formData.emergency_contact_number.trim(),
@@ -477,17 +500,19 @@ function WalkInPatientRegistration() {
                     </select>
                   </div>
 
-                  <div className="form-group">
-                    <label>Home Address</label>
-                    <input
-                      type="text"
-                      name="address"
-                      value={formData.address}
-                      onChange={handleChange}
-                      placeholder="Enter patient home address"
-                      disabled={submitting}
-                    />
-                  </div>
+                  <PhilippineAddressFields
+                    title="Home Address"
+                    value={formData}
+                    onChange={(addressData) => {
+                      setFormError("");
+
+                      setFormData((current) => ({
+                        ...current,
+                        ...addressData,
+                      }));
+                    }}
+                    disabled={submitting}
+                  />
                 </div>
 
                 <div className="form-group">

@@ -2236,3 +2236,104 @@ body.dark-mode .password-visibility-button {
     height: 30px;
   }
 }
+
+/* =========================================================
+   SHARED STRUCTURED PHILIPPINE ADDRESS FORM
+   Add this to the bottom of frontend/src/styles/auth.css
+   and frontend/src/styles/dashboard.css.
+   ========================================================= */
+
+.structured-address-section {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  margin: 26px 0;
+}
+
+.structured-address-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.structured-address-heading h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.35;
+}
+
+.structured-address-heading p {
+  margin: 0;
+  line-height: 1.6;
+  opacity: 0.8;
+}
+
+.structured-address-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 18px;
+  align-items: start;
+}
+
+.structured-address-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.structured-address-field label {
+  display: block;
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.structured-address-control {
+  width: 100%;
+  min-height: 46px;
+  padding: 11px 14px;
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 12px;
+  background: var(--input-bg, transparent);
+  color: inherit;
+  box-sizing: border-box;
+  font: inherit;
+}
+
+.structured-address-control:focus {
+  border-color: var(--primary-color, #2563eb);
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 15%);
+}
+
+.structured-address-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.structured-address-legacy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 12px;
+}
+
+.structured-address-legacy small {
+  opacity: 0.75;
+}
+
+@media (max-width: 700px) {
+  .structured-address-section {
+    gap: 18px;
+  }
+
+  .structured-address-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+}

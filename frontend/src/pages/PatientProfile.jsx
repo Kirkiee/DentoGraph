@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import API from "../api/axios";
+import PhilippineAddressFields from "../components/PhilippineAddressFields";
 import DashboardLayout from "../components/dashboard/DashboardLayout";
 import PasswordInput from "../components/auth/PasswordInput";
 
@@ -10,6 +11,17 @@ function PatientProfile() {
     contact_number: "",
     date_of_birth: "",
     address: "",
+    house_unit_number: "",
+    street_name: "",
+    subdivision: "",
+    region_designation: "",
+    region: "",
+    province: "",
+    city_municipality: "",
+    barangay: "",
+    barangay_code: "",
+    postal_code: "",
+    country: "Philippines",
     gender: "",
     medical_history: "",
     dentition_type: "Adult",
@@ -113,6 +125,17 @@ function PatientProfile() {
         contact_number: patient.contact_number || "",
         date_of_birth: formatDateForInput(patient.date_of_birth),
         address: patient.address || "",
+        house_unit_number: patient.house_unit_number || "",
+        street_name: patient.street_name || "",
+        subdivision: patient.subdivision || "",
+        region_designation: patient.region_designation || "",
+        region: patient.region || "",
+        province: patient.province || "",
+        city_municipality: patient.city_municipality || "",
+        barangay: patient.barangay || "",
+        barangay_code: patient.barangay_code || "",
+        postal_code: patient.postal_code || "",
+        country: patient.country || "Philippines",
         gender: patient.gender || "",
         medical_history: patient.medical_history || "",
         dentition_type: patient.dentition_type || "Adult",
@@ -172,6 +195,17 @@ function PatientProfile() {
           contact_number: profile.contact_number,
           date_of_birth: profile.date_of_birth || null,
           address: profile.address,
+          house_unit_number: profile.house_unit_number,
+          street_name: profile.street_name,
+          subdivision: profile.subdivision,
+          region_designation: profile.region_designation,
+          region: profile.region,
+          province: profile.province,
+          city_municipality: profile.city_municipality,
+          barangay: profile.barangay,
+          barangay_code: profile.barangay_code || null,
+          postal_code: profile.postal_code,
+          country: profile.country || "Philippines",
           gender: profile.gender,
           medical_history: profile.medical_history,
           dentition_type: profile.dentition_type,
@@ -465,17 +499,21 @@ function PatientProfile() {
                   </div>
                 </div>
 
-                <div className="profile-field">
-                  <label>Address</label>
+                <PhilippineAddressFields
+                  title="Residential Address"
+                  value={profile}
+                  legacyAddress={profile.address}
+                  onChange={(addressData) => {
+                    setMessage("");
+                    setError("");
 
-                  <textarea
-                    name="address"
-                    value={profile.address}
-                    onChange={handleChange}
-                    placeholder="Enter your complete address"
-                    rows="3"
-                  />
-                </div>
+                    setProfile((current) => ({
+                      ...current,
+                      ...addressData,
+                    }));
+                  }}
+                  disabled={saving}
+                />
 
                 <div className="profile-field">
                   <label>Medical Notes</label>

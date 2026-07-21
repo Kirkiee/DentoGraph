@@ -17,6 +17,17 @@ const {
   authenticateToken,
   authorizeRoles,
 } = require("../middleware/authMiddleware");
+const {
+  normalizeNullable: normalizeFieldNullable,
+  normalizeNamePart,
+  validateSeparatedNameFields,
+  validatePatientAddressFields,
+  buildFullName,
+  buildFullAddress,
+} = require("../utils/fieldValidation");
+const {
+  validatePhilippineAddressHierarchy,
+} = require("../services/psgcService");
 
 // ===============================
 // STAFF CREDENTIAL DOCUMENT UPLOAD
@@ -509,7 +520,10 @@ router.post(
   optionalAuthenticateToken,
   async (req, res) => {
     const {
-      name,
+      first_name,
+      middle_name,
+      last_name,
+      suffix,
       email,
       password,
       role_id,
@@ -517,15 +531,26 @@ router.post(
       specialization,
       availability,
       clinic_id,
+      contact_number,
+      house_unit_number,
+      street_name,
+      subdivision,
+      region_designation,
+      region,
+      province,
+      city_municipality,
+      barangay,
+      barangay_code,
+      postal_code,
+      country,
     } = req.body || {};
 
-    const cleanName = cleanText(name);
     const cleanEmail = normalizeEmail(email);
     const passwordError = validatePasswordStrength(password);
 
-    if (!cleanName || !cleanEmail || !password || !role_id) {
+    if (!cleanEmail || !password || !role_id) {
       return res.status(400).json({
-        error: "Name, email, password, and role_id are required.",
+        error: "Email, password, and role_id are required.",
       });
     }
 
@@ -539,6 +564,20 @@ router.post(
       return res.status(400).json({
         error: passwordError,
         password_rules: getPasswordRules(),
+      });
+    }
+
+    const nameErrors = validateSeparatedNameFields({
+      first_name,
+      middle_name,
+      last_name,
+      suffix,
+    });
+
+    if (Object.keys(nameErrors).length > 0) {
+      return res.status(400).json({
+        error: "Please correct the invalid name fields.",
+        fields: nameErrors,
       });
     }
 
@@ -590,6 +629,70 @@ router.post(
         });
       }
 
+      if (roleName === "Patient") {
+        const addressErrors = validatePatientAddressFields({
+          region_designation,
+          contact_number,
+          house_unit_number,
+          street_name,
+          subdivision,
+          barangay,
+          city_municipality,
+          province,
+          region,
+          postal_code,
+          country: country || "Philippines",
+        });
+
+        if (Object.keys(addressErrors).length > 0) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "Please correct the invalid address fields.",
+            fields: addressErrors,
+          });
+        }
+
+        const hierarchyErrors = validatePhilippineAddressHierarchy({
+          region_designation,
+          region,
+          province,
+          city_municipality,
+          barangay,
+          barangay_code,
+        });
+
+        if (Object.keys(hierarchyErrors).length > 0) {
+          await client.query("ROLLBACK");
+          return res.status(400).json({
+            error: "The selected Philippine address is invalid.",
+            fields: hierarchyErrors,
+          });
+        }
+      }
+
+      const normalizedData = {
+        first_name: normalizeNamePart(first_name),
+        middle_name: normalizeNamePart(middle_name),
+        last_name: normalizeNamePart(last_name),
+        suffix: normalizeFieldNullable(suffix),
+        region_designation: normalizeFieldNullable(region_designation),
+        barangay_code: normalizeFieldNullable(barangay_code),
+        contact_number: normalizeFieldNullable(contact_number),
+        house_unit_number: normalizeFieldNullable(house_unit_number),
+        street_name: normalizeFieldNullable(street_name),
+        subdivision: normalizeFieldNullable(subdivision),
+        barangay: normalizeNamePart(barangay),
+        city_municipality: normalizeNamePart(city_municipality),
+        province: normalizeNamePart(province),
+        region: normalizeNamePart(region),
+        postal_code: normalizeFieldNullable(postal_code),
+        country: normalizeNamePart(country || "Philippines"),
+      };
+
+      const fullName = buildFullName(normalizedData);
+      const fullAddress =
+        roleName === "Patient" ? buildFullAddress(normalizedData) : null;
+
       const emailCheck = await client.query(
         `SELECT user_id
          FROM public.users
@@ -635,9 +738,13 @@ router.post(
       const emailVerification = generateEmailVerification();
 
       const newUser = await client.query(
-        `INSERT INTO public.users 
+        `INSERT INTO public.users
          (
            name,
+           first_name,
+           middle_name,
+           last_name,
+           suffix,
            email,
            password,
            status,
@@ -645,10 +752,24 @@ router.post(
            email_verification_token,
            email_verification_expires
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
-         RETURNING user_id, name, email, status, email_verified, created_at`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING
+           user_id,
+           name,
+           first_name,
+           middle_name,
+           last_name,
+           suffix,
+           email,
+           status,
+           email_verified,
+           created_at`,
         [
-          cleanName,
+          fullName,
+          normalizedData.first_name,
+          normalizedData.middle_name,
+          normalizedData.last_name,
+          normalizedData.suffix,
           cleanEmail,
           hashedPassword,
           "Active",
@@ -728,9 +849,46 @@ router.post(
         }
 
         await client.query(
-          `INSERT INTO public.patients (user_id, clinic_id)
-           VALUES ($1, $2)`,
-          [userId, normalizedClinicId],
+          `INSERT INTO public.patients
+           (
+             user_id,
+             clinic_id,
+             contact_number,
+             address,
+             region_designation,
+             barangay_code,
+             house_unit_number,
+             street_name,
+             subdivision,
+             barangay,
+             city_municipality,
+             province,
+             region,
+             postal_code,
+             country
+           )
+           VALUES
+           (
+             $1, $2, $3, $4, $5, $6, $7, $8,
+             $9, $10, $11, $12, $13, $14, $15
+           )`,
+          [
+            userId,
+            normalizedClinicId,
+            normalizedData.contact_number,
+            fullAddress,
+            normalizedData.region_designation,
+            normalizedData.barangay_code,
+            normalizedData.house_unit_number,
+            normalizedData.street_name,
+            normalizedData.subdivision,
+            normalizedData.barangay,
+            normalizedData.city_municipality,
+            normalizedData.province,
+            normalizedData.region,
+            normalizedData.postal_code,
+            normalizedData.country,
+          ],
         );
       }
 
@@ -757,6 +915,12 @@ router.post(
 
       if (err.code === "23505") {
         return res.status(400).json({ error: "Email already exists" });
+      }
+
+      if (err.code === "23514") {
+        return res.status(400).json({
+          error: "One or more fields failed database validation.",
+        });
       }
 
       res.status(500).json({ error: "Error registering user" });

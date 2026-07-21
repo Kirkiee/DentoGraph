@@ -7,6 +7,7 @@ import AuthInput from "../components/auth/AuthInput";
 import AuthButton from "../components/auth/AuthButton";
 import PasswordInput from "../components/auth/PasswordInput";
 import ThemeToggle from "../components/ThemeToggle";
+import PhilippineAddressSelector from "../components/PhilippineAddressSelector";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -209,9 +210,22 @@ function Register() {
 
   const [formData, setFormData] = useState({
     firstName: "",
+    middleName: "",
     lastName: "",
+    suffix: "",
     email: "",
     contact_number: "",
+    house_unit_number: "",
+    street_name: "",
+    subdivision: "",
+    region_designation: "",
+    region: "",
+    province: "",
+    city_municipality: "",
+    barangay: "",
+    barangay_code: "",
+    postal_code: "",
+    country: "Philippines",
     clinic_id: "",
     password: "",
     confirmPassword: "",
@@ -365,9 +379,20 @@ function Register() {
   const resetForm = () => {
     setFormData({
       firstName: "",
+      middleName: "",
       lastName: "",
+      suffix: "",
       email: "",
       contact_number: "",
+      house_unit_number: "",
+      street_name: "",
+      subdivision: "",
+      barangay: "",
+      city_municipality: "",
+      province: "",
+      region: "",
+      postal_code: "",
+      country: "Philippines",
       clinic_id: "",
       password: "",
       confirmPassword: "",
@@ -552,6 +577,13 @@ function Register() {
     return DEFAULT_MAP_CENTER;
   })();
 
+  const handleAddressSelectionChange = (updates) => {
+    setFormData((current) => ({
+      ...current,
+      ...updates,
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -561,16 +593,66 @@ function Register() {
     setPasswordRules([]);
     setSuccess("");
 
-    const firstName = formData.firstName.trim();
-    const lastName = formData.lastName.trim();
-    const cleanEmail = formData.email.trim().toLowerCase();
+    const clean = (value) =>
+      String(value ?? "")
+        .trim()
+        .replace(/\s+/g, " ");
+
+    const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿÑñ.' -]+$/;
+    const addressRegex = /^[A-Za-z0-9À-ÖØ-öø-ÿÑñ.,'#/() -]+$/;
+    const phoneRegex = /^(09\d{9}|\+639\d{9})$/;
+    const postalCodeRegex = /^\d{4}$/;
+
+    const firstName = clean(formData.firstName);
+    const middleName = clean(formData.middleName);
+    const lastName = clean(formData.lastName);
+    const suffix = clean(formData.suffix);
+    const cleanEmail = clean(formData.email).toLowerCase();
     const contactNumber = cleanPhoneNumber(formData.contact_number);
+    const houseUnitNumber = clean(formData.house_unit_number);
+    const streetName = clean(formData.street_name);
+    const subdivision = clean(formData.subdivision);
+    const regionDesignation = clean(formData.region_designation);
+    const region = clean(formData.region);
+    const province = clean(formData.province);
+    const cityMunicipality = clean(formData.city_municipality);
+    const barangay = clean(formData.barangay);
+    const barangayCode = clean(formData.barangay_code);
+    const postalCode = clean(formData.postal_code);
+    const country = clean(formData.country) || "Philippines";
     const clinicId = formData.clinic_id;
     const password = formData.password;
     const confirmPassword = formData.confirmPassword;
 
-    if (!firstName || !lastName) {
-      setError("First name and last name are required.");
+    const nameFields = [
+      ["First name", firstName, true, 50],
+      ["Middle name", middleName, false, 50],
+      ["Last name", lastName, true, 50],
+    ];
+
+    for (const [label, value, required, maxLength] of nameFields) {
+      if (required && !value) {
+        setError(`${label} is required.`);
+        return;
+      }
+
+      if (value && value.length > maxLength) {
+        setError(`${label} must not exceed ${maxLength} characters.`);
+        return;
+      }
+
+      if (value && !nameRegex.test(value)) {
+        setError(
+          `${label} may only contain letters, spaces, apostrophes, periods, and hyphens.`,
+        );
+        return;
+      }
+    }
+
+    const allowedSuffixes = ["", "Jr.", "Sr.", "II", "III", "IV", "V"];
+
+    if (!allowedSuffixes.includes(suffix)) {
+      setError("Please select a valid suffix.");
       return;
     }
 
@@ -581,6 +663,48 @@ function Register() {
 
     if (!isValidEmail(cleanEmail)) {
       setError("Please enter a valid email address.");
+      return;
+    }
+
+    if (contactNumber && !phoneRegex.test(contactNumber)) {
+      setError("Phone number must use 09XXXXXXXXX or +639XXXXXXXXX format.");
+      return;
+    }
+
+    const optionalAddressFields = [
+      ["House or unit number", houseUnitNumber, 30],
+      ["Street name", streetName, 100],
+      ["Subdivision or village", subdivision, 100],
+    ];
+
+    for (const [label, value, maxLength] of optionalAddressFields) {
+      if (value && value.length > maxLength) {
+        setError(`${label} must not exceed ${maxLength} characters.`);
+        return;
+      }
+
+      if (value && !addressRegex.test(value)) {
+        setError(`${label} contains invalid characters.`);
+        return;
+      }
+    }
+
+    const requiredAddressSelections = [
+      ["Region", regionDesignation, region],
+      ["Province", province, province],
+      ["City or municipality", cityMunicipality, cityMunicipality],
+      ["Barangay", barangay, barangay],
+    ];
+
+    for (const [label, identifier, displayName] of requiredAddressSelections) {
+      if (!identifier || !displayName) {
+        setError(`Please select a valid ${label.toLowerCase()}.`);
+        return;
+      }
+    }
+
+    if (!postalCodeRegex.test(postalCode)) {
+      setError("Postal code must contain exactly four digits.");
       return;
     }
 
@@ -614,15 +738,27 @@ function Register() {
     setLoading(true);
 
     try {
-      const fullName = `${firstName} ${lastName}`.trim();
-
       const response = await API.post("/api/users/register", {
-        name: fullName,
+        first_name: firstName,
+        middle_name: middleName || null,
+        last_name: lastName,
+        suffix: suffix || null,
         email: cleanEmail,
         password,
         role_id: PATIENT_ROLE_ID,
         clinic_id: Number(clinicId),
         contact_number: contactNumber || null,
+        house_unit_number: houseUnitNumber || null,
+        street_name: streetName || null,
+        subdivision: subdivision || null,
+        region_designation: regionDesignation,
+        region,
+        province,
+        city_municipality: cityMunicipality,
+        barangay,
+        barangay_code: barangayCode || null,
+        postal_code: postalCode,
+        country,
         turnstileToken,
       });
 
@@ -634,21 +770,28 @@ function Register() {
       resetForm();
     } catch (err) {
       const status = err.response?.status;
-      const apiError = err.response?.data?.error;
-      const apiPasswordRules = err.response?.data?.password_rules;
+      const responseData = err.response?.data || {};
+      const apiError = responseData.error;
+      const apiPasswordRules = responseData.password_rules;
+      const fieldErrors = responseData.fields;
 
       if (Array.isArray(apiPasswordRules)) {
         setPasswordRules(apiPasswordRules);
       }
 
-      if (status === 429) {
+      if (fieldErrors && typeof fieldErrors === "object") {
+        const firstFieldError = Object.values(fieldErrors).find(Boolean);
+        setError(
+          firstFieldError || apiError || "Please correct the invalid fields.",
+        );
+      } else if (status === 429) {
         setError("Too many registration attempts. Please try again later.");
       } else if (status === 403) {
         setError(
           apiError ||
             "Public registration is only allowed for patient accounts.",
         );
-      } else if (status === 400 && err.response?.data?.captcha_required) {
+      } else if (status === 400 && responseData.captcha_required) {
         setError(apiError || "Please complete the CAPTCHA verification.");
       } else if (status === 400) {
         setError(apiError || "Please check your registration details.");
@@ -704,10 +847,24 @@ function Register() {
               onChange={handleChange}
               icon="👤"
               autoComplete="given-name"
+              maxLength={50}
               disabled={loading}
               required
             />
 
+            <AuthInput
+              label="Middle Name"
+              name="middleName"
+              placeholder="Santos"
+              value={formData.middleName}
+              onChange={handleChange}
+              autoComplete="additional-name"
+              maxLength={50}
+              disabled={loading}
+            />
+          </div>
+
+          <div className="auth-row">
             <AuthInput
               label="Last Name"
               name="lastName"
@@ -715,9 +872,30 @@ function Register() {
               value={formData.lastName}
               onChange={handleChange}
               autoComplete="family-name"
+              maxLength={50}
               disabled={loading}
               required
             />
+
+            <div className="auth-field">
+              <label htmlFor="suffix">Suffix</label>
+              <select
+                id="suffix"
+                name="suffix"
+                className="auth-input"
+                value={formData.suffix}
+                onChange={handleChange}
+                disabled={loading}
+              >
+                <option value="">None</option>
+                <option value="Jr.">Jr.</option>
+                <option value="Sr.">Sr.</option>
+                <option value="II">II</option>
+                <option value="III">III</option>
+                <option value="IV">IV</option>
+                <option value="V">V</option>
+              </select>
+            </div>
           </div>
 
           <AuthInput
@@ -745,6 +923,90 @@ function Register() {
             autoComplete="tel"
             disabled={loading}
           />
+
+          <div className="auth-section-heading">
+            <h3>Residential Address</h3>
+            <p>Enter each part of your address in its proper field.</p>
+          </div>
+
+          <div className="auth-row">
+            <AuthInput
+              label="House/Unit Number"
+              name="house_unit_number"
+              placeholder="Unit 2B or 123"
+              value={formData.house_unit_number}
+              onChange={handleChange}
+              maxLength={30}
+              disabled={loading}
+            />
+
+            <AuthInput
+              label="Street Name"
+              name="street_name"
+              placeholder="Rizal Street"
+              value={formData.street_name}
+              onChange={handleChange}
+              maxLength={100}
+              disabled={loading}
+            />
+          </div>
+
+          <AuthInput
+            label="Subdivision/Village"
+            name="subdivision"
+            placeholder="Sample Village"
+            value={formData.subdivision}
+            onChange={handleChange}
+            maxLength={100}
+            disabled={loading}
+          />
+
+          <PhilippineAddressSelector
+            value={{
+              region_designation: formData.region_designation,
+              region: formData.region,
+              province: formData.province,
+              city_municipality: formData.city_municipality,
+              barangay: formData.barangay,
+              barangay_code: formData.barangay_code,
+            }}
+            onChange={handleAddressSelectionChange}
+            disabled={loading}
+          />
+
+          <div className="auth-row">
+            <AuthInput
+              label="Postal Code"
+              name="postal_code"
+              placeholder="1100"
+              value={formData.postal_code}
+              onChange={(event) => {
+                const digitsOnly = event.target.value
+                  .replace(/\D/g, "")
+                  .slice(0, 4);
+                handleChange({
+                  target: {
+                    name: "postal_code",
+                    value: digitsOnly,
+                  },
+                });
+              }}
+              inputMode="numeric"
+              maxLength={4}
+              disabled={loading}
+              required
+            />
+
+            <AuthInput
+              label="Country"
+              name="country"
+              value={formData.country}
+              onChange={handleChange}
+              maxLength={50}
+              disabled
+              required
+            />
+          </div>
 
           <div className="registration-clinic-locator">
             <div className="registration-clinic-header">
