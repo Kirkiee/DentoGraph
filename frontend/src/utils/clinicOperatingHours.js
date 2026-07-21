@@ -114,3 +114,32 @@ export const clinicOperatingHoursToSummary = (value) =>
         : `${entry.day_name}: Closed`,
     )
     .join(", ");
+
+export const validateClinicOperatingHoursEffectiveRange = ({
+  effective_from,
+  effective_to,
+  minimumDate,
+} = {}) => {
+  const start = String(effective_from || "").trim();
+  const end = String(effective_to || "").trim();
+
+  if (!start || !end) {
+    return "Select both the effective start date and effective end date.";
+  }
+
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
+  if (!datePattern.test(start) || !datePattern.test(end)) {
+    return "Enter a valid effective date range.";
+  }
+
+  if (end < start) {
+    return "The effective end date must be the same as or later than the start date.";
+  }
+
+  if (minimumDate && start < minimumDate) {
+    return "The effective start date cannot be in the past.";
+  }
+
+  return "";
+};

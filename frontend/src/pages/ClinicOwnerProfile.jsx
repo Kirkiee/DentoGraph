@@ -13,10 +13,18 @@ import {
   createDefaultClinicOperatingHours,
   normalizeClinicOperatingHours,
   validateClinicOperatingHours,
+  validateClinicOperatingHoursEffectiveRange,
 } from "../utils/clinicOperatingHours";
 
 function ClinicOwnerProfile() {
   const navigate = useNavigate();
+
+  const todayDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
   const emptyLocationForm = {
     clinic_name: "",
@@ -27,6 +35,8 @@ function ClinicOwnerProfile() {
     contact_number: "",
     opening_hours: "",
     operating_hours_schedule: createDefaultClinicOperatingHours(),
+    schedule_effective_from: "",
+    schedule_effective_to: "",
     status: "Active",
   };
 
@@ -117,6 +127,8 @@ function ClinicOwnerProfile() {
         opening_hours: selectedLocation.opening_hours || "",
         operating_hours_schedule:
           normalizeClinicOperatingHours(selectedLocation),
+        schedule_effective_from: "",
+        schedule_effective_to: "",
         status: selectedLocation.status || "Active",
       });
     }
@@ -361,6 +373,17 @@ function ClinicOwnerProfile() {
       return;
     }
 
+    const effectiveRangeError = validateClinicOperatingHoursEffectiveRange({
+      effective_from: locationForm.schedule_effective_from,
+      effective_to: locationForm.schedule_effective_to,
+      minimumDate: todayDate,
+    });
+
+    if (effectiveRangeError) {
+      setError(effectiveRangeError);
+      return;
+    }
+
     if (!locationForm.latitude || !locationForm.longitude) {
       setError(
         "Locate the clinic address and select a matching result before saving.",
@@ -386,6 +409,8 @@ function ClinicOwnerProfile() {
             locationForm.operating_hours_schedule,
           ),
           operating_hours_schedule: locationForm.operating_hours_schedule,
+          schedule_effective_from: locationForm.schedule_effective_from,
+          schedule_effective_to: locationForm.schedule_effective_to,
           status: locationForm.status || "Active",
         },
       );
@@ -709,6 +734,24 @@ function ClinicOwnerProfile() {
             }
             disabled={disabled}
             compact
+            showEffectiveRange={geocodeTarget === "edit"}
+            effectiveFrom={data.schedule_effective_from}
+            effectiveTo={data.schedule_effective_to}
+            minimumEffectiveDate={todayDate}
+            onEffectiveRangeChange={(range) => {
+              onChange({
+                target: {
+                  name: "schedule_effective_from",
+                  value: range.effective_from,
+                },
+              });
+              onChange({
+                target: {
+                  name: "schedule_effective_to",
+                  value: range.effective_to,
+                },
+              });
+            }}
           />
         </div>
 
@@ -1040,6 +1083,8 @@ function ClinicOwnerProfile() {
                             normalizeClinicOperatingHours(selectedLocation),
                           operating_hours_schedule:
                             normalizeClinicOperatingHours(selectedLocation),
+                          schedule_effective_from: "",
+                          schedule_effective_to: "",
                           status: selectedLocation.status || "Active",
                         });
                       }}

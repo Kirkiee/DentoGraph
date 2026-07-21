@@ -6,6 +6,11 @@ function ClinicOperatingHoursEditor({
   onChange,
   disabled = false,
   compact = false,
+  showEffectiveRange = false,
+  effectiveFrom = "",
+  effectiveTo = "",
+  onEffectiveRangeChange,
+  minimumEffectiveDate,
 }) {
   const schedule = normalizeClinicOperatingHours(value);
 
@@ -29,6 +34,15 @@ function ClinicOperatingHoursEditor({
     onChange(nextSchedule);
   };
 
+  const updateEffectiveRange = (field, nextValue) => {
+    if (typeof onEffectiveRangeChange !== "function") return;
+
+    onEffectiveRangeChange({
+      effective_from: field === "effective_from" ? nextValue : effectiveFrom,
+      effective_to: field === "effective_to" ? nextValue : effectiveTo,
+    });
+  };
+
   return (
     <fieldset
       className={`clinic-hours-editor ${
@@ -42,6 +56,52 @@ function ClinicOperatingHoursEditor({
       <p className="clinic-hours-editor-help">
         Set the opening and closing time for every operating day.
       </p>
+
+      {showEffectiveRange && (
+        <div className="clinic-hours-effective-range">
+          <div className="clinic-hours-effective-range-heading">
+            <strong>Effective Range</strong>
+            <span>
+              These hours will be used only for appointments within this date
+              range.
+            </span>
+          </div>
+
+          <div className="clinic-hours-effective-range-grid">
+            <label>
+              <span>
+                Effective From <span className="auth-required">*</span>
+              </span>
+              <input
+                type="date"
+                value={effectiveFrom || ""}
+                min={minimumEffectiveDate || undefined}
+                onChange={(event) =>
+                  updateEffectiveRange("effective_from", event.target.value)
+                }
+                disabled={disabled}
+                required
+              />
+            </label>
+
+            <label>
+              <span>
+                Effective Until <span className="auth-required">*</span>
+              </span>
+              <input
+                type="date"
+                value={effectiveTo || ""}
+                min={effectiveFrom || minimumEffectiveDate || undefined}
+                onChange={(event) =>
+                  updateEffectiveRange("effective_to", event.target.value)
+                }
+                disabled={disabled}
+                required
+              />
+            </label>
+          </div>
+        </div>
+      )}
 
       <div className="clinic-hours-editor-list">
         {schedule.map((entry) => (

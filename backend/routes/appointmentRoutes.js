@@ -1703,11 +1703,9 @@ router.get(
       if (!context.allowed)
         return res.status(context.status).json({ error: context.error });
       if (clinicId !== Number(context.clinic_id))
-        return res
-          .status(403)
-          .json({
-            error: "You may only book within your assigned clinic location.",
-          });
+        return res.status(403).json({
+          error: "You may only book within your assigned clinic location.",
+        });
       const result = await pool.query(
         `SELECT d.dentist_id, u.name AS dentist_name, d.specialization, d.clinic_id,
               COALESCE(json_agg(json_build_object(
@@ -1765,32 +1763,69 @@ router.get(
         [clinicId, dentistId, serviceId],
       );
       if (!validity.rows.length)
-        return res
-          .status(400)
-          .json({
-            error: "The dentist is not available for the selected service.",
-          });
+        return res.status(400).json({
+          error: "The dentist is not available for the selected service.",
+        });
       const schedule = await pool.query(
         `SELECT day_of_week FROM public.dentist_availability WHERE dentist_id=$1 AND is_available=TRUE`,
         [dentistId],
       );
       const clinicDays = await pool.query(
-        `SELECT day_of_week FROM public.clinic_operating_hours WHERE clinic_id=$1 AND is_open=TRUE`,
+        `SELECT day_of_week, is_open
+         FROM public.clinic_operating_hours
+         WHERE clinic_id = $1`,
+        [clinicId],
+      );
+
+      const effectiveClinicSchedules = await pool.query(
+        `SELECT
+           TO_CHAR(s.effective_from, 'YYYY-MM-DD') AS effective_from,
+           TO_CHAR(s.effective_to, 'YYYY-MM-DD') AS effective_to,
+           d.day_of_week,
+           d.is_open
+         FROM public.clinic_operating_hours_effective_schedules s
+         JOIN public.clinic_operating_hours_effective_days d
+           ON d.effective_schedule_id = s.effective_schedule_id
+         WHERE s.clinic_id = $1
+           AND s.effective_to >= CURRENT_DATE
+           AND s.effective_from <= CURRENT_DATE + 90
+         ORDER BY s.effective_from, d.day_of_week`,
         [clinicId],
       );
       const blocked = await pool.query(
         `SELECT TO_CHAR(unavailable_date,'YYYY-MM-DD') d FROM public.dentist_unavailable_dates WHERE dentist_id=$1 AND unavailable_date BETWEEN CURRENT_DATE AND CURRENT_DATE+90`,
         [dentistId],
       );
-      const allowedDays = new Set(
-        schedule.rows
-          .map((r) => Number(r.day_of_week))
-          .filter((d) =>
-            clinicDays.rows.some((c) => Number(c.day_of_week) === d),
-          ),
+      const dentistDays = new Set(
+        schedule.rows.map((row) => Number(row.day_of_week)),
       );
-      const blockedDates = new Set(blocked.rows.map((r) => r.d));
+      const baselineClinicDays = new Map(
+        clinicDays.rows.map((row) => [
+          Number(row.day_of_week),
+          Boolean(row.is_open),
+        ]),
+      );
+      const effectiveRanges = new Map();
+
+      for (const row of effectiveClinicSchedules.rows) {
+        const key = `${row.effective_from}|${row.effective_to}`;
+
+        if (!effectiveRanges.has(key)) {
+          effectiveRanges.set(key, {
+            effective_from: row.effective_from,
+            effective_to: row.effective_to,
+            days: new Map(),
+          });
+        }
+
+        effectiveRanges
+          .get(key)
+          .days.set(Number(row.day_of_week), Boolean(row.is_open));
+      }
+
+      const blockedDates = new Set(blocked.rows.map((row) => row.d));
       const available_dates = [];
+
       for (let offset = 0; offset <= 90; offset++) {
         const dt = new Date(Date.now() + offset * 86400000);
         const value = new Intl.DateTimeFormat("en-CA", {
@@ -1799,11 +1834,22 @@ router.get(
           month: "2-digit",
           day: "2-digit",
         }).format(dt);
+        const dayOfWeek = phase11ManilaDay(value);
+        const matchingRange = Array.from(effectiveRanges.values()).find(
+          (range) =>
+            value >= range.effective_from && value <= range.effective_to,
+        );
+        const clinicIsOpen = matchingRange
+          ? Boolean(matchingRange.days.get(dayOfWeek))
+          : Boolean(baselineClinicDays.get(dayOfWeek));
+
         if (
-          allowedDays.has(phase11ManilaDay(value)) &&
+          dentistDays.has(dayOfWeek) &&
+          clinicIsOpen &&
           !blockedDates.has(value)
-        )
+        ) {
           available_dates.push(value);
+        }
       }
       return res.json({ available_dates });
     } catch (err) {
@@ -1833,14 +1879,51 @@ router.get(
         return res.status(403).json({ error: "Invalid clinic selection." });
       const day = phase11ManilaDay(dateOnly);
       const rows = await pool.query(
-        `SELECT da.start_time, da.end_time, da.break_start_time, da.break_end_time, da.slot_duration_minutes,
-              coh.opening_time, coh.closing_time
+        `SELECT
+              da.start_time,
+              da.end_time,
+              da.break_start_time,
+              da.break_end_time,
+              da.slot_duration_minutes,
+              COALESCE(effective_day.opening_time, coh.opening_time) AS opening_time,
+              COALESCE(effective_day.closing_time, coh.closing_time) AS closing_time,
+              COALESCE(effective_day.is_open, coh.is_open) AS clinic_is_open
        FROM public.dentists d
-       JOIN public.dentist_services ds ON ds.dentist_id=d.dentist_id AND ds.service_id=$3 AND ds.is_active=TRUE
-       JOIN public.dentist_availability da ON da.dentist_id=d.dentist_id AND da.day_of_week=$4 AND da.is_available=TRUE
-       JOIN public.clinic_operating_hours coh ON coh.clinic_id=d.clinic_id AND coh.day_of_week=$4 AND coh.is_open=TRUE
-       WHERE d.dentist_id=$2 AND d.clinic_id=$1 AND d.status='Active'
-       AND NOT EXISTS (SELECT 1 FROM public.dentist_unavailable_dates dud WHERE dud.dentist_id=d.dentist_id AND dud.unavailable_date=$5::date)`,
+       JOIN public.dentist_services ds
+         ON ds.dentist_id = d.dentist_id
+        AND ds.service_id = $3
+        AND ds.is_active = TRUE
+       JOIN public.dentist_availability da
+         ON da.dentist_id = d.dentist_id
+        AND da.day_of_week = $4
+        AND da.is_available = TRUE
+       JOIN public.clinic_operating_hours coh
+         ON coh.clinic_id = d.clinic_id
+        AND coh.day_of_week = $4
+       LEFT JOIN LATERAL (
+         SELECT
+           ed.is_open,
+           ed.opening_time,
+           ed.closing_time
+         FROM public.clinic_operating_hours_effective_schedules es
+         JOIN public.clinic_operating_hours_effective_days ed
+           ON ed.effective_schedule_id = es.effective_schedule_id
+          AND ed.day_of_week = $4
+         WHERE es.clinic_id = d.clinic_id
+           AND $5::date BETWEEN es.effective_from AND es.effective_to
+         ORDER BY es.created_at DESC
+         LIMIT 1
+       ) effective_day ON TRUE
+       WHERE d.dentist_id = $2
+         AND d.clinic_id = $1
+         AND d.status = 'Active'
+         AND COALESCE(effective_day.is_open, coh.is_open) = TRUE
+         AND NOT EXISTS (
+           SELECT 1
+           FROM public.dentist_unavailable_dates dud
+           WHERE dud.dentist_id = d.dentist_id
+             AND dud.unavailable_date = $5::date
+         )`,
         [clinicId, dentistId, serviceId, day, dateOnly],
       );
       if (!rows.rows.length) return res.json({ available_times: [] });
@@ -1893,12 +1976,10 @@ router.post(
       !dateOnly ||
       !/^\d{2}:\d{2}$/.test(time)
     )
-      return res
-        .status(400)
-        .json({
-          error:
-            "Complete the service, clinic, dentist, date, and time selections.",
-        });
+      return res.status(400).json({
+        error:
+          "Complete the service, clinic, dentist, date, and time selections.",
+      });
     const client = await pool.connect();
     try {
       await client.query("BEGIN");
@@ -1909,11 +1990,9 @@ router.post(
       }
       if (clinicId !== Number(context.clinic_id)) {
         await client.query("ROLLBACK");
-        return res
-          .status(403)
-          .json({
-            error: "You may only book within your assigned clinic location.",
-          });
+        return res.status(403).json({
+          error: "You may only book within your assigned clinic location.",
+        });
       }
       const valid = await client.query(
         `SELECT 1 FROM public.dentists d JOIN public.dentist_services ds ON ds.dentist_id=d.dentist_id AND ds.service_id=$3 AND ds.is_active=TRUE JOIN public.clinic_services cs ON cs.clinic_id=d.clinic_id AND cs.service_id=$3 AND cs.is_active=TRUE WHERE d.dentist_id=$2 AND d.clinic_id=$1 AND d.status='Active' FOR UPDATE OF d`,
@@ -1932,6 +2011,58 @@ router.post(
           .status(400)
           .json({ error: "You cannot book a past schedule." });
       }
+
+      const appointmentDay = phase11ManilaDay(dateOnly);
+      const clinicHours = await client.query(
+        `SELECT
+           COALESCE(effective_day.is_open, coh.is_open) AS is_open,
+           COALESCE(effective_day.opening_time, coh.opening_time) AS opening_time,
+           COALESCE(effective_day.closing_time, coh.closing_time) AS closing_time
+         FROM public.clinic_operating_hours coh
+         LEFT JOIN LATERAL (
+           SELECT
+             ed.is_open,
+             ed.opening_time,
+             ed.closing_time
+           FROM public.clinic_operating_hours_effective_schedules es
+           JOIN public.clinic_operating_hours_effective_days ed
+             ON ed.effective_schedule_id = es.effective_schedule_id
+            AND ed.day_of_week = $2
+           WHERE es.clinic_id = coh.clinic_id
+             AND $3::date BETWEEN es.effective_from AND es.effective_to
+           ORDER BY es.created_at DESC
+           LIMIT 1
+         ) effective_day ON TRUE
+         WHERE coh.clinic_id = $1
+           AND coh.day_of_week = $2
+         LIMIT 1`,
+        [clinicId, appointmentDay, dateOnly],
+      );
+
+      const clinicHoursRow = clinicHours.rows[0];
+      const appointmentMinutes = phase11TimeToMinutes(time);
+      const clinicOpeningMinutes = phase11TimeToMinutes(
+        clinicHoursRow?.opening_time,
+      );
+      const clinicClosingMinutes = phase11TimeToMinutes(
+        clinicHoursRow?.closing_time,
+      );
+
+      if (
+        !clinicHoursRow?.is_open ||
+        appointmentMinutes === null ||
+        clinicOpeningMinutes === null ||
+        clinicClosingMinutes === null ||
+        appointmentMinutes < clinicOpeningMinutes ||
+        appointmentMinutes >= clinicClosingMinutes
+      ) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({
+          error:
+            "The selected appointment time is outside the clinic's effective operating hours.",
+        });
+      }
+
       const conflict = await client.query(
         `SELECT 1 FROM public.appointments WHERE dentist_id=$1 AND appointment_date=$2 AND status IN ('Pending','Scheduled')`,
         [dentistId, scheduled],
@@ -1958,12 +2089,10 @@ router.post(
         ],
       );
       await client.query("COMMIT");
-      return res
-        .status(201)
-        .json({
-          message: "Appointment request submitted successfully.",
-          appointment: inserted.rows[0],
-        });
+      return res.status(201).json({
+        message: "Appointment request submitted successfully.",
+        appointment: inserted.rows[0],
+      });
     } catch (err) {
       await client.query("ROLLBACK");
       console.error(err);

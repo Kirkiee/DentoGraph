@@ -289,6 +289,218 @@ const syncClinicOperatingHours = async (client, clinicId, scheduleInput) => {
   return schedule;
 };
 
+const normalizeEffectiveScheduleDate = (value) => {
+  const cleaned = String(value || "").trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(cleaned)) {
+    return null;
+  }
+
+  const parsed = new Date(`${cleaned}T00:00:00+08:00`);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return cleaned;
+};
+
+const validateEffectiveScheduleRange = (effectiveFrom, effectiveTo) => {
+  const start = normalizeEffectiveScheduleDate(effectiveFrom);
+  const end = normalizeEffectiveScheduleDate(effectiveTo);
+
+  if (!start || !end) {
+    return "Select both the effective start date and effective end date.";
+  }
+
+  if (end < start) {
+    return "The effective end date must be the same as or later than the start date.";
+  }
+
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  if (start < today) {
+    return "The effective start date cannot be in the past.";
+  }
+
+  return "";
+};
+
+const syncEffectiveClinicOperatingHours = async (
+  client,
+  clinicId,
+  scheduleInput,
+  effectiveFromInput,
+  effectiveToInput,
+  createdBy,
+) => {
+  const schedule = parseOperatingHoursInput(scheduleInput);
+  const scheduleError = validateOperatingHours(schedule);
+
+  if (scheduleError) {
+    const error = new Error(scheduleError);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const effectiveFrom = normalizeEffectiveScheduleDate(effectiveFromInput);
+  const effectiveTo = normalizeEffectiveScheduleDate(effectiveToInput);
+  const rangeError = validateEffectiveScheduleRange(effectiveFrom, effectiveTo);
+
+  if (rangeError) {
+    const error = new Error(rangeError);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const overlapping = await client.query(
+    `SELECT effective_schedule_id, effective_from, effective_to
+     FROM public.clinic_operating_hours_effective_schedules
+     WHERE clinic_id = $1
+       AND daterange(effective_from, effective_to, '[]')
+           && daterange($2::date, $3::date, '[]')
+     ORDER BY effective_from`,
+    [clinicId, effectiveFrom, effectiveTo],
+  );
+
+  const exactExisting = overlapping.rows.find(
+    (row) =>
+      String(row.effective_from).slice(0, 10) === effectiveFrom &&
+      String(row.effective_to).slice(0, 10) === effectiveTo,
+  );
+
+  const conflicting = overlapping.rows.filter(
+    (row) =>
+      !(
+        String(row.effective_from).slice(0, 10) === effectiveFrom &&
+        String(row.effective_to).slice(0, 10) === effectiveTo
+      ),
+  );
+
+  if (conflicting.length > 0) {
+    const error = new Error(
+      "The selected effective range overlaps another scheduled clinic-hours range.",
+    );
+    error.statusCode = 409;
+    throw error;
+  }
+
+  let effectiveScheduleId;
+
+  if (exactExisting) {
+    effectiveScheduleId = exactExisting.effective_schedule_id;
+
+    await client.query(
+      `UPDATE public.clinic_operating_hours_effective_schedules
+       SET created_by = $1,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE effective_schedule_id = $2`,
+      [createdBy || null, effectiveScheduleId],
+    );
+
+    await client.query(
+      `DELETE FROM public.clinic_operating_hours_effective_days
+       WHERE effective_schedule_id = $1`,
+      [effectiveScheduleId],
+    );
+  } else {
+    const inserted = await client.query(
+      `INSERT INTO public.clinic_operating_hours_effective_schedules
+       (
+         clinic_id,
+         effective_from,
+         effective_to,
+         created_by
+       )
+       VALUES ($1, $2, $3, $4)
+       RETURNING effective_schedule_id`,
+      [clinicId, effectiveFrom, effectiveTo, createdBy || null],
+    );
+
+    effectiveScheduleId = inserted.rows[0].effective_schedule_id;
+  }
+
+  for (const entry of schedule) {
+    await client.query(
+      `INSERT INTO public.clinic_operating_hours_effective_days
+       (
+         effective_schedule_id,
+         day_of_week,
+         is_open,
+         opening_time,
+         closing_time
+       )
+       VALUES ($1, $2, $3, $4, $5)`,
+      [
+        effectiveScheduleId,
+        entry.day_of_week,
+        entry.is_open,
+        entry.opening_time,
+        entry.closing_time,
+      ],
+    );
+  }
+
+  return {
+    effective_schedule_id: effectiveScheduleId,
+    effective_from: effectiveFrom,
+    effective_to: effectiveTo,
+    operating_hours_schedule: schedule,
+  };
+};
+
+const getEffectiveClinicOperatingHoursRanges = async (client, clinicId) => {
+  const result = await client.query(
+    `SELECT
+       s.effective_schedule_id,
+       TO_CHAR(s.effective_from, 'YYYY-MM-DD') AS effective_from,
+       TO_CHAR(s.effective_to, 'YYYY-MM-DD') AS effective_to,
+       s.created_at,
+       s.updated_at,
+       COALESCE(
+         json_agg(
+           json_build_object(
+             'day_of_week', d.day_of_week,
+             'day_name', CASE d.day_of_week
+               WHEN 1 THEN 'Monday'
+               WHEN 2 THEN 'Tuesday'
+               WHEN 3 THEN 'Wednesday'
+               WHEN 4 THEN 'Thursday'
+               WHEN 5 THEN 'Friday'
+               WHEN 6 THEN 'Saturday'
+               WHEN 7 THEN 'Sunday'
+             END,
+             'is_open', d.is_open,
+             'opening_time', CASE
+               WHEN d.opening_time IS NULL THEN NULL
+               ELSE TO_CHAR(d.opening_time, 'HH24:MI')
+             END,
+             'closing_time', CASE
+               WHEN d.closing_time IS NULL THEN NULL
+               ELSE TO_CHAR(d.closing_time, 'HH24:MI')
+             END
+           )
+           ORDER BY d.day_of_week
+         ) FILTER (WHERE d.effective_day_id IS NOT NULL),
+         '[]'::json
+       ) AS operating_hours_schedule
+     FROM public.clinic_operating_hours_effective_schedules s
+     LEFT JOIN public.clinic_operating_hours_effective_days d
+       ON d.effective_schedule_id = s.effective_schedule_id
+     WHERE s.clinic_id = $1
+     GROUP BY s.effective_schedule_id
+     ORDER BY s.effective_from ASC`,
+    [clinicId],
+  );
+
+  return result.rows;
+};
+
 const getClinicOperatingHours = async (client, clinicId) => {
   const result = await client.query(
     `SELECT
@@ -324,10 +536,15 @@ const attachNormalizedOperatingHours = async (client, clinic) => {
   if (!clinic?.clinic_id) return clinic;
 
   const schedule = await getClinicOperatingHours(client, clinic.clinic_id);
+  const effectiveRanges = await getEffectiveClinicOperatingHoursRanges(
+    client,
+    clinic.clinic_id,
+  );
 
   return {
     ...clinic,
     operating_hours_schedule: schedule,
+    effective_operating_hours_ranges: effectiveRanges,
     opening_hours:
       schedule.length > 0
         ? operatingHoursToLegacyText(schedule)
@@ -3905,6 +4122,8 @@ router.put(
       contact_number,
       opening_hours,
       operating_hours_schedule,
+      schedule_effective_from,
+      schedule_effective_to,
       status,
     } = req.body || {};
 
@@ -3921,6 +4140,15 @@ router.put(
     const cleanOpeningHours = operatingHoursToLegacyText(
       normalizedOperatingHours,
     );
+    const hasEffectiveRange =
+      Boolean(String(schedule_effective_from || "").trim()) ||
+      Boolean(String(schedule_effective_to || "").trim());
+    const effectiveRangeError = hasEffectiveRange
+      ? validateEffectiveScheduleRange(
+          schedule_effective_from,
+          schedule_effective_to,
+        )
+      : "";
 
     if (!cleanClinicName || !cleanAddress) {
       return res.status(400).json({
@@ -3937,6 +4165,12 @@ router.put(
     if (operatingHoursError) {
       return res.status(400).json({
         error: operatingHoursError,
+      });
+    }
+
+    if (effectiveRangeError) {
+      return res.status(400).json({
+        error: effectiveRangeError,
       });
     }
 
@@ -4000,7 +4234,10 @@ router.put(
              longitude = $4,
              services = $5,
              contact_number = $6,
-             opening_hours = $7,
+             opening_hours = CASE
+               WHEN $11::boolean THEN opening_hours
+               ELSE $7
+             END,
              status = COALESCE($8, status)
          WHERE clinic_id = $9
          AND owner_user_id = $10
@@ -4016,6 +4253,7 @@ router.put(
           normalizeNullable(status),
           clinic_id,
           req.user.user_id,
+          hasEffectiveRange,
         ],
       );
 
@@ -4025,17 +4263,26 @@ router.put(
         normalizedServices,
       );
 
-      await syncClinicOperatingHours(
-        client,
-        updatedLocation.rows[0].clinic_id,
-        normalizedOperatingHours,
-      );
+      let effectiveSchedule = null;
+
+      if (hasEffectiveRange) {
+        effectiveSchedule = await syncEffectiveClinicOperatingHours(
+          client,
+          updatedLocation.rows[0].clinic_id,
+          normalizedOperatingHours,
+          schedule_effective_from,
+          schedule_effective_to,
+          req.user.user_id,
+        );
+      }
 
       await createAuditLog({
         user_id: req.user.user_id,
         action: "UPDATE_CLINIC_LOCATION",
         module: "Clinic Owner Locations",
-        description: `Clinic owner updated location ${updatedLocation.rows[0].clinic_name}.`,
+        description: hasEffectiveRange
+          ? `Clinic owner scheduled operating-hour changes for ${updatedLocation.rows[0].clinic_name} from ${schedule_effective_from} to ${schedule_effective_to}.`
+          : `Clinic owner updated location ${updatedLocation.rows[0].clinic_name}.`,
         ip_address: req.ip,
       });
 
@@ -4051,6 +4298,7 @@ router.put(
         shared_subscription: subscriptionSource,
         location: normalizedLocation,
         clinic: normalizedLocation,
+        effective_schedule: effectiveSchedule,
       });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
