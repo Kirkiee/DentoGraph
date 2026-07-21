@@ -2346,95 +2346,17 @@ body.dark-mode .password-visibility-button {
   width: 100%;
 }
 
-.clinic-verification-resubmit-card {
-  position: relative;
+.clinic-verification-resubmit-page .auth-card {
   width: min(100%, 560px);
-  margin: 0 auto;
   padding: 30px 32px 32px;
-  overflow: hidden;
-  border: 1px solid rgba(111, 136, 178, 0.38);
-  border-radius: 24px;
-  background:
-    radial-gradient(
-      circle at 100% 0,
-      rgba(32, 105, 157, 0.35) 0,
-      rgba(32, 105, 157, 0.35) 45px,
-      transparent 46px
-    ),
-    linear-gradient(145deg, #111a2f 0%, #0e1729 100%);
-  box-shadow:
-    0 25px 70px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-.clinic-verification-resubmit-card::before {
-  content: "";
-  position: absolute;
-  bottom: -30px;
-  left: -30px;
-  width: 85px;
-  height: 85px;
-  border-radius: 22px;
-  background: rgba(32, 105, 157, 0.3);
-  transform: rotate(16deg);
-  pointer-events: none;
-}
-
-.clinic-verification-resubmit-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-/* Page logo */
-.clinic-resubmit-logo-wrapper {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 18px;
-}
-
-.clinic-resubmit-logo {
-  width: 88px;
-  height: 88px;
-  padding: 14px;
-  -o-object-fit: contain;
-  object-fit: contain;
-  border-radius: 22px;
-  background: #ffffff;
-  box-shadow:
-    0 12px 30px rgba(0, 0, 0, 0.25),
-    0 0 0 1px rgba(255, 255, 255, 0.75);
-}
-
-/* Header */
-.clinic-resubmit-header {
-  margin-bottom: 28px;
-  text-align: center;
-}
-
-.clinic-resubmit-header h1,
-.clinic-resubmit-header h2 {
-  margin: 0;
-  color: #f8fafc;
-  font-size: clamp(1.7rem, 4vw, 2rem);
-  font-weight: 800;
-  line-height: 1.2;
-  letter-spacing: -0.025em;
-}
-
-.clinic-resubmit-header p {
-  margin: 8px 0 0;
-  color: #c0cadb;
-  font-size: 0.96rem;
-  line-height: 1.5;
-}
-
-/* Back-to-login link */
 .clinic-resubmit-back-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 17px;
-  color: #56a0ff;
+  margin-bottom: 18px;
+  color: #57a0ff;
   font-size: 0.9rem;
   font-weight: 700;
   text-decoration: none;
@@ -2444,162 +2366,174 @@ body.dark-mode .password-visibility-button {
 }
 
 .clinic-resubmit-back-link:hover {
-  color: #86bbff;
+  color: #8bbcff;
   transform: translateX(-2px);
 }
 
-/* Clinic information notice */
 .clinic-resubmit-clinic-info {
-  margin-bottom: 26px;
+  margin-bottom: 28px;
   padding: 14px 16px;
-  border: 1px solid rgba(67, 133, 240, 0.7);
+  border: 1px solid #397ae6;
   border-radius: 15px;
-  background: rgba(37, 99, 235, 0.18);
-  color: #d9e8ff;
+  background: rgba(37, 99, 235, 0.2);
 }
 
 .clinic-resubmit-clinic-info strong {
   display: block;
-  margin-bottom: 3px;
-  color: #e8f1ff;
-  font-size: 0.94rem;
+  margin-bottom: 4px;
+  color: #f5f8ff;
+  font-size: 0.95rem;
   font-weight: 750;
 }
 
 .clinic-resubmit-clinic-info p {
   margin: 0;
-  color: #c8daf5;
-  font-size: 0.89rem;
+  color: #cbd9ef;
+  font-size: 0.88rem;
   line-height: 1.45;
 }
 
-/* Rejected document list */
 .clinic-resubmit-documents {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 0;
 }
 
 .clinic-resubmit-document {
-  padding-bottom: 22px;
-  border-bottom: 1px solid rgba(113, 132, 164, 0.25);
+  min-width: 0;
+  padding: 17px 0 28px;
+  border-bottom: 1px solid rgba(107, 127, 159, 0.34);
+}
+
+.clinic-resubmit-document:first-child {
+  padding-top: 12px;
 }
 
 .clinic-resubmit-document:last-child {
-  padding-bottom: 0;
+  padding-bottom: 5px;
   border-bottom: 0;
 }
 
 .clinic-resubmit-document-title {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 11px;
   color: #f5f7fb;
   font-size: 0.98rem;
-  font-weight: 700;
+  font-weight: 750;
   line-height: 1.4;
 }
 
-/* Administrator remark */
 .clinic-resubmit-remark {
+  width: 100%;
   margin-bottom: 13px;
-  padding: 11px 13px;
-  border: 1px solid rgba(218, 72, 100, 0.62);
+  padding: 12px 13px;
+  border: 1px solid #b52f52;
   border-radius: 12px;
-  background: rgba(116, 28, 47, 0.31);
-  color: #ffcad3;
-  font-size: 0.88rem;
+  background: rgba(113, 27, 51, 0.42);
+  color: #ffccd5;
+  font-size: 0.86rem;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .clinic-resubmit-remark strong {
   color: #ffd5dc;
 }
 
-/* Upload and expiration-date row */
+/*
+ * Keep the upload and date in aligned columns on wider screens.
+ * minmax(0, 1fr) prevents long filenames from expanding the grid.
+ */
 .clinic-resubmit-file-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 180px;
   align-items: end;
-  gap: 12px;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
 }
 
 .clinic-resubmit-upload-field,
 .clinic-resubmit-date-field {
+  width: 100%;
   min-width: 0;
 }
 
-.clinic-resubmit-upload-field label,
-.clinic-resubmit-date-field label {
+.clinic-resubmit-upload-field > label,
+.clinic-resubmit-date-field > label {
   display: block;
   margin-bottom: 7px;
-  color: #c8d2e3;
-  font-size: 0.78rem;
+  color: #c0cbdd;
+  font-size: 0.76rem;
   font-weight: 700;
+  line-height: 1.35;
 }
 
-/* File input */
 .clinic-resubmit-document input[type="file"] {
   display: block;
   width: 100%;
-  min-height: 44px;
-  padding: 6px;
+  min-width: 0;
+  height: 58px;
+  padding: 7px;
+  overflow: hidden;
   border: 1px solid #34445f;
-  border-radius: 10px;
-  background: #0a1324;
-  color: #d7dfec;
+  border-radius: 11px;
+  outline: none;
+  background: #0d1729;
+  color: #f4f7fc;
   font-family: inherit;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .clinic-resubmit-document input[type="file"]::file-selector-button {
-  min-height: 30px;
-  margin-right: 10px;
+  height: 34px;
+  margin-right: 9px;
   padding: 6px 11px;
   border: 0;
   border-radius: 7px;
-  background: #253753;
-  color: #f7f9fc;
+  background: #294366;
+  color: #ffffff;
   font-family: inherit;
-  font-size: 0.8rem;
-  font-weight: 700;
+  font-size: 0.78rem;
+  font-weight: 750;
   cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    transform 0.2s ease;
 }
 
 .clinic-resubmit-document input[type="file"]::file-selector-button:hover {
-  background: #33517d;
+  background: #365985;
 }
 
 .clinic-resubmit-document input[type="file"]:focus {
-  border-color: #3979ef;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.18);
+  border-color: #397af0;
+  box-shadow: 0 0 0 3px rgba(57, 122, 240, 0.17);
 }
 
-/* Expiration date */
 .clinic-resubmit-document input[type="date"] {
+  display: block;
   width: 100%;
-  min-height: 44px;
+  min-width: 0;
+  height: 58px;
   padding: 10px 12px;
   border: 1px solid #34445f;
-  border-radius: 10px;
+  border-radius: 11px;
   outline: none;
-  background: #0a1324;
-  color: #f3f6fb;
+  background: #0d1729;
+  color: #f5f7fb;
   color-scheme: dark;
-  font: inherit;
-  font-size: 0.86rem;
+  font-family: inherit;
+  font-size: 0.84rem;
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease;
 }
 
 .clinic-resubmit-document input[type="date"]:focus {
-  border-color: #3979ef;
-  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.18);
+  border-color: #397af0;
+  box-shadow: 0 0 0 3px rgba(57, 122, 240, 0.17);
 }
 
 .clinic-resubmit-document
@@ -2610,97 +2544,78 @@ body.dark-mode .password-visibility-button {
   opacity: 0.8;
 }
 
-/* Optional file-name display */
+/* Prevent the selected filename text from stretching the card. */
 .clinic-resubmit-selected-file {
   display: block;
+  width: 100%;
+  min-width: 0;
   margin-top: 7px;
   overflow: hidden;
-  color: #9fb0ca;
-  font-size: 0.77rem;
+  color: #aebbd0;
+  font-size: 0.76rem;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Validation states */
-.clinic-resubmit-field-error {
-  display: block;
-  margin-top: 6px;
-  color: #ff9cad;
-  font-size: 0.78rem;
-  line-height: 1.4;
-}
-
-.clinic-resubmit-document input.invalid {
-  border-color: #d94c68;
-  box-shadow: 0 0 0 3px rgba(217, 76, 104, 0.12);
-}
-
-/* General messages */
-.clinic-resubmit-error {
-  margin-top: 18px;
+.clinic-resubmit-error,
+.clinic-resubmit-success {
+  margin-bottom: 17px;
   padding: 12px 14px;
-  border: 1px solid rgba(218, 72, 100, 0.58);
   border-radius: 11px;
-  background: rgba(116, 28, 47, 0.28);
-  color: #ffc5cf;
   font-size: 0.86rem;
   line-height: 1.5;
+}
+
+.clinic-resubmit-error {
+  border: 1px solid rgba(218, 72, 100, 0.65);
+  background: rgba(116, 28, 47, 0.3);
+  color: #ffc5cf;
 }
 
 .clinic-resubmit-success {
-  margin-top: 18px;
-  padding: 12px 14px;
-  border: 1px solid rgba(40, 184, 120, 0.55);
-  border-radius: 11px;
-  background: rgba(20, 112, 72, 0.22);
+  border: 1px solid rgba(40, 184, 120, 0.58);
+  background: rgba(20, 112, 72, 0.24);
   color: #baf4d8;
-  font-size: 0.86rem;
-  line-height: 1.5;
 }
 
-/* Submit button */
 .clinic-resubmit-submit-button {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  min-height: 47px;
+  min-height: 48px;
   margin-top: 24px;
   padding: 11px 18px;
   border: 1px solid #3478ef;
   border-radius: 12px;
-  background: linear-gradient(135deg, #3478f6 0%, #2662dc 100%);
+  background: linear-gradient(135deg, #397ff4 0%, #2864de 100%);
   color: #ffffff;
   font-family: inherit;
   font-size: 0.96rem;
   font-weight: 800;
   cursor: pointer;
-  box-shadow: 0 11px 25px rgba(37, 99, 235, 0.27);
+  box-shadow: 0 10px 25px rgba(37, 99, 235, 0.26);
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease,
     -webkit-filter 0.2s ease;
   transition:
     transform 0.2s ease,
-    box-shadow 0.2s ease,
-    filter 0.2s ease;
+    filter 0.2s ease,
+    box-shadow 0.2s ease;
   transition:
     transform 0.2s ease,
-    box-shadow 0.2s ease,
     filter 0.2s ease,
+    box-shadow 0.2s ease,
     -webkit-filter 0.2s ease;
 }
 
 .clinic-resubmit-submit-button:hover:not(:disabled) {
   transform: translateY(-1px);
-  -webkit-filter: brightness(1.08);
-  filter: brightness(1.08);
-  box-shadow: 0 15px 30px rgba(37, 99, 235, 0.34);
-}
-
-.clinic-resubmit-submit-button:active:not(:disabled) {
-  transform: translateY(0);
+  -webkit-filter: brightness(1.07);
+  filter: brightness(1.07);
+  box-shadow: 0 14px 30px rgba(37, 99, 235, 0.33);
 }
 
 .clinic-resubmit-submit-button:disabled {
@@ -2710,32 +2625,8 @@ body.dark-mode .password-visibility-button {
 }
 
 /* Light mode */
-body:not(.dark-mode) .clinic-verification-resubmit-card {
-  border-color: #d4deec;
-  background:
-    radial-gradient(
-      circle at 100% 0,
-      rgba(89, 164, 221, 0.2) 0,
-      rgba(89, 164, 221, 0.2) 45px,
-      transparent 46px
-    ),
-    #ffffff;
-  box-shadow: 0 22px 60px rgba(49, 65, 89, 0.16);
-}
-
-body:not(.dark-mode) .clinic-resubmit-header h1,
-body:not(.dark-mode) .clinic-resubmit-header h2,
-body:not(.dark-mode) .clinic-resubmit-document-title {
-  color: #172033;
-}
-
-body:not(.dark-mode) .clinic-resubmit-header p {
-  color: #667085;
-}
-
 body:not(.dark-mode) .clinic-resubmit-clinic-info {
   background: #eff6ff;
-  color: #1d4276;
 }
 
 body:not(.dark-mode) .clinic-resubmit-clinic-info strong {
@@ -2746,6 +2637,10 @@ body:not(.dark-mode) .clinic-resubmit-clinic-info p {
   color: #365b87;
 }
 
+body:not(.dark-mode) .clinic-resubmit-document-title {
+  color: #172033;
+}
+
 body:not(.dark-mode) .clinic-resubmit-remark {
   background: #fff1f3;
   color: #9f2940;
@@ -2753,10 +2648,17 @@ body:not(.dark-mode) .clinic-resubmit-remark {
 
 body:not(.dark-mode) .clinic-resubmit-document input[type="file"],
 body:not(.dark-mode) .clinic-resubmit-document input[type="date"] {
-  border-color: #cdd7e5;
+  border-color: #cbd5e1;
   background: #f8fafc;
   color: #172033;
   color-scheme: light;
+}
+
+body:not(.dark-mode)
+  .clinic-resubmit-document
+  input[type="file"]::file-selector-button {
+  background: #e3eaf4;
+  color: #24324a;
 }
 
 body:not(.dark-mode)
@@ -2766,37 +2668,20 @@ body:not(.dark-mode)
   filter: none;
 }
 
-body:not(.dark-mode)
-  .clinic-resubmit-document
-  input[type="file"]::file-selector-button {
-  background: #e8eef7;
-  color: #24324a;
-}
-
-/* Responsive layout */
-@media (max-width: 640px) {
-  .clinic-verification-resubmit-card {
+/*
+ * Stack the replacement file and expiration date before the fields become
+ * too narrow. This fixes the overlapping layout in the screenshot.
+ */
+@media (max-width: 700px) {
+  .clinic-verification-resubmit-page .auth-card {
     width: calc(100% - 20px);
-    padding: 24px 20px 25px;
-    border-radius: 19px;
-  }
-
-  .clinic-resubmit-logo {
-    width: 78px;
-    height: 78px;
-  }
-
-  .clinic-resubmit-header {
-    margin-bottom: 24px;
-  }
-
-  .clinic-resubmit-header h1,
-  .clinic-resubmit-header h2 {
-    font-size: 1.55rem;
+    padding: 25px 22px 27px;
   }
 
   .clinic-resubmit-file-row {
     grid-template-columns: 1fr;
+    align-items: stretch;
+    gap: 13px;
   }
 
   .clinic-resubmit-document input[type="file"],
@@ -2805,19 +2690,32 @@ body:not(.dark-mode)
   }
 }
 
-@media (max-width: 420px) {
-  .clinic-verification-resubmit-card {
+@media (max-width: 480px) {
+  .clinic-verification-resubmit-page .auth-card {
     width: calc(100% - 12px);
-    padding: 22px 16px;
+    padding: 23px 17px 25px;
   }
 
-  .clinic-resubmit-header h1,
-  .clinic-resubmit-header h2 {
-    font-size: 1.38rem;
+  .clinic-resubmit-document {
+    padding-bottom: 24px;
   }
 
-  .clinic-resubmit-document input[type="file"]::file-selector-button {
-    margin-right: 6px;
-    padding-inline: 8px;
+  .clinic-resubmit-document-title {
+    font-size: 0.94rem;
+  }
+
+  .clinic-resubmit-remark {
+    padding: 11px 12px;
+    font-size: 0.82rem;
+  }
+
+  .clinic-resubmit-document input[type="file"],
+  .clinic-resubmit-document input[type="date"] {
+    height: 54px;
+  }
+
+  .clinic-resubmit-submit-button {
+    min-height: 47px;
+    margin-top: 21px;
   }
 }
