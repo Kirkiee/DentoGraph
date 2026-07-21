@@ -90,8 +90,7 @@ function AdminClinics() {
 
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [applicationDecision, setApplicationDecision] = useState("Approved");
-  const [applicationRejectionReason, setApplicationRejectionReason] =
-    useState("");
+  const [documentReviews, setDocumentReviews] = useState({});
 
   const [clinicForm, setClinicForm] = useState({
     clinic_name: "",
@@ -256,10 +255,28 @@ function AdminClinics() {
     }
   };
 
+  const createDocumentReviews = (application, decision) => {
+    const keys = [
+      "business_registration",
+      "business_permit",
+      "owner_government_id",
+      "clinic_license",
+    ];
+    return keys.reduce((result, key) => {
+      const existing = application?.document_reviews?.[key] || {};
+      result[key] = {
+        status:
+          decision === "Approved" ? "Accepted" : existing.status || "Accepted",
+        remark: existing.remark || "",
+      };
+      return result;
+    }, {});
+  };
+
   const openApplicationReviewModal = (application, decision) => {
     setSelectedApplication(application);
     setApplicationDecision(decision);
-    setApplicationRejectionReason("");
+    setDocumentReviews(createDocumentReviews(application, decision));
     setModalError("");
     setError("");
     setMessage("");
@@ -268,65 +285,58 @@ function AdminClinics() {
 
   const closeApplicationReviewModal = () => {
     if (reviewingApplicationId) return;
-
     setShowApplicationReviewModal(false);
     setSelectedApplication(null);
     setApplicationDecision("Approved");
-    setApplicationRejectionReason("");
+    setDocumentReviews({});
+    setModalError("");
+  };
+
+  const updateDocumentReview = (key, field, value) => {
+    setDocumentReviews((current) => ({
+      ...current,
+      [key]: { ...current[key], [field]: value },
+    }));
     setModalError("");
   };
 
   const handleClinicApplicationReview = async (event) => {
     event.preventDefault();
-
-    if (!selectedApplication) {
-      setModalError("No clinic application was selected.");
-      return;
-    }
-
-    const cleanReason = applicationRejectionReason.trim();
-
-    if (applicationDecision === "Rejected" && cleanReason.length < 5) {
-      setModalError(
-        "Enter a clear rejection reason with at least 5 characters.",
-      );
-      return;
-    }
-
+    if (!selectedApplication)
+      return setModalError("No clinic application was selected.");
+    const entries = Object.entries(documentReviews);
+    if (
+      applicationDecision === "Rejected" &&
+      !entries.some(([, r]) => r.status === "Rejected")
+    )
+      return setModalError("Mark at least one file as rejected.");
+    if (
+      entries.some(
+        ([, r]) => r.status === "Rejected" && r.remark.trim().length < 3,
+      )
+    )
+      return setModalError("Enter a remark for every rejected file.");
     try {
       setReviewingApplicationId(selectedApplication.application_id);
       setModalError("");
       setError("");
       setMessage("");
-
       const response = await API.put(
         `/api/clinics/admin/verification-applications/${selectedApplication.application_id}/review`,
-        {
-          decision: applicationDecision,
-          rejection_reason:
-            applicationDecision === "Rejected" ? cleanReason : null,
-        },
+        { decision: applicationDecision, document_reviews: documentReviews },
         authHeaders,
       );
-
       setMessage(
-        response.data?.message ||
-          (applicationDecision === "Approved"
-            ? "Clinic application approved successfully."
-            : "Clinic application rejected and permanently deleted."),
+        response.data?.message || "Clinic application reviewed successfully.",
       );
-
       setShowApplicationReviewModal(false);
       setSelectedApplication(null);
       setApplicationDecision("Approved");
-      setApplicationRejectionReason("");
-      setModalError("");
-
+      setDocumentReviews({});
       await Promise.all([fetchClinicApplications(), fetchClinics()]);
     } catch (err) {
       setModalError(
-        err.response?.data?.error ||
-          `Unable to ${applicationDecision.toLowerCase()} the clinic application.`,
+        err.response?.data?.error || "Unable to review the clinic application.",
       );
     } finally {
       setReviewingApplicationId(null);
@@ -885,6 +895,7 @@ function AdminClinics() {
               >
                 <option value="Pending">Pending</option>
                 <option value="Approved">Approved</option>
+                <option value="Rejected">Rejected</option>
                 <option value="All">All Applications</option>
               </select>
 
@@ -900,9 +911,9 @@ function AdminClinics() {
           </div>
 
           <div className="info-message">
-            Only an Administrator can approve a clinic application. Rejecting a
-            pending application permanently deletes the Clinic Owner account,
-            clinic record, verification application, and uploaded documents.
+            Administrators can review each submitted file and add a specific
+            remark to every rejected document. Rejected applications are
+            preserved for resubmission.
           </div>
 
           {applicationsLoading ? (
@@ -1084,7 +1095,7 @@ function AdminClinics() {
                         }
                         disabled={Boolean(reviewingApplicationId)}
                       >
-                        Reject and Delete
+                        Reject Documents
                       </button>
                     </div>
                   )}
@@ -1397,46 +1408,50 @@ function AdminClinics() {
                 </div>
               </div>
 
-              {applicationDecision === "Approved" ? (
-                <div className="info-message">
-                  Approval will activate the clinic location and Clinic Owner
-                  account. The Clinic Owner can sign in immediately after this
-                  action succeeds.
-                </div>
-              ) : (
-                <>
-                  <div className="error-message">
-                    Permanent deletion warning: rejecting this application
-                    removes the pending Clinic Owner account, clinic record,
-                    verification application, role assignment, and all uploaded
-                    verification documents. This action cannot be undone.
+              <div className="info-message">
+                Review every submitted file. A remark is required for each
+                rejected file.
+              </div>
+              {[
+                ["business_registration", "Business Registration"],
+                ["business_permit", "Business / Mayor's Permit"],
+                ["owner_government_id", "Owner Government-Issued ID"],
+                ["clinic_license", "Clinic License"],
+              ]
+                .filter(
+                  ([key]) =>
+                    key !== "clinic_license" ||
+                    selectedApplication.clinic_license_original_name,
+                )
+                .map(([key, label]) => (
+                  <div className="form-group" key={key}>
+                    <label>{label}</label>
+                    <select
+                      value={documentReviews[key]?.status || "Accepted"}
+                      onChange={(e) =>
+                        updateDocumentReview(key, "status", e.target.value)
+                      }
+                      disabled={
+                        applicationDecision === "Approved" ||
+                        Boolean(reviewingApplicationId)
+                      }
+                    >
+                      <option value="Accepted">Accepted</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+                    {documentReviews[key]?.status === "Rejected" && (
+                      <textarea
+                        value={documentReviews[key]?.remark || ""}
+                        onChange={(e) =>
+                          updateDocumentReview(key, "remark", e.target.value)
+                        }
+                        placeholder="Enter the specific issue and required correction."
+                        rows={3}
+                        required
+                      />
+                    )}
                   </div>
-
-                  <div className="form-group">
-                    <label htmlFor="clinic_application_rejection_reason">
-                      Rejection Reason
-                    </label>
-                    <textarea
-                      id="clinic_application_rejection_reason"
-                      value={applicationRejectionReason}
-                      onChange={(event) => {
-                        setApplicationRejectionReason(event.target.value);
-                        setModalError("");
-                      }}
-                      placeholder="Explain why the clinic application is being rejected."
-                      minLength={5}
-                      maxLength={1000}
-                      rows={4}
-                      disabled={Boolean(reviewingApplicationId)}
-                      required
-                    />
-                    <small>
-                      This reason is recorded in the Administrator audit log
-                      before the application is deleted.
-                    </small>
-                  </div>
-                </>
-              )}
+                ))}
 
               {modalError && <div className="error-message">{modalError}</div>}
 
@@ -1462,10 +1477,10 @@ function AdminClinics() {
                   {reviewingApplicationId
                     ? applicationDecision === "Approved"
                       ? "Approving..."
-                      : "Rejecting and Deleting..."
+                      : "Rejecting..."
                     : applicationDecision === "Approved"
                       ? "Confirm Approval"
-                      : "Confirm Rejection and Delete"}
+                      : "Confirm Rejection"}
                 </button>
               </div>
             </form>

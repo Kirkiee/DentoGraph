@@ -935,6 +935,26 @@ const uploadClinicVerificationDocuments = multer({
   { name: "clinic_license", maxCount: 1 },
 ]);
 
+const CLINIC_VERIFICATION_DOCUMENTS = [
+  "business_registration",
+  "business_permit",
+  "owner_government_id",
+  "clinic_license",
+];
+
+const normalizeDocumentReviews = (reviews = {}) =>
+  CLINIC_VERIFICATION_DOCUMENTS.reduce((result, key) => {
+    const review = reviews?.[key] || {};
+    const status = String(review.status || "Pending").trim();
+    result[key] = {
+      status: ["Accepted", "Rejected", "Pending"].includes(status)
+        ? status
+        : "Pending",
+      remark: String(review.remark || "").trim(),
+    };
+    return result;
+  }, {});
+
 const getUploadedClinicVerificationFiles = (req) => {
   const files = req.files || {};
 
@@ -1939,6 +1959,220 @@ router.post(
 );
 
 // ===============================
+// REJECTED CLINIC OWNER: VIEW REMARKS AND RESUBMIT FILES
+// ===============================
+const verifyRejectedClinicOwner = async (
+  email,
+  password,
+  queryClient = pool,
+) => {
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
+  if (!normalizedEmail || !password) {
+    return {
+      allowed: false,
+      status: 400,
+      error: "Email and password are required.",
+    };
+  }
+
+  const result = await queryClient.query(
+    `SELECT u.user_id, u.email, u.password, u.status AS owner_status,
+            c.clinic_id, c.clinic_name, c.status AS clinic_status,
+            a.application_id, a.verification_status, a.document_reviews,
+            a.business_registration_path, a.business_permit_path,
+            a.owner_government_id_path, a.clinic_license_path
+       FROM public.users u
+       JOIN public.clinics c ON c.owner_user_id = u.user_id
+       JOIN public.clinic_verification_applications a
+         ON a.owner_user_id = u.user_id AND a.clinic_id = c.clinic_id
+      WHERE LOWER(u.email) = $1
+        AND a.verification_status IN ('Rejected', 'Pending')
+      ORDER BY a.submitted_at DESC
+      LIMIT 1`,
+    [normalizedEmail],
+  );
+
+  if (!result.rows.length) {
+    return {
+      allowed: false,
+      status: 404,
+      error: "No rejected or resubmitted clinic application was found.",
+    };
+  }
+  const application = result.rows[0];
+  if (!(await bcrypt.compare(password, application.password))) {
+    return { allowed: false, status: 401, error: "Invalid email or password." };
+  }
+  delete application.password;
+  return { allowed: true, application };
+};
+
+router.post("/verification/resubmission-status", async (req, res) => {
+  try {
+    const verification = await verifyRejectedClinicOwner(
+      req.body.email,
+      req.body.password,
+    );
+    if (!verification.allowed)
+      return res
+        .status(verification.status)
+        .json({ error: verification.error });
+    return res.status(200).json({ application: verification.application });
+  } catch (error) {
+    console.error("Verification resubmission status error:", error);
+    return res
+      .status(500)
+      .json({ error: "Unable to load the rejected clinic application." });
+  }
+});
+
+router.put(
+  "/verification/resubmit",
+  runClinicVerificationUpload,
+  async (req, res) => {
+    const files = getUploadedClinicVerificationFiles(req);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const verification = await verifyRejectedClinicOwner(
+        req.body.email,
+        req.body.password,
+        client,
+      );
+      if (!verification.allowed) {
+        await client.query("ROLLBACK");
+        deleteUploadedClinicVerificationFiles(req);
+        return res
+          .status(verification.status)
+          .json({ error: verification.error });
+      }
+      const application = verification.application;
+      if (application.verification_status !== "Rejected") {
+        await client.query("ROLLBACK");
+        deleteUploadedClinicVerificationFiles(req);
+        return res
+          .status(400)
+          .json({
+            error:
+              "This application is not currently eligible for resubmission.",
+          });
+      }
+      const reviews = normalizeDocumentReviews(
+        application.document_reviews || {},
+      );
+      const rejectedKeys = CLINIC_VERIFICATION_DOCUMENTS.filter(
+        (key) => reviews[key].status === "Rejected",
+      );
+      if (!rejectedKeys.length) {
+        await client.query("ROLLBACK");
+        deleteUploadedClinicVerificationFiles(req);
+        return res
+          .status(400)
+          .json({ error: "No rejected documents require replacement." });
+      }
+      const missing = rejectedKeys.find((key) => !files[key]);
+      if (missing) {
+        await client.query("ROLLBACK");
+        deleteUploadedClinicVerificationFiles(req);
+        return res
+          .status(400)
+          .json({ error: "Upload a replacement for every rejected document." });
+      }
+      const fieldMap = {
+        business_registration: [
+          "business_registration_path",
+          "business_registration_original_name",
+          "business_registration_mime_type",
+        ],
+        business_permit: [
+          "business_permit_path",
+          "business_permit_original_name",
+          "business_permit_mime_type",
+        ],
+        owner_government_id: [
+          "owner_government_id_path",
+          "owner_government_id_original_name",
+          "owner_government_id_mime_type",
+        ],
+        clinic_license: [
+          "clinic_license_path",
+          "clinic_license_original_name",
+          "clinic_license_mime_type",
+        ],
+      };
+      const sets = [];
+      const values = [];
+      const oldPaths = [];
+      for (const key of rejectedKeys) {
+        const file = files[key];
+        const [pathCol, nameCol, mimeCol] = fieldMap[key];
+        oldPaths.push(application[pathCol]);
+        values.push(toStoredClinicVerificationPath(file));
+        sets.push(`${pathCol} = $${values.length}`);
+        values.push(file.originalname);
+        sets.push(`${nameCol} = $${values.length}`);
+        values.push(file.mimetype);
+        sets.push(`${mimeCol} = $${values.length}`);
+        reviews[key] = { status: "Pending", remark: "" };
+        const expiryKey = `${key}_expiration_date`;
+        if (
+          ["business_permit", "owner_government_id"].includes(key) &&
+          req.body[expiryKey]
+        ) {
+          values.push(req.body[expiryKey]);
+          sets.push(`${expiryKey} = $${values.length}::date`);
+        }
+      }
+      values.push(JSON.stringify(reviews));
+      sets.push(`document_reviews = $${values.length}::jsonb`);
+      sets.push(
+        "verification_status = 'Pending'",
+        "rejection_reason = NULL",
+        "reviewed_by = NULL",
+        "reviewed_at = NULL",
+        "resubmitted_at = CURRENT_TIMESTAMP",
+        "resubmission_count = COALESCE(resubmission_count, 0) + 1",
+      );
+      values.push(application.application_id);
+      const updated = await client.query(
+        `UPDATE public.clinic_verification_applications SET ${sets.join(", ")} WHERE application_id = $${values.length} RETURNING *`,
+        values,
+      );
+      await client.query(
+        "UPDATE public.users SET status = 'Inactive' WHERE user_id = $1",
+        [application.user_id],
+      );
+      await client.query(
+        "UPDATE public.clinics SET status = 'Inactive' WHERE clinic_id = $1",
+        [application.clinic_id],
+      );
+      await client.query("COMMIT");
+      oldPaths.filter(Boolean).forEach(deleteClinicVerificationFile);
+      return res
+        .status(200)
+        .json({
+          message:
+            "Replacement documents submitted successfully and returned to pending review.",
+          application: updated.rows[0],
+        });
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      deleteUploadedClinicVerificationFiles(req);
+      console.error("Clinic verification resubmission error:", error);
+      return res
+        .status(500)
+        .json({
+          error: "Unable to resubmit the clinic verification documents.",
+        });
+    } finally {
+      client.release();
+    }
+  },
+);
+
+// ===============================
 // ADMIN: LIST CLINIC VERIFICATION APPLICATIONS
 // ===============================
 
@@ -1972,6 +2206,9 @@ router.get(
             a.owner_user_id,
             a.verification_status,
             a.rejection_reason,
+            a.document_reviews,
+            a.resubmitted_at,
+            a.resubmission_count,
             a.submitted_at,
             a.reviewed_at,
             a.business_registration_original_name,
@@ -2122,8 +2359,7 @@ router.get(
 
 // ===============================
 // ADMIN: APPROVE OR REJECT A CLINIC APPLICATION
-// Rejection permanently removes the pending owner, clinic, application,
-// and verification files because the account has never been activated.
+// Rejected records are preserved so the owner can resubmit only rejected files.
 // ===============================
 
 router.put(
@@ -2133,71 +2369,71 @@ router.put(
   async (req, res) => {
     const applicationId = Number(req.params.application_id);
     const decision = cleanText(req.body.decision);
-    const rejectionReason = cleanText(req.body.rejection_reason);
-
-    if (!Number.isInteger(applicationId) || applicationId <= 0) {
+    const documentReviews = normalizeDocumentReviews(req.body.document_reviews);
+    if (!Number.isInteger(applicationId) || applicationId <= 0)
       return res.status(400).json({ error: "Invalid clinic application ID." });
-    }
-
-    if (!["Approved", "Rejected"].includes(decision)) {
-      return res.status(400).json({
-        error: "Decision must be Approved or Rejected.",
-      });
-    }
-
-    if (decision === "Rejected" && rejectionReason.length < 5) {
-      return res.status(400).json({
-        error: "Enter a clear rejection reason with at least 5 characters.",
-      });
-    }
+    if (!["Approved", "Rejected"].includes(decision))
+      return res
+        .status(400)
+        .json({ error: "Decision must be Approved or Rejected." });
+    const rejected = Object.entries(documentReviews).filter(
+      ([, review]) => review.status === "Rejected",
+    );
+    if (decision === "Rejected" && !rejected.length)
+      return res
+        .status(400)
+        .json({ error: "Mark at least one submitted document as rejected." });
+    if (rejected.some(([, review]) => review.remark.length < 3))
+      return res
+        .status(400)
+        .json({
+          error: "A clear remark is required for every rejected document.",
+        });
+    if (
+      decision === "Approved" &&
+      Object.values(documentReviews).some(
+        (review) => review.status !== "Accepted",
+      )
+    )
+      return res
+        .status(400)
+        .json({
+          error: "Mark every submitted document as accepted before approving.",
+        });
 
     const client = await pool.connect();
-    let application = null;
-
     try {
       await client.query("BEGIN");
-
-      const applicationResult = await client.query(
-        `SELECT
-            a.*,
-            c.clinic_name,
-            c.status AS clinic_status,
-            u.name AS owner_name,
-            u.email AS owner_email,
-            u.status AS owner_status
-         FROM public.clinic_verification_applications a
-         JOIN public.clinics c ON c.clinic_id = a.clinic_id
-         JOIN public.users u ON u.user_id = a.owner_user_id
-         WHERE a.application_id = $1
-         FOR UPDATE OF a, c, u`,
+      const result = await client.query(
+        `SELECT a.*, c.clinic_name, u.name AS owner_name, u.email AS owner_email FROM public.clinic_verification_applications a JOIN public.clinics c ON c.clinic_id=a.clinic_id JOIN public.users u ON u.user_id=a.owner_user_id WHERE a.application_id=$1 FOR UPDATE OF a, c, u`,
         [applicationId],
       );
-
-      if (applicationResult.rows.length === 0) {
+      if (!result.rows.length) {
         await client.query("ROLLBACK");
         return res.status(404).json({ error: "Clinic application not found." });
       }
-
-      application = applicationResult.rows[0];
-
-      if (application.verification_status !== "Pending") {
+      const application = result.rows[0];
+      if (!["Pending", "Rejected"].includes(application.verification_status)) {
         await client.query("ROLLBACK");
-        return res.status(400).json({
-          error: `This clinic application has already been ${application.verification_status.toLowerCase()}.`,
-        });
+        return res
+          .status(400)
+          .json({
+            error: "Only pending or rejected applications can be reviewed.",
+          });
       }
-
+      const rejectionReason =
+        rejected.map(([key, r]) => `${key}: ${r.remark}`).join(" | ") || null;
+      const updated = await client.query(
+        `UPDATE public.clinic_verification_applications SET verification_status=$1, rejection_reason=$2, document_reviews=$3::jsonb, reviewed_by=$4, reviewed_at=CURRENT_TIMESTAMP WHERE application_id=$5 RETURNING *`,
+        [
+          decision,
+          rejectionReason,
+          JSON.stringify(documentReviews),
+          req.user.user_id,
+          applicationId,
+        ],
+      );
       if (decision === "Approved") {
-        await client.query(
-          `UPDATE public.clinic_verification_applications
-           SET verification_status = 'Approved',
-               rejection_reason = NULL,
-               reviewed_by = $1,
-               reviewed_at = CURRENT_TIMESTAMP
-           WHERE application_id = $2`,
-          [req.user.user_id, applicationId],
-        );
-
         await client.query(
           `UPDATE public.clinics
            SET status = 'Active'
@@ -2214,142 +2450,74 @@ router.put(
            WHERE user_id = $1`,
           [application.owner_user_id],
         );
+      } else {
+        await client.query(
+          `UPDATE public.clinics
+           SET status = 'Inactive'
+           WHERE clinic_id = $1`,
+          [application.clinic_id],
+        );
 
-        await client.query("COMMIT");
-
-        await createAuditLog({
-          user_id: req.user.user_id,
-          action: "APPROVE_CLINIC_APPLICATION",
-          module: "Clinic Verification",
-          description: `Approved clinic application for ${application.clinic_name}, owned by ${application.owner_name}.`,
-          ip_address: req.ip,
-        }).catch((auditError) => {
-          console.error("Approve clinic audit log error:", auditError.message);
-        });
-
-        let notificationSent = true;
-
-        try {
+        await client.query(
+          `UPDATE public.users
+           SET status = 'Inactive'
+           WHERE user_id = $1`,
+          [application.owner_user_id],
+        );
+      }
+      await client.query("COMMIT");
+      await createAuditLog({
+        user_id: req.user.user_id,
+        action:
+          decision === "Approved"
+            ? "APPROVE_CLINIC_APPLICATION"
+            : "REJECT_CLINIC_APPLICATION",
+        module: "Clinic Verification",
+        description:
+          decision === "Approved"
+            ? `Approved clinic application for ${application.clinic_name}.`
+            : `Rejected clinic application for ${application.clinic_name}. Files remain available for resubmission. ${rejectionReason}`,
+        ip_address: req.ip,
+      }).catch(() => {});
+      try {
+        if (decision === "Approved")
           await sendClinicApplicationApprovedEmail({
             to: application.owner_email,
             ownerName: application.owner_name,
             clinicName: application.clinic_name,
             loginUrl: getClinicOwnerLoginUrl(),
           });
-        } catch (emailError) {
-          notificationSent = false;
-          console.error(
-            "Clinic application approval email error:",
-            emailError.message,
-          );
-        }
-
-        return res.status(200).json({
-          message:
-            "Clinic application approved. The clinic and Clinic Owner account are now active.",
-          application_id: applicationId,
-          clinic_id: application.clinic_id,
-          owner_user_id: application.owner_user_id,
-          verification_status: "Approved",
-          notification_sent: notificationSent,
-        });
-      }
-
-      try {
-        await sendClinicApplicationRejectedEmail({
-          to: application.owner_email,
-          ownerName: application.owner_name,
-          clinicName: application.clinic_name,
-          rejectionReason,
-          registrationUrl: getClinicRegistrationUrl(),
-        });
+        else
+          await sendClinicApplicationRejectedEmail({
+            to: application.owner_email,
+            ownerName: application.owner_name,
+            clinicName: application.clinic_name,
+            rejectionReason,
+            registrationUrl: `${getFrontendBaseUrl()}/clinic/verification/resubmit`,
+          });
       } catch (emailError) {
-        await client.query("ROLLBACK");
-
         console.error(
-          "Clinic application rejection email error:",
+          "Clinic application notification error:",
           emailError.message,
         );
-
-        return res.status(502).json({
-          error:
-            "The rejection email could not be sent, so the clinic application was not deleted. Check the email configuration and try again.",
-          notification_sent: false,
-          application_preserved: true,
-        });
       }
-
-      const uploadedPaths = [
-        application.business_registration_path,
-        application.business_permit_path,
-        application.owner_government_id_path,
-        application.clinic_license_path,
-      ].filter(Boolean);
-
-      // Preserve historical audit records while removing their reference
-      // to the pending Clinic Owner account. The registration audit entry can
-      // otherwise prevent the user row from being deleted through its FK.
-      await client.query(
-        `UPDATE public.audit_logs
-         SET user_id = NULL
-         WHERE user_id = $1`,
-        [application.owner_user_id],
-      );
-
-      await client.query(
-        `DELETE FROM public.user_roles
-         WHERE user_id = $1`,
-        [application.owner_user_id],
-      );
-
-      // Clinic deletion cascades to clinic_verification_applications
-      // and clinic_services.
-      await client.query(
-        `DELETE FROM public.clinics
-         WHERE clinic_id = $1`,
-        [application.clinic_id],
-      );
-
-      await client.query(
-        `DELETE FROM public.users
-         WHERE user_id = $1`,
-        [application.owner_user_id],
-      );
-
-      await client.query("COMMIT");
-
-      uploadedPaths.forEach(deleteClinicVerificationFile);
-
-      await createAuditLog({
-        user_id: req.user.user_id,
-        action: "REJECT_CLINIC_APPLICATION",
-        module: "Clinic Verification",
-        description: `Rejected and deleted clinic application for ${application.clinic_name}. Reason: ${rejectionReason}`,
-        ip_address: req.ip,
-      }).catch((auditError) => {
-        console.error("Reject clinic audit log error:", auditError.message);
-      });
-
-      return res.status(200).json({
-        message:
-          "Clinic application rejected. The pending clinic, owner account, and verification documents were permanently removed.",
-        application_id: applicationId,
-        verification_status: "Rejected",
-        notification_sent: true,
-      });
+      return res
+        .status(200)
+        .json({
+          message:
+            decision === "Approved"
+              ? "Clinic application approved. The clinic and owner account are now active."
+              : "Clinic application rejected. The owner may replace the rejected documents.",
+          application: updated.rows[0],
+        });
     } catch (err) {
       await client.query("ROLLBACK").catch(() => {});
       console.error("Review clinic application error:", err.message);
-
-      return res.status(500).json({
-        error:
-          decision === "Approved"
-            ? "Error approving clinic application."
-            : "Error rejecting clinic application.",
-        database_code: err.code || null,
-        details:
-          process.env.NODE_ENV === "development" ? err.message : undefined,
-      });
+      return res
+        .status(500)
+        .json({
+          error: "Unable to review the clinic verification application.",
+        });
     } finally {
       client.release();
     }

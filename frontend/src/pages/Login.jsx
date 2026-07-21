@@ -21,6 +21,7 @@ function Login() {
   const [loading, setLoading] = useState(false);
   const [resendingVerification, setResendingVerification] = useState(false);
   const [unverifiedEmail, setUnverifiedEmail] = useState("");
+  const [showClinicResubmission, setShowClinicResubmission] = useState(false);
 
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -85,6 +86,7 @@ function Login() {
     setError("");
     setMessage("");
     setUnverifiedEmail("");
+    setShowClinicResubmission(false);
 
     if (!cleanEmail || !formData.password) {
       setError("Email and password are required.");
@@ -135,6 +137,12 @@ function Login() {
       const status = err.response?.status;
       const apiError = err.response?.data?.error;
       const emailUnverified = err.response?.data?.email_unverified;
+      const responseData = err.response?.data || {};
+      if (
+        responseData.code === "CLINIC_VERIFICATION_REJECTED" ||
+        responseData.verification_status === "Rejected"
+      )
+        setShowClinicResubmission(true);
 
       if (emailUnverified) {
         setUnverifiedEmail(formData.email.trim().toLowerCase());
@@ -222,6 +230,16 @@ function Login() {
       <form onSubmit={handleSubmit} className="auth-form">
         {error && <div className="auth-error">{error}</div>}
         {message && <div className="auth-success">{message}</div>}
+        {showClinicResubmission && (
+          <div className="info-message">
+            Your clinic verification application has rejected documents.
+            <div style={{ marginTop: "10px" }}>
+              <Link to="/clinic/verification/resubmit" className="auth-link">
+                View remarks and resubmit files
+              </Link>
+            </div>
+          </div>
+        )}
 
         <AuthInput
           label="Email Address"
@@ -325,6 +343,12 @@ function Login() {
           Registering a clinic?{" "}
           <Link to="/auth/clinic-register" className="auth-link">
             Create a clinic account
+          </Link>
+        </p>
+
+        <p className="auth-footer">
+          <Link to="/clinic/verification/resubmit" className="auth-link">
+            Resubmit rejected clinic documents
           </Link>
         </p>
       </form>

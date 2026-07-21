@@ -1013,6 +1013,19 @@ router.post("/login", loginLimiter, async (req, res) => {
     if (user.status === "Inactive") {
       if (
         user.role_name === "Clinic Owner" &&
+        user.clinic_application_status === "Rejected"
+      ) {
+        return res.status(403).json({
+          error:
+            "Your clinic application has rejected documents. Review the Administrator remarks and resubmit the required files.",
+          code: "CLINIC_VERIFICATION_REJECTED",
+          verification_status: "Rejected",
+          clinic_name: user.owned_clinic_name || null,
+        });
+      }
+
+      if (
+        user.role_name === "Clinic Owner" &&
         user.clinic_application_status === "Pending"
       ) {
         return res.status(403).json({

@@ -18,6 +18,7 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 import ClinicOwnerDashboard from "./pages/ClinicOwnerDashboard";
 import ClinicRegister from "./pages/ClinicRegister";
+import ClinicVerificationResubmit from "./pages/ClinicVerificationResubmit";
 import ClinicOwnerStaff from "./pages/ClinicOwnerStaff";
 import ClinicOwnerProfile from "./pages/ClinicOwnerProfile";
 import ClinicOwnerBranding from "./pages/ClinicOwnerBranding";
@@ -124,6 +125,10 @@ function App() {
 
         <Route path="/clinic/register" element={<ClinicRegister />} />
         <Route path="/auth/clinic-register" element={<ClinicRegister />} />
+        <Route
+          path="/clinic/verification/resubmit"
+          element={<ClinicVerificationResubmit />}
+        />
 
         <Route
           path="/admin/dashboard"
