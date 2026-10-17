@@ -64,6 +64,14 @@ const PORT = process.env.PORT || 5000;
 const NODE_ENV = process.env.NODE_ENV || "development";
 const isProduction = NODE_ENV === "production";
 
+const frontendRoot = path.resolve(
+  __dirname,
+  process.env.FRONTEND_BUILD_DIR ||
+    (isProduction ? "../../../../public_html" : "../frontend/build"),
+);
+
+const frontendIndexPath = path.join(frontendRoot, "index.html");
+
 app.set("trust proxy", 1);
 
 // ===============================
@@ -208,7 +216,11 @@ app.use(
 // ===============================
 
 app.get("/", (req, res) => {
-  res.status(200).json({
+  if (fs.existsSync(frontendIndexPath)) {
+    return res.sendFile(frontendIndexPath);
+  }
+
+  return res.status(200).json({
     message: "DentoGraph API is running",
     environment: NODE_ENV,
     frontend_url: process.env.FRONTEND_URL || null,
@@ -349,6 +361,28 @@ app.use("/api/ar-simulations", arSimulationRoutes);
 app.use("/api/walk-in-patients", walkInPatientRoutes);
 app.use("/api/patient-transfers", patientTransferRoutes);
 app.use("/api/inventory", inventoryRoutes);
+
+// ===============================
+// FRONTEND ROUTE FALLBACK
+// ===============================
+
+app.use((req, res, next) => {
+  const isFrontendPage =
+    req.method === "GET" &&
+    req.accepts("html") &&
+    !req.path.startsWith("/api/") &&
+    !req.path.startsWith("/uploads/");
+
+  if (!isFrontendPage || !fs.existsSync(frontendIndexPath)) {
+    return next();
+  }
+
+  return res.sendFile(frontendIndexPath, (err) => {
+    if (err) {
+      next(err);
+    }
+  });
+});
 
 // ===============================
 // 404 HANDLER
