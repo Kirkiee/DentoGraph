@@ -1,4 +1,4 @@
-export const API_ORIGIN = "https://api.dentograph.site";
+export const API_ORIGIN = "https://dentograph.site";
 export const API_BASE_URL = `${API_ORIGIN}/api`;
 export const WEB_APP_ORIGIN = "https://dentograph.site";
 export const API_TIMEOUT_MS = 20000;
