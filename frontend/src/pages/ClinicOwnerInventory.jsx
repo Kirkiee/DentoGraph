@@ -25,6 +25,8 @@ const EMPTY_MOVEMENT_FORM = {
   reference_number: "",
 };
 
+const DEFAULT_ITEMS_PER_PAGE = 10;
+
 const DEFAULT_CATEGORIES = [
   "Dental Materials",
   "Disposable Supplies",
@@ -95,6 +97,9 @@ const ClinicOwnerInventory = () => {
     record_status: "Active",
   });
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(DEFAULT_ITEMS_PER_PAGE);
+
   const [itemForm, setItemForm] = useState(EMPTY_ITEM_FORM);
   const [movementForm, setMovementForm] = useState(EMPTY_MOVEMENT_FORM);
   const [editingItem, setEditingItem] = useState(null);
@@ -120,6 +125,31 @@ const ClinicOwnerInventory = () => {
       ) || null,
     [locations, selectedClinicId],
   );
+
+  const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
+  const pageStartIndex = (currentPage - 1) * itemsPerPage;
+  const pageEndIndex = Math.min(pageStartIndex + itemsPerPage, items.length);
+
+  const paginatedItems = useMemo(
+    () => items.slice(pageStartIndex, pageEndIndex),
+    [items, pageStartIndex, pageEndIndex],
+  );
+
+  const visiblePageNumbers = useMemo(() => {
+    const maximumVisiblePages = 5;
+    let startPage = Math.max(
+      1,
+      currentPage - Math.floor(maximumVisiblePages / 2),
+    );
+    let endPage = Math.min(totalPages, startPage + maximumVisiblePages - 1);
+
+    startPage = Math.max(1, endPage - maximumVisiblePages + 1);
+
+    return Array.from(
+      { length: endPage - startPage + 1 },
+      (_, index) => startPage + index,
+    );
+  }, [currentPage, totalPages]);
 
   const loadLocations = useCallback(async () => {
     try {
@@ -209,6 +239,21 @@ const ClinicOwnerInventory = () => {
 
     return () => window.clearTimeout(timer);
   }, [loadInventory]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    selectedClinicId,
+    filters.search,
+    filters.category,
+    filters.stock_status,
+    filters.record_status,
+    itemsPerPage,
+  ]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(page, totalPages));
+  }, [totalPages]);
 
   const resetNotices = () => {
     setMessage("");
@@ -958,7 +1003,7 @@ const ClinicOwnerInventory = () => {
                 </thead>
 
                 <tbody>
-                  {items.map((item) => (
+                  {paginatedItems.map((item) => (
                     <tr key={item.inventory_item_id}>
                       <td>{item.sku || "—"}</td>
 
@@ -1076,6 +1121,99 @@ const ClinicOwnerInventory = () => {
                   ))}
                 </tbody>
               </table>
+
+              <div className="inventory-pagination no-print">
+                <div className="inventory-pagination-summary">
+                  <span>
+                    Showing {pageStartIndex + 1}–{pageEndIndex} of{" "}
+                    {items.length}
+                    {items.length === 1 ? " item" : " items"}
+                  </span>
+
+                  <label htmlFor="inventory-items-per-page">
+                    Rows per page
+                    <select
+                      id="inventory-items-per-page"
+                      value={itemsPerPage}
+                      onChange={(event) =>
+                        setItemsPerPage(Number(event.target.value))
+                      }
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </label>
+                </div>
+
+                {totalPages > 1 && (
+                  <nav
+                    className="pagination inventory-pagination-controls"
+                    aria-label="Inventory pagination"
+                  >
+                    <button
+                      type="button"
+                      className="pagination-button"
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      aria-label="Go to first inventory page"
+                    >
+                      First
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pagination-button"
+                      onClick={() =>
+                        setCurrentPage((page) => Math.max(1, page - 1))
+                      }
+                      disabled={currentPage === 1}
+                      aria-label="Go to previous inventory page"
+                    >
+                      Previous
+                    </button>
+
+                    {visiblePageNumbers.map((pageNumber) => (
+                      <button
+                        key={pageNumber}
+                        type="button"
+                        className={`pagination-button page-button ${
+                          currentPage === pageNumber ? "active" : ""
+                        }`}
+                        onClick={() => setCurrentPage(pageNumber)}
+                        aria-current={
+                          currentPage === pageNumber ? "page" : undefined
+                        }
+                        aria-label={`Go to inventory page ${pageNumber}`}
+                      >
+                        {pageNumber}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      className="pagination-button"
+                      onClick={() =>
+                        setCurrentPage((page) => Math.min(totalPages, page + 1))
+                      }
+                      disabled={currentPage === totalPages}
+                      aria-label="Go to next inventory page"
+                    >
+                      Next
+                    </button>
+
+                    <button
+                      type="button"
+                      className="pagination-button"
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      aria-label="Go to last inventory page"
+                    >
+                      Last
+                    </button>
+                  </nav>
+                )}
+              </div>
             </div>
           )}
         </section>

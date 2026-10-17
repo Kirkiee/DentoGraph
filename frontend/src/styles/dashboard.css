@@ -5816,6 +5816,26 @@ body textarea::-ms-input-placeholder {
   color: #94a3b8;
 }
 
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-moz-placeholder,
+body textarea::-moz-placeholder {
+  color: #94a3b8;
+}
+
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder {
+  color: #94a3b8;
+}
+
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder {
+  color: #94a3b8;
+}
+
 body input::placeholder,
 body textarea::placeholder {
   color: #94a3b8;
@@ -6104,6 +6124,50 @@ body .appointment-filters select:focus {
 }
 
 /* Placeholder text */
+body input::-webkit-input-placeholder,
+body textarea::-webkit-input-placeholder,
+body .modal-form input::-webkit-input-placeholder,
+body .modal-form textarea::-webkit-input-placeholder,
+body .appointment-form input::-webkit-input-placeholder,
+body .appointment-form textarea::-webkit-input-placeholder,
+body .profile-field input::-webkit-input-placeholder,
+body .profile-field textarea::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-moz-placeholder,
+body textarea::-moz-placeholder,
+body .modal-form input::-moz-placeholder,
+body .modal-form textarea::-moz-placeholder,
+body .appointment-form input::-moz-placeholder,
+body .appointment-form textarea::-moz-placeholder,
+body .profile-field input::-moz-placeholder,
+body .profile-field textarea::-moz-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input:-ms-input-placeholder,
+body textarea:-ms-input-placeholder,
+body .modal-form input:-ms-input-placeholder,
+body .modal-form textarea:-ms-input-placeholder,
+body .appointment-form input:-ms-input-placeholder,
+body .appointment-form textarea:-ms-input-placeholder,
+body .profile-field input:-ms-input-placeholder,
+body .profile-field textarea:-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
+body input::-ms-input-placeholder,
+body textarea::-ms-input-placeholder,
+body .modal-form input::-ms-input-placeholder,
+body .modal-form textarea::-ms-input-placeholder,
+body .appointment-form input::-ms-input-placeholder,
+body .appointment-form textarea::-ms-input-placeholder,
+body .profile-field input::-ms-input-placeholder,
+body .profile-field textarea::-ms-input-placeholder {
+  color: #94a3b8 !important;
+  opacity: 1 !important;
+}
 body input::-webkit-input-placeholder,
 body textarea::-webkit-input-placeholder,
 body .modal-form input::-webkit-input-placeholder,
@@ -19199,6 +19263,26 @@ body .password-toggle-button,
   color: #94a3b8 !important;
 }
 
+.patient-record-filter-panel input::-webkit-input-placeholder,
+.patient-xray-control-panel input::-webkit-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-moz-placeholder,
+.patient-xray-control-panel input::-moz-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input:-ms-input-placeholder,
+.patient-xray-control-panel input:-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
+.patient-record-filter-panel input::-ms-input-placeholder,
+.patient-xray-control-panel input::-ms-input-placeholder {
+  color: #94a3b8 !important;
+}
+
 .patient-record-filter-panel input::placeholder,
 .patient-xray-control-panel input::placeholder {
   color: #94a3b8 !important;
@@ -23429,6 +23513,26 @@ body {
   color: #718096 !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: #718096 !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: #718096 !important;
+}
+
 .dashboard-layout input::placeholder,
 .dashboard-layout textarea::placeholder {
   color: #718096 !important;
@@ -25707,6 +25811,42 @@ body {
   ) !important;
 }
 
+.dashboard-layout input::-webkit-input-placeholder,
+.dashboard-layout textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-moz-placeholder,
+.dashboard-layout textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input:-ms-input-placeholder,
+.dashboard-layout textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout input::-ms-input-placeholder,
+.dashboard-layout textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--clinic-input-text) 52%,
+    transparent
+  ) !important;
+}
+
 .dashboard-layout input::placeholder,
 .dashboard-layout textarea::placeholder {
   color: color-mix(
@@ -26068,6 +26208,42 @@ body {
   border-color: var(--clinic-primary) !important;
   box-shadow: 0 0 0 4px
     color-mix(in srgb, var(--clinic-primary) 16%, transparent) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-webkit-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-moz-placeholder,
+.dashboard-layout.portal-theme-light textarea::-moz-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input:-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea:-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
+}
+
+.dashboard-layout.portal-theme-light input::-ms-input-placeholder,
+.dashboard-layout.portal-theme-light textarea::-ms-input-placeholder {
+  color: color-mix(
+    in srgb,
+    var(--portal-light-input-text) 48%,
+    transparent
+  ) !important;
 }
 
 .dashboard-layout.portal-theme-light input::-webkit-input-placeholder,
@@ -33562,6 +33738,34 @@ body {
   opacity: 1;
 }
 
+.phase11-dentist-availability-page
+  .phase11-block-date-form
+  input::-webkit-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.phase11-dentist-availability-page
+  .phase11-block-date-form
+  input::-moz-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.phase11-dentist-availability-page
+  .phase11-block-date-form
+  input:-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.phase11-dentist-availability-page
+  .phase11-block-date-form
+  input::-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
 .phase11-dentist-availability-page .phase11-block-date-form input::placeholder {
   color: var(--clinic-muted-text, #94a3b8);
   opacity: 1;
@@ -33965,6 +34169,30 @@ body {
 .patient-transfer-form select option {
   color: var(--clinic-body-text, #f8fafc);
   background: var(--clinic-surface-elevated, #111827);
+}
+
+.patient-transfer-form textarea::-webkit-input-placeholder,
+.patient-transfer-form input::-webkit-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.patient-transfer-form textarea::-moz-placeholder,
+.patient-transfer-form input::-moz-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.patient-transfer-form textarea:-ms-input-placeholder,
+.patient-transfer-form input:-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
+}
+
+.patient-transfer-form textarea::-ms-input-placeholder,
+.patient-transfer-form input::-ms-input-placeholder {
+  color: var(--clinic-muted-text, #94a3b8);
+  opacity: 1;
 }
 
 .patient-transfer-form textarea::-webkit-input-placeholder,
@@ -37795,5 +38023,87 @@ body:not(.dark-mode) .admin-clinic-review-modal .error-message {
   .admin-clinic-review-modal .modal-actions button {
     flex: 1;
     min-width: 0;
+  }
+}
+
+/* Add this near the inventory styles in frontend/src/styles/dashboard.css */
+.inventory-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px;
+  border-top: 1px solid var(--portal-primary, #2fc9c3);
+  background: var(--portal-surface, #ffffff);
+}
+
+.inventory-pagination-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  color: var(--portal-text-muted, #64748b);
+  font-size: 0.9rem;
+}
+
+.inventory-pagination-summary label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.inventory-pagination-summary select {
+  min-width: 72px;
+  padding: 7px 30px 7px 10px;
+  border: 1px solid var(--portal-border, #cbd5e1);
+  border-radius: 8px;
+  background: var(--portal-surface, #ffffff);
+  color: var(--portal-text, #0f172a);
+}
+
+.inventory-pagination-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0;
+}
+
+.inventory-pagination-controls .pagination-button {
+  min-width: 38px;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid var(--portal-primary, #2fc9c3);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--portal-text, #0f172a);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.inventory-pagination-controls .pagination-button:hover:not(:disabled),
+.inventory-pagination-controls .pagination-button.active {
+  background: var(--portal-primary, #2fc9c3);
+  color: #ffffff;
+}
+
+.inventory-pagination-controls .pagination-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 768px) {
+  .inventory-pagination,
+  .inventory-pagination-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .inventory-pagination-controls {
+    justify-content: center;
   }
 }
