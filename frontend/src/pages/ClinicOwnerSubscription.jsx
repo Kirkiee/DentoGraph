@@ -241,6 +241,16 @@ function ClinicOwnerSubscription() {
     return Number(clinic?.subscription_plan_id) === Number(plan.plan_id);
   };
 
+  const isSubscriptionExpired = () => {
+    if (!clinic) return false;
+    if (String(clinic.subscription_status || "").toLowerCase() === "expired") {
+      return true;
+    }
+    if (!clinic.subscription_end_date) return false;
+    const end = new Date(clinic.subscription_end_date);
+    return !Number.isNaN(end.getTime()) && end.getTime() <= Date.now();
+  };
+
   const getPlanChangeType = (plan) => {
     const currentPrice = Number(clinic?.price || 0);
     const selectedPrice = Number(plan.price || 0);
@@ -262,7 +272,7 @@ function ClinicOwnerSubscription() {
   };
 
   const handleChangePlan = async (plan) => {
-    if (isCurrentPlan(plan)) return;
+    if (isCurrentPlan(plan) && !isSubscriptionExpired()) return;
 
     if (Number(plan.price || 0) <= 0) {
       const confirmFreeChange = window.confirm(
@@ -681,6 +691,10 @@ function ClinicOwnerSubscription() {
                 <div className="patient-quick-action-grid subscription-plan-grid">
                   {plans.map((plan) => {
                     const current = isCurrentPlan(plan);
+                    const canRenew =
+                      current &&
+                      isSubscriptionExpired() &&
+                      Number(plan.price || 0) > 0;
                     const features = getPlanFeatures(plan);
                     const changeType = getPlanChangeType(plan);
 
@@ -700,7 +714,11 @@ function ClinicOwnerSubscription() {
                                   : "status-badge status-scheduled"
                               }
                             >
-                              {current ? "Current Plan" : `${changeType} Plan`}
+                              {canRenew
+                                ? "Expired — Renew"
+                                : current
+                                  ? "Current Plan"
+                                  : `${changeType} Plan`}
                             </span>
                           </div>
 
@@ -729,17 +747,20 @@ function ClinicOwnerSubscription() {
                         <div className="appointment-actions">
                           <button
                             className={
-                              current ? "secondary-button" : "primary-button"
+                              current && !canRenew
+                                ? "secondary-button"
+                                : "primary-button"
                             }
-                            disabled={current || checkoutLoading}
+                            disabled={(current && !canRenew) || checkoutLoading}
                             onClick={() => handleChangePlan(plan)}
                           >
-                            {current
-                              ? "Current"
-                              : checkoutLoading &&
-                                  selectedPlan === plan.plan_name
-                                ? "Preparing Checkout..."
-                                : "Change Shared Plan"}
+                            {checkoutLoading && selectedPlan === plan.plan_name
+                              ? "Preparing Checkout..."
+                              : canRenew
+                                ? "Renew Subscription"
+                                : current
+                                  ? "Current"
+                                  : "Change Shared Plan"}
                           </button>
                         </div>
                       </div>

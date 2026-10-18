@@ -48,6 +48,19 @@ const getOwnerSubscriptionSource = async (client, ownerUserId) => {
   return result.rows[0] || null;
 };
 
+// A subscription may be past its end date even if a scheduled job has not
+// changed subscription_status to Expired yet.
+const isSubscriptionExpired = (subscription) => {
+  if (!subscription) return false;
+  if (
+    String(subscription.subscription_status || "").toLowerCase() === "expired"
+  )
+    return true;
+  if (!subscription.subscription_end_date) return false;
+  const end = new Date(subscription.subscription_end_date);
+  return !Number.isNaN(end.getTime()) && end.getTime() <= Date.now();
+};
+
 const getOwnerLocationCount = async (client, ownerUserId) => {
   const result = await client.query(
     `SELECT COUNT(*)::int AS count
@@ -355,12 +368,20 @@ router.post(
       const plan = planResult.rows[0];
       const price = Number(plan.price || 0);
 
-      if (Number(clinic.subscription_plan_id) === Number(plan.plan_id)) {
-        await client.query("ROLLBACK");
+      // Same-plan checkout is permitted for an expired subscription (renewal).
+      // Active subscriptions cannot accidentally pay again for the same plan.
+      const renewingExpiredPlan =
+        Number(clinic.subscription_plan_id) === Number(plan.plan_id) &&
+        isSubscriptionExpired(clinic);
 
+      if (
+        Number(clinic.subscription_plan_id) === Number(plan.plan_id) &&
+        !renewingExpiredPlan
+      ) {
+        await client.query("ROLLBACK");
         return res.status(400).json({
           error:
-            "This Clinic Owner account is already subscribed to the selected plan.",
+            "This subscription is still active. Renewal is available after expiration.",
         });
       }
 
@@ -399,7 +420,7 @@ router.post(
             send_email_receipt: true,
             show_description: true,
             show_line_items: true,
-            description: `${plan.plan_name} shared subscription for Clinic Owner account`,
+            description: `${renewingExpiredPlan ? "Renewal" : "Plan change"}: ${plan.plan_name} shared subscription for Clinic Owner account`,
             success_url: successUrl,
             cancel_url: cancelUrl,
             line_items: [
@@ -469,7 +490,7 @@ router.post(
         user_id: req.user.user_id,
         action: "CREATE_PAYMONGO_CHECKOUT",
         module: "Payments",
-        description: `Created PayMongo checkout for ${plan.plan_name} shared plan under Clinic Owner account.`,
+        description: `Created PayMongo ${renewingExpiredPlan ? "renewal" : "plan change"} checkout for ${plan.plan_name} shared plan under Clinic Owner account.`,
         ip_address: req.ip,
       });
 
